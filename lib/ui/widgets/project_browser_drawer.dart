@@ -3,7 +3,19 @@ import '../../lua/lua_preset_library.dart';
 import '../../models/daw_state.dart';
 import '../../theme/eats_theme.dart';
 import '../../audio/soundfont_engine.dart';
+import '../../utils/soundfont_pack_manager.dart';
+import '../../utils/ir_pack_manager.dart';
 import 'command_palette_dialog.dart';
+
+class SoundFontDragItem {
+  final String fontId;
+  final String displayName;
+
+  SoundFontDragItem({
+    required this.fontId,
+    required this.displayName,
+  });
+}
 
 class ProjectBrowserDrawer extends StatefulWidget {
   final DawState dawState;
@@ -240,16 +252,85 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
 
         const SizedBox(height: 12),
         _buildSectionHeader('SOUNDFONTS & IMPULSES', Icons.library_music),
-        ...SoundFontEngine.instance.loadedFonts.keys.map((sf) => Container(
-              margin: const EdgeInsets.only(bottom: 4),
-              child: ListTile(
-                dense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                leading: const Icon(Icons.graphic_eq, size: 16, color: Color(0xFF00FF66)),
-                title: Text(sf, style: EatsTheme.getPrimaryFontStyle(fontSize: 11, color: EatsTheme.textLight)),
-                subtitle: Text('SoundFont Instrument Pack', style: EatsTheme.getPrimaryFontStyle(fontSize: 9, color: EatsTheme.textMuted)),
-              ),
-            )),
+        AnimatedBuilder(
+          animation: SoundFontEngine.instance,
+          builder: (context, _) {
+            final loadedFonts = SoundFontEngine.instance.loadedDisplayFonts;
+            return Column(
+              children: loadedFonts.entries.map((entry) {
+                final fontId = entry.key;
+                final displayName = entry.value;
+                final dragItem = SoundFontDragItem(fontId: fontId, displayName: displayName);
+
+                return Draggable<SoundFontDragItem>(
+                  data: dragItem,
+                  feedback: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: EatsTheme.panelHeader,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: EatsTheme.accentGreen, width: 2),
+                        boxShadow: [
+                          BoxShadow(color: EatsTheme.accentGreen.withOpacity(0.4), blurRadius: 12),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.piano, color: EatsTheme.accentGreen, size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            displayName,
+                            style: EatsTheme.getPrimaryFontStyle(
+                              color: EatsTheme.accentGreen,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  childWhenDragging: Opacity(
+                    opacity: 0.4,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 4),
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                        leading: const Icon(Icons.piano, size: 16, color: Color(0xFF00FF66)),
+                        title: Text(displayName, style: EatsTheme.getPrimaryFontStyle(fontSize: 11, color: EatsTheme.textLight)),
+                        subtitle: Text('SoundFont Instrument Bank (Drag to Track)', style: EatsTheme.getPrimaryFontStyle(fontSize: 9, color: EatsTheme.textMuted)),
+                      ),
+                    ),
+                  ),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 4),
+                    child: ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                      leading: const Icon(Icons.piano, size: 16, color: Color(0xFF00FF66)),
+                      title: Text(displayName, style: EatsTheme.getPrimaryFontStyle(fontSize: 11, color: EatsTheme.textLight)),
+                      subtitle: Text('SoundFont Instrument Bank (Drag or Tap to select)', style: EatsTheme.getPrimaryFontStyle(fontSize: 9, color: EatsTheme.textMuted)),
+                      onTap: () {
+                        widget.dawState.applySoundFont(fontId, displayName: displayName);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Loaded SoundFont "$displayName" onto active track'),
+                            backgroundColor: EatsTheme.panelHeader,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
       ],
     );
   }
@@ -401,76 +482,114 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
 
   // --- TAB 3: DOWNLOAD & EXPANSION PACKS ---
   Widget _buildPacksTab() {
-    final List<Map<String, String>> samplePacks = [
-      {
-        'title': 'Synthwave & Cyber 808s',
-        'desc': 'Vintage chiptune waves, analog drums & fat 303 basses',
-        'status': 'INSTALLED',
-      },
-      {
-        'title': 'Acoustic IR Reverbs',
-        'desc': 'Real hall, plate, and vintage tape impulse responses',
-        'status': 'INSTALLED',
-      },
-      {
-        'title': 'Lo-Fi Tape Drums',
-        'desc': 'Saturated cassette drum kits and acoustic percussion',
-        'status': 'AVAILABLE',
-      },
-      {
-        'title': 'Modular Lua FX Bundle',
-        'desc': 'Advanced scriptable phaser, flanger & pitch modulators',
-        'status': 'AVAILABLE',
-      },
-    ];
+    return AnimatedBuilder(
+      animation: SoundFontPackManager.instance,
+      builder: (context, _) {
+        final sfPacks = SoundFontPackManager.instance.packs;
 
-    return ListView(
-      padding: const EdgeInsets.all(8),
-      children: [
-        _buildSectionHeader('SOUND & EXPANSION PACKS', Icons.download_for_offline),
-        ...samplePacks.map((pack) {
-          final isInstalled = pack['status'] == 'INSTALLED';
+        return ListView(
+          padding: const EdgeInsets.all(8),
+          children: [
+            _buildSectionHeader('SOUNDFONT EXPANSION PACKS', Icons.library_music),
+            ...sfPacks.map((pack) {
+              final isInstalled = pack.isDownloaded;
+              final isDownloading = pack.isDownloading;
 
-          return Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.25),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: EatsTheme.panelHeader, width: 1),
-            ),
-            child: ListTile(
-              dense: true,
-              contentPadding: const EdgeInsets.all(8),
-              leading: Icon(
-                isInstalled ? Icons.check_circle_outline : Icons.cloud_download_outlined,
-                color: isInstalled ? const Color(0xFF00FF66) : EatsTheme.primaryCyan,
-              ),
-              title: Text(
-                pack['title']!,
-                style: EatsTheme.getPrimaryFontStyle(fontSize: 12, fontWeight: FontWeight.bold, color: EatsTheme.textLight),
-              ),
-              subtitle: Text(
-                pack['desc']!,
-                style: EatsTheme.getPrimaryFontStyle(fontSize: 10, color: EatsTheme.textMuted),
-              ),
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
-                  color: isInstalled ? Colors.green.withOpacity(0.2) : EatsTheme.primaryCyan.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  pack['status']!,
-                  style: EatsTheme.getDisplayFontStyle(
-                    fontSize: 9,
-                    color: isInstalled ? const Color(0xFF00FF66) : EatsTheme.primaryCyan,
+                  color: Colors.black.withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: isInstalled ? const Color(0xFF00FF66).withOpacity(0.4) : EatsTheme.panelHeader,
+                    width: 1,
                   ),
                 ),
-              ),
-            ),
-          );
-        }),
-      ],
+                child: Column(
+                  children: [
+                    ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.all(8),
+                      leading: Icon(
+                        isInstalled ? Icons.check_circle_outline : (isDownloading ? Icons.sync : Icons.cloud_download_outlined),
+                        color: isInstalled ? const Color(0xFF00FF66) : EatsTheme.primaryCyan,
+                      ),
+                      title: Text(
+                        pack.title,
+                        style: EatsTheme.getPrimaryFontStyle(fontSize: 12, fontWeight: FontWeight.bold, color: EatsTheme.textLight),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pack.description,
+                            style: EatsTheme.getPrimaryFontStyle(fontSize: 10, color: EatsTheme.textMuted),
+                          ),
+                          if (pack.statusMessage.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              pack.statusMessage,
+                              style: EatsTheme.getPrimaryFontStyle(
+                                fontSize: 9,
+                                color: pack.statusMessage.startsWith('Error') || pack.statusMessage.startsWith('Download failed')
+                                    ? Colors.redAccent
+                                    : EatsTheme.primaryCyan,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      trailing: GestureDetector(
+                        onTap: () {
+                          if (!isInstalled && !isDownloading) {
+                            SoundFontPackManager.instance.downloadAndInstallPack(pack);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isInstalled
+                                ? Colors.green.withOpacity(0.2)
+                                : (isDownloading ? Colors.orange.withOpacity(0.2) : EatsTheme.primaryCyan.withOpacity(0.2)),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: isInstalled
+                                  ? const Color(0xFF00FF66)
+                                  : (isDownloading ? Colors.orange : EatsTheme.primaryCyan),
+                            ),
+                          ),
+                          child: Text(
+                            isInstalled ? 'INSTALLED' : (isDownloading ? 'DOWNLOADING...' : 'DOWNLOAD (${pack.fileSizeMb}MB)'),
+                            style: EatsTheme.getDisplayFontStyle(
+                              fontSize: 9,
+                              color: isInstalled
+                                  ? const Color(0xFF00FF66)
+                                  : (isDownloading ? Colors.orange : EatsTheme.primaryCyan),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (isDownloading) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: LinearProgressIndicator(
+                          value: pack.downloadProgress,
+                          backgroundColor: Colors.black.withOpacity(0.25),
+                          valueColor: AlwaysStoppedAnimation<Color>(EatsTheme.primaryCyan),
+                          minHeight: 3,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+          ],
+        );
+      },
     );
   }
 
@@ -496,12 +615,6 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
         'name': 'Light Snack',
         'desc': 'Bright studio theme optimized for daylight visibility',
         'color': const Color(0xFF0088FF),
-      },
-      {
-        'preset': EatsThemePreset.flatMinimal,
-        'name': 'Flat Minimal',
-        'desc': 'Clean flat modern dark UI without skeuomorphic glare',
-        'color': const Color(0xFFAAAAAA),
       },
     ];
 

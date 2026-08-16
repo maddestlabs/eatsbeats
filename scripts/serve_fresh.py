@@ -65,7 +65,7 @@ def build_flutter_web(wasm=False, profile=False):
     print("=" * 60)
     
     flutter_bin = shutil.which("flutter") or shutil.which("flutter.bat") or ("flutter.bat" if os.name == 'nt' else "flutter")
-    cmd = [flutter_bin, "build", "web", "--no-tree-shake-icons"]
+    cmd = [flutter_bin, "build", "web", "--no-tree-shake-icons", "--pwa-strategy=none"]
     if wasm:
         cmd.append("--wasm")
     if profile:
@@ -152,9 +152,10 @@ def main():
         webbrowser.open(url)
 
     try:
-        with socketserver.TCPServer(("127.0.0.1", port), EatsBitsHTTPRequestHandler) as httpd:
-            print("[+] Press Ctrl+C to stop the server.\n")
-            httpd.serve_forever()
+        httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), EatsBitsHTTPRequestHandler)
+        httpd.daemon_threads = True
+        print("[+] Press Ctrl+C to stop the server.\n")
+        httpd.serve_forever()
     except KeyboardInterrupt:
         print("\n[+] Server stopped by user.")
         sys.exit(0)

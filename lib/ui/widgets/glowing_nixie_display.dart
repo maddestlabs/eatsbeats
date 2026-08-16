@@ -79,12 +79,10 @@ class GlowingNixieDisplay extends StatelessWidget {
       ),
     );
 
-    final content = EatsTheme.enableGlassGlares
-        ? CustomPaint(
-            foregroundPainter: _LcdGlassReflectionPainter(),
-            child: displayBox,
-          )
-        : displayBox;
+    final content = CustomPaint(
+      foregroundPainter: _LcdGlassReflectionPainter(),
+      child: displayBox,
+    );
 
     if (!hasLabel) {
       return content;

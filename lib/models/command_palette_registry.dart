@@ -267,8 +267,6 @@ class CommandPaletteRegistry {
         return 'Midnight Bites (Obsidian Dark)';
       case EatsThemePreset.lightSnack:
         return 'Light Snack (Bright Studio)';
-      case EatsThemePreset.flatMinimal:
-        return 'Flat Minimal (Stock Dark)';
     }
   }
 
@@ -280,8 +278,6 @@ class CommandPaletteRegistry {
         return 'Sleek dark neon cyber aesthetic with high-contrast glowing accents';
       case EatsThemePreset.lightSnack:
         return 'Clean daylight studio theme for high visibility';
-      case EatsThemePreset.flatMinimal:
-        return 'Clean flat minimal UI without skeuomorphic glares or shadows';
     }
   }
 

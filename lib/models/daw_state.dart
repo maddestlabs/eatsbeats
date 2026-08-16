@@ -76,6 +76,7 @@ class DawState extends ChangeNotifier {
     if (preset.isInstrument) {
       track.name = preset.name;
       track.type = TrackType.luaScript;
+      track.luaScriptCode = preset.code;
       compileLuaCode(preset.code);
     } else if (preset.isAudioFx) {
       addFXInsert(track, FXType.distortion);
@@ -121,13 +122,80 @@ class DawState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void changeTrackSoundFont(TrackChannel track, String fontId, {String? displayName}) {
+    track.sampleName = fontId;
+    if (displayName != null && displayName.isNotEmpty) {
+      track.name = displayName;
+    }
+    track.luaParams['PresetNum'] = 0.0;
+    track.luaParams['BankNum'] = 0.0;
+    final sfPreset = LuaPresetLibrary.presets.firstWhere(
+      (p) => p.id == 'soundfont_sampler',
+      orElse: () => LuaPresetLibrary.presets.first,
+    );
+    track.luaScriptCode = sfPreset.code;
+    compileLuaCode(sfPreset.code);
+    notifyListeners();
+  }
+
+  void applySoundFont(String fontId, {String? displayName, TrackChannel? targetTrack}) {
+    final track = targetTrack ?? activeTrack;
+    changeTrackSoundFont(track, fontId, displayName: displayName);
+  }
+
+  void addNewSoundFontTrack(String fontId, {String? displayName}) {
+    final sfPreset = LuaPresetLibrary.presets.firstWhere(
+      (p) => p.id == 'soundfont_sampler',
+      orElse: () => LuaPresetLibrary.presets.first,
+    );
+
+    final trackId = 'track_${DateTime.now().millisecondsSinceEpoch}';
+    final trackColors = [
+      const Color(0xFF21F4E8),
+      const Color(0xFFFF8C00),
+      const Color(0xFF00FF66),
+      const Color(0xFFFF0055),
+      const Color(0xFFBD00FF),
+    ];
+    final color = trackColors[activePattern.tracks.length % trackColors.length];
+    final name = displayName ?? fontId.replaceAll('.sf2', '').replaceAll('_', ' ');
+
+    final newTrack = TrackChannel(
+      id: trackId,
+      name: name,
+      type: TrackType.luaScript,
+      color: color,
+      sampleName: fontId,
+      luaScriptCode: sfPreset.code,
+    );
+
+    final clip = TrackClip(
+      id: 'clip_${trackId}_0',
+      name: name,
+      trackId: trackId,
+      startBar: 0,
+      barLength: 2,
+    );
+
+    newTrack.clips.add(clip);
+    activePattern.tracks.add(newTrack);
+    activeTrackIndex = activePattern.tracks.length - 1;
+    compileLuaCode(sfPreset.code);
+    notifyListeners();
+  }
+
   void setThemePreset(EatsThemePreset preset) {
     EatsTheme.currentPreset = preset;
     notifyListeners();
   }
 
   void applyLuaTheme(Map<String, dynamic> themeConfig) {
-    EatsTheme.applyLuaThemeMap(themeConfig);
+    if (themeConfig.containsKey('preset')) {
+      final pName = themeConfig['preset']?.toString();
+      if (pName == 'midnightBites') setThemePreset(EatsThemePreset.midnightBites);
+      if (pName == 'lightSnack') setThemePreset(EatsThemePreset.lightSnack);
+      if (pName == 'ateTrack') setThemePreset(EatsThemePreset.ateTrack);
+    }
     notifyListeners();
   }
 
@@ -237,6 +305,7 @@ class DawState extends ChangeNotifier {
   set wrenCode(String val) => luaCode = val;
 
   DawState() {
+    SoundFontEngine.instance.loadDefaultBundledFont();
     _initDemoTracks();
     _startMeterTimer();
   }
@@ -390,7 +459,7 @@ class DawState extends ChangeNotifier {
   }
 
   double _nextNoteTime = 0.0;
-  static const double _scheduleAheadTime = 0.120; // 120ms hardware look-ahead window
+  double get _scheduleAheadTime => kIsWeb ? 0.120 : 0.015; // 15ms look-ahead for native desktop for instant rhythm
 
   void togglePlay() {
     audioEngine.ensureContextRunning();
@@ -431,7 +500,12 @@ class DawState extends ChangeNotifier {
     final double stepDurationSec = 60.0 / _bpm / 4.0; // 16th note step length in seconds
     const int maxSteps = 32 * 16;
 
+    int loopGuard = 0;
     while (_nextNoteTime < audioEngine.currentTime + _scheduleAheadTime) {
+      if (++loopGuard > 16) {
+        _nextNoteTime = audioEngine.currentTime + 0.02;
+        break;
+      }
       _scheduleStep(_currentStep, _nextNoteTime, stepDurationSec);
       _nextNoteTime += stepDurationSec;
 
@@ -445,7 +519,10 @@ class DawState extends ChangeNotifier {
       _arrangerStep = _currentStep;
       _currentBar = _currentStep ~/ 16;
     }
-    notifyListeners();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
   }
 
   void _scheduleStep(int stepIdx, double hardwareTime, double stepDurationSec) {

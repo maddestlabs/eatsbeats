@@ -12,10 +12,12 @@ class SkeuomorphicHardwareKnob extends StatefulWidget {
   final double max;
   final double defaultValue;
   final String? label;
+  final bool showLabelText;
   final ValueChanged<double> onChanged;
   final double size;
   final Color? accentColor;
   final String Function(double)? formatValue;
+  final double step;
 
   const SkeuomorphicHardwareKnob({
     super.key,
@@ -24,10 +26,12 @@ class SkeuomorphicHardwareKnob extends StatefulWidget {
     this.max = 1.0,
     required this.defaultValue,
     this.label,
+    this.showLabelText = true,
     required this.onChanged,
     this.size = 56.0,
     this.accentColor,
     this.formatValue,
+    this.step = 0.0,
   });
 
   @override
@@ -49,7 +53,7 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (widget.label != null) ...[
+        if (widget.label != null && widget.showLabelText) ...[
           Text(
             widget.label!.toUpperCase(),
             style: EatsTheme.getDisplayFontStyle(
@@ -70,13 +74,16 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
             final range = widget.max - widget.min;
             // 200 pixels drag = full scale range
             final delta = (dy / 200.0) * range;
-            final newValue = (_dragStartValue + delta).clamp(widget.min, widget.max);
+            double newValue = (_dragStartValue + delta).clamp(widget.min, widget.max);
+            if (widget.step > 0) {
+              newValue = (newValue / widget.step).roundToDouble() * widget.step;
+            }
             widget.onChanged(newValue);
           },
           onDoubleTap: () => widget.onChanged(widget.defaultValue),
           onLongPress: () => _showManualEditDialog(context),
           child: Tooltip(
-            message: '${widget.label ?? "Knob"}: $displayVal (Double-tap reset, Hold edit)',
+            message: '${widget.label ?? "Knob"}: $displayVal (Double-tap reset, Hold to edit)',
             child: SizedBox(
               width: widget.size,
               height: widget.size,
@@ -153,30 +160,7 @@ class _KnobPainter extends CustomPainter {
     const totalAngleRange = 1.5 * math.pi;
     final currentAngle = startAngle + (normalizedValue.clamp(0.0, 1.0) * totalAngleRange);
 
-    // Stock Minimalist Flat Knob Path (Zero visual cruft)
-    if (!EatsTheme.enableSkeuomorphism) {
-      final knobRadius = outerRadius * 0.75;
-      final flatBgPaint = Paint()
-        ..color = EatsTheme.controlBackground
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(center, knobRadius, flatBgPaint);
 
-      final flatBorderPaint = Paint()
-        ..color = accentColor.withOpacity(0.5)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5;
-      canvas.drawCircle(center, knobRadius, flatBorderPaint);
-
-      final p1 = center + Offset(math.cos(currentAngle) * (knobRadius * 0.20), math.sin(currentAngle) * (knobRadius * 0.20));
-      final p2 = center + Offset(math.cos(currentAngle) * (knobRadius * 0.75), math.sin(currentAngle) * (knobRadius * 0.75));
-
-      final indicatorPaint = Paint()
-        ..color = accentColor
-        ..strokeWidth = 2.5
-        ..strokeCap = StrokeCap.round;
-      canvas.drawLine(p1, p2, indicatorPaint);
-      return;
-    }
 
     // ----------------------------------------------------
     // 1. Outer Arc Value Track (Arc Meter around Perimeter)

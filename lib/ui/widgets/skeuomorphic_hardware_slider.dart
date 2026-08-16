@@ -18,6 +18,8 @@ class SkeuomorphicHardwareSlider extends StatefulWidget {
   final double length;
   final String Function(double)? formatValue;
   final bool showLevelMarkings;
+  final int? divisions;
+  final double step;
 
   const SkeuomorphicHardwareSlider({
     super.key,
@@ -32,6 +34,8 @@ class SkeuomorphicHardwareSlider extends StatefulWidget {
     this.length = 160.0,
     this.formatValue,
     this.showLevelMarkings = true,
+    this.divisions,
+    this.step = 0.0,
   });
 
   @override
@@ -47,7 +51,16 @@ class _SkeuomorphicHardwareSliderState extends State<SkeuomorphicHardwareSlider>
         ? ((pos - margin) / capTravel).clamp(0.0, 1.0)
         : ((totalLength - margin - pos) / capTravel).clamp(0.0, 1.0);
     final range = widget.max - widget.min;
-    final newVal = widget.min + normalized * range;
+    double newVal = widget.min + normalized * range;
+
+    if (widget.step > 0) {
+      newVal = (newVal / widget.step).roundToDouble() * widget.step;
+    } else if (widget.divisions != null && widget.divisions! > 0) {
+      final stepVal = range / widget.divisions!;
+      newVal = (newVal / stepVal).roundToDouble() * stepVal;
+    }
+
+    newVal = newVal.clamp(widget.min, widget.max);
     widget.onChanged(newVal);
   }
 
@@ -215,24 +228,35 @@ class _FaderPainter extends CustomPainter {
         ? Rect.fromCenter(center: Offset(capCenterPos, centerCross), width: capThickness, height: capBreadth)
         : Rect.fromCenter(center: Offset(centerCross, capCenterPos), width: capBreadth, height: capThickness);
 
-    // Realistic Heavy Drop Shadow
+    // Realistic Heavy 3D Dual-Layer Drop Shadow
+    // Layer 1: Ambient soft blur shadow
     canvas.drawRRect(
       RRect.fromRectAndRadius(capRect.shift(const Offset(0, 4)), const Radius.circular(3)),
       Paint()
-        ..color = Colors.black.withOpacity(0.9)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0),
+        ..color = Colors.black.withOpacity(0.65)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5.0),
+    );
+    // Layer 2: Tight directional contact shadow
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(capRect.shift(const Offset(0, 2)), const Radius.circular(2)),
+      Paint()..color = Colors.black.withOpacity(0.8),
     );
 
-    // Studio Matte Metal Fader Cap Surface
+    // High-End Skeuomorphic 3D Metallic Fader Cap Gradient
+    // Features lit top/left bevel chamfer, darker recessed knurled middle, and shaded bottom/right bevel chamfer
     final capGradient = LinearGradient(
       colors: const [
-        Color(0xFF383840),
-        Color(0xFF1E1E22),
-        Color(0xFF141416),
-        Color(0xFF282830),
-        Color(0xFF121214),
+        Color(0xFFF2F5FA), // Lit specular top/left bevel edge
+        Color(0xFFD6DADF), // Bright metallic silver top/left chamfer
+        Color(0xFF7D8390), // Top chamfer fold line transition
+        Color(0xFF30333B), // Upper shadow edge into knurled recess
+        Color(0xFF4A4E58), // Mid knurled body metallic sheen
+        Color(0xFF26282E), // Lower shadow edge out of knurled recess
+        Color(0xFF5A606C), // Bottom chamfer fold line transition
+        Color(0xFF202228), // Shaded metallic bottom/right chamfer
+        Color(0xFF0D0E12), // Dark bottom rim shadow
       ],
-      stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
+      stops: const [0.0, 0.05, 0.16, 0.19, 0.50, 0.81, 0.84, 0.95, 1.0],
       begin: isHoriz ? Alignment.centerLeft : Alignment.topCenter,
       end: isHoriz ? Alignment.centerRight : Alignment.bottomCenter,
     );
@@ -242,44 +266,131 @@ class _FaderPainter extends CustomPainter {
       Paint()..shader = capGradient.createShader(capRect),
     );
 
-    // Bevel Edge Highlight Frame
+    // Recessed Central Knurling Grip Area Background Shading (bevel size reduced by ~30% to 5.5px)
+    const bevelDepth = 5.5;
+    final gripRect = !isHoriz
+        ? Rect.fromLTRB(capRect.left + 1.0, capRect.top + bevelDepth, capRect.right - 1.0, capRect.bottom - bevelDepth)
+        : Rect.fromLTRB(capRect.left + bevelDepth, capRect.top + 1.0, capRect.right - bevelDepth, capRect.bottom - 1.0);
+
+    canvas.drawRect(
+      gripRect,
+      Paint()..color = Colors.black.withOpacity(0.12),
+    );
+
+    // Knurling Score Lines inside the Central Grip Section
+    final scoreLineDark = Paint()..color = const Color(0xFF0F1014)..strokeWidth = 1.0;
+    final scoreLineLight = Paint()..color = const Color(0xFF707684)..strokeWidth = 0.8;
+
+    if (!isHoriz) {
+      // Vertical Slider: Horizontal scoring lines across top and bottom halves of middle grip
+      for (double y = gripRect.top + 2.0; y < gripRect.bottom - 1.5; y += 2.6) {
+        // Skip lines near the center notch indicator line
+        if ((y - capCenterPos).abs() < 2.5) continue;
+        canvas.drawLine(Offset(capRect.left + 2.0, y), Offset(capRect.right - 2.0, y), scoreLineDark);
+        canvas.drawLine(Offset(capRect.left + 2.0, y + 0.8), Offset(capRect.right - 2.0, y + 0.8), scoreLineLight);
+      }
+    } else {
+      // Horizontal Slider: Vertical scoring lines across left and right halves of middle grip
+      for (double x = gripRect.left + 2.0; x < gripRect.right - 1.5; x += 2.6) {
+        if ((x - capCenterPos).abs() < 2.5) continue;
+        canvas.drawLine(Offset(x, capRect.top + 2.0), Offset(x, capRect.bottom - 2.0), scoreLineDark);
+        canvas.drawLine(Offset(x + 0.8, capRect.top + 2.0), Offset(x + 0.8, capRect.bottom - 2.0), scoreLineLight);
+      }
+    }
+
+    // 3D Facet Bevel Highlight & Shadow Frames
+    // 1. Outer subtle rim highlight
     canvas.drawRRect(
       RRect.fromRectAndRadius(capRect, const Radius.circular(3)),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.0
-        ..color = Colors.white.withOpacity(0.25),
+        ..color = Colors.white.withOpacity(0.35),
     );
 
-    // Knurling Horizontal/Vertical Score Lines
-    final scoreLineDark = Paint()..color = const Color(0xFF0A0A0C)..strokeWidth = 1.0;
-    final scoreLineLight = Paint()..color = const Color(0xFF484852)..strokeWidth = 0.8;
-
+    // 2. Top/Left Specular Chamfer Highlight Line
     if (!isHoriz) {
-      // Top Half Knurling Lines
-      for (double y = capRect.top + 3; y < capRect.top + 12; y += 2.5) {
-        canvas.drawLine(Offset(capRect.left + 2, y), Offset(capRect.right - 2, y), scoreLineDark);
-        canvas.drawLine(Offset(capRect.left + 2, y + 0.8), Offset(capRect.right - 2, y + 0.8), scoreLineLight);
-      }
-      // Bottom Half Knurling Lines
-      for (double y = capRect.bottom - 12; y < capRect.bottom - 3; y += 2.5) {
-        canvas.drawLine(Offset(capRect.left + 2, y), Offset(capRect.right - 2, y), scoreLineDark);
-        canvas.drawLine(Offset(capRect.left + 2, y + 0.8), Offset(capRect.right - 2, y + 0.8), scoreLineLight);
-      }
+      canvas.drawLine(
+        Offset(capRect.left + 2.0, capRect.top + 1.0),
+        Offset(capRect.right - 2.0, capRect.top + 1.0),
+        Paint()
+          ..color = Colors.white.withOpacity(0.85)
+          ..strokeWidth = 1.0,
+      );
+      // Top Bevel Chamfer Fold Line
+      canvas.drawLine(
+        Offset(capRect.left + 1.5, capRect.top + bevelDepth),
+        Offset(capRect.right - 1.5, capRect.top + bevelDepth),
+        Paint()
+          ..color = const Color(0xFF1B1C22).withOpacity(0.6)
+          ..strokeWidth = 1.0,
+      );
+      // Bottom Bevel Chamfer Fold Line
+      canvas.drawLine(
+        Offset(capRect.left + 1.5, capRect.bottom - bevelDepth),
+        Offset(capRect.right - 1.5, capRect.bottom - bevelDepth),
+        Paint()
+          ..color = Colors.white.withOpacity(0.25)
+          ..strokeWidth = 1.0,
+      );
+      // Bottom Chamfer Edge Shadow Line
+      canvas.drawLine(
+        Offset(capRect.left + 2.0, capRect.bottom - 1.0),
+        Offset(capRect.right - 2.0, capRect.bottom - 1.0),
+        Paint()
+          ..color = const Color(0xFF08090C)
+          ..strokeWidth = 1.0,
+      );
     } else {
-      // Horizontal Fader Knurling Lines
-      for (double x = capRect.left + 3; x < capRect.left + 12; x += 2.5) {
-        canvas.drawLine(Offset(x, capRect.top + 2), Offset(x, capRect.bottom - 2), scoreLineDark);
-        canvas.drawLine(Offset(x + 0.8, capRect.top + 2), Offset(x + 0.8, capRect.bottom - 2), scoreLineLight);
-      }
-      for (double x = capRect.right - 12; x < capRect.right - 3; x += 2.5) {
-        canvas.drawLine(Offset(x, capRect.top + 2), Offset(x, capRect.bottom - 2), scoreLineDark);
-        canvas.drawLine(Offset(x + 0.8, capRect.top + 2), Offset(x + 0.8, capRect.bottom - 2), scoreLineLight);
-      }
+      canvas.drawLine(
+        Offset(capRect.left + 1.0, capRect.top + 2.0),
+        Offset(capRect.left + 1.0, capRect.bottom - 2.0),
+        Paint()
+          ..color = Colors.white.withOpacity(0.85)
+          ..strokeWidth = 1.0,
+      );
+      // Left Bevel Chamfer Fold Line
+      canvas.drawLine(
+        Offset(capRect.left + bevelDepth, capRect.top + 1.5),
+        Offset(capRect.left + bevelDepth, capRect.bottom - 1.5),
+        Paint()
+          ..color = const Color(0xFF1B1C22).withOpacity(0.6)
+          ..strokeWidth = 1.0,
+      );
+      // Right Bevel Chamfer Fold Line
+      canvas.drawLine(
+        Offset(capRect.right - bevelDepth, capRect.top + 1.5),
+        Offset(capRect.right - bevelDepth, capRect.bottom - 1.5),
+        Paint()
+          ..color = Colors.white.withOpacity(0.25)
+          ..strokeWidth = 1.0,
+      );
+      // Right Chamfer Edge Shadow Line
+      canvas.drawLine(
+        Offset(capRect.right - 1.0, capRect.top + 2.0),
+        Offset(capRect.right - 1.0, capRect.bottom - 2.0),
+        Paint()
+          ..color = const Color(0xFF08090C)
+          ..strokeWidth = 1.0,
+      );
     }
 
-    // Center Illuminated Neon Indicator Bar
+    // Center Recessed Notch & Illuminated Neon Indicator Stripe
     final neonColor = accentColor == EatsTheme.primaryCyan ? const Color(0xFFFF007A) : accentColor;
+    
+    // Draw Dark Inset Center Groove Notch
+    if (isHoriz) {
+      canvas.drawRect(
+        Rect.fromLTRB(capCenterPos - 1.5, capRect.top + 1.5, capCenterPos + 1.5, capRect.bottom - 1.5),
+        Paint()..color = const Color(0xFF0B0C0F),
+      );
+    } else {
+      canvas.drawRect(
+        Rect.fromLTRB(capRect.left + 1.5, capCenterPos - 1.5, capRect.right - 1.5, capCenterPos + 1.5),
+        Paint()..color = const Color(0xFF0B0C0F),
+      );
+    }
+
     final stripeGlowPaint = Paint()
       ..color = neonColor
       ..strokeWidth = 4.0
@@ -287,11 +398,11 @@ class _FaderPainter extends CustomPainter {
 
     final stripePaint = Paint()
       ..color = const Color(0xFFFFFFFF)
-      ..strokeWidth = 2.5;
+      ..strokeWidth = 2.0;
 
     final stripeAccentPaint = Paint()
       ..color = neonColor
-      ..strokeWidth = 2.5;
+      ..strokeWidth = 2.0;
 
     if (isHoriz) {
       final topP = Offset(capCenterPos, capRect.top + 2);

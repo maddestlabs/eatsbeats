@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+import '../audio/soundfont_engine.dart';
 import '../theme/eats_theme.dart';
 import '../utils/html_preloader_helper.dart';
 import 'transport_header.dart';
@@ -28,6 +29,7 @@ class _EatsbitsLoadingScreenState extends State<EatsbitsLoadingScreen> with Sing
   final List<String> _initSteps = const [
     'POWERING ON DIGITAL RACK HARDWARE...',
     'INITIALIZING WEBAUDIO GRAPH CONTEXT...',
+    'PRE-LOADING BUNDLED SOUNDFONT (SUPER SMALL FONT)...',
     'PRE-COMPILING LUA SYNTH MODULES (303, KICK, SNARE)...',
     'ALLOCATING STEREO BUFFER PIPELINES...',
     'WARMING UP DSP RACK FX PROCESSORS...',
@@ -48,6 +50,7 @@ class _EatsbitsLoadingScreenState extends State<EatsbitsLoadingScreen> with Sing
   }
 
   void _startInitializationSequence() {
+    SoundFontEngine.instance.loadDefaultBundledFont();
     const totalDurationMs = 1500;
     const intervalMs = 60;
     const totalTicks = totalDurationMs ~/ intervalMs;

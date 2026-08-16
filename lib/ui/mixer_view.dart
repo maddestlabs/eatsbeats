@@ -72,37 +72,20 @@ class _MixerViewState extends State<MixerView> {
           ),
           const SizedBox(height: 8),
 
-          // Dual Master Controls
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Tooltip(
-                message: 'Master Balance',
-                child: SkeuomorphicHardwareKnob(
-                  value: 0.0,
-                  min: -1.0,
-                  max: 1.0,
-                  defaultValue: 0.0,
-                  size: 36.0,
-                  accentColor: EatsTheme.primaryCyan,
-                  onChanged: (_) {},
-                  formatValue: (v) => 'C',
-                ),
-              ),
-              Tooltip(
-                message: 'Master Gain',
-                child: SkeuomorphicHardwareKnob(
-                  value: dawState.masterVolume,
-                  min: 0.0,
-                  max: 1.5,
-                  defaultValue: 0.85,
-                  size: 36.0,
-                  accentColor: EatsTheme.primaryCyan,
-                  onChanged: (val) => dawState.setMasterVolume(val),
-                  formatValue: (v) => '${(v * 100).toInt()}%',
-                ),
-              ),
-            ],
+          // Master Balance Control
+          Center(
+            child: SkeuomorphicHardwareKnob(
+              label: 'Master Balance',
+              showLabelText: false,
+              value: 0.0,
+              min: -1.0,
+              max: 1.0,
+              defaultValue: 0.0,
+              size: 36.0,
+              accentColor: EatsTheme.primaryCyan,
+              onChanged: (_) {},
+              formatValue: (v) => 'C',
+            ),
           ),
 
           const SizedBox(height: 10),
@@ -190,40 +173,20 @@ class _MixerViewState extends State<MixerView> {
 
             const SizedBox(height: 8),
 
-            // Hardware Knobs Row (Pan knob + Cutoff knob)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                Tooltip(
-                  message: 'Pan (${track.pan})',
-                  child: SkeuomorphicHardwareKnob(
-                    value: track.pan,
-                    min: -1.0,
-                    max: 1.0,
-                    defaultValue: 0.0,
-                    size: 34.0,
-                    accentColor: track.color,
-                    onChanged: (val) => dawState.setTrackPan(track, val),
-                    formatValue: (v) => v == 0 ? 'C' : (v < 0 ? 'L${(v.abs() * 100).toInt()}' : 'R${(v * 100).toInt()}'),
-                  ),
-                ),
-                Tooltip(
-                  message: 'Cutoff (${track.cutoff.toInt()} Hz)',
-                  child: SkeuomorphicHardwareKnob(
-                    value: track.cutoff,
-                    min: 200.0,
-                    max: 10000.0,
-                    defaultValue: 3000.0,
-                    size: 34.0,
-                    accentColor: EatsTheme.accentGold,
-                    onChanged: (val) {
-                      track.cutoff = val;
-                      dawState.notifyState();
-                    },
-                    formatValue: (v) => '${(v / 1000).toStringAsFixed(1)}k',
-                  ),
-                ),
-              ],
+            // Hardware Knob Row (Pan knob)
+            Center(
+              child: SkeuomorphicHardwareKnob(
+                label: 'Pan',
+                showLabelText: false,
+                value: track.pan,
+                min: -1.0,
+                max: 1.0,
+                defaultValue: 0.0,
+                size: 34.0,
+                accentColor: track.color,
+                onChanged: (val) => dawState.setTrackPan(track, val),
+                formatValue: (v) => v == 0 ? 'C' : (v < 0 ? 'L${(v.abs() * 100).toInt()}' : 'R${(v * 100).toInt()}'),
+              ),
             ),
 
             const SizedBox(height: 10),

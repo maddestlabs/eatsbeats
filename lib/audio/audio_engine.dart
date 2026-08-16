@@ -10,7 +10,8 @@ import 'sampler_engine.dart';
 import 'soundfont_engine.dart';
 
 import 'audio_engine_stub.dart'
-    if (dart.library.js_interop) 'audio_engine_web.dart';
+    if (dart.library.js_interop) 'audio_engine_web.dart'
+    if (dart.library.io) 'audio_engine_native.dart';
 
 class AudioEngine {
   final AudioEngineWebImpl _webImpl = AudioEngineWebImpl();
@@ -175,21 +176,30 @@ class AudioEngine {
     _leftPeak = math.max(_leftPeak, trkLeft * 0.85);
     _rightPeak = math.max(_rightPeak, trkRight * 0.85);
 
-    if (!kIsWeb) return;
     ensureContextRunning();
 
-    List<double> pcmBuffer;
+    List<double> pcmBuffer = [];
 
-    final sfBuffer = SoundFontEngine.instance.getPitchShiftedBuffer(
-      fontId: track.sampleName,
-      presetNum: (track.luaParams['PresetNum'] ?? 0.0).toInt(),
-      midiNote: midiNote,
-      velocity: velocity,
-    );
+    final isSfTrack = track.sampleName.toLowerCase().endsWith('.sf2') ||
+        track.name.toLowerCase().contains('soundfont') ||
+        track.luaScriptCode.contains('SoundFont');
 
-    if (sfBuffer.isNotEmpty) {
-      pcmBuffer = sfBuffer;
-    } else if (track.type == TrackType.sampler) {
+    if (isSfTrack) {
+      final sfBuffer = SoundFontEngine.instance.getPitchShiftedBuffer(
+        fontId: track.sampleName,
+        presetNum: (track.luaParams['PresetNum'] ?? 0.0).toInt(),
+        bankNum: (track.luaParams['BankNum'] ?? 0.0).toInt(),
+        midiNote: midiNote,
+        velocity: velocity,
+        targetDurationSec: durationSec,
+        fallbackDefault: true,
+      );
+      if (sfBuffer.isNotEmpty) {
+        pcmBuffer = sfBuffer;
+      }
+    }
+
+    if (pcmBuffer.isEmpty && track.type == TrackType.sampler) {
 
       final customBuffer = SamplerEngine.instance.getPitchShiftedPcm(
         track.sampleName,
@@ -218,7 +228,7 @@ class AudioEngine {
             break;
         }
       }
-    } else if (track.type == TrackType.luaScript) {
+    } else if (pcmBuffer.isEmpty && track.type == TrackType.luaScript) {
       pcmBuffer = List<double>.filled((44100 * durationSec).toInt(), 0.0);
       final double freq = PolySynth.midiToFreq(midiNote);
       final bool activeAccent = isAccent || velocity > 0.75;
@@ -239,7 +249,7 @@ class AudioEngine {
           totalSamples: pcmBuffer.length,
         );
       }
-    } else {
+    } else if (pcmBuffer.isEmpty) {
       pcmBuffer = PolySynth.generateSynthToneBuffer(
         midiNote: midiNote,
         waveform: track.synthWaveform,
@@ -318,7 +328,6 @@ class AudioEngine {
   }
 
   void stopNote(TrackChannel track, [int? pitch]) {
-    if (!kIsWeb) return;
     _webImpl.stopTrackNotes(track.id);
   }
 }

@@ -1,7 +1,7 @@
+import 'dart:io' as io;
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_wren_daw/audio/soundfont_decoder.dart';
-import 'package:mobile_wren_daw/audio/soundfont_engine.dart';
 import 'package:mobile_wren_daw/models/daw_state.dart';
 
 void main() {
@@ -25,6 +25,21 @@ void main() {
       final newTrack = dawState.activePattern.tracks.last;
       expect(newTrack.name, equals('vintage_piano'));
       expect(newTrack.sampleName, equals('vintage_piano.sf2'));
+    });
+
+    test('Bundled super_small_font.sf2 asset decodes successfully with valid preset & bank numbers', () {
+      final file = io.File('assets/soundfonts/super_small_font.sf2');
+      expect(file.existsSync(), isTrue);
+      final bytes = file.readAsBytesSync();
+      final decoded = SoundFontDecoder.decode(bytes);
+      expect(decoded, isNotNull);
+      expect(decoded!.presets.isNotEmpty, isTrue);
+      expect(decoded.sampleHeaders.isNotEmpty, isTrue);
+
+      for (final p in decoded.presets) {
+        expect(p.presetNum, lessThanOrEqualTo(127), reason: 'Preset number ${p.presetNum} for "${p.name}" exceeds 127');
+        expect(p.bankNum, lessThanOrEqualTo(128), reason: 'Bank number ${p.bankNum} for "${p.name}" exceeds 128');
+      }
     });
   });
 }

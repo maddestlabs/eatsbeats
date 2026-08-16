@@ -7,6 +7,7 @@ import '../models/track_model.dart';
 import '../theme/eats_theme.dart';
 import 'widgets/eatsbits_slider.dart';
 import 'widgets/fx_rack_dialog.dart';
+import 'widgets/project_browser_drawer.dart';
 import 'widgets/rename_track_dialog.dart';
 import 'widgets/skeuomorphic_hardware_knob.dart';
 
@@ -101,25 +102,37 @@ class _ArrangerViewState extends State<ArrangerView> {
                       ),
                     ),
                     Expanded(
-                      child: DragTarget<LuaPreset>(
-                        onWillAcceptWithDetails: (details) => true,
+                      child: DragTarget<Object>(
+                        onWillAcceptWithDetails: (details) => details.data is LuaPreset || details.data is SoundFontDragItem,
                         onAcceptWithDetails: (details) {
-                          final preset = details.data;
-                          if (preset.isInstrument) {
-                            widget.dawState.addNewPresetTrack(preset);
-                          } else {
-                            widget.dawState.addNewPresetTrack(
-                              LuaPresetLibrary.getPresetsByCategory(LuaPresetCategory.instrument).first,
+                          final data = details.data;
+                          if (data is SoundFontDragItem) {
+                            widget.dawState.addNewSoundFontTrack(data.fontId, displayName: data.displayName);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Created new track with SoundFont "${data.displayName}"'),
+                                backgroundColor: EatsTheme.panelHeader,
+                                duration: const Duration(seconds: 2),
+                              ),
                             );
-                            widget.dawState.applyPreset(preset, targetTrack: widget.dawState.activeTrack);
+                          } else if (data is LuaPreset) {
+                            final preset = data;
+                            if (preset.isInstrument) {
+                              widget.dawState.addNewPresetTrack(preset);
+                            } else {
+                              widget.dawState.addNewPresetTrack(
+                                LuaPresetLibrary.getPresetsByCategory(LuaPresetCategory.instrument).first,
+                              );
+                              widget.dawState.applyPreset(preset, targetTrack: widget.dawState.activeTrack);
+                            }
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Created new track with preset "${preset.name}"'),
+                                backgroundColor: EatsTheme.panelHeader,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
                           }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Created new track with preset "${preset.name}"'),
-                              backgroundColor: EatsTheme.panelHeader,
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
                         },
                         builder: (context, candidateData, rejectedData) {
                           final isHoveringEmpty = candidateData.isNotEmpty;
@@ -145,20 +158,32 @@ class _ArrangerViewState extends State<ArrangerView> {
                                   final track = tracks[trackIdx];
                                   final isSelected = trackIdx == widget.dawState.activeTrackIndex;
 
-                                  return DragTarget<LuaPreset>(
-                                    onWillAcceptWithDetails: (details) => true,
+                                  return DragTarget<Object>(
+                                    onWillAcceptWithDetails: (details) => details.data is LuaPreset || details.data is SoundFontDragItem,
                                     onAcceptWithDetails: (details) {
-                                      final preset = details.data;
-                                      widget.dawState.applyPreset(preset, targetTrack: track);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text(preset.isInstrument
-                                              ? 'Applied instrument "${preset.name}" to ${track.name}'
-                                              : 'Added FX "${preset.name}" to ${track.name} chain'),
-                                          backgroundColor: EatsTheme.panelHeader,
-                                          duration: const Duration(seconds: 2),
-                                        ),
-                                      );
+                                      final data = details.data;
+                                      if (data is SoundFontDragItem) {
+                                        widget.dawState.applySoundFont(data.fontId, displayName: data.displayName, targetTrack: track);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Switched SoundFont on ${track.name} to "${data.displayName}"'),
+                                            backgroundColor: EatsTheme.panelHeader,
+                                            duration: const Duration(seconds: 2),
+                                          ),
+                                        );
+                                      } else if (data is LuaPreset) {
+                                        final preset = data;
+                                        widget.dawState.applyPreset(preset, targetTrack: track);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(preset.isInstrument
+                                                ? 'Applied instrument "${preset.name}" to ${track.name}'
+                                                : 'Added FX "${preset.name}" to ${track.name} chain'),
+                                            backgroundColor: EatsTheme.panelHeader,
+                                            duration: const Duration(seconds: 2),
+                                          ),
+                                        );
+                                      }
                                     },
                                     builder: (context, trackHoverData, _) {
                                       final isTrackHovering = trackHoverData.isNotEmpty;
@@ -277,12 +302,14 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                   const SizedBox(width: 8),
                                                   // Skeuomorphic Hardware Pan Knob
                                                   SkeuomorphicHardwareKnob(
+                                                    label: 'Pan',
+                                                    showLabelText: false,
                                                     value: track.pan,
                                                     min: -1.0,
                                                     max: 1.0,
                                                     defaultValue: 0.0,
                                                     size: 28.0,
-                                                    accentColor: EatsTheme.accentGold,
+                                                    accentColor: track.color,
                                                     formatValue: (v) => v == 0 ? 'C' : (v < 0 ? 'L${(v.abs() * 100).round()}' : 'R${(v * 100).round()}'),
                                                     onChanged: (val) => widget.dawState.setTrackPan(track, val),
                                                   ),

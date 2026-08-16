@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
 import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

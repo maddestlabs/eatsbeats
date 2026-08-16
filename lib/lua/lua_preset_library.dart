@@ -661,8 +661,8 @@ return DrumKitSampler
 local SoundFontSampler = {}
 
 function SoundFontSampler.init()
-  Param.add("PresetNum", 0.0, 128.0, 0.0)
-  Param.add("BankNum", 0.0, 128.0, 0.0)
+  Param.add("PresetNum", 0, 127, 0, 1)
+  Param.add("BankNum", 0, 128, 0, 1)
   Param.add("FilterCutoff", 200.0, 12000.0, 10000.0)
   Param.add("AttackSec", 0.0, 1.0, 0.005)
   Param.add("ReleaseSec", 0.01, 2.0, 0.4)

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -17,6 +18,14 @@ import 'ui/virtual_piano_keyboard.dart';
 import 'utils/eats_file_helper.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  FlutterError.onError = (details) {
+    debugPrint('FLUTTER ERROR: ${details.exception}\n${details.stack}');
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('PLATFORM UNHANDLED ERROR: $error\n$stack');
+    return true;
+  };
   runApp(const WrenDawApp());
 }
 
@@ -86,7 +95,6 @@ class _DawMainShellState extends State<DawMainShell> {
   @override
   Widget build(BuildContext context) {
     final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
-    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return CallbackShortcuts(
       bindings: {
@@ -133,37 +141,35 @@ class _DawMainShellState extends State<DawMainShell> {
                   color: EatsTheme.backgroundDark,
                   child: Stack(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: IndexedStack(
-                              index: widget.dawState.activeTabIndex,
-                              children: [
-                                ArrangerView(dawState: widget.dawState),
-                                EditView(dawState: widget.dawState),
-                                TrackInspectorView(dawState: widget.dawState),
-                                MixerView(dawState: widget.dawState),
-                                LuaWorkbenchView(dawState: widget.dawState),
-                              ],
-                            ),
-                          ),
-                          if (widget.dawState.isBrowserOpen && !isMobile)
-                            ProjectBrowserDrawer(
-                              dawState: widget.dawState,
-                              onClose: widget.dawState.toggleBrowser,
-                            ),
-                        ],
+                      Positioned.fill(
+                        child: IndexedStack(
+                          index: widget.dawState.activeTabIndex,
+                          children: [
+                            ArrangerView(dawState: widget.dawState),
+                            EditView(dawState: widget.dawState),
+                            TrackInspectorView(dawState: widget.dawState),
+                            MixerView(dawState: widget.dawState),
+                            LuaWorkbenchView(dawState: widget.dawState),
+                          ],
+                        ),
                       ),
-                      if (widget.dawState.isBrowserOpen && isMobile)
-                        Positioned(
-                          top: 0,
-                          bottom: 0,
-                          right: 0,
+
+                      // Fast 150ms Animated Slide-In / Slide-Out Project Browser Drawer
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 150),
+                        curve: Curves.fastOutSlowIn,
+                        top: 0,
+                        bottom: 0,
+                        right: widget.dawState.isBrowserOpen ? 0 : -330,
+                        width: 320,
+                        child: IgnorePointer(
+                          ignoring: !widget.dawState.isBrowserOpen,
                           child: ProjectBrowserDrawer(
                             dawState: widget.dawState,
                             onClose: widget.dawState.toggleBrowser,
                           ),
                         ),
+                      ),
                     ],
                   ),
                 ),

@@ -48,6 +48,18 @@ class Sf2Zone {
   final int maxVel;
   final int sampleHeaderIdx;
   final int? rootKeyOverride;
+  final int coarseTune;
+  final int fineTune;
+  final double pan;
+  final int sampleModes;
+  final int startLoopOffset;
+  final int endLoopOffset;
+  final double volEnvDelay;
+  final double volEnvAttack;
+  final double volEnvHold;
+  final double volEnvDecay;
+  final double volEnvSustain;
+  final double volEnvRelease;
 
   Sf2Zone({
     this.minKey = 0,
@@ -56,6 +68,18 @@ class Sf2Zone {
     this.maxVel = 127,
     required this.sampleHeaderIdx,
     this.rootKeyOverride,
+    this.coarseTune = 0,
+    this.fineTune = 0,
+    this.pan = 0.0,
+    this.sampleModes = 0,
+    this.startLoopOffset = 0,
+    this.endLoopOffset = 0,
+    this.volEnvDelay = 0.0,
+    this.volEnvAttack = 0.001,
+    this.volEnvHold = 0.0,
+    this.volEnvDecay = 0.0,
+    this.volEnvSustain = 1.0,
+    this.volEnvRelease = 0.1,
   });
 }
 
@@ -109,7 +133,6 @@ class GeneralMidiNames {
   }
 }
 
-
 class SoundFontData {
   final String fontName;
   final List<double> pcmData;
@@ -123,9 +146,16 @@ class SoundFontData {
     required this.presets,
   });
 
-  Sf2Preset? findPreset(int presetNum, [int bankNum = 0]) {
+  Sf2Preset? findPreset(int presetNum, [int bankNum = -1]) {
+    if (bankNum >= 0) {
+      for (final p in presets) {
+        if (p.presetNum == presetNum && p.bankNum == bankNum) {
+          return p;
+        }
+      }
+    }
     for (final p in presets) {
-      if (p.presetNum == presetNum && (p.bankNum == bankNum || bankNum == 0)) {
+      if (p.presetNum == presetNum) {
         return p;
       }
     }
@@ -148,9 +178,8 @@ class SoundFontDecoder {
 
     final byteData = ByteData.sublistView(bytes);
 
-    // Check RIFF & SFBK header
-    final magicRiff = String.fromCharCodes(bytes.sublist(0, 4));
-    final magicSfbk = String.fromCharCodes(bytes.sublist(8, 12));
+    final magicRiff = String.fromCharCodes(bytes.sublist(0, 4)).toUpperCase();
+    final magicSfbk = String.fromCharCodes(bytes.sublist(8, 12)).toUpperCase();
 
     if (magicRiff != 'RIFF' || magicSfbk != 'SFBK') {
       debugPrint('SoundFontDecoder: Invalid SF2 magic header ($magicRiff / $magicSfbk)');
@@ -168,11 +197,11 @@ class SoundFontDecoder {
     int pdtaOffset = -1;
 
     while (offset + 8 <= bytes.length) {
-      final chunkId = String.fromCharCodes(bytes.sublist(offset, offset + 4));
+      final chunkId = String.fromCharCodes(bytes.sublist(offset, offset + 4)).toUpperCase();
       final chunkSize = byteData.getUint32(offset + 4, Endian.little);
 
       if (chunkId == 'LIST' && offset + 12 <= bytes.length) {
-        final listType = String.fromCharCodes(bytes.sublist(offset + 8, offset + 12));
+        final listType = String.fromCharCodes(bytes.sublist(offset + 8, offset + 12)).toLowerCase();
         if (listType == 'sdta') {
           sdtaOffset = offset + 12;
           sdtaLength = chunkSize - 4;
@@ -182,7 +211,7 @@ class SoundFontDecoder {
       }
 
       offset += 8 + chunkSize;
-      if (chunkSize % 2 != 0) offset++; // Align padding
+      if (chunkSize % 2 != 0) offset++;
     }
 
     // 1. Decode PCM samples from sdta/smpl chunk
@@ -211,7 +240,7 @@ class SoundFontDecoder {
       }
     }
 
-    // 2. Decode Preset & Sample Headers from pdta chunk
+    // 2. Decode Preset & Generator Data from pdta chunk
     if (pdtaOffset != -1) {
       int pPos = pdtaOffset;
       final pdtaEnd = bytes.length;
@@ -259,9 +288,9 @@ class SoundFontDecoder {
             ));
           }
         } else if (subId == 'phdr') {
-          final count = subSize ~/ 28;
+          final count = subSize ~/ 38;
           for (int i = 0; i < count; i++) {
-            final b = dataStart + i * 28;
+            final b = dataStart + i * 38;
             final name = _readString(bytes, b, 20);
             final presetNum = byteData.getUint16(b + 20, Endian.little);
             final bankNum = byteData.getUint16(b + 22, Endian.little);
@@ -286,7 +315,7 @@ class SoundFontDecoder {
           for (int i = 0; i < count; i++) {
             final b = dataStart + i * 4;
             final genId = byteData.getUint16(b, Endian.little);
-            final genVal = byteData.getUint16(b + 2, Endian.little);
+            final genVal = byteData.getInt16(b + 2, Endian.little);
             rawPresetGens.add({'genId': genId, 'val': genVal});
           }
         } else if (subId == 'inst') {
@@ -309,7 +338,7 @@ class SoundFontDecoder {
           for (int i = 0; i < count; i++) {
             final b = dataStart + i * 4;
             final genId = byteData.getUint16(b, Endian.little);
-            final genVal = byteData.getUint16(b + 2, Endian.little);
+            final genVal = byteData.getInt16(b + 2, Endian.little);
             rawInstGens.add({'genId': genId, 'val': genVal});
           }
         }
@@ -320,27 +349,135 @@ class SoundFontDecoder {
 
       sampleHeaders = rawSampleHeaders;
 
-      // Build Presets & Zones
+      // 3. Assemble Presets & Zones from SoundFont Generator hierarchy (TinySoundFont spec)
       for (int i = 0; i < rawPresets.length - 1; i++) {
         final p = rawPresets[i];
         final name = p['name'] as String;
         final presetNum = p['presetNum'] as int;
         final bankNum = p['bankNum'] as int;
+        final pBagStart = p['bagIdx'] as int;
+        final pBagEnd = (i + 1 < rawPresets.length) ? (rawPresets[i + 1]['bagIdx'] as int) : rawPresetBags.length - 1;
 
         final zones = <Sf2Zone>[];
+        final globalPresetGens = <int, int>{};
 
-        // Process preset zones
-        for (int sampleIdx = 0; sampleIdx < sampleHeaders.length; sampleIdx++) {
-          final sh = sampleHeaders[sampleIdx];
-          if (sh.endSample > sh.startSample && sh.startSample < pcmData.length) {
-            zones.add(Sf2Zone(
-              minKey: 0,
-              maxKey: 127,
-              minVel: 0,
-              maxVel: 127,
-              sampleHeaderIdx: sampleIdx,
-              rootKeyOverride: sh.originalPitch > 0 ? sh.originalPitch : 60,
-            ));
+        for (int pBagIdx = pBagStart; pBagIdx < pBagEnd && pBagIdx < rawPresetBags.length - 1; pBagIdx++) {
+          final pGenStart = rawPresetBags[pBagIdx];
+          final pGenEnd = rawPresetBags[pBagIdx + 1];
+
+          final pgenMap = <int, int>{};
+          for (int g = pGenStart; g < pGenEnd && g < rawPresetGens.length; g++) {
+            pgenMap[rawPresetGens[g]['genId']!] = rawPresetGens[g]['val']!;
+          }
+
+          // If no instrument operator (genId 41), treat as global preset generator zone
+          if (!pgenMap.containsKey(41)) {
+            globalPresetGens.addAll(pgenMap);
+            continue;
+          }
+
+          final instIdx = pgenMap[41]!;
+          if (instIdx >= 0 && instIdx < rawInsts.length - 1) {
+            final inst = rawInsts[instIdx];
+            final iBagStart = inst['bagIdx'] as int;
+            final iBagEnd = (instIdx + 1 < rawInsts.length) ? (rawInsts[instIdx + 1]['bagIdx'] as int) : rawInstBags.length - 1;
+
+            final globalInstGens = <int, int>{};
+
+            for (int iBagIdx = iBagStart; iBagIdx < iBagEnd && iBagIdx < rawInstBags.length - 1; iBagIdx++) {
+              final iGenStart = rawInstBags[iBagIdx];
+              final iGenEnd = rawInstBags[iBagIdx + 1];
+
+              final igenMap = <int, int>{};
+              for (int g = iGenStart; g < iGenEnd && g < rawInstGens.length; g++) {
+                igenMap[rawInstGens[g]['genId']!] = rawInstGens[g]['val']!;
+              }
+
+              // If no sampleID operator (genId 53), treat as global instrument generator zone
+              if (!igenMap.containsKey(53)) {
+                globalInstGens.addAll(igenMap);
+                continue;
+              }
+
+              final sampleHeaderIdx = igenMap[53]!;
+              if (sampleHeaderIdx < 0 || sampleHeaderIdx >= sampleHeaders.length) continue;
+
+              // Merge hierarchy: Global Inst Gens + Inst Gens + Global Preset Gens + Preset Gens
+              final mergedGens = <int, int>{}
+                ..addAll(globalInstGens)
+                ..addAll(igenMap)
+                ..addAll(globalPresetGens)
+                ..addAll(pgenMap);
+
+              // Parse ranges (gen 43 = keyRange, gen 44 = velRange)
+              int minKey = 0, maxKey = 127;
+              if (mergedGens.containsKey(43)) {
+                final val = mergedGens[43]!;
+                minKey = val & 0xFF;
+                maxKey = (val >> 8) & 0xFF;
+              }
+
+              int minVel = 0, maxVel = 127;
+              if (mergedGens.containsKey(44)) {
+                final val = mergedGens[44]!;
+                minVel = val & 0xFF;
+                maxVel = (val >> 8) & 0xFF;
+              }
+
+              final rootKeyOverride = mergedGens.containsKey(58) && mergedGens[58]! > 0 ? mergedGens[58]! : null;
+              final coarseTune = mergedGens[51] ?? 0;
+              final fineTune = mergedGens[52] ?? 0;
+              final pan = mergedGens.containsKey(17) ? (mergedGens[17]! / 500.0).clamp(-1.0, 1.0) : 0.0;
+              final sampleModes = mergedGens[54] ?? 0;
+
+              final startLoopOffset = (mergedGens[2] ?? 0) + ((mergedGens[45] ?? 0) * 32768);
+              final endLoopOffset = (mergedGens[3] ?? 0) + ((mergedGens[50] ?? 0) * 32768);
+
+              final volEnvDelay = _timecentsToSeconds(mergedGens[29] ?? -32768);
+              final volEnvAttack = math.max(0.001, _timecentsToSeconds(mergedGens[30] ?? -32768));
+              final volEnvHold = _timecentsToSeconds(mergedGens[31] ?? -32768);
+              final volEnvDecay = math.max(0.001, _timecentsToSeconds(mergedGens[32] ?? -32768));
+              final volEnvSustain = _cbToGain(mergedGens[33] ?? 0);
+              final volEnvRelease = math.max(0.01, _timecentsToSeconds(mergedGens[34] ?? -32768));
+
+              zones.add(Sf2Zone(
+                minKey: minKey,
+                maxKey: maxKey,
+                minVel: minVel,
+                maxVel: maxVel,
+                sampleHeaderIdx: sampleHeaderIdx,
+                rootKeyOverride: rootKeyOverride,
+                coarseTune: coarseTune,
+                fineTune: fineTune,
+                pan: pan,
+                sampleModes: sampleModes,
+                startLoopOffset: startLoopOffset,
+                endLoopOffset: endLoopOffset,
+                volEnvDelay: volEnvDelay,
+                volEnvAttack: volEnvAttack,
+                volEnvHold: volEnvHold,
+                volEnvDecay: volEnvDecay,
+                volEnvSustain: volEnvSustain,
+                volEnvRelease: volEnvRelease,
+              ));
+            }
+          }
+        }
+
+        // Fallback zone assignment if generator hierarchy was missing
+        if (zones.isEmpty) {
+          for (int sampleIdx = 0; sampleIdx < sampleHeaders.length; sampleIdx++) {
+            final sh = sampleHeaders[sampleIdx];
+            if (sh.endSample > sh.startSample && sh.startSample < pcmData.length) {
+              zones.add(Sf2Zone(
+                minKey: 0,
+                maxKey: 127,
+                minVel: 0,
+                maxVel: 127,
+                sampleHeaderIdx: sampleIdx,
+                rootKeyOverride: sh.originalPitch > 0 ? sh.originalPitch : 60,
+              ));
+            }
           }
         }
 
@@ -365,6 +502,17 @@ class SoundFontDecoder {
     );
   }
 
+  static double _timecentsToSeconds(int timecents) {
+    if (timecents == -32768 || timecents <= -12000) return 0.0;
+    return math.pow(2.0, timecents / 1200.0).toDouble();
+  }
+
+  static double _cbToGain(int cb) {
+    if (cb <= 0) return 1.0;
+    if (cb >= 1000) return 0.0;
+    return math.pow(10.0, -cb / 200.0).toDouble();
+  }
+
   static String _readString(Uint8List bytes, int offset, int length) {
     final sub = bytes.sublist(offset, math.min(offset + length, bytes.length));
     final nullIdx = sub.indexOf(0);
@@ -372,3 +520,4 @@ class SoundFontDecoder {
     return ascii.decode(validBytes, allowInvalid: true).trim();
   }
 }
+

@@ -126,12 +126,11 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
                 blurRadius: 20,
                 spreadRadius: 4,
               ),
-              if (EatsTheme.enableGlassGlares)
-                BoxShadow(
-                  color: EatsTheme.primaryCyan.withOpacity(0.15),
-                  blurRadius: 12,
-                  spreadRadius: 1,
-                ),
+              BoxShadow(
+                color: EatsTheme.primaryCyan.withOpacity(0.15),
+                blurRadius: 12,
+                spreadRadius: 1,
+              ),
             ],
           ),
           child: Column(

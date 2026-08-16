@@ -5,13 +5,36 @@ class LuaParamDef {
   final double min;
   final double max;
   final double defaultValue;
+  final double step;
+  final List<String> options;
 
   LuaParamDef({
     required this.name,
     required this.min,
     required this.max,
     required this.defaultValue,
+    this.step = 0.0,
+    this.options = const [],
   });
+
+  bool get isInteger =>
+      step >= 1.0 ||
+      options.isNotEmpty ||
+      name.toLowerCase().contains('preset') ||
+      name.toLowerCase().contains('bank') ||
+      name.toLowerCase().contains('program') ||
+      name.toLowerCase().contains('index');
+
+  String getFormattedValue(double value) {
+    if (options.isNotEmpty) {
+      final idx = value.round().clamp(0, options.length - 1);
+      return options[idx];
+    }
+    if (isInteger) {
+      return value.round().toString();
+    }
+    return value.toStringAsFixed(1);
+  }
 }
 
 class LuaCompilationResult {
@@ -31,6 +54,11 @@ class LuaCompilationResult {
 }
 
 class LuaEngine {
+  static double _fastRnd(int seed) {
+    int x = (seed * 1103515245 + 12345) & 0x7FFFFFFF;
+    return (x / 2147483647.0) * 2.0 - 1.0;
+  }
+
   static double _tanh(double x) {
     if (x > 20.0) return 1.0;
     if (x < -20.0) return -1.0;
@@ -40,7 +68,11 @@ class LuaEngine {
   }
 
   static final RegExp _paramRegExp = RegExp(
-    "Param\\.add\\(\\s*[\"']([^\"']+)[\"']\\s*,\\s*([\\d\\.-]+)\\s*,\\s*([\\d\\.-]+)\\s*,\\s*([\\d\\.-]+)\\s*\\)",
+    "Param\\.add\\(\\s*[\"']([^\"']+)[\"']\\s*,\\s*([\\d\\.-]+)\\s*,\\s*([\\d\\.-]+)\\s*,\\s*([\\d\\.-]+)(?:\\s*,\\s*([\\d\\.-]+))?\\s*\\)",
+  );
+
+  static final RegExp _choiceParamRegExp = RegExp(
+    "Param\\.choice\\(\\s*[\"']([^\"']+)[\"']\\s*,\\s*\\{([^\\}]+)\\}\\s*(?:,\\s*([\\d\\.-]+))?\\s*\\)",
   );
 
   static final RegExp _v1ParamRegExp = RegExp(
@@ -63,18 +95,50 @@ class LuaEngine {
 
     try {
       final params = <LuaParamDef>[];
+
+      // 1. Parse Param.add("Name", min, max, default, [step])
       final matches = _paramRegExp.allMatches(code);
       for (final m in matches) {
         final name = m.group(1)!;
         final minVal = double.tryParse(m.group(2)!) ?? 0.0;
         final maxVal = double.tryParse(m.group(3)!) ?? 1.0;
         final defVal = double.tryParse(m.group(4)!) ?? minVal;
+        final stepVal = (m.groupCount >= 5 && m.group(5) != null) ? (double.tryParse(m.group(5)!) ?? 0.0) : 0.0;
+
         params.add(LuaParamDef(
           name: name,
           min: minVal,
           max: maxVal,
           defaultValue: defVal,
+          step: stepVal,
         ));
+      }
+
+      // 2. Parse Param.choice("Name", {"Opt1", "Opt2", ...}, [defaultIdx])
+      final choiceMatches = _choiceParamRegExp.allMatches(code);
+      for (final m in choiceMatches) {
+        final name = m.group(1)!;
+        final rawOpts = m.group(2)!;
+        final defIdx = (m.groupCount >= 3 && m.group(3) != null) ? (double.tryParse(m.group(3)!) ?? 0.0) : 0.0;
+
+        final optsList = rawOpts
+            .split(',')
+            .map((s) => s.trim().replaceAll(RegExp("^[\"']|[\"']\$"), ''))
+            .where((s) => s.isNotEmpty)
+            .toList();
+
+        final maxVal = math.max(0, optsList.length - 1).toDouble();
+
+        if (!params.any((p) => p.name == name)) {
+          params.add(LuaParamDef(
+            name: name,
+            min: 0.0,
+            max: maxVal,
+            defaultValue: defIdx.clamp(0.0, maxVal),
+            step: 1.0,
+            options: optsList,
+          ));
+        }
       }
 
       // Check for clip:registerParam
@@ -189,7 +253,7 @@ class LuaEngine {
       }
 
       final output = rawOutput * boundaryFade;
-      return (math.exp(output * 1.3) - math.exp(-output * 1.3)) / (math.exp(output * 1.3) + math.exp(-output * 1.3));
+      return _tanh(output * 1.3);
     }
 
     // 1. JC-303 Acid Bass Engine (Modelled after midilab/jc303)
@@ -284,11 +348,10 @@ class LuaEngine {
       final sweepFreq = toneFreq * math.exp(-time * 40.0);
       final body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 25.0);
 
-      final rnd = math.Random((time * 10000).toInt() % 100000 + 42);
-      final noise = (rnd.nextDouble() * 2.0 - 1.0) * math.exp(-time / decay.clamp(0.01, 1.0));
+      final noise = _fastRnd(sampleIndex + (time * 100000).toInt()) * math.exp(-time / decay.clamp(0.01, 1.0));
 
       final output = body * (1.0 - snappy) + noise * snappy;
-      return (math.exp(output * 1.2) - math.exp(-output * 1.2)) / (math.exp(output * 1.2) + math.exp(-output * 1.2));
+      return _tanh(output * 1.2);
     }
 
     // 3. Procedural Hi-Hat
@@ -309,9 +372,8 @@ class LuaEngine {
         vState.y2 = 0.0;
       }
 
-      // True white noise calculated per sample
-      final rnd = math.Random(sampleIndex * 1664525 + 1013904223);
-      final noise = rnd.nextDouble() * 2.0 - 1.0;
+      // True white noise calculated per sample (zero-allocation)
+      final noise = _fastRnd(sampleIndex * 1664525 + 1013904223);
 
       // TR-808 inspired metallic square ring cluster
       final ring1 = math.sin(2.0 * math.pi * 205.0 * time) > 0 ? 1.0 : -1.0;
@@ -436,7 +498,7 @@ class LuaEngine {
 
       final driven = inputSample * drive;
       // Hyperbolic tangent soft clipping
-      final clipped = (math.exp(driven) - math.exp(-driven)) / (math.exp(driven) + math.exp(-driven));
+      final clipped = _tanh(driven);
       return clipped * outGain;
     } else {
       return (inputSample * 1.2).clamp(-1.0, 1.0);

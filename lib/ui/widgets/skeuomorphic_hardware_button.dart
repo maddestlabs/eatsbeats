@@ -63,29 +63,27 @@ class _SkeuomorphicHardwareButtonState extends State<SkeuomorphicHardwareButton>
         height: widget.height,
         width: widget.width,
         padding: widget.padding,
-        transform: EatsTheme.enableSkeuomorphism ? Matrix4.translationValues(0, _isPressed ? 2.0 : 0.0, 0) : null,
+        transform: Matrix4.translationValues(0, _isPressed ? 2.0 : 0.0, 0),
         decoration: BoxDecoration(
           borderRadius: widget.borderRadius ?? BorderRadius.circular(4),
           color: btnColor,
-          gradient: EatsTheme.enableSkeuomorphism
-              ? LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withOpacity(isGrungy ? 0.15 : 0.10),
-                    Colors.transparent,
-                    Colors.black.withOpacity(0.15),
-                  ],
-                  stops: const [0.0, 0.45, 1.0],
-                )
-              : null,
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white.withOpacity(isGrungy ? 0.15 : 0.10),
+              Colors.transparent,
+              Colors.black.withOpacity(0.15),
+            ],
+            stops: const [0.0, 0.45, 1.0],
+          ),
           border: Border.all(
             color: widget.isActive
                 ? ledColor
                 : (isGrungy ? const Color(0xFF594F45) : (EatsTheme.isLight ? Colors.black26 : Colors.white24)),
             width: widget.isActive ? 1.5 : 1.0,
           ),
-          boxShadow: EatsTheme.enablePanelShadows ? (_isPressed
+          boxShadow: _isPressed
               ? [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.4),
@@ -105,7 +103,7 @@ class _SkeuomorphicHardwareButtonState extends State<SkeuomorphicHardwareButton>
                       blurRadius: 10,
                       spreadRadius: 1,
                     ),
-                ]) : null,
+                ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

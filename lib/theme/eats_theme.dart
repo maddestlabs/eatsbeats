@@ -4,35 +4,14 @@ enum EatsThemePreset {
   ateTrack,      // Ate Track (Default Vintage Gear)
   midnightBites, // Midnight Bites
   lightSnack,    // Light Snack
-  flatMinimal,   // Flat Minimal (Stock UI)
 }
 
 /// Central Theme Engine for Eatsbits.
-/// Manages color tokens, typography styles, visual decoration flags,
-/// and provides the foundation for Lua-scripted custom themes.
+/// Manages color tokens and typography styles for the application.
 class EatsTheme {
-  static EatsThemePreset _currentPreset = EatsThemePreset.ateTrack;
-  static EatsThemePreset get currentPreset => _currentPreset;
-
-  static set currentPreset(EatsThemePreset preset) {
-    _currentPreset = preset;
-    if (preset == EatsThemePreset.flatMinimal) {
-      enableSkeuomorphism = false;
-      enableGlassGlares = false;
-      enablePanelShadows = false;
-    } else {
-      enableSkeuomorphism = true;
-      enableGlassGlares = true;
-      enablePanelShadows = true;
-    }
-  }
+  static EatsThemePreset currentPreset = EatsThemePreset.ateTrack;
 
   static bool get isLight => currentPreset == EatsThemePreset.lightSnack;
-
-  // --- Visual Enhancement & Performance Flags (Scriptable via Lua) ---
-  static bool enableSkeuomorphism = true;
-  static bool enableGlassGlares = true;
-  static bool enablePanelShadows = true;
 
   // --- Dual-Context Font Settings ---
   static String primaryFontName = 'Sans Serif';
@@ -56,8 +35,6 @@ class EatsTheme {
   // --- Color Palette Tokens ---
   static Color get backgroundDark {
     switch (currentPreset) {
-      case EatsThemePreset.flatMinimal:
-        return const Color(0xFF121214); // Pure flat dark background
       case EatsThemePreset.midnightBites:
         return const Color(0xFF000000);
       case EatsThemePreset.lightSnack:
@@ -70,8 +47,6 @@ class EatsTheme {
 
   static Color get panelBackground {
     switch (currentPreset) {
-      case EatsThemePreset.flatMinimal:
-        return const Color(0xFF1A1A1E); // Flat card background
       case EatsThemePreset.midnightBites:
         return const Color(0xFF101010);
       case EatsThemePreset.lightSnack:
@@ -84,8 +59,6 @@ class EatsTheme {
 
   static Color get panelHeader {
     switch (currentPreset) {
-      case EatsThemePreset.flatMinimal:
-        return const Color(0xFF24242A); // Minimal flat header fill
       case EatsThemePreset.midnightBites:
         return const Color(0xFF181818);
       case EatsThemePreset.lightSnack:
@@ -98,8 +71,6 @@ class EatsTheme {
 
   static Color get controlBackground {
     switch (currentPreset) {
-      case EatsThemePreset.flatMinimal:
-        return const Color(0xFF2A2A32); // Flat control fill
       case EatsThemePreset.midnightBites:
         return const Color(0xFF222222);
       case EatsThemePreset.lightSnack:
@@ -112,8 +83,6 @@ class EatsTheme {
 
   static Color get primaryCyan {
     switch (currentPreset) {
-      case EatsThemePreset.flatMinimal:
-        return const Color(0xFF00E5FF); // Vibrant flat neon cyan
       case EatsThemePreset.lightSnack:
         return const Color(0xFF007799); // Deep Teal for high contrast
       case EatsThemePreset.ateTrack:
@@ -126,8 +95,6 @@ class EatsTheme {
 
   static Color get highlightColor {
     switch (currentPreset) {
-      case EatsThemePreset.flatMinimal:
-        return const Color(0xFF00E5FF);
       case EatsThemePreset.lightSnack:
         return const Color(0xFF0284C7);
       case EatsThemePreset.ateTrack:
@@ -161,18 +128,7 @@ class EatsTheme {
     return currentPreset == EatsThemePreset.lightSnack ? const Color(0xFF64748B) : const Color(0xFF535D6E);
   }
 
-  /// Apply custom theme parameters dynamically from a Lua script dictionary
-  static void applyLuaThemeMap(Map<String, dynamic> config) {
-    if (config.containsKey('enable_skeuomorphism')) {
-      enableSkeuomorphism = config['enable_skeuomorphism'] == true;
-    }
-    if (config.containsKey('enable_glass_glares')) {
-      enableGlassGlares = config['enable_glass_glares'] == true;
-    }
-    if (config.containsKey('enable_panel_shadows')) {
-      enablePanelShadows = config['enable_panel_shadows'] == true;
-    }
-  }
+
 
   static ThemeData get themeData {
     final isLight = currentPreset == EatsThemePreset.lightSnack;

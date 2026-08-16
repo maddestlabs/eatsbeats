@@ -54,5 +54,6 @@ Avoid these regressions with these rules:
 
 ---
 
-## 📄 License
-MIT License
+## 📄 License & Credits
+- App codebase licensed under MIT License.
+- Bundled default SoundFont: [Super Small Font](https://github.com/nitro-shoe/super-small-font) by nitro-shoe, used under [Creative Commons Attribution 4.0 (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/).

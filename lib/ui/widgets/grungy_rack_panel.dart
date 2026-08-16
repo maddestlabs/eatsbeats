@@ -30,7 +30,7 @@ class GrungyRackPanel extends StatelessWidget {
     final basePanel = panelColor ?? (isGrungy ? const Color(0xFF26221D) : EatsTheme.panelBackground);
 
     final panelContent = Container(
-      margin: EatsTheme.enableSkeuomorphism ? const EdgeInsets.all(4.0) : EdgeInsets.zero,
+      margin: const EdgeInsets.all(4.0),
       decoration: BoxDecoration(
         color: basePanel,
         borderRadius: BorderRadius.circular(6),
@@ -38,13 +38,13 @@ class GrungyRackPanel extends StatelessWidget {
           color: isGrungy ? const Color(0xFF423B33) : EatsTheme.panelHeader,
           width: 1.0,
         ),
-        boxShadow: EatsTheme.enablePanelShadows ? [
+        boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.4),
             blurRadius: 6,
             offset: const Offset(0, 3),
           ),
-        ] : null,
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -123,13 +123,10 @@ class GrungyRackPanel extends StatelessWidget {
         ),
       );
 
-    if (EatsTheme.enableSkeuomorphism) {
-      return CustomPaint(
-        painter: _RackPanelBorderPainter(isGrungy: isGrungy, accentColor: baseAccent),
-        child: panelContent,
-      );
-    }
-    return panelContent;
+    return CustomPaint(
+      painter: _RackPanelBorderPainter(isGrungy: isGrungy, accentColor: baseAccent),
+      child: panelContent,
+    );
   }
 }
 

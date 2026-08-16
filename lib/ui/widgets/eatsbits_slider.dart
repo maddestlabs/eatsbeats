@@ -12,6 +12,7 @@ class EatsBitsSlider extends StatelessWidget {
   final Color? activeColor;
   final Color? inactiveColor;
   final int? divisions;
+  final double step;
   final String Function(double)? formatValue;
 
   const EatsBitsSlider({
@@ -25,6 +26,7 @@ class EatsBitsSlider extends StatelessWidget {
     this.activeColor,
     this.inactiveColor,
     this.divisions,
+    this.step = 0.0,
     this.formatValue,
   });
 
@@ -38,6 +40,8 @@ class EatsBitsSlider extends StatelessWidget {
       label: label,
       onChanged: onChanged,
       activeColor: activeColor ?? EatsTheme.primaryCyan,
+      divisions: divisions,
+      step: step,
       formatValue: formatValue,
     );
   }

@@ -65,7 +65,7 @@ if ($Clean) {
 }
 
 # Construct build arguments
-$buildArgs = @("build", "web", "--no-tree-shake-icons")
+$buildArgs = @("build", "web", "--no-tree-shake-icons", "--pwa-strategy=none")
 if ($Wasm) {
     $buildArgs += "--wasm"
     Write-Host "    Target: Web (WASM)" -ForegroundColor Gray
