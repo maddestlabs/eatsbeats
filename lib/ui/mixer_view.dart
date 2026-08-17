@@ -135,6 +135,7 @@ class _MixerViewState extends State<MixerView> {
 
     return GestureDetector(
       onLongPress: () => showRenameTrackDialog(context, dawState, track),
+      onSecondaryTap: () => showRenameTrackDialog(context, dawState, track),
       onTapDown: (_) {
         final now = DateTime.now();
         final isDoubleTap = _lastTapTrackIdx == trackIdx &&

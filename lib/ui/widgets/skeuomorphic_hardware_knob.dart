@@ -82,8 +82,10 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
           },
           onDoubleTap: () => widget.onChanged(widget.defaultValue),
           onLongPress: () => _showManualEditDialog(context),
+          onSecondaryTap: () => _showManualEditDialog(context),
+          onSecondaryTapDown: (_) => _showManualEditDialog(context),
           child: Tooltip(
-            message: '${widget.label ?? "Knob"}: $displayVal (Double-tap reset, Hold to edit)',
+            message: '${widget.label ?? "Knob"}: $displayVal (Double-tap reset, Hold/Right-click to edit)',
             child: SizedBox(
               width: widget.size,
               height: widget.size,

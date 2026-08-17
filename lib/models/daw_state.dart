@@ -16,6 +16,7 @@ import '../lua/eats_lua_serializer.dart';
 import '../lua/eats_lua_parser.dart';
 import '../audio/time_context.dart';
 import '../lua/lua_preset_library.dart';
+import '../lua/midi_pipeline_engine.dart';
 import '../lua/default_song.dart';
 import 'track_model.dart';
 
@@ -341,12 +342,16 @@ class DawState extends ChangeNotifier {
       // Synchronize Lua parameters to active track
       activeTrack.luaScriptCode = code;
       activeTrack.type = TrackType.luaScript;
-      
+
       final newParams = <String, double>{};
       for (final p in compilationResult.params) {
         newParams[p.name] = activeTrack.luaParams[p.name] ?? p.defaultValue;
       }
       activeTrack.luaParams = newParams;
+
+      // Invalidate PCM cache entries for this track so the next note trigger
+      // re-synthesizes with the new Lua code rather than playing stale buffers.
+      audioEngine.invalidateLuaCache(activeTrack.id);
     }
     notifyListeners();
   }
@@ -379,6 +384,91 @@ class DawState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void applyPresetToClip(TrackChannel track, TrackClip clip, LuaPreset preset) {
+    clip.name = preset.name;
+    clip.luaScriptCode = preset.code;
+
+    // Parse notes from sequence script if present
+    final parsedNotes = MidiPipelineEngine.parseNotesFromLuaTable(preset.code);
+    if (parsedNotes.isNotEmpty) {
+      if (clip.barLength > 1) {
+        // Tile 1-bar (16 steps) sequence across multi-bar clips
+        final List<Note> tiledNotes = [];
+        for (int bar = 0; bar < clip.barLength; bar++) {
+          final barOffset = bar * 16.0;
+          for (final n in parsedNotes) {
+            tiledNotes.add(n.copyWith(
+              id: 'n_clip_${clip.id}_b${bar}_${n.startStep}',
+              startStep: n.startStep + barOffset,
+            ));
+          }
+        }
+        clip.notes = tiledNotes;
+      } else {
+        clip.notes = parsedNotes.map((n) => n.copyWith(id: 'n_clip_${clip.id}_${n.startStep}')).toList();
+      }
+
+      // If this clip is the active clip, sync active track notes
+      if (activeClip?.id == clip.id) {
+        track.notes = clip.notes.map((n) => n.copyWith()).toList();
+      }
+    }
+
+    // Process clip through MidiPipelineEngine
+    final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+    pipeline.processClip(
+      clip: clip,
+      track: track,
+      timeContext: timeContext,
+    );
+
+    notifyListeners();
+  }
+
+  void addClipWithPresetToTrack(TrackChannel track, int startBar, LuaPreset preset, {int barLength = 1}) {
+    final parsedNotes = MidiPipelineEngine.parseNotesFromLuaTable(preset.code);
+    final clipId = 'c_${DateTime.now().millisecondsSinceEpoch}';
+    final List<Note> initialNotes = [];
+
+    if (parsedNotes.isNotEmpty) {
+      for (int bar = 0; bar < barLength; bar++) {
+        final barOffset = bar * 16.0;
+        for (final n in parsedNotes) {
+          initialNotes.add(n.copyWith(
+            id: 'n_clip_${clipId}_b${bar}_${n.startStep}',
+            startStep: n.startStep + barOffset,
+          ));
+        }
+      }
+    }
+
+    final newClip = TrackClip(
+      id: clipId,
+      name: preset.name,
+      trackId: track.id,
+      startBar: startBar,
+      barLength: barLength,
+      notes: initialNotes,
+      luaScriptCode: preset.code,
+      luaParams: {},
+    );
+
+    track.clips.add(newClip);
+    activeClip = newClip;
+    if (activeTrack.id == track.id) {
+      track.notes = newClip.notes.map((n) => n.copyWith()).toList();
+    }
+
+    final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+    pipeline.processClip(
+      clip: newClip,
+      track: track,
+      timeContext: timeContext,
+    );
+
+    notifyListeners();
+  }
+
   void selectClip(TrackClip clip) {
     activeClip = clip;
     notifyListeners();
@@ -392,6 +482,10 @@ class DawState extends ChangeNotifier {
   void setBpm(double newBpm) {
     _bpm = newBpm.clamp(40.0, 240.0);
     if (_isPlaying) {
+      // Step duration changed — re-warm the cache at the new BPM so the
+      // restarted scheduler immediately finds correctly-sized buffers.
+      final double stepDurationSec = 60.0 / _bpm / 4.0;
+      audioEngine.prewarmPatternCache(activePattern.tracks, stepDurationSec);
       _restartTimer();
     }
     notifyListeners();
@@ -459,12 +553,21 @@ class DawState extends ChangeNotifier {
   }
 
   double _nextNoteTime = 0.0;
-  double get _scheduleAheadTime => kIsWeb ? 0.120 : 0.015; // 15ms look-ahead for native desktop for instant rhythm
+  // 100ms lookahead ensures the audio thread is always supplied with
+  // timestamped notes ahead of time, preventing OS timer jitter from causing stutter.
+  double get _scheduleAheadTime => 0.100;
 
   void togglePlay() {
     audioEngine.ensureContextRunning();
     _isPlaying = !_isPlaying;
     if (_isPlaying) {
+      // Pre-warm the PCM cache for every non-slide note in the active pattern
+      // BEFORE starting the scheduler. This guarantees the first loop runs
+      // entirely from cache (sub-millisecond buffer lookups), making timing
+      // consistent from beat 1 rather than only after the first pass.
+      final double stepDurationSec = 60.0 / _bpm / 4.0;
+      audioEngine.prewarmPatternCache(activePattern.tracks, stepDurationSec);
+
       _nextNoteTime = audioEngine.currentTime + 0.02;
       _startSchedulerTimer();
     } else {
@@ -589,6 +692,7 @@ class DawState extends ChangeNotifier {
                 isSlide: isSlideStep,
                 isAccent: isAccentStep,
                 velocity: step.velocity,
+                durationSec: stepDurationSec, // synthesize only one 16th note, not the 0.4s default
                 scheduledTime: hardwareTime,
               );
             }
@@ -777,11 +881,13 @@ class DawState extends ChangeNotifier {
   // Modular FX Insert Management
   void addFXInsert(TrackChannel track, FXType type) {
     track.fxRack.add(FXInsert.create(type));
+    audioEngine.invalidateLuaCache(track.id);
     notifyListeners();
   }
 
   void removeFXInsert(TrackChannel track, String fxId) {
     track.fxRack.removeWhere((f) => f.id == fxId);
+    audioEngine.invalidateLuaCache(track.id);
     notifyListeners();
   }
 
@@ -792,6 +898,7 @@ class DawState extends ChangeNotifier {
     if (oldIndex >= 0 && oldIndex < track.fxRack.length && newIndex >= 0 && newIndex <= track.fxRack.length) {
       final item = track.fxRack.removeAt(oldIndex);
       track.fxRack.insert(newIndex, item);
+      audioEngine.invalidateLuaCache(track.id);
       notifyListeners();
     }
   }
@@ -800,6 +907,7 @@ class DawState extends ChangeNotifier {
     for (final f in track.fxRack) {
       if (f.id == fxId) {
         f.enabled = enabled;
+        audioEngine.invalidateLuaCache(track.id);
         notifyListeners();
         break;
       }
@@ -810,6 +918,7 @@ class DawState extends ChangeNotifier {
     for (final f in track.fxRack) {
       if (f.id == fxId) {
         f.mix = mix.clamp(0.0, 1.0);
+        audioEngine.invalidateLuaCache(track.id);
         notifyListeners();
         break;
       }
@@ -820,6 +929,7 @@ class DawState extends ChangeNotifier {
     for (final f in track.fxRack) {
       if (f.id == fxId) {
         f.params[paramName] = val;
+        audioEngine.invalidateLuaCache(track.id);
         notifyListeners();
         break;
       }
@@ -830,6 +940,7 @@ class DawState extends ChangeNotifier {
     for (final f in track.fxRack) {
       if (f.id == fxId) {
         f.irSampleName = irName;
+        audioEngine.invalidateLuaCache(track.id);
         notifyListeners();
         break;
       }
@@ -839,22 +950,24 @@ class DawState extends ChangeNotifier {
   // Legacy compatibility methods
   void toggleBitcrusher(TrackChannel track, bool enabled) {
     if (enabled) {
-      if (!track.fxRack.any((f) => f.name == 'Bitcrusher')) {
+      if (!track.fxRack.any((f) => f.type == FXType.bitcrusher || f.name.contains('Bitcrusher'))) {
         addFXInsert(track, FXType.bitcrusher);
       }
     } else {
-      track.fxRack.removeWhere((f) => f.name == 'Bitcrusher');
+      track.fxRack.removeWhere((f) => f.type == FXType.bitcrusher || f.name.contains('Bitcrusher'));
+      audioEngine.invalidateLuaCache(track.id);
       notifyListeners();
     }
   }
 
   void toggleDistortion(TrackChannel track, bool enabled) {
     if (enabled) {
-      if (!track.fxRack.any((f) => f.name == 'TubeDistortion')) {
+      if (!track.fxRack.any((f) => f.type == FXType.distortion || f.name.contains('Distortion'))) {
         addFXInsert(track, FXType.distortion);
       }
     } else {
-      track.fxRack.removeWhere((f) => f.name == 'TubeDistortion');
+      track.fxRack.removeWhere((f) => f.type == FXType.distortion || f.name.contains('Distortion'));
+      audioEngine.invalidateLuaCache(track.id);
       notifyListeners();
     }
   }

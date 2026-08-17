@@ -18,6 +18,7 @@ class SkeuomorphicHardwareSlider extends StatefulWidget {
   final double length;
   final String Function(double)? formatValue;
   final bool showLevelMarkings;
+  final bool showTooltip;
   final int? divisions;
   final double step;
 
@@ -34,6 +35,7 @@ class SkeuomorphicHardwareSlider extends StatefulWidget {
     this.length = 160.0,
     this.formatValue,
     this.showLevelMarkings = true,
+    this.showTooltip = true,
     this.divisions,
     this.step = 0.0,
   });
@@ -80,28 +82,34 @@ class _SkeuomorphicHardwareSliderState extends State<SkeuomorphicHardwareSlider>
         final widgetWidth = isHoriz ? totalLength : 40.0;
         final widgetHeight = isHoriz ? 36.0 : totalLength;
 
+        final content = SizedBox(
+          width: widgetWidth,
+          height: widgetHeight,
+          child: CustomPaint(
+            painter: _FaderPainter(
+              normalizedValue: normalized,
+              accentColor: activeColor,
+              isGrungyTheme: isGrungy,
+              orientation: widget.orientation,
+              showLevelMarkings: widget.showLevelMarkings,
+            ),
+          ),
+        );
+
         return GestureDetector(
           onTapDown: (details) => _updateValueFromPos(details.localPosition, totalLength, isHoriz),
           onPanDown: (details) => _updateValueFromPos(details.localPosition, totalLength, isHoriz),
           onPanUpdate: (details) => _updateValueFromPos(details.localPosition, totalLength, isHoriz),
           onDoubleTap: () => widget.onChanged(widget.defaultValue),
           onLongPress: () => _showManualEditDialog(context),
-          child: Tooltip(
-            message: '${widget.label ?? "Fader"}: ${widget.value.toStringAsFixed(2)}',
-            child: SizedBox(
-              width: widgetWidth,
-              height: widgetHeight,
-              child: CustomPaint(
-                painter: _FaderPainter(
-                  normalizedValue: normalized,
-                  accentColor: activeColor,
-                  isGrungyTheme: isGrungy,
-                  orientation: widget.orientation,
-                  showLevelMarkings: widget.showLevelMarkings,
-                ),
-              ),
-            ),
-          ),
+          onSecondaryTap: () => _showManualEditDialog(context),
+          onSecondaryTapDown: (_) => _showManualEditDialog(context),
+          child: widget.showTooltip
+              ? Tooltip(
+                  message: '${widget.label ?? "Fader"}: ${widget.value.toStringAsFixed(2)}',
+                  child: content,
+                )
+              : content,
         );
       },
     );

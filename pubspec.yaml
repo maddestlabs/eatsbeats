@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.4.3 <4.0.0'
+  sdk: '>=3.6.0 <4.0.0'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -31,11 +31,14 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # iPlug2-backed Web Audio API — unified audio backend for native + web.
+  # Replaces hand-rolled WASAPI FFI (audio_engine_native.dart) and
+  # raw dart:js_interop WebAudio (audio_engine_web.dart).
+  wajuce: ^0.3.2
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.6
-  web: 0.5.1
   archive: ^3.6.1
 
 dev_dependencies:

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
@@ -46,6 +47,42 @@ class _PianoRollViewState extends State<PianoRollView> {
   String? _activeResizeNoteId;
   double? _resizeStartDuration;
   Offset? _resizeStartPos;
+
+  // Active keyboard pressed keys map (pitch -> velocity) for visual feedback
+  final Map<int, double> _activeKeyboardPitches = {};
+  bool _isMiddleMouseDragging = false;
+  DateTime? _lastNoteTapTime;
+  String? _lastNoteTapId;
+  DateTime? _lastNotePointerDownTime;
+
+  void _handleKeyPointerDown(PointerDownEvent e, int pitch, double keyWidth) {
+    final normX = (e.localPosition.dx / keyWidth).clamp(0.0, 1.0);
+    final velocity = (0.15 + 0.85 * normX).clamp(0.15, 1.0);
+    _activeKeyboardPitches[pitch] = velocity;
+    final track = widget.dawState.activeTrack;
+    widget.dawState.audioEngine.playNoteOrSample(
+      track: track,
+      midiNote: pitch,
+      velocity: velocity,
+    );
+    setState(() {});
+  }
+
+  void _handleKeyPointerMove(PointerMoveEvent e, int pitch, double keyWidth) {
+    final normX = (e.localPosition.dx / keyWidth).clamp(0.0, 1.0);
+    final velocity = (0.15 + 0.85 * normX).clamp(0.15, 1.0);
+    if (_activeKeyboardPitches[pitch] != velocity) {
+      _activeKeyboardPitches[pitch] = velocity;
+      setState(() {});
+    }
+  }
+
+  void _handleKeyPointerUp(int pitch) {
+    if (_activeKeyboardPitches.containsKey(pitch)) {
+      _activeKeyboardPitches.remove(pitch);
+      setState(() {});
+    }
+  }
 
   @override
   void initState() {
@@ -203,25 +240,21 @@ class _PianoRollViewState extends State<PianoRollView> {
       }
     }
 
-    // Horizontal scroll check
+    // Horizontal scroll check: only scroll if note is actually outside visible area
     if (_horizontalScroll.hasClients) {
       final scrollX = _horizontalScroll.offset;
       final viewportW = _horizontalScroll.position.viewportDimension;
       final maxScrollX = _horizontalScroll.position.maxScrollExtent;
 
       double? targetScrollX;
-      if (noteLeft < scrollX + 30) {
-        targetScrollX = (noteLeft - 40).clamp(0.0, maxScrollX);
-      } else if (noteLeft + noteWidth + 260 > scrollX + viewportW) {
-        targetScrollX = (noteLeft + noteWidth + 280 - viewportW).clamp(0.0, maxScrollX);
+      if (noteLeft < scrollX) {
+        targetScrollX = (noteLeft - 30).clamp(0.0, maxScrollX);
+      } else if (noteLeft + noteWidth > scrollX + viewportW) {
+        targetScrollX = (noteLeft + noteWidth + 30 - viewportW).clamp(0.0, maxScrollX);
       }
 
-      if (targetScrollX != null && (targetScrollX - scrollX).abs() > 2) {
-        _horizontalScroll.animateTo(
-          targetScrollX,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        );
+      if (targetScrollX != null && (targetScrollX - scrollX).abs() > 4) {
+        _horizontalScroll.jumpTo(targetScrollX);
       }
     }
   }
@@ -399,321 +432,299 @@ class _PianoRollViewState extends State<PianoRollView> {
     return tooltip != null ? Tooltip(message: tooltip, child: btn) : btn;
   }
 
-  Widget _buildSelectedNoteHoverCard(TrackChannel track, Note note, double snap, double noteLeft, double noteTop, double noteWidth, double noteHeight) {
+  Widget _buildNoteInspectorSidebar(TrackChannel track, Note note, double snap) {
+    final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
+    final maxPosStep = (totalSteps - note.durationSteps).clamp(0.0, double.infinity);
+    final nudgeStep = snap > 0 ? snap : 1.0;
     final minDur = snap > 0 ? snap : 0.25;
     final velPercent = (note.velocity * 100).round();
 
-    const double cardWidth = 250.0;
-    const double cardHeight = 220.0;
-
-    if (_draggedNoteId != note.id) {
-      _draggedNoteId = note.id;
-      _notePropertiesOffset = null;
-    }
-
-    // Get visible viewport offsets & dimensions to ensure dialog is 100% visible on screen
-    final scrollY = _gridScrollController.hasClients ? _gridScrollController.offset : 0.0;
-    final viewportH = _gridScrollController.hasClients ? _gridScrollController.position.viewportDimension : 400.0;
-    final scrollX = _horizontalScroll.hasClients ? _horizontalScroll.offset : 0.0;
-    final viewportW = _horizontalScroll.hasClients ? _horizontalScroll.position.viewportDimension : 600.0;
-
-    final minVisibleTop = scrollY + 4.0;
-    final maxVisibleTop = math.max(minVisibleTop, scrollY + viewportH - cardHeight - 4.0);
-    final minVisibleLeft = scrollX + 4.0;
-    final maxVisibleLeft = math.max(minVisibleLeft, scrollX + viewportW - cardWidth - 4.0);
-
-    double cardTop;
-    double cardLeft = noteLeft;
-
-    final spaceAboveInViewport = noteTop - scrollY - 8.0;
-    final spaceBelowInViewport = (scrollY + viewportH) - (noteTop + noteHeight) - 8.0;
-
-    if (spaceAboveInViewport >= cardHeight) {
-      // Place ABOVE note
-      cardTop = noteTop - cardHeight - 8.0;
-    } else if (spaceBelowInViewport >= cardHeight) {
-      // Place BELOW note
-      cardTop = noteTop + noteHeight + 8.0;
-    } else {
-      // Space above & below are tight in viewport -> place alongside note
-      cardTop = (noteTop - 20.0).clamp(minVisibleTop, maxVisibleTop);
-      if (noteLeft + noteWidth + cardWidth + 8.0 <= scrollX + viewportW) {
-        cardLeft = noteLeft + noteWidth + 8.0;
-      } else if (noteLeft - cardWidth - 8.0 >= scrollX) {
-        cardLeft = noteLeft - cardWidth - 8.0;
-      }
-    }
-
-    if (_notePropertiesOffset != null) {
-      cardLeft += _notePropertiesOffset!.dx;
-      cardTop += _notePropertiesOffset!.dy;
-    }
-
-    // Strictly clamp position within visible viewport bounds to guarantee zero clipping
-    cardLeft = cardLeft.clamp(minVisibleLeft, maxVisibleLeft);
-    cardTop = cardTop.clamp(minVisibleTop, maxVisibleTop);
-
-    final maxPosStep = (totalSteps - note.durationSteps).clamp(0.0, double.infinity);
-    final nudgeStep = snap > 0 ? snap : 1.0;
-
-    return Positioned(
-      left: cardLeft,
-      top: cardTop,
-      width: cardWidth,
-      child: Material(
-        elevation: 8,
-        color: Colors.transparent,
-        child: Container(
-          decoration: BoxDecoration(
-            color: EatsTheme.panelBackground.withOpacity(0.96),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: EatsTheme.primaryCyan, width: 1.5),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 10, spreadRadius: 2),
-            ],
+    return Material(
+      elevation: 12,
+      color: Colors.transparent,
+      child: Container(
+        width: 270,
+        decoration: BoxDecoration(
+          color: isGrungy ? const Color(0xFF1E1A17) : EatsTheme.panelBackground,
+          border: Border(
+            left: BorderSide(color: isGrungy ? const Color(0xFF4A423A) : EatsTheme.panelHeader, width: 1.5),
           ),
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Row 1: Draggable Header (Note Info Badge, Drag Handle & Action Buttons)
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onPanUpdate: (details) {
-                  setState(() {
-                    _notePropertiesOffset = (_notePropertiesOffset ?? Offset.zero) + details.delta;
-                  });
-                },
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.drag_handle,
-                      size: 16,
-                      color: EatsTheme.textMuted,
-                    ),
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: track.color,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        '${_getNoteName(note.pitch)} @ Step ${note.startStep.toStringAsFixed(note.startStep % 1 == 0 ? 0 : 1)}',
-                        style: TextStyle(
-                          color: EatsTheme.backgroundDark,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    InkWell(
-                      onTap: () {
-                        widget.dawState.removeNote(track, note.id);
-                        setState(() => _selectedNoteId = null);
-                      },
-                      child: Tooltip(
-                        message: 'Delete Note',
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                          margin: const EdgeInsets.only(right: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.redAccent.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: Colors.redAccent.withOpacity(0.6), width: 1.0),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.delete_forever, size: 14, color: Colors.redAccent),
-                              SizedBox(width: 3),
-                              Text(
-                                'DEL',
-                                style: TextStyle(
-                                  color: Colors.redAccent,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.close, size: 16, color: EatsTheme.textMuted),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                      tooltip: 'Close Menu',
-                      onPressed: () => setState(() => _selectedNoteId = null),
-                    ),
-                  ],
-                ),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(-3, 0)),
+          ],
+        ),
+        child: Column(
+          children: [
+            // Sidebar Header (Note Title & Badges)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: EatsTheme.panelHeader,
+                border: Border(bottom: BorderSide(color: EatsTheme.panelHeader, width: 1.5)),
               ),
-              const Divider(height: 10, thickness: 0.5, color: Colors.white24),
-
-              // Row 2: Pitch Transpose Buttons
-              Row(
+              child: Row(
                 children: [
-                  Text('PITCH:', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(color: track.color, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'NOTE INSPECTOR',
+                    style: EatsTheme.getDisplayFontStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: EatsTheme.textLight,
+                    ),
+                  ),
                   const Spacer(),
-                  _buildCompactButton('-12', () => _transposeSelectedNote(track, note, -12), tooltip: '-1 Octave'),
-                  _buildCompactButton('-1', () => _transposeSelectedNote(track, note, -1), tooltip: '-1 Semitone'),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Text(
-                      _getNoteName(note.pitch),
-                      style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  _buildCompactButton('+1', () => _transposeSelectedNote(track, note, 1), tooltip: '+1 Semitone'),
-                  _buildCompactButton('+12', () => _transposeSelectedNote(track, note, 12), tooltip: '+1 Octave'),
-                ],
-              ),
-              const SizedBox(height: 6),
-
-              // Row 3: Note Position (Step Start) Controls & Nudge Buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  GestureDetector(
-                    onLongPress: () => _openManualPositionDialog(context, track, note),
-                    child: Tooltip(
-                      message: 'Long-press for manual numeric step input',
-                      child: Row(
-                        children: [
-                          Text('POS: ', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
-                          Text(
-                            'Step ${note.startStep.toStringAsFixed(note.startStep % 1 == 0 ? 0 : 1)}',
-                            style: TextStyle(color: EatsTheme.accentGold, fontSize: 11, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildCompactButton('-STEP', () => _changeSelectedNotePosition(track, note, note.startStep - nudgeStep), tooltip: 'Nudge Left'),
-                      _buildCompactButton('+STEP', () => _changeSelectedNotePosition(track, note, note.startStep + nudgeStep), tooltip: 'Nudge Right'),
-                    ],
-                  ),
-                ],
-              ),
-              SizedBox(
-                height: 24,
-                child: SliderTheme(
-                  data: SliderThemeData(
-                    trackHeight: 3,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    activeTrackColor: EatsTheme.accentGold,
-                    inactiveTrackColor: EatsTheme.controlBackground,
-                    thumbColor: EatsTheme.accentGold,
-                  ),
-                  child: Slider(
-                    value: note.startStep.clamp(0.0, maxPosStep),
-                    min: 0.0,
-                    max: math.max(0.1, maxPosStep),
-                    onChanged: (val) => _changeSelectedNotePosition(track, note, val),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-
-              // Row 4: Note Size / Duration Slider & Tap-Hold Manual Entry
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  GestureDetector(
-                    onLongPress: () => _openManualDurationDialog(context, track, note),
-                    child: Tooltip(
-                      message: 'Long-press for manual numeric input',
-                      child: Row(
-                        children: [
-                          Text('SIZE: ', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
-                          Text(
-                            '${note.durationSteps.toStringAsFixed(2)} st',
-                            style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Text('(Hold for text input)', style: TextStyle(color: EatsTheme.textMuted.withOpacity(0.6), fontSize: 8)),
-                ],
-              ),
-              SizedBox(
-                height: 24,
-                child: SliderTheme(
-                  data: SliderThemeData(
-                    trackHeight: 3,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    activeTrackColor: EatsTheme.primaryCyan,
-                    inactiveTrackColor: EatsTheme.controlBackground,
-                    thumbColor: EatsTheme.primaryCyan,
-                  ),
-                  child: Slider(
-                    value: note.durationSteps.clamp(minDur, 16.0),
-                    min: minDur,
-                    max: 16.0,
-                    onChanged: (val) => _changeSelectedNoteDuration(track, note, val),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-
-              // Row 5: Velocity Slider & Tap-Hold Manual Entry (Plays audition sound on release!)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  GestureDetector(
-                    onLongPress: () => _openManualVelocityDialog(context, track, note),
-                    child: Tooltip(
-                      message: 'Long-press for manual numeric input',
-                      child: Row(
-                        children: [
-                          Text('VELOCITY: ', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
-                          Text(
-                            '$velPercent%',
-                            style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Text('(Hold for text input)', style: TextStyle(color: EatsTheme.textMuted.withOpacity(0.6), fontSize: 8)),
-                ],
-              ),
-              SizedBox(
-                height: 24,
-                child: SliderTheme(
-                  data: SliderThemeData(
-                    trackHeight: 3,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    activeTrackColor: EatsTheme.primaryCyan,
-                    inactiveTrackColor: EatsTheme.controlBackground,
-                    thumbColor: EatsTheme.primaryCyan,
-                  ),
-                  child: Slider(
-                    value: note.velocity.clamp(0.05, 1.0),
-                    min: 0.05,
-                    max: 1.0,
-                    onChanged: (val) => _changeSelectedNoteVelocity(track, note, val),
-                    onChangeEnd: (val) {
-                      final clamped = val.clamp(0.05, 1.0);
-                      widget.dawState.audioEngine.playNoteOrSample(
-                        track: track,
-                        midiNote: note.pitch,
-                        velocity: clamped,
-                      );
+                  // Delete Button
+                  IconButton(
+                    icon: const Icon(Icons.delete_forever, size: 16, color: Colors.redAccent),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                    tooltip: 'Delete Note (Del)',
+                    onPressed: () {
+                      widget.dawState.removeNote(track, note.id);
+                      setState(() => _selectedNoteId = null);
                     },
                   ),
-                ),
+                  const SizedBox(width: 4),
+                  // Close Button
+                  IconButton(
+                    icon: Icon(Icons.close, size: 16, color: EatsTheme.textMuted),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                    tooltip: 'Close Inspector',
+                    onPressed: () => setState(() => _selectedNoteId = null),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+
+            // Note Summary Badge
+            Container(
+              margin: const EdgeInsets.all(8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: track.color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: track.color.withOpacity(0.5), width: 1),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _getNoteName(note.pitch),
+                    style: TextStyle(
+                      color: track.color,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'Step ${note.startStep.toStringAsFixed(note.startStep % 1 == 0 ? 0 : 1)} (${note.durationSteps.toStringAsFixed(2)} st)',
+                    style: TextStyle(
+                      color: EatsTheme.textLight,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                children: [
+                  // Section 1: Pitch Transposition
+                  _buildSidebarSectionHeader('PITCH TRANSPOSE'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildCompactButton('-12', () => _transposeSelectedNote(track, note, -12), tooltip: '-1 Octave'),
+                      _buildCompactButton('-1', () => _transposeSelectedNote(track, note, -1), tooltip: '-1 Semitone'),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: EatsTheme.controlBackground,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          _getNoteName(note.pitch),
+                          style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      _buildCompactButton('+1', () => _transposeSelectedNote(track, note, 1), tooltip: '+1 Semitone'),
+                      _buildCompactButton('+12', () => _transposeSelectedNote(track, note, 12), tooltip: '+1 Octave'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Section 2: Position (Start Step)
+                  _buildSidebarSectionHeader('POSITION (START STEP)'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      GestureDetector(
+                        onLongPress: () => _openManualPositionDialog(context, track, note),
+                        onSecondaryTap: () => _openManualPositionDialog(context, track, note),
+                        child: Tooltip(
+                          message: 'Tap / Right-click for manual numeric step input',
+                          child: Text(
+                            'Step ${note.startStep.toStringAsFixed(note.startStep % 1 == 0 ? 0 : 1)}',
+                            style: TextStyle(color: EatsTheme.accentGold, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildCompactButton('-STEP', () => _changeSelectedNotePosition(track, note, note.startStep - nudgeStep), tooltip: 'Nudge Left'),
+                          const SizedBox(width: 4),
+                          _buildCompactButton('+STEP', () => _changeSelectedNotePosition(track, note, note.startStep + nudgeStep), tooltip: 'Nudge Right'),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  SliderTheme(
+                    data: SliderThemeData(
+                      trackHeight: 3,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                      activeTrackColor: EatsTheme.accentGold,
+                      inactiveTrackColor: EatsTheme.controlBackground,
+                      thumbColor: EatsTheme.accentGold,
+                    ),
+                    child: Slider(
+                      value: note.startStep.clamp(0.0, maxPosStep),
+                      min: 0.0,
+                      max: math.max(0.1, maxPosStep),
+                      onChanged: (val) => _changeSelectedNotePosition(track, note, val),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Section 3: Length / Duration
+                  _buildSidebarSectionHeader('LENGTH / DURATION'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      GestureDetector(
+                        onLongPress: () => _openManualDurationDialog(context, track, note),
+                        onSecondaryTap: () => _openManualDurationDialog(context, track, note),
+                        child: Tooltip(
+                          message: 'Tap / Right-click for manual numeric input',
+                          child: Text(
+                            '${note.durationSteps.toStringAsFixed(2)} steps',
+                            style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildCompactButton('-LEN', () => _changeSelectedNoteDuration(track, note, note.durationSteps - nudgeStep), tooltip: 'Shorten'),
+                          const SizedBox(width: 4),
+                          _buildCompactButton('+LEN', () => _changeSelectedNoteDuration(track, note, note.durationSteps + nudgeStep), tooltip: 'Lengthen'),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  SliderTheme(
+                    data: SliderThemeData(
+                      trackHeight: 3,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                      activeTrackColor: EatsTheme.primaryCyan,
+                      inactiveTrackColor: EatsTheme.controlBackground,
+                      thumbColor: EatsTheme.primaryCyan,
+                    ),
+                    child: Slider(
+                      value: note.durationSteps.clamp(minDur, 16.0),
+                      min: minDur,
+                      max: 16.0,
+                      onChanged: (val) => _changeSelectedNoteDuration(track, note, val),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Section 4: Velocity
+                  _buildSidebarSectionHeader('VELOCITY ($velPercent%)'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      GestureDetector(
+                        onLongPress: () => _openManualVelocityDialog(context, track, note),
+                        onSecondaryTap: () => _openManualVelocityDialog(context, track, note),
+                        child: Tooltip(
+                          message: 'Tap / Right-click for manual numeric input',
+                          child: Text(
+                            '$velPercent%',
+                            style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.volume_up, size: 16),
+                        color: EatsTheme.primaryCyan,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                        tooltip: 'Preview Note Sound',
+                        onPressed: () {
+                          widget.dawState.audioEngine.playNoteOrSample(
+                            track: track,
+                            midiNote: note.pitch,
+                            velocity: note.velocity,
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  SliderTheme(
+                    data: SliderThemeData(
+                      trackHeight: 3,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                      activeTrackColor: EatsTheme.primaryCyan,
+                      inactiveTrackColor: EatsTheme.controlBackground,
+                      thumbColor: EatsTheme.primaryCyan,
+                    ),
+                    child: Slider(
+                      value: note.velocity.clamp(0.05, 1.0),
+                      min: 0.05,
+                      max: 1.0,
+                      onChanged: (val) => _changeSelectedNoteVelocity(track, note, val),
+                      onChangeEnd: (val) {
+                        widget.dawState.audioEngine.playNoteOrSample(
+                          track: track,
+                          midiNote: note.pitch,
+                          velocity: val.clamp(0.05, 1.0),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        title,
+        style: TextStyle(
+          color: EatsTheme.textMuted,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.8,
         ),
       ),
     );
@@ -746,23 +757,26 @@ class _PianoRollViewState extends State<PianoRollView> {
       }
     }
 
-    return Column(
+    return Stack(
       children: [
-        // Sub-toolbar for Piano Roll (Note Stepper, Snap & Zoom Controls)
-        Container(
-          height: 32,
-          color: EatsTheme.panelBackground,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          child: Row(
+        RepaintBoundary(
+          child: Column(
             children: [
-              Text(
-                'PIANO ROLL',
-                style: EatsTheme.getPrimaryFontStyle(
-                  color: EatsTheme.textMuted,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+            // Sub-toolbar for Piano Roll (Note Stepper, Snap & Zoom Controls)
+            Container(
+              height: 32,
+              color: EatsTheme.panelBackground,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              child: Row(
+                children: [
+                  Text(
+                    'PIANO ROLL',
+                    style: EatsTheme.getPrimaryFontStyle(
+                      color: EatsTheme.textMuted,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
               const SizedBox(width: 8),
 
               // Note Stepper Buttons
@@ -884,102 +898,163 @@ class _PianoRollViewState extends State<PianoRollView> {
 
         // Main Piano Roll Canvas & Keyboard
         Expanded(
-          child: GestureDetector(
-            onScaleStart: (details) {
-              _baseStepWidth = _stepWidth;
-              _baseKeyHeight = _keyHeight;
+          child: Listener(
+            onPointerDown: (event) {
+              if (event.buttons == kMiddleMouseButton) {
+                _isMiddleMouseDragging = true;
+                setState(() {});
+              }
             },
-            onScaleUpdate: (details) {
-              if (details.pointerCount >= 2) {
-                // 2-Finger Pinch-to-Zoom
-                final oldWidth = _stepWidth;
-                final oldHeight = _keyHeight;
-
-                final newWidth = (_baseStepWidth * details.horizontalScale).clamp(12.0, 80.0);
-                final newHeight = (_baseKeyHeight * details.verticalScale).clamp(14.0, 48.0);
-
-                setState(() {
-                  _stepWidth = newWidth;
-                  _keyHeight = newHeight;
-                });
-
-                _adjustScrollForZoom(oldWidth, newWidth, oldHeight, newHeight);
-
-                // Handle focal point panning during 2-finger pinch
-                if (details.focalPointDelta != Offset.zero) {
-                  if (_horizontalScroll.hasClients) {
-                    final targetX = (_horizontalScroll.offset - details.focalPointDelta.dx)
-                        .clamp(0.0, _horizontalScroll.position.maxScrollExtent);
-                    _horizontalScroll.jumpTo(targetX);
-                  }
-                  if (_gridScrollController.hasClients) {
-                    final targetY = (_gridScrollController.offset - details.focalPointDelta.dy)
-                        .clamp(0.0, _gridScrollController.position.maxScrollExtent);
-                    _gridScrollController.jumpTo(targetY);
-                    _syncKeysScroll();
-                  }
+            onPointerMove: (event) {
+              if (_isMiddleMouseDragging || (event.buttons & kMiddleMouseButton) != 0) {
+                if (_horizontalScroll.hasClients) {
+                  final targetX = (_horizontalScroll.offset - event.delta.dx)
+                      .clamp(0.0, _horizontalScroll.position.maxScrollExtent);
+                  _horizontalScroll.jumpTo(targetX);
+                }
+                if (_gridScrollController.hasClients) {
+                  final targetY = (_gridScrollController.offset - event.delta.dy)
+                      .clamp(0.0, _gridScrollController.position.maxScrollExtent);
+                  _gridScrollController.jumpTo(targetY);
+                  _syncKeysScroll();
                 }
               }
             },
-            child: Row(
-              children: [
-                // Virtual Piano Keyboard Column (Left - Synced SingleChildScrollView layout)
-                SizedBox(
-                  width: 70,
-                  child: ScrollConfiguration(
-                    behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-                    child: SingleChildScrollView(
-                      controller: _keysScrollController,
-                      scrollDirection: Axis.vertical,
-                      physics: const NeverScrollableScrollPhysics(),
-                      child: SizedBox(
-                        height: totalKeys * _keyHeight,
-                        child: Column(
-                          children: List.generate(totalKeys, (idx) {
-                            final pitch = maxPitch - idx;
-                            final isBlackKey = _isBlackKey(pitch);
-                            final noteName = _getNoteName(pitch);
+            onPointerUp: (event) {
+              if (_isMiddleMouseDragging) {
+                _isMiddleMouseDragging = false;
+                setState(() {});
+              }
+            },
+            onPointerCancel: (event) {
+              if (_isMiddleMouseDragging) {
+                _isMiddleMouseDragging = false;
+                setState(() {});
+              }
+            },
+            child: MouseRegion(
+              cursor: _isMiddleMouseDragging ? SystemMouseCursors.allScroll : MouseCursor.defer,
+              child: GestureDetector(
+                onScaleStart: (details) {
+                  _baseStepWidth = _stepWidth;
+                  _baseKeyHeight = _keyHeight;
+                },
+                onScaleUpdate: (details) {
+                  if (details.pointerCount >= 2) {
+                    // 2-Finger Pinch-to-Zoom
+                    final oldWidth = _stepWidth;
+                    final oldHeight = _keyHeight;
 
-                            return GestureDetector(
-                              onTapDown: (details) {
-                                const double keyWidth = 70.0;
-                                final double normalizedX = (details.localPosition.dx / keyWidth).clamp(0.0, 1.0);
-                                final double velocity = (0.15 + 0.85 * normalizedX).clamp(0.15, 1.0);
-                                widget.dawState.audioEngine.playNoteOrSample(
-                                  track: track,
-                                  midiNote: pitch,
-                                  velocity: velocity,
-                                );
-                              },
-                              child: Container(
-                                height: _keyHeight,
-                                padding: const EdgeInsets.only(right: 6),
-                                decoration: BoxDecoration(
-                                  color: isBlackKey ? const Color(0xFF1E222D) : const Color(0xFFDCDFE5),
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: isBlackKey ? Colors.black45 : Colors.grey.shade400,
-                                      width: 1.0,
+                    final newWidth = (_baseStepWidth * details.horizontalScale).clamp(12.0, 80.0);
+                    final newHeight = (_baseKeyHeight * details.verticalScale).clamp(14.0, 48.0);
+
+                    setState(() {
+                      _stepWidth = newWidth;
+                      _keyHeight = newHeight;
+                    });
+
+                    _adjustScrollForZoom(oldWidth, newWidth, oldHeight, newHeight);
+
+                    // Handle focal point panning during 2-finger pinch
+                    if (details.focalPointDelta != Offset.zero) {
+                      if (_horizontalScroll.hasClients) {
+                        final targetX = (_horizontalScroll.offset - details.focalPointDelta.dx)
+                            .clamp(0.0, _horizontalScroll.position.maxScrollExtent);
+                        _horizontalScroll.jumpTo(targetX);
+                      }
+                      if (_gridScrollController.hasClients) {
+                        final targetY = (_gridScrollController.offset - details.focalPointDelta.dy)
+                            .clamp(0.0, _gridScrollController.position.maxScrollExtent);
+                        _gridScrollController.jumpTo(targetY);
+                        _syncKeysScroll();
+                      }
+                    }
+                  }
+                },
+                child: Row(
+                  children: [
+                    // Virtual Piano Keyboard Column (Left - Synced SingleChildScrollView layout)
+                    RepaintBoundary(
+                      child: SizedBox(
+                        width: 70,
+                        child: ScrollConfiguration(
+                        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                        child: SingleChildScrollView(
+                          controller: _keysScrollController,
+                          scrollDirection: Axis.vertical,
+                          physics: const NeverScrollableScrollPhysics(),
+                          child: SizedBox(
+                            height: totalKeys * _keyHeight,
+                            child: Column(
+                              children: List.generate(totalKeys, (idx) {
+                                final pitch = maxPitch - idx;
+                                final isBlackKey = _isBlackKey(pitch);
+                                final noteName = _getNoteName(pitch);
+                                final isActive = _activeKeyboardPitches.containsKey(pitch);
+                                final activeVel = _activeKeyboardPitches[pitch];
+
+                                return Listener(
+                                  onPointerDown: (e) => _handleKeyPointerDown(e, pitch, 70.0),
+                                  onPointerMove: (e) => _handleKeyPointerMove(e, pitch, 70.0),
+                                  onPointerUp: (_) => _handleKeyPointerUp(pitch),
+                                  onPointerCancel: (_) => _handleKeyPointerUp(pitch),
+                                  child: Container(
+                                    height: _keyHeight,
+                                    decoration: BoxDecoration(
+                                      color: isActive
+                                          ? Color.lerp(
+                                              isBlackKey ? const Color(0xFF2A2E3D) : const Color(0xFFE2EAFA),
+                                              track.color,
+                                              0.5,
+                                            )!
+                                          : (isBlackKey ? const Color(0xFF1E222D) : const Color(0xFFDCDFE5)),
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: isBlackKey ? Colors.black45 : Colors.grey.shade400,
+                                          width: 1.0,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Stack(
+                                      children: [
+                                        // Horizontal Velocity Fill Bar on active touch (no gradient)
+                                        if (isActive && activeVel != null)
+                                          Positioned(
+                                            left: 0,
+                                            top: 0,
+                                            bottom: 0,
+                                            width: 70.0 * activeVel,
+                                            child: Container(
+                                              color: track.color.withOpacity(isBlackKey ? 0.85 : 0.75),
+                                            ),
+                                          ),
+                                        Positioned.fill(
+                                          right: 6,
+                                          child: Align(
+                                            alignment: Alignment.centerRight,
+                                            child: Text(
+                                              noteName,
+                                              style: TextStyle(
+                                                color: isActive
+                                                    ? Colors.white
+                                                    : (isBlackKey ? Colors.white70 : Colors.black87),
+                                                fontSize: (_keyHeight * 0.38).clamp(8.0, 12.0),
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ),
-                                alignment: Alignment.centerRight,
-                                child: Text(
-                                  noteName,
-                                  style: TextStyle(
-                                    color: isBlackKey ? Colors.white70 : Colors.black87,
-                                    fontSize: (_keyHeight * 0.38).clamp(8.0, 12.0),
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }),
+                                );
+                              }),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
+                    ),
 
                 // Note Grid Surface (Right, Synced Vertical Scroll)
                 Expanded(
@@ -998,6 +1073,11 @@ class _PianoRollViewState extends State<PianoRollView> {
                           scrollDirection: Axis.vertical,
                           child: GestureDetector(
                             onTap: () {
+                              // Only deselect active note if tap was actually on empty canvas, not on a note
+                              if (_lastNotePointerDownTime != null &&
+                                  DateTime.now().difference(_lastNotePointerDownTime!) < const Duration(milliseconds: 350)) {
+                                return;
+                              }
                               // Single tap on grid deselects active note and hides Note Properties dialog
                               if (_selectedNoteId != null) {
                                 setState(() {
@@ -1044,59 +1124,19 @@ class _PianoRollViewState extends State<PianoRollView> {
                               color: EatsTheme.backgroundDark,
                               child: Stack(
                                 children: [
-                                  // Background Grid Lines & Piano Rows
-                                  Column(
-                                    children: List.generate(totalKeys, (idx) {
-                                      final pitch = maxPitch - idx;
-                                      final isBlackKey = _isBlackKey(pitch);
-
-                                      return Container(
-                                        height: _keyHeight,
-                                        decoration: BoxDecoration(
-                                          color: isBlackKey
-                                              ? (EatsTheme.isLight ? Colors.black.withOpacity(0.04) : Colors.white.withOpacity(0.02))
-                                              : Colors.transparent,
-                                          border: Border(
-                                            bottom: BorderSide(
-                                              color: EatsTheme.isLight ? Colors.black.withOpacity(0.12) : Colors.white.withOpacity(0.04),
-                                              width: 1.0,
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    }),
-                                  ),
-
-                                  // Vertical Bar/Step Grid Lines (Dimmed past active clip bounds)
-                                  Row(
-                                    children: List.generate(totalSteps, (stepIdx) {
-                                      final isBarHeader = stepIdx % 4 == 0;
-                                      final isPastClip = stepIdx >= activeClipSteps;
-
-                                      return Container(
-                                        width: _stepWidth,
-                                        height: totalKeys * _keyHeight,
-                                        decoration: BoxDecoration(
-                                          color: isPastClip
-                                              ? (EatsTheme.isLight ? Colors.black.withOpacity(0.06) : Colors.black.withOpacity(0.35))
-                                              : Colors.transparent,
-                                          border: Border(
-                                            left: BorderSide(
-                                              color: isBarHeader
-                                                  ? (isPastClip
-                                                      ? EatsTheme.textMuted.withOpacity(0.25)
-                                                      : EatsTheme.primaryCyan.withOpacity(0.45))
-                                                  : (EatsTheme.isLight ? Colors.black.withOpacity(0.12) : Colors.white.withOpacity(0.04)),
-                                              width: isBarHeader ? 1.5 : 1.0,
-                                            ),
-                                            right: BorderSide(
-                                              color: EatsTheme.isLight ? Colors.black.withOpacity(0.08) : Colors.white.withOpacity(0.04),
-                                              width: 1.0,
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    }),
+                                  // High-Performance Background Grid Painter (Zero Widget Heap Allocation)
+                                  CustomPaint(
+                                    size: Size(totalSteps * _stepWidth, totalKeys * _keyHeight),
+                                    painter: _PianoRollGridPainter(
+                                      totalKeys: totalKeys,
+                                      totalSteps: totalSteps,
+                                      keyHeight: _keyHeight,
+                                      stepWidth: _stepWidth,
+                                      maxPitch: maxPitch,
+                                      activeClipSteps: activeClipSteps,
+                                      isLight: EatsTheme.isLight,
+                                      cyanColor: EatsTheme.primaryCyan,
+                                    ),
                                   ),
 
                               // Active Clip Loop End Line & Tag Badge
@@ -1174,100 +1214,118 @@ class _PianoRollViewState extends State<PianoRollView> {
                                     ? rawVelocityColor.withOpacity(0.55)
                                     : rawVelocityColor;
 
-                                return Positioned(
-                                  left: touchLeft,
-                                  top: touchTop,
-                                  width: touchWidth,
-                                  height: touchHeight,
-                                  child: GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTapDown: (details) {
-                                      setState(() {
-                                        _selectedNoteId = note.id;
-                                      });
-                                      widget.dawState.audioEngine.playNoteOrSample(
-                                        track: track,
-                                        midiNote: note.pitch,
-                                        velocity: note.velocity,
-                                      );
-                                      _ensureNoteAndMenuVisible(note);
-                                    },
-                                    onDoubleTap: () {
-                                      widget.dawState.removeNote(track, note.id);
-                                      if (_selectedNoteId == note.id) {
-                                        setState(() => _selectedNoteId = null);
-                                      }
-                                    },
-                                    onPanStart: (details) {
-                                      _activeMoveNoteId = note.id;
-                                      _moveStartStep = note.startStep;
-                                      _moveStartPitch = note.pitch;
-                                      _moveStartPos = details.globalPosition;
-                                      setState(() => _selectedNoteId = note.id);
-                                    },
-                                    onPanUpdate: (details) {
-                                      if (_activeMoveNoteId != note.id ||
-                                          _moveStartStep == null ||
-                                          _moveStartPitch == null ||
-                                          _moveStartPos == null) return;
+                                  return Positioned(
+                                    left: touchLeft,
+                                    top: touchTop,
+                                    width: touchWidth,
+                                    height: touchHeight,
+                                    child: Listener(
+                                      behavior: HitTestBehavior.opaque,
+                                      onPointerDown: (event) {
+                                        if (event.buttons == kSecondaryMouseButton) return;
+                                        _lastNotePointerDownTime = DateTime.now();
+                                        final now = DateTime.now();
+                                        if (_lastNoteTapId == note.id &&
+                                            _lastNoteTapTime != null &&
+                                            now.difference(_lastNoteTapTime!) < const Duration(milliseconds: 280)) {
+                                          // Instant Double Tap -> Delete Note
+                                          widget.dawState.removeNote(track, note.id);
+                                          setState(() {
+                                            if (_selectedNoteId == note.id) {
+                                              _selectedNoteId = null;
+                                            }
+                                          });
+                                          _lastNoteTapTime = null;
+                                          _lastNoteTapId = null;
+                                        } else {
+                                          // Instant Single Tap (0ms latency, no gesture arena delay) -> Select Note
+                                          _lastNoteTapTime = now;
+                                          _lastNoteTapId = note.id;
+                                          if (_selectedNoteId != note.id) {
+                                            setState(() {
+                                              _selectedNoteId = note.id;
+                                            });
+                                          }
+                                        }
+                                      },
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: () {
+                                          // Absorb tap gesture to prevent grid onTap from deselecting note
+                                        },
+                                        onPanStart: (details) {
+                                          _activeMoveNoteId = note.id;
+                                          _moveStartStep = note.startStep;
+                                          _moveStartPitch = note.pitch;
+                                          _moveStartPos = details.globalPosition;
+                                          if (_selectedNoteId != note.id) {
+                                            setState(() => _selectedNoteId = note.id);
+                                          }
+                                        },
+                                        onPanUpdate: (details) {
+                                          if (_activeMoveNoteId != note.id ||
+                                              _moveStartStep == null ||
+                                              _moveStartPitch == null ||
+                                              _moveStartPos == null) return;
 
-                                      final dxSteps = (details.globalPosition.dx - _moveStartPos!.dx) / _stepWidth;
-                                      final dyPitches = -((details.globalPosition.dy - _moveStartPos!.dy) / _keyHeight).round();
+                                          final dxSteps = (details.globalPosition.dx - _moveStartPos!.dx) / _stepWidth;
+                                          final dyPitches = -((details.globalPosition.dy - _moveStartPos!.dy) / _keyHeight).round();
 
-                                      double candidateStep = (_moveStartStep! + dxSteps).clamp(0.0, totalSteps - note.durationSteps);
-                                      if (snap > 0) {
-                                        candidateStep = (candidateStep / snap).round() * snap;
-                                      }
-                                      int candidatePitch = (_moveStartPitch! + dyPitches).clamp(minPitch, maxPitch);
+                                          double candidateStep = (_moveStartStep! + dxSteps).clamp(0.0, totalSteps - note.durationSteps);
+                                          if (snap > 0) {
+                                            candidateStep = (candidateStep / snap).round() * snap;
+                                          }
+                                          int candidatePitch = (_moveStartPitch! + dyPitches).clamp(minPitch, maxPitch);
 
-                                      widget.dawState.updateNote(
-                                        track,
-                                        note.copyWith(startStep: candidateStep, pitch: candidatePitch),
-                                      );
-                                    },
-                                    onPanEnd: (_) {
-                                      if (_activeMoveNoteId == note.id) {
-                                        _activeMoveNoteId = null;
-                                        widget.dawState.audioEngine.playNoteOrSample(
-                                          track: track,
-                                          midiNote: note.pitch,
-                                          velocity: note.velocity,
-                                        );
-                                        _ensureNoteAndMenuVisible(note);
-                                      }
-                                    },
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: effectiveNoteColor,
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: isSelected
-                                            ? Border.all(color: EatsTheme.primaryCyan, width: 2.0)
-                                            : (isPastClipLoop
-                                                ? Border.all(color: EatsTheme.accentGold.withOpacity(0.5), width: 1.0)
-                                                : Border.all(color: Colors.black45, width: 0.5)),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: isSelected ? EatsTheme.primaryCyan.withOpacity(0.8) : effectiveNoteColor.withOpacity(0.4),
-                                            blurRadius: isSelected ? 6 : 3,
+                                          widget.dawState.updateNote(
+                                            track,
+                                            note.copyWith(startStep: candidateStep, pitch: candidatePitch),
+                                          );
+                                        },
+                                        onPanEnd: (_) {
+                                          if (_activeMoveNoteId == note.id) {
+                                            _activeMoveNoteId = null;
+                                            widget.dawState.audioEngine.playNoteOrSample(
+                                              track: track,
+                                              midiNote: note.pitch,
+                                              velocity: note.velocity,
+                                            );
+                                            _ensureNoteAndMenuVisible(note);
+                                          }
+                                        },
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: effectiveNoteColor,
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: isSelected
+                                                ? Border.all(color: EatsTheme.primaryCyan, width: 2.0)
+                                                : (isPastClipLoop
+                                                    ? Border.all(color: EatsTheme.accentGold.withOpacity(0.5), width: 1.0)
+                                                    : Border.all(color: Colors.black45, width: 0.5)),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: isSelected ? EatsTheme.primaryCyan.withOpacity(0.8) : effectiveNoteColor.withOpacity(0.4),
+                                                blurRadius: isSelected ? 6 : 3,
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          _getNoteName(note.pitch),
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: isSelected
-                                                ? EatsTheme.backgroundDark
-                                                : (note.velocity < 0.45 ? Colors.white70 : EatsTheme.backgroundDark),
-                                            fontSize: (_keyHeight * 0.38).clamp(8.0, 11.0),
-                                            fontWeight: FontWeight.bold,
+                                          child: Center(
+                                            child: Text(
+                                              _getNoteName(note.pitch),
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: isSelected
+                                                    ? EatsTheme.backgroundDark
+                                                    : (note.velocity < 0.45 ? Colors.white70 : EatsTheme.backgroundDark),
+                                                fontSize: (_keyHeight * 0.38).clamp(8.0, 11.0),
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                );
+                                  );
                                   }),
 
                                   // Draw Dynamic "<>" Resize Handle directly after the selected note
@@ -1338,22 +1396,8 @@ class _PianoRollViewState extends State<PianoRollView> {
                                       ),
                                     ),
 
-                                  // Floating FL Studio-style Hover Menu (inside grid Stack, zero layout bumping)
-                                  if (selectedNote != null &&
-                                      selectedNoteLeft != null &&
-                                      selectedNoteTop != null &&
-                                      selectedNoteWidth != null &&
-                                      selectedNoteHeight != null)
-                                    _buildSelectedNoteHoverCard(
-                                      track,
-                                      selectedNote,
-                                      snap,
-                                      selectedNoteLeft,
-                                      selectedNoteTop,
-                                      selectedNoteWidth,
-                                      selectedNoteHeight,
-                                    ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -1361,9 +1405,30 @@ class _PianoRollViewState extends State<PianoRollView> {
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+          ),
+        ),
+      ),
+    ],
+  ),
+),
+
+        // Right-Hand Note Inspector Sidebar (Aligns to left of Project Browser if open)
+        AnimatedPositioned(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.fastOutSlowIn,
+          top: 32,
+          bottom: 0,
+          right: selectedNote != null
+              ? (widget.dawState.isBrowserOpen ? 320.0 : 0.0)
+              : -290.0,
+          width: 270,
+          child: RepaintBoundary(
+            child: selectedNote != null
+                ? _buildNoteInspectorSidebar(track, selectedNote, snap)
+                : const SizedBox(),
           ),
         ),
       ],
@@ -1371,3 +1436,99 @@ class _PianoRollViewState extends State<PianoRollView> {
   }
 }
 
+class _PianoRollGridPainter extends CustomPainter {
+  final int totalKeys;
+  final int totalSteps;
+  final double keyHeight;
+  final double stepWidth;
+  final int maxPitch;
+  final double activeClipSteps;
+  final bool isLight;
+  final Color cyanColor;
+
+  _PianoRollGridPainter({
+    required this.totalKeys,
+    required this.totalSteps,
+    required this.keyHeight,
+    required this.stepWidth,
+    required this.maxPitch,
+    required this.activeClipSteps,
+    required this.isLight,
+    required this.cyanColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final blackKeyPaint = Paint()
+      ..color = isLight ? Colors.black.withOpacity(0.04) : Colors.white.withOpacity(0.02)
+      ..style = PaintingStyle.fill;
+
+    final rowBorderPaint = Paint()
+      ..color = isLight ? Colors.black.withOpacity(0.12) : Colors.white.withOpacity(0.04)
+      ..strokeWidth = 1.0;
+
+    final pastClipPaint = Paint()
+      ..color = isLight ? Colors.black.withOpacity(0.06) : Colors.black.withOpacity(0.35)
+      ..style = PaintingStyle.fill;
+
+    final stepBorderPaint = Paint()
+      ..color = isLight ? Colors.black.withOpacity(0.12) : Colors.white.withOpacity(0.04)
+      ..strokeWidth = 1.0;
+
+    final barHeaderPaint = Paint()
+      ..color = cyanColor.withOpacity(0.45)
+      ..strokeWidth = 1.5;
+
+    final barHeaderPastClipPaint = Paint()
+      ..color = Colors.white.withOpacity(0.15)
+      ..strokeWidth = 1.5;
+
+    // 1. Draw Row backgrounds & horizontal separators
+    for (int idx = 0; idx < totalKeys; idx++) {
+      final pitch = maxPitch - idx;
+      final isBlack = _isBlackKey(pitch);
+      final y = idx * keyHeight;
+
+      if (isBlack) {
+        canvas.drawRect(Rect.fromLTWH(0, y, size.width, keyHeight), blackKeyPaint);
+      }
+      canvas.drawLine(Offset(0, y + keyHeight), Offset(size.width, y + keyHeight), rowBorderPaint);
+    }
+
+    // 2. Draw Past-Clip dim overlay
+    final clipX = activeClipSteps * stepWidth;
+    if (clipX < size.width) {
+      canvas.drawRect(Rect.fromLTWH(clipX, 0, size.width - clipX, size.height), pastClipPaint);
+    }
+
+    // 3. Draw Vertical Step/Bar Lines
+    for (int step = 0; step <= totalSteps; step++) {
+      final x = step * stepWidth;
+      final isBarHeader = step % 4 == 0;
+      final isPastClip = step >= activeClipSteps;
+
+      if (isBarHeader) {
+        canvas.drawLine(Offset(x, 0), Offset(x, size.height), isPastClip ? barHeaderPastClipPaint : barHeaderPaint);
+      } else {
+        canvas.drawLine(Offset(x, 0), Offset(x, size.height), stepBorderPaint);
+      }
+    }
+  }
+
+  static bool _isBlackKey(int pitch) {
+    final noteInOctave = pitch % 12;
+    return noteInOctave == 1 || noteInOctave == 3 || noteInOctave == 6 || noteInOctave == 8 || noteInOctave == 10;
+  }
+
+  @override
+  bool shouldRepaint(covariant _PianoRollGridPainter old) {
+    return old.totalKeys != totalKeys ||
+        old.totalSteps != totalSteps ||
+        old.keyHeight != keyHeight ||
+        old.stepWidth != stepWidth ||
+        old.maxPitch != maxPitch ||
+        old.activeClipSteps != activeClipSteps ||
+        old.isLight != isLight ||
+        old.cyanColor != cyanColor;
+  }
+}

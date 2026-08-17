@@ -262,69 +262,89 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                 final displayName = entry.value;
                 final dragItem = SoundFontDragItem(fontId: fontId, displayName: displayName);
 
-                return Draggable<SoundFontDragItem>(
-                  data: dragItem,
-                  feedback: Material(
-                    color: Colors.transparent,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: EatsTheme.panelHeader,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: EatsTheme.accentGreen, width: 2),
-                        boxShadow: [
-                          BoxShadow(color: EatsTheme.accentGreen.withOpacity(0.4), blurRadius: 12),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.piano, color: EatsTheme.accentGreen, size: 16),
-                          const SizedBox(width: 8),
-                          Text(
-                            displayName,
-                            style: EatsTheme.getPrimaryFontStyle(
-                              color: EatsTheme.accentGreen,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.25),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: EatsTheme.panelHeader.withOpacity(0.6), width: 1),
+                  ),
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    leading: Draggable<SoundFontDragItem>(
+                      data: dragItem,
+                      feedback: Material(
+                        color: Colors.transparent,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: EatsTheme.panelHeader,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: EatsTheme.accentGreen, width: 2),
+                            boxShadow: [
+                              BoxShadow(color: EatsTheme.accentGreen.withOpacity(0.4), blurRadius: 12),
+                            ],
                           ),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.piano, color: EatsTheme.accentGreen, size: 16),
+                              const SizedBox(width: 8),
+                              Text(
+                                displayName,
+                                style: EatsTheme.getPrimaryFontStyle(
+                                  color: EatsTheme.accentGreen,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.grab,
+                        child: Tooltip(
+                          message: 'Drag icon to track',
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00FF66).withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Icon(Icons.piano, size: 18, color: Color(0xFF00FF66)),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  childWhenDragging: Opacity(
-                    opacity: 0.4,
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 4),
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                        leading: const Icon(Icons.piano, size: 16, color: Color(0xFF00FF66)),
-                        title: Text(displayName, style: EatsTheme.getPrimaryFontStyle(fontSize: 11, color: EatsTheme.textLight)),
-                        subtitle: Text('SoundFont Instrument Bank (Drag to Track)', style: EatsTheme.getPrimaryFontStyle(fontSize: 9, color: EatsTheme.textMuted)),
-                      ),
-                    ),
-                  ),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 4),
-                    child: ListTile(
-                      dense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                      leading: const Icon(Icons.piano, size: 16, color: Color(0xFF00FF66)),
-                      title: Text(displayName, style: EatsTheme.getPrimaryFontStyle(fontSize: 11, color: EatsTheme.textLight)),
-                      subtitle: Text('SoundFont Instrument Bank (Drag or Tap to select)', style: EatsTheme.getPrimaryFontStyle(fontSize: 9, color: EatsTheme.textMuted)),
-                      onTap: () {
-                        widget.dawState.applySoundFont(fontId, displayName: displayName);
+                    title: Text(displayName, style: EatsTheme.getPrimaryFontStyle(fontSize: 11, color: EatsTheme.textLight)),
+                    subtitle: Text('SoundFont Instrument Bank (Drag icon or tap)', style: EatsTheme.getPrimaryFontStyle(fontSize: 9, color: EatsTheme.textMuted)),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.add_circle_outline, size: 18),
+                      tooltip: 'Add as New Track',
+                      color: EatsTheme.accentGreen,
+                      onPressed: () {
+                        widget.dawState.addNewSoundFontTrack(fontId, displayName: displayName);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Loaded SoundFont "$displayName" onto active track'),
+                            content: Text('Added new track with SoundFont "$displayName"'),
                             backgroundColor: EatsTheme.panelHeader,
                             duration: const Duration(seconds: 2),
                           ),
                         );
                       },
                     ),
+                    onTap: () {
+                      widget.dawState.applySoundFont(fontId, displayName: displayName);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Loaded SoundFont "$displayName" onto active track'),
+                          backgroundColor: EatsTheme.panelHeader,
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
                   ),
                 );
               }).toList(),
@@ -382,6 +402,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
           child: Row(
             children: [
               _buildCategoryChip(null, 'ALL'),
+              _buildCategoryChip(LuaPresetCategory.midiSeq, 'MIDI SEQ'),
               _buildCategoryChip(LuaPresetCategory.instrument, 'SYNTH'),
               _buildCategoryChip(LuaPresetCategory.audioFx, 'AUDIO FX'),
               _buildCategoryChip(LuaPresetCategory.midiFx, 'MIDI FX'),
@@ -406,71 +427,132 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                   itemBuilder: (context, index) {
                     final preset = presets[index];
 
-                    return Draggable<LuaPreset>(
-                      data: preset,
-                      feedback: Material(
-                        color: Colors.transparent,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: EatsTheme.primaryCyan,
-                            borderRadius: BorderRadius.circular(6),
-                            boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8)],
-                          ),
-                          child: Text(
-                            '📄 ${preset.name}',
-                            style: EatsTheme.getPrimaryFontStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ),
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: EatsTheme.panelHeader.withOpacity(0.6), width: 1),
                       ),
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.25),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: EatsTheme.panelHeader.withOpacity(0.6), width: 1),
-                        ),
-                        child: ListTile(
-                          dense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          leading: Icon(
-                            _getCategoryIcon(preset.category),
-                            size: 18,
-                            color: _getCategoryColor(preset.category),
-                          ),
-                          title: Text(
-                            preset.name,
-                            style: EatsTheme.getPrimaryFontStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: EatsTheme.textLight,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        leading: Draggable<LuaPreset>(
+                          data: preset,
+                          feedback: Material(
+                            color: Colors.transparent,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: _getCategoryColor(preset.category),
+                                borderRadius: BorderRadius.circular(6),
+                                boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8)],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(_getCategoryIcon(preset.category), size: 16, color: Colors.black),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    preset.name,
+                                    style: EatsTheme.getPrimaryFontStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          subtitle: Text(
-                            '${preset.category.displayName} • ${preset.description}',
-                            style: EatsTheme.getPrimaryFontStyle(fontSize: 10, color: EatsTheme.textMuted),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.grab,
+                            child: Tooltip(
+                              message: preset.isMidiSeq ? 'Drag sequence onto clip or timeline' : 'Drag icon to track',
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: _getCategoryColor(preset.category).withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Icon(
+                                  _getCategoryIcon(preset.category),
+                                  size: 18,
+                                  color: _getCategoryColor(preset.category),
+                                ),
+                              ),
+                            ),
                           ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.add_circle_outline, size: 16),
-                            tooltip: 'Apply to Active Track',
-                            color: EatsTheme.primaryCyan,
-                            onPressed: () {
-                              widget.dawState.applyPreset(preset);
+                        ),
+                        title: Text(
+                          preset.name,
+                          style: EatsTheme.getPrimaryFontStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: EatsTheme.textLight,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${preset.category.displayName} • ${preset.description}',
+                          style: EatsTheme.getPrimaryFontStyle(fontSize: 10, color: EatsTheme.textMuted),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: IconButton(
+                          icon: Icon(preset.isMidiSeq ? Icons.playlist_add : Icons.add_circle_outline, size: 18),
+                          tooltip: preset.isMidiSeq ? 'Add as Clip to Active Track' : 'Add as New Track',
+                          color: _getCategoryColor(preset.category),
+                          onPressed: () {
+                            if (preset.isMidiSeq) {
+                              widget.dawState.addClipWithPresetToTrack(
+                                widget.dawState.activeTrack,
+                                widget.dawState.currentBar,
+                                preset,
+                              );
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Applied preset "${preset.name}" to channel'),
+                                  content: Text('Added sequence "${preset.name}" as clip at Bar ${widget.dawState.currentBar + 1}'),
+                                  backgroundColor: EatsTheme.panelHeader,
                                   duration: const Duration(seconds: 2),
                                 ),
                               );
-                            },
-                          ),
+                            } else {
+                              widget.dawState.addNewPresetTrack(preset);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Added new track "${preset.name}"'),
+                                  backgroundColor: EatsTheme.panelHeader,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
                         ),
+                        onTap: () {
+                          if (preset.isMidiSeq) {
+                            widget.dawState.applyPresetToClip(
+                              widget.dawState.activeTrack,
+                              widget.dawState.activeTrackClip,
+                              preset,
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Applied sequence "${preset.name}" to active clip'),
+                                backgroundColor: EatsTheme.panelHeader,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          } else {
+                            widget.dawState.applyPreset(preset);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Applied preset "${preset.name}" to channel'),
+                                backgroundColor: EatsTheme.panelHeader,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        },
                       ),
                     );
                   },
@@ -723,6 +805,8 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
         return Icons.graphic_eq;
       case LuaPresetCategory.midiFx:
         return Icons.music_note;
+      case LuaPresetCategory.midiSeq:
+        return Icons.view_timeline_outlined;
       case LuaPresetCategory.utility:
         return Icons.build;
     }
@@ -736,6 +820,8 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
         return const Color(0xFF21F4E8);
       case LuaPresetCategory.midiFx:
         return const Color(0xFF00FF66);
+      case LuaPresetCategory.midiSeq:
+        return const Color(0xFFFFD700);
       case LuaPresetCategory.utility:
         return const Color(0xFFBD00FF);
     }

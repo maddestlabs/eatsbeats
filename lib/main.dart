@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -19,6 +20,9 @@ import 'utils/eats_file_helper.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) {
+    BrowserContextMenu.disableContextMenu();
+  }
   FlutterError.onError = (details) {
     debugPrint('FLUTTER ERROR: ${details.exception}\n${details.stack}');
   };

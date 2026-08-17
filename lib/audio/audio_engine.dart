@@ -1,22 +1,21 @@
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
 
 import '../models/track_model.dart';
 import '../lua/lua_engine.dart';
-import 'convolver_engine.dart';
 import 'poly_synth.dart';
-
 import 'sampler_engine.dart';
 import 'soundfont_engine.dart';
-
-import 'audio_engine_stub.dart'
-    if (dart.library.js_interop) 'audio_engine_web.dart'
-    if (dart.library.io) 'audio_engine_native.dart';
+import 'wajuce_audio_backend.dart';
 
 class AudioEngine {
-  final AudioEngineWebImpl _webImpl = AudioEngineWebImpl();
+  final WajuceAudioBackend _backend = WajuceAudioBackend();
 
-  bool get isInitialized => _webImpl.isInitialized;
+  // High-performance PCM buffer cache.
+  // Stores synthesized Float32List buffers for notes to eliminate per-note DSP overhead.
+  final Map<String, Float32List> _pcmCache = {};
+
+  bool get isInitialized => _backend.isInitialized;
 
   double _leftPeak = 0.0;
   double _rightPeak = 0.0;
@@ -40,15 +39,22 @@ class AudioEngine {
     return false;
   }
 
-  final Uint8List _timeData = Uint8List(128);
-  Uint8List get waveformTimeData => _timeData;
+  final List<int> _timeData = List<int>.filled(128, 128);
+  List<int> get waveformTimeData => _timeData;
+
+  AudioEngine();
 
   void ensureContextRunning() {
-    _webImpl.ensureContextRunning();
+    _backend.ensureContextRunning();
   }
 
   void setMasterVolume(double volume) {
-    _webImpl.setMasterVolume(volume);
+    _backend.setMasterVolume(volume);
+  }
+
+  /// Clears cached PCM audio buffers for a track whose parameters or script changed.
+  void invalidateLuaCache(String trackId) {
+    _pcmCache.removeWhere((key, _) => key.startsWith('${trackId}_'));
   }
 
   Map<String, double> getMeterSnapshot() {
@@ -61,78 +67,15 @@ class AudioEngine {
     };
   }
 
-  String createNode(String type, Map<String, dynamic> config) {
-    return _webImpl.createNode(type, config);
-  }
-
-  void connect(String sourceId, String targetId, [int outputIndex = 0, int inputIndex = 0]) {
-    _webImpl.connect(sourceId, targetId, outputIndex, inputIndex);
-  }
-
-  void connectToParam(String sourceId, String targetNodeId, String paramName) {
-    _webImpl.connectToParam(sourceId, targetNodeId, paramName);
-  }
-
-  void disconnect(String nodeId) {
-    _webImpl.disconnect(nodeId);
-  }
-
-  void scheduleParamOp({
-    required String nodeId,
-    required String paramName,
-    required String method,
-    required double value,
-    required double scheduledTime,
-    double? timeConstant,
-  }) {
-    _webImpl.scheduleParamOp(
-      nodeId: nodeId,
-      paramName: paramName,
-      method: method,
-      value: value,
-      scheduledTime: scheduledTime,
-      timeConstant: timeConstant,
-    );
-  }
-
-  void processCommandQueue(List<Map<String, dynamic>> commands) {
-    for (final cmd in commands) {
-      final type = cmd['type'] as String?;
-      if (type == 'CREATE_NODE') {
-        createNode(cmd['nodeType'] as String, cmd['config'] as Map<String, dynamic>? ?? {});
-      } else if (type == 'CONNECT') {
-        connect(cmd['sourceId'] as String, cmd['targetId'] as String);
-      } else if (type == 'CONNECT_PARAM') {
-        connectToParam(cmd['sourceId'] as String, cmd['targetNodeId'] as String, cmd['paramName'] as String);
-      } else if (type == 'PARAM_AUTOMATE') {
-        scheduleParamOp(
-          nodeId: cmd['nodeId'] as String,
-          paramName: cmd['paramName'] as String,
-          method: cmd['method'] as String,
-          value: (cmd['value'] as num).toDouble(),
-          scheduledTime: (cmd['scheduledTime'] as num).toDouble(),
-          timeConstant: (cmd['timeConstant'] as num?)?.toDouble(),
-        );
-      } else if (type == 'NOTE_ON') {
-        final note = (cmd['pitch'] as num).toInt();
-        final vel = (cmd['velocity'] as num).toDouble();
-        final time = (cmd['time'] as num).toDouble();
-        final dur = (cmd['duration'] as num).toDouble();
-        _webImpl.playPcmBuffer(
-          PolySynth.generateSynthToneBuffer(midiNote: note, waveform: 'sawtooth', lengthSec: dur),
-          vel,
-          0.0,
-          time,
-        );
-      }
-    }
-  }
-
   void updateMeters() {
-    _webImpl.updateMeters(_timeData, (l, r) {
+    final u8 = Uint8List.fromList(_timeData);
+    _backend.updateMeters(u8, (l, r) {
       _leftPeak = l;
       _rightPeak = r;
     });
+    for (int i = 0; i < _timeData.length && i < u8.length; i++) {
+      _timeData[i] = u8[i];
+    }
 
     for (final id in _trackLeftPeaks.keys.toList()) {
       final dec = (_trackLeftPeaks[id] ?? 0.0) * 0.82;
@@ -144,7 +87,9 @@ class AudioEngine {
     }
   }
 
-  double get currentTime => _webImpl.currentTime;
+  double get currentTime => _backend.currentTime;
+
+  // ── Note / Sample Playback ─────────────────────────────────────────────────
 
   void playNoteOrSample({
     required TrackChannel track,
@@ -159,6 +104,23 @@ class AudioEngine {
   }) {
     if (track.isMuted) return;
 
+    if (!_backend.isInitialized) {
+      _backend.ready.then((_) {
+        playNoteOrSample(
+          track: track,
+          midiNote: midiNote,
+          velocity: velocity,
+          durationSec: durationSec,
+          scheduledTime: scheduledTime,
+          targetMidiNote: targetMidiNote,
+          isSlide: isSlide,
+          isAccent: isAccent,
+          loop: loop,
+        );
+      });
+      return;
+    }
+
     final double normVol = (track.volume / 1.5).clamp(0.0, 1.0);
     final double effectiveVel = velocity.clamp(0.0, 1.0);
     final double outVol = (normVol * effectiveVel).clamp(0.0, 1.0);
@@ -166,20 +128,100 @@ class AudioEngine {
     final double panVal = track.pan.clamp(-1.0, 1.0);
     final double leftPanFactor = panVal <= 0 ? 1.0 : (1.0 - panVal);
     final double rightPanFactor = panVal >= 0 ? 1.0 : (1.0 + panVal);
-
     final double trkLeft = (outVol * leftPanFactor).clamp(0.0, 1.0);
     final double trkRight = (outVol * rightPanFactor).clamp(0.0, 1.0);
 
     _trackLeftPeaks[track.id] = math.max(_trackLeftPeaks[track.id] ?? 0.0, trkLeft);
     _trackRightPeaks[track.id] = math.max(_trackRightPeaks[track.id] ?? 0.0, trkRight);
-
     _leftPeak = math.max(_leftPeak, trkLeft * 0.85);
     _rightPeak = math.max(_rightPeak, trkRight * 0.85);
 
     ensureContextRunning();
 
-    List<double> pcmBuffer = [];
+    final bool activeAccent = isAccent || velocity > 0.75;
 
+    // Retrieve or synthesize the PCM buffer
+    final (samples, cacheKey) = _getOrCreateBuffer(
+      track: track,
+      midiNote: midiNote,
+      velocity: velocity,
+      durationSec: durationSec,
+      targetMidiNote: targetMidiNote,
+      isSlide: isSlide,
+      isAccent: activeAccent,
+    );
+
+    _backend.playPcmBuffer(
+      samples,
+      outVol,
+      track.pan,
+      scheduledTime,
+      track.id,
+      track.isMonophonicTrack,
+      isSlide,
+      loop,
+      track.fxRack,
+      bufferCacheKey: cacheKey,
+    );
+  }
+
+  // ── Buffer Generation & Caching ────────────────────────────────────────────
+
+  (Float32List, String?) _getOrCreateBuffer({
+    required TrackChannel track,
+    required int midiNote,
+    required double velocity,
+    required double durationSec,
+    int? targetMidiNote,
+    bool isSlide = false,
+    bool isAccent = false,
+  }) {
+    // Dynamic legato slides shouldn't use static cache
+    if (isSlide && targetMidiNote != null && targetMidiNote != midiNote) {
+      final buffer = _synthesizeTrackBuffer(
+        track: track,
+        midiNote: midiNote,
+        velocity: velocity,
+        durationSec: durationSec,
+        targetMidiNote: targetMidiNote,
+        isSlide: true,
+        isAccent: isAccent,
+      );
+      return (buffer, null);
+    }
+
+    final durMs = (durationSec * 1000).round();
+    final pHash = _computeParamsHash(track);
+    final cacheKey = '${track.id}_${midiNote}_${durMs}_${isAccent ? 1 : 0}_$pHash';
+
+    final cached = _pcmCache[cacheKey];
+    if (cached != null) {
+      return (cached, cacheKey);
+    }
+
+    final buffer = _synthesizeTrackBuffer(
+      track: track,
+      midiNote: midiNote,
+      velocity: velocity,
+      durationSec: durationSec,
+      targetMidiNote: targetMidiNote,
+      isSlide: isSlide,
+      isAccent: isAccent,
+    );
+
+    _pcmCache[cacheKey] = buffer;
+    return (buffer, cacheKey);
+  }
+
+  Float32List _synthesizeTrackBuffer({
+    required TrackChannel track,
+    required int midiNote,
+    required double velocity,
+    required double durationSec,
+    int? targetMidiNote,
+    bool isSlide = false,
+    bool isAccent = false,
+  }) {
     final isSfTrack = track.sampleName.toLowerCase().endsWith('.sf2') ||
         track.name.toLowerCase().contains('soundfont') ||
         track.luaScriptCode.contains('SoundFont');
@@ -195,139 +237,93 @@ class AudioEngine {
         fallbackDefault: true,
       );
       if (sfBuffer.isNotEmpty) {
-        pcmBuffer = sfBuffer;
+        return Float32List.fromList(sfBuffer);
       }
     }
 
-    if (pcmBuffer.isEmpty && track.type == TrackType.sampler) {
-
+    if (track.type == TrackType.sampler) {
       final customBuffer = SamplerEngine.instance.getPitchShiftedPcm(
-        track.sampleName,
-        (midiNote - 60).toDouble(),
-      );
+          track.sampleName, (midiNote - 60).toDouble());
       if (customBuffer.isNotEmpty) {
-        pcmBuffer = customBuffer;
+        return Float32List.fromList(customBuffer);
       } else {
-        switch (track.sampleName.toLowerCase()) {
-          case 'snare':
-            pcmBuffer = PolySynth.generateSnareBuffer();
-            break;
-          case 'hihat':
-          case 'hi-hat':
-            pcmBuffer = PolySynth.generateHiHatBuffer(open: false);
-            break;
-          case 'openhat':
-            pcmBuffer = PolySynth.generateHiHatBuffer(open: true);
-            break;
-          case 'clap':
-            pcmBuffer = PolySynth.generateClapBuffer();
-            break;
-          case 'kick':
-          default:
-            pcmBuffer = PolySynth.generateKickBuffer();
-            break;
-        }
+        return Float32List.fromList(_generateDrumBuffer(track.sampleName));
       }
-    } else if (pcmBuffer.isEmpty && track.type == TrackType.luaScript) {
-      pcmBuffer = List<double>.filled((44100 * durationSec).toInt(), 0.0);
+    } else if (track.type == TrackType.luaScript) {
       final double freq = PolySynth.midiToFreq(midiNote);
-      final bool activeAccent = isAccent || velocity > 0.75;
-
-      for (int i = 0; i < pcmBuffer.length; i++) {
-        final double t = i / 44100.0;
-        pcmBuffer[i] = LuaEngine.evaluateSynth(
-          code: track.luaScriptCode,
-          time: t,
-          freq: freq,
-          note: midiNote,
-          params: track.luaParams,
-          targetMidiNote: targetMidiNote,
-          isSlide: isSlide,
-          isAccent: activeAccent,
-          trackId: track.id,
-          sampleIndex: i,
-          totalSamples: pcmBuffer.length,
-        );
-      }
-    } else if (pcmBuffer.isEmpty) {
-      pcmBuffer = PolySynth.generateSynthToneBuffer(
-        midiNote: midiNote,
-        waveform: track.synthWaveform,
-        cutoff: track.cutoff,
-        attack: track.attack,
-        release: track.release,
-        lengthSec: durationSec,
+      return LuaEngine.synthesizeBuffer(
+        code: track.luaScriptCode,
+        durationSec: durationSec,
+        freq: freq,
+        note: midiNote,
+        params: track.luaParams,
+        targetMidiNote: targetMidiNote,
+        isSlide: isSlide,
+        isAccent: isAccent,
+        trackId: track.id,
+      );
+    } else {
+      return Float32List.fromList(
+        PolySynth.generateSynthToneBuffer(
+          midiNote: midiNote,
+          waveform: track.synthWaveform,
+          cutoff: track.cutoff,
+          attack: track.attack,
+          release: track.release,
+          lengthSec: durationSec,
+        ),
       );
     }
+  }
 
-    final hasReverbOrDelay = track.fxRack.any((fx) =>
-
-        fx.enabled &&
-        (fx.type == FXType.convolutionReverb ||
-            fx.type == FXType.delay ||
-            fx.name == 'Convolution Reverb'));
-
-    if (hasReverbOrDelay) {
-      final tailSamples = (44100 * 2.0).toInt();
-      final extendedBuffer = List<double>.filled(pcmBuffer.length + tailSamples, 0.0);
-      for (int i = 0; i < pcmBuffer.length; i++) {
-        extendedBuffer[i] = pcmBuffer[i];
-      }
-      pcmBuffer = extendedBuffer;
+  static List<double> _generateDrumBuffer(String sampleName) {
+    switch (sampleName.toLowerCase()) {
+      case 'snare':
+        return PolySynth.generateSnareBuffer();
+      case 'hihat':
+      case 'hi-hat':
+        return PolySynth.generateHiHatBuffer(open: false);
+      case 'openhat':
+        return PolySynth.generateHiHatBuffer(open: true);
+      case 'clap':
+        return PolySynth.generateClapBuffer();
+      case 'kick':
+      default:
+        return PolySynth.generateKickBuffer();
     }
+  }
 
-    List<double>? webIrBuffer;
-    String? webIrName;
-    double webIrMix = 0.0;
-
-    for (final fx in track.fxRack) {
-      if (!fx.enabled) continue;
-
-      if (fx.type == FXType.convolutionReverb || fx.name == 'Convolution Reverb') {
-        if (kIsWeb) {
-          webIrName = fx.irSampleName ?? 'Great Hall';
-          webIrMix = fx.mix;
-          webIrBuffer = ConvolverEngine.instance.getIrSample(webIrName);
-        } else {
-          pcmBuffer = ConvolverEngine.instance.processConvolver(
-            pcmBuffer,
-            fx.irSampleName ?? 'Great Hall',
-            fx.mix,
-          );
-        }
-      } else {
-        for (int i = 0; i < pcmBuffer.length; i++) {
-          final t = i / 44100.0;
-          final processed = LuaEngine.evaluateEffect(
-            code: fx.name,
-            inputSample: pcmBuffer[i],
-            time: t,
-            params: fx.params,
-          );
-          pcmBuffer[i] = (pcmBuffer[i] * (1.0 - fx.mix)) + (processed * fx.mix);
-        }
-      }
+  static int _computeParamsHash(TrackChannel track) {
+    int h = track.sampleName.hashCode ^ track.synthWaveform.hashCode;
+    for (final e in track.luaParams.entries) {
+      h = (h * 31) ^ (e.key.hashCode ^ (e.value * 100).round());
     }
-
-    _webImpl.playPcmBuffer(
-      pcmBuffer,
-      track.volume * velocity,
-      track.pan,
-      scheduledTime,
-      track.id,
-      track.isMonophonicTrack,
-      isSlide,
-      loop,
-      webIrBuffer,
-      webIrName,
-      webIrMix,
-      track.fxRack,
-    );
-
-
+    return h;
   }
 
   void stopNote(TrackChannel track, [int? pitch]) {
-    _webImpl.stopTrackNotes(track.id);
+    _backend.stopTrackNotes(track.id);
+  }
+
+  /// Pre-warms the PCM cache and IR samples so playback has 0 latency.
+  void prewarmPatternCache(List<TrackChannel> tracks, double stepDurationSec) {
+    _backend.preloadIrSamples();
+    for (final track in tracks) {
+      if (track.isMuted) continue;
+      for (final clip in track.clips) {
+        for (final note in clip.notes) {
+          final dur = stepDurationSec * note.durationSteps;
+          _getOrCreateBuffer(
+            track: track,
+            midiNote: note.pitch,
+            velocity: note.velocity,
+            durationSec: dur,
+            isSlide: note.isSlide,
+            isAccent: note.isAccent,
+            targetMidiNote: null,
+          );
+        }
+      }
+    }
   }
 }

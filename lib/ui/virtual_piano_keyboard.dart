@@ -583,15 +583,7 @@ class _PianoKeyboardPainter extends CustomPainter {
             whiteKeyWidth - 4,
             velHeight,
           );
-          final Paint velPaint = Paint()
-            ..shader = LinearGradient(
-              begin: Alignment.bottomCenter,
-              end: Alignment.topCenter,
-              colors: [
-                trackColor.withOpacity(0.8),
-                EatsTheme.primaryCyan.withOpacity(0.4),
-              ],
-            ).createShader(velRect);
+          final Paint velPaint = Paint()..color = trackColor.withOpacity(0.75);
           canvas.drawRect(velRect, velPaint);
         }
 
@@ -679,15 +671,7 @@ class _PianoKeyboardPainter extends CustomPainter {
             blackKeyWidth - 2,
             velHeight,
           );
-          final Paint velPaint = Paint()
-            ..shader = LinearGradient(
-              begin: Alignment.bottomCenter,
-              end: Alignment.topCenter,
-              colors: [
-                trackColor.withOpacity(0.9),
-                EatsTheme.primaryCyan.withOpacity(0.5),
-              ],
-            ).createShader(velRect);
+          final Paint velPaint = Paint()..color = trackColor.withOpacity(0.85);
           canvas.drawRect(velRect, velPaint);
         }
 

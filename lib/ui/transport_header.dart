@@ -423,6 +423,45 @@ class TransportHeader extends StatelessWidget {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 16),
+
+                  Text(
+                    'CREDITS & ACKNOWLEDGMENTS',
+                    style: TextStyle(color: EatsTheme.textSecondary, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.0),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: EatsTheme.controlBackground,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: EatsTheme.panelHeader),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '• Eats 303 DSP & Acid Synthesis: Inspired by JC-303 (Jean-Christophe Taveau), Open303 (Robin Schmidt), and classic Roland TB-303 diode ladder filter topology.',
+                          style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '• SoundFont & Sampler Engine: SoundFont parser and synthesis architecture inspired by TinySoundFont / FluidSynth with bundled GeneralUser GS SoundFont soundbanks by S. Christian Collins.',
+                          style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '• Reverb & Convolution FX: Freeverb Schroeder-Moorer reverberation model and open impulse responses.',
+                          style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '• Platform Runtime: Powered by Flutter, WebAudio API, WAJUCE audio engine, and embedded Lua 5.4 / LuaJIT scripting environment.',
+                          style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),

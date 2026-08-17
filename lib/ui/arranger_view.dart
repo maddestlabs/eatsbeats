@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../audio/sampler_engine.dart';
 import '../lua/lua_preset_library.dart';
@@ -30,6 +31,7 @@ class _ArrangerViewState extends State<ArrangerView> {
   final ScrollController _rightGridScroll = ScrollController();
 
   bool _isSyncingScroll = false;
+  bool _isMiddleMouseDragging = false;
   double _moveDragDxAccumulator = 0.0;
   double _resizeDragDxAccumulator = 0.0;
 
@@ -153,194 +155,310 @@ class _ArrangerViewState extends State<ArrangerView> {
                               child: ListView.builder(
                                 padding: EdgeInsets.zero,
                                 controller: _leftTrackScroll,
-                                itemCount: tracks.length,
-                                itemBuilder: (context, trackIdx) {
-                                  final track = tracks[trackIdx];
-                                  final isSelected = trackIdx == widget.dawState.activeTrackIndex;
+                                itemCount: tracks.length + 1,
+                            itemBuilder: (context, trackIdx) {
+                              if (trackIdx == tracks.length) {
+                                return DragTarget<Object>(
+                                  onWillAcceptWithDetails: (details) => details.data is LuaPreset || details.data is SoundFontDragItem,
+                                  onAcceptWithDetails: (details) {
+                                    final data = details.data;
+                                    if (data is SoundFontDragItem) {
+                                      widget.dawState.addNewSoundFontTrack(data.fontId, displayName: data.displayName);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Created new track with SoundFont "${data.displayName}"'),
+                                          backgroundColor: EatsTheme.panelHeader,
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                    } else if (data is LuaPreset) {
+                                      widget.dawState.addNewPresetTrack(data);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Created new track with preset "${data.name}"'),
+                                          backgroundColor: EatsTheme.panelHeader,
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  builder: (context, hoverData, _) {
+                                    final isHover = hoverData.isNotEmpty;
+                                    return Container(
+                                      height: 44,
+                                      margin: const EdgeInsets.only(top: 4, bottom: 28),
+                                      decoration: BoxDecoration(
+                                        color: isHover
+                                            ? EatsTheme.primaryCyan.withOpacity(0.2)
+                                            : EatsTheme.controlBackground.withOpacity(0.5),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: isHover ? EatsTheme.primaryCyan : EatsTheme.panelHeader,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(6),
+                                        onTap: () {
+                                          final kickPreset = LuaPresetLibrary.presets.firstWhere(
+                                            (p) => p.id == 'procedural_kick',
+                                            orElse: () => LuaPresetLibrary.presets.first,
+                                          );
+                                          widget.dawState.addNewPresetTrack(kickPreset);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: const Text('Added new track "Eats Kick"'),
+                                              backgroundColor: EatsTheme.panelHeader,
+                                              duration: const Duration(seconds: 2),
+                                            ),
+                                          );
+                                        },
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.add_circle_outline,
+                                              color: isHover ? EatsTheme.primaryCyan : EatsTheme.accentGold,
+                                              size: 18,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              'ADD TRACK',
+                                              style: TextStyle(
+                                                color: isHover ? EatsTheme.primaryCyan : EatsTheme.textSecondary,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                letterSpacing: 0.8,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              }
 
-                                  return DragTarget<Object>(
-                                    onWillAcceptWithDetails: (details) => details.data is LuaPreset || details.data is SoundFontDragItem,
-                                    onAcceptWithDetails: (details) {
-                                      final data = details.data;
-                                      if (data is SoundFontDragItem) {
-                                        widget.dawState.applySoundFont(data.fontId, displayName: data.displayName, targetTrack: track);
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Switched SoundFont on ${track.name} to "${data.displayName}"'),
-                                            backgroundColor: EatsTheme.panelHeader,
-                                            duration: const Duration(seconds: 2),
-                                          ),
-                                        );
-                                      } else if (data is LuaPreset) {
-                                        final preset = data;
-                                        widget.dawState.applyPreset(preset, targetTrack: track);
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text(preset.isInstrument
-                                                ? 'Applied instrument "${preset.name}" to ${track.name}'
-                                                : 'Added FX "${preset.name}" to ${track.name} chain'),
-                                            backgroundColor: EatsTheme.panelHeader,
-                                            duration: const Duration(seconds: 2),
-                                          ),
-                                        );
+                              final track = tracks[trackIdx];
+                              final isSelected = trackIdx == widget.dawState.activeTrackIndex;
+
+                              return DragTarget<Object>(
+                                onWillAcceptWithDetails: (details) => details.data is LuaPreset || details.data is SoundFontDragItem,
+                                onAcceptWithDetails: (details) {
+                                  final data = details.data;
+                                  if (data is SoundFontDragItem) {
+                                    widget.dawState.applySoundFont(data.fontId, displayName: data.displayName, targetTrack: track);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Switched SoundFont on ${track.name} to "${data.displayName}"'),
+                                        backgroundColor: EatsTheme.panelHeader,
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  } else if (data is LuaPreset) {
+                                    final preset = data;
+                                    widget.dawState.applyPreset(preset, targetTrack: track);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(preset.isInstrument
+                                            ? 'Applied instrument "${preset.name}" to ${track.name}'
+                                            : 'Added FX "${preset.name}" to ${track.name} chain'),
+                                        backgroundColor: EatsTheme.panelHeader,
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
+                                },
+                                builder: (context, trackHoverData, _) {
+                                  final isTrackHovering = trackHoverData.isNotEmpty;
+
+                                  return GestureDetector(
+                                    onLongPress: () => showRenameTrackDialog(context, widget.dawState, track),
+                                    onSecondaryTap: () => showRenameTrackDialog(context, widget.dawState, track),
+                                    onTapDown: (_) {
+                                      final now = DateTime.now();
+                                      final isDoubleTap = _lastHeaderTapTrackIdx == trackIdx &&
+                                          _lastHeaderTapTime != null &&
+                                          now.difference(_lastHeaderTapTime!).inMilliseconds < 300;
+                                      _lastHeaderTapTime = now;
+                                      _lastHeaderTapTrackIdx = trackIdx;
+
+                                      widget.dawState.activeTrackIndex = trackIdx;
+                                      if (isDoubleTap) {
+                                        // DOUBLE-TAP TRACK HEADER: Navigate to Track Inspector tab
+                                        widget.dawState.activeTabIndex = 2; // Track section
                                       }
                                     },
-                                    builder: (context, trackHoverData, _) {
-                                      final isTrackHovering = trackHoverData.isNotEmpty;
-
-                                      return GestureDetector(
-                                        onLongPress: () => showRenameTrackDialog(context, widget.dawState, track),
-                                        onTapDown: (_) {
-                                          final now = DateTime.now();
-                                          final isDoubleTap = _lastHeaderTapTrackIdx == trackIdx &&
-                                              _lastHeaderTapTime != null &&
-                                              now.difference(_lastHeaderTapTime!).inMilliseconds < 300;
-                                          _lastHeaderTapTime = now;
-                                          _lastHeaderTapTrackIdx = trackIdx;
-
-                                          widget.dawState.activeTrackIndex = trackIdx;
-                                          if (isDoubleTap) {
-                                            // DOUBLE-TAP TRACK HEADER: Navigate to Track Inspector tab
-                                            widget.dawState.activeTabIndex = 2; // Track section
-                                          }
-                                        },
-                                        child: Container(
-                                          height: trackRowHeight,
-                                          margin: const EdgeInsets.only(bottom: 2),
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: isTrackHovering
-                                                ? EatsTheme.primaryCyan.withOpacity(0.3)
-                                                : (isSelected ? EatsTheme.controlBackground : EatsTheme.panelBackground),
-                                            border: Border(
-                                              left: BorderSide(
-                                                color: isTrackHovering ? EatsTheme.primaryCyan : track.color,
-                                                width: isTrackHovering ? 6 : 4,
-                                              ),
-                                              bottom: BorderSide(color: EatsTheme.panelHeader, width: 1),
-                                            ),
-                                            boxShadow: isTrackHovering
-                                                ? [BoxShadow(color: EatsTheme.primaryCyan.withOpacity(0.3), blurRadius: 6)]
-                                                : null,
+                                    child: Container(
+                                      height: trackRowHeight,
+                                      margin: const EdgeInsets.only(bottom: 2),
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: isTrackHovering
+                                            ? EatsTheme.primaryCyan.withOpacity(0.3)
+                                            : (isSelected ? EatsTheme.controlBackground : EatsTheme.panelBackground),
+                                        border: Border(
+                                          left: BorderSide(
+                                            color: isTrackHovering ? EatsTheme.primaryCyan : track.color,
+                                            width: isTrackHovering ? 6 : 4,
                                           ),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            mainAxisAlignment: MainAxisAlignment.center,
+                                          bottom: BorderSide(color: EatsTheme.panelHeader, width: 1),
+                                        ),
+                                        boxShadow: isTrackHovering
+                                            ? [BoxShadow(color: EatsTheme.primaryCyan.withOpacity(0.3), blurRadius: 6)]
+                                            : null,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          // Row 1: Readable Name (with emoji support) & M, S, FX Action Buttons
+                                          Row(
                                             children: [
-                                              // Row 1: Track Icon, Readable Name & M, S, FX Action Buttons
-                                              Row(
-                                                children: [
-                                                  Icon(
-                                                    track.iconData,
-                                                    size: 13,
-                                                    color: isSelected ? EatsTheme.primaryCyan : track.color,
+                                              Expanded(
+                                                child: Text(
+                                                  track.name,
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: EatsTheme.getPrimaryFontStyle(
+                                                    color: isSelected ? EatsTheme.primaryCyan : EatsTheme.textPrimary,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 11,
                                                   ),
-                                                  const SizedBox(width: 4),
-                                                  Expanded(
-                                                    child: Text(
-                                                      track.name,
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
-                                                      style: EatsTheme.getPrimaryFontStyle(
-                                                        color: isSelected ? EatsTheme.primaryCyan : EatsTheme.textPrimary,
-                                                        fontWeight: FontWeight.bold,
-                                                        fontSize: 11,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 4),
-                                                  _buildMuteButton(track),
-                                                  const SizedBox(width: 2),
-                                                  _buildSoloButton(track),
-                                                  const SizedBox(width: 2),
-                                                  _buildFXButton(track),
-                                                ],
+                                                ),
                                               ),
-                                              const SizedBox(height: 4),
-                                              // Row 2: Volume Slider with Level Readout & Skeuomorphic Pan Knob
-                                              Row(
-                                                children: [
-                                                  // Volume Control & Level Readout
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                                      mainAxisSize: MainAxisSize.min,
+                                              const SizedBox(width: 4),
+                                              _buildMuteButton(track),
+                                              const SizedBox(width: 2),
+                                              _buildSoloButton(track),
+                                              const SizedBox(width: 2),
+                                              _buildFXButton(track),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          // Row 2: Volume Slider with Level Readout & Skeuomorphic Pan Knob
+                                          Row(
+                                            children: [
+                                              // Volume Control & Level Readout
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Row(
                                                       children: [
-                                                        Row(
-                                                          children: [
-                                                            Text(
-                                                              'VOL',
-                                                              style: TextStyle(color: EatsTheme.textMuted, fontSize: 8, fontWeight: FontWeight.bold),
-                                                            ),
-                                                            const Spacer(),
-                                                            Text(
-                                                              '${(track.volume * 100).round()}%',
-                                                              style: TextStyle(
-                                                                color: isSelected ? EatsTheme.primaryCyan : EatsTheme.textPrimary,
-                                                                fontSize: 8,
-                                                                fontWeight: FontWeight.bold,
-                                                              ),
-                                                            ),
-                                                          ],
+                                                        Text(
+                                                          'VOL',
+                                                          style: TextStyle(color: EatsTheme.textMuted, fontSize: 8, fontWeight: FontWeight.bold),
                                                         ),
-                                                        const SizedBox(height: 2),
-                                                        SizedBox(
-                                                          height: 14,
-                                                          child: EatsBitsSlider(
-                                                            value: track.volume,
-                                                            min: 0.0,
-                                                            max: 1.5,
-                                                            defaultValue: 1.0,
-                                                            label: '${track.name} Volume',
-                                                            activeColor: track.color,
-                                                            onChanged: (val) => widget.dawState.setTrackVolume(track, val),
+                                                        const Spacer(),
+                                                        Text(
+                                                          '${(track.volume * 100).round()}%',
+                                                          style: TextStyle(
+                                                            color: isSelected ? EatsTheme.primaryCyan : EatsTheme.textPrimary,
+                                                            fontSize: 8,
+                                                            fontWeight: FontWeight.bold,
                                                           ),
                                                         ),
                                                       ],
                                                     ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  // Skeuomorphic Hardware Pan Knob
-                                                  SkeuomorphicHardwareKnob(
-                                                    label: 'Pan',
-                                                    showLabelText: false,
-                                                    value: track.pan,
-                                                    min: -1.0,
-                                                    max: 1.0,
-                                                    defaultValue: 0.0,
-                                                    size: 28.0,
-                                                    accentColor: track.color,
-                                                    formatValue: (v) => v == 0 ? 'C' : (v < 0 ? 'L${(v.abs() * 100).round()}' : 'R${(v * 100).round()}'),
-                                                    onChanged: (val) => widget.dawState.setTrackPan(track, val),
-                                                  ),
-                                                ],
+                                                    const SizedBox(height: 2),
+                                                    SizedBox(
+                                                      height: 14,
+                                                      child: EatsBitsSlider(
+                                                        value: track.volume,
+                                                        min: 0.0,
+                                                        max: 1.5,
+                                                        defaultValue: 1.0,
+                                                        label: '${track.name} Volume',
+                                                        showTooltip: false,
+                                                        activeColor: track.color,
+                                                        onChanged: (val) => widget.dawState.setTrackVolume(track, val),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              // Skeuomorphic Hardware Pan Knob
+                                              SkeuomorphicHardwareKnob(
+                                                label: 'Pan',
+                                                showLabelText: false,
+                                                value: track.pan,
+                                                min: -1.0,
+                                                max: 1.0,
+                                                defaultValue: 0.0,
+                                                size: 28.0,
+                                                accentColor: track.color,
+                                                formatValue: (v) => v == 0 ? 'C' : (v < 0 ? 'L${(v.abs() * 100).round()}' : 'R${(v * 100).round()}'),
+                                                onChanged: (val) => widget.dawState.setTrackPan(track, val),
                                               ),
                                             ],
                                           ),
-                                        ),
-                                      );
-                                    },
+                                        ],
+                                      ),
+                                    ),
                                   );
                                 },
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+                              );
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
+              ],
+            ),
+          ),
 
               // Right Multitrack Timeline Grid with Top Bar Ruler & Live Playhead
               Expanded(
-                child: SingleChildScrollView(
-                  controller: _horizontalScroll,
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: totalBars * barWidth,
-                    child: Column(
-                      children: [
+                child: Listener(
+                  onPointerDown: (event) {
+                    if (event.buttons == kMiddleMouseButton) {
+                      _isMiddleMouseDragging = true;
+                      setState(() {});
+                    }
+                  },
+                  onPointerMove: (event) {
+                    if (_isMiddleMouseDragging || (event.buttons & kMiddleMouseButton) != 0) {
+                      if (_horizontalScroll.hasClients) {
+                        final targetX = (_horizontalScroll.offset - event.delta.dx)
+                            .clamp(0.0, _horizontalScroll.position.maxScrollExtent);
+                        _horizontalScroll.jumpTo(targetX);
+                      }
+                      if (_rightGridScroll.hasClients) {
+                        final targetY = (_rightGridScroll.offset - event.delta.dy)
+                            .clamp(0.0, _rightGridScroll.position.maxScrollExtent);
+                        _rightGridScroll.jumpTo(targetY);
+                        if (_leftTrackScroll.hasClients) {
+                          _leftTrackScroll.jumpTo(targetY);
+                        }
+                      }
+                    }
+                  },
+                  onPointerUp: (event) {
+                    if (_isMiddleMouseDragging) {
+                      _isMiddleMouseDragging = false;
+                      setState(() {});
+                    }
+                  },
+                  onPointerCancel: (event) {
+                    if (_isMiddleMouseDragging) {
+                      _isMiddleMouseDragging = false;
+                      setState(() {});
+                    }
+                  },
+                  child: MouseRegion(
+                    cursor: _isMiddleMouseDragging ? SystemMouseCursors.allScroll : MouseCursor.defer,
+                    child: SingleChildScrollView(
+                      controller: _horizontalScroll,
+                      scrollDirection: Axis.horizontal,
+                      child: SizedBox(
+                        width: totalBars * barWidth,
+                        child: Column(
+                          children: [
                         // Top Timeline Bar Ruler (Bar 1, Bar 2 ... Bar 32 with Tap to Jump & Loop Region)
                         GestureDetector(
                           onTapUp: (details) {
@@ -455,8 +573,47 @@ class _ArrangerViewState extends State<ArrangerView> {
                                 child: ListView.builder(
                                   padding: EdgeInsets.zero,
                                   controller: _rightGridScroll,
-                                  itemCount: tracks.length,
+                                  itemCount: tracks.length + 1,
                                   itemBuilder: (context, trackIdx) {
+                                    if (trackIdx == tracks.length) {
+                                      return DragTarget<Object>(
+                                        onWillAcceptWithDetails: (details) => details.data is LuaPreset || details.data is SoundFontDragItem,
+                                        onAcceptWithDetails: (details) {
+                                          final data = details.data;
+                                          if (data is SoundFontDragItem) {
+                                            widget.dawState.addNewSoundFontTrack(data.fontId, displayName: data.displayName);
+                                          } else if (data is LuaPreset) {
+                                            widget.dawState.addNewPresetTrack(data);
+                                          }
+                                        },
+                                        builder: (context, hoverData, _) {
+                                          final isHover = hoverData.isNotEmpty;
+                                          return Container(
+                                            height: 44,
+                                            margin: const EdgeInsets.only(top: 4, bottom: 28),
+                                            decoration: BoxDecoration(
+                                              color: isHover ? EatsTheme.primaryCyan.withOpacity(0.15) : Colors.transparent,
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(
+                                                color: isHover ? EatsTheme.primaryCyan : Colors.white.withOpacity(0.04),
+                                                width: 1,
+                                              ),
+                                            ),
+                                            child: Center(
+                                              child: Text(
+                                                isHover ? 'Drop preset or SoundFont to create track' : '+ Drop preset here or click Add Track',
+                                                style: TextStyle(
+                                                  color: isHover ? EatsTheme.primaryCyan : EatsTheme.textMuted.withOpacity(0.4),
+                                                  fontSize: 10,
+                                                  fontStyle: FontStyle.italic,
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    }
+
                                     final track = tracks[trackIdx];
 
                                     return Container(
@@ -468,186 +625,266 @@ class _ArrangerViewState extends State<ArrangerView> {
                                       ),
                                       child: Stack(
                                         children: [
-                                          // Bar Grid Lines
-                                          Row(
-                                            children: List.generate(totalBars, (barIdx) {
-                                              return GestureDetector(
-                                                onTap: () {
-                                                  widget.dawState.activeTrackIndex = trackIdx;
-                                                  widget.dawState.addClipToTrack(track, barIdx);
-                                                },
-                                                child: Container(
-                                                  width: barWidth,
-                                                  height: trackRowHeight,
-                                                  decoration: BoxDecoration(
-                                                    border: Border(right: BorderSide(color: Colors.white.withOpacity(0.05), width: 1)),
-                                                  ),
-                                                ),
-                                              );
-                                            }),
-                                          ),
+                                           // Bar Grid Lines (With Preset DragTarget Support)
+                                           Row(
+                                             children: List.generate(totalBars, (barIdx) {
+                                               return DragTarget<Object>(
+                                                 onWillAcceptWithDetails: (details) => details.data is LuaPreset,
+                                                 onAcceptWithDetails: (details) {
+                                                   final data = details.data;
+                                                   if (data is LuaPreset) {
+                                                     widget.dawState.activeTrackIndex = trackIdx;
+                                                     widget.dawState.addClipWithPresetToTrack(track, barIdx, data);
+                                                     ScaffoldMessenger.of(context).showSnackBar(
+                                                       SnackBar(
+                                                         content: Text('Created clip "${data.name}" at Bar ${barIdx + 1}'),
+                                                         backgroundColor: EatsTheme.panelHeader,
+                                                         duration: const Duration(seconds: 2),
+                                                       ),
+                                                     );
+                                                   }
+                                                 },
+                                                 builder: (context, hoverData, _) {
+                                                   final isHover = hoverData.isNotEmpty;
+                                                   return GestureDetector(
+                                                     onTap: () {
+                                                       widget.dawState.activeTrackIndex = trackIdx;
+                                                       widget.dawState.addClipToTrack(track, barIdx);
+                                                     },
+                                                     child: Container(
+                                                       width: barWidth,
+                                                       height: trackRowHeight,
+                                                       decoration: BoxDecoration(
+                                                         color: isHover ? EatsTheme.primaryCyan.withOpacity(0.18) : Colors.transparent,
+                                                         border: Border(
+                                                           right: BorderSide(color: Colors.white.withOpacity(0.05), width: 1),
+                                                           left: isHover ? BorderSide(color: EatsTheme.primaryCyan, width: 1.5) : BorderSide.none,
+                                                         ),
+                                                       ),
+                                                     ),
+                                                   );
+                                                 },
+                                               );
+                                             }),
+                                           ),
 
-                                          // Per-track Pattern Clips with Smooth Drag-Move & Edge-Resize
-                                          ...track.clips.map((clip) {
-                                            final isClipSelected = widget.dawState.activeClip?.id == clip.id;
+                                           // Per-track Pattern Clips with Smooth Drag-Move, Edge-Resize, and Preset DragTarget
+                                           ...track.clips.map((clip) {
+                                             final isClipSelected = widget.dawState.activeClip?.id == clip.id;
 
-                                            return Positioned(
-                                              left: clip.startBar * barWidth + 2,
-                                              top: 6,
-                                              width: (clip.barLength * barWidth) - 4,
-                                              height: trackRowHeight - 12,
-                                              child: GestureDetector(
-                                                behavior: HitTestBehavior.opaque,
-                                                onTapDown: (_) {
-                                                  final now = DateTime.now();
-                                                  final isDoubleTap = _lastClipTapId == clip.id &&
-                                                      _lastClipTapTime != null &&
-                                                      now.difference(_lastClipTapTime!).inMilliseconds < 300;
-                                                  _lastClipTapTime = now;
-                                                  _lastClipTapId = clip.id;
+                                             return Positioned(
+                                               left: clip.startBar * barWidth + 2,
+                                               top: 6,
+                                               width: (clip.barLength * barWidth) - 4,
+                                               height: trackRowHeight - 12,
+                                               child: DragTarget<Object>(
+                                                 onWillAcceptWithDetails: (details) => details.data is LuaPreset,
+                                                 onAcceptWithDetails: (details) {
+                                                   final data = details.data;
+                                                   if (data is LuaPreset) {
+                                                     widget.dawState.activeTrackIndex = trackIdx;
+                                                     widget.dawState.selectClip(clip);
+                                                     widget.dawState.applyPresetToClip(track, clip, data);
+                                                     ScaffoldMessenger.of(context).showSnackBar(
+                                                       SnackBar(
+                                                         content: Text('Applied sequence "${data.name}" to clip'),
+                                                         backgroundColor: EatsTheme.panelHeader,
+                                                         duration: const Duration(seconds: 2),
+                                                       ),
+                                                     );
+                                                   }
+                                                 },
+                                                 builder: (context, hoverData, _) {
+                                                   final isPresetHover = hoverData.isNotEmpty;
 
-                                                  widget.dawState.activeTrackIndex = trackIdx;
-                                                  widget.dawState.selectClip(clip);
-                                                  if (isDoubleTap) {
-                                                    // DOUBLE-TAP CLIP: Open clip in Edit section (Piano Roll / Tracker View)
-                                                    widget.dawState.openClipInEditor(clip);
-                                                  }
-                                                },
-                                                onHorizontalDragStart: (_) {
-                                                  _moveDragDxAccumulator = 0.0;
-                                                },
-                                                onHorizontalDragUpdate: (details) {
-                                                  _moveDragDxAccumulator += details.delta.dx;
-                                                  if (_moveDragDxAccumulator.abs() >= barWidth * 0.5) {
-                                                    final shiftBars = (_moveDragDxAccumulator / barWidth).round();
-                                                    if (shiftBars != 0) {
-                                                      setState(() {
-                                                        clip.startBar = (clip.startBar + shiftBars).clamp(0, totalBars - clip.barLength);
-                                                      });
-                                                      _moveDragDxAccumulator -= shiftBars * barWidth;
-                                                    }
-                                                  }
-                                                },
-                                                child: AnimatedContainer(
-                                                  duration: const Duration(milliseconds: 120),
-                                                  decoration: BoxDecoration(
-                                                    color: isClipSelected
-                                                        ? Color.alphaBlend(Colors.white.withOpacity(0.18), track.color)
-                                                        : track.color,
-                                                    borderRadius: BorderRadius.circular(6),
-                                                    border: Border.all(
-                                                      color: isClipSelected ? EatsTheme.highlightColor : Colors.white.withOpacity(0.15),
-                                                      width: isClipSelected ? 2.0 : 1.0,
-                                                    ),
-                                                    boxShadow: [
-                                                      if (isClipSelected)
-                                                        BoxShadow(
-                                                          color: EatsTheme.highlightColor.withOpacity(0.6),
-                                                          blurRadius: 10,
-                                                          spreadRadius: 1,
-                                                        ),
-                                                      BoxShadow(color: track.color.withOpacity(0.4), blurRadius: 6),
-                                                    ],
-                                                  ),
-                                                  child: ClipRRect(
-                                                    borderRadius: BorderRadius.circular(5),
-                                                    child: Stack(
-                                                      children: [
-                                                        // Full Dimensions Note Content Preview Canvas
-                                                        Positioned.fill(
-                                                          child: CustomPaint(
-                                                            painter: PatternClipNotePainter(
-                                                              clip: clip,
-                                                              track: track,
-                                                              isSelected: isClipSelected,
-                                                            ),
-                                                          ),
-                                                        ),
+                                                   return GestureDetector(
+                                                     behavior: HitTestBehavior.opaque,
+                                                     onTapDown: (_) {
+                                                       final now = DateTime.now();
+                                                       final isDoubleTap = _lastClipTapId == clip.id &&
+                                                           _lastClipTapTime != null &&
+                                                           now.difference(_lastClipTapTime!).inMilliseconds < 300;
+                                                       _lastClipTapTime = now;
+                                                       _lastClipTapId = clip.id;
 
-                                                         // 2. Top-Left Clip Title Badge with Background Container
-                                                         Positioned(
-                                                           left: 4,
-                                                           top: 3,
-                                                           child: Container(
-                                                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                                             decoration: BoxDecoration(
-                                                               color: EatsTheme.backgroundDark.withOpacity(0.72),
-                                                               borderRadius: BorderRadius.circular(3),
-                                                               border: Border.all(
-                                                                 color: isClipSelected ? EatsTheme.highlightColor.withOpacity(0.8) : Colors.white12,
-                                                                 width: 0.8,
+                                                       widget.dawState.activeTrackIndex = trackIdx;
+                                                       widget.dawState.selectClip(clip);
+                                                       if (isDoubleTap) {
+                                                         // DOUBLE-TAP CLIP: Open clip in Edit section (Piano Roll / Tracker View)
+                                                         widget.dawState.openClipInEditor(clip);
+                                                       }
+                                                     },
+                                                     onHorizontalDragStart: (_) {
+                                                       _moveDragDxAccumulator = 0.0;
+                                                     },
+                                                     onHorizontalDragUpdate: (details) {
+                                                       _moveDragDxAccumulator += details.delta.dx;
+                                                       if (_moveDragDxAccumulator.abs() >= barWidth * 0.5) {
+                                                         final shiftBars = (_moveDragDxAccumulator / barWidth).round();
+                                                         if (shiftBars != 0) {
+                                                           setState(() {
+                                                             clip.startBar = (clip.startBar + shiftBars).clamp(0, totalBars - clip.barLength);
+                                                           });
+                                                           _moveDragDxAccumulator -= shiftBars * barWidth;
+                                                         }
+                                                       }
+                                                     },
+                                                     child: AnimatedContainer(
+                                                       duration: const Duration(milliseconds: 120),
+                                                       decoration: BoxDecoration(
+                                                         color: isPresetHover
+                                                             ? EatsTheme.accentGold.withOpacity(0.3)
+                                                             : (isClipSelected
+                                                                 ? Color.alphaBlend(Colors.white.withOpacity(0.18), track.color)
+                                                                 : track.color),
+                                                         borderRadius: BorderRadius.circular(6),
+                                                         border: Border.all(
+                                                           color: isPresetHover
+                                                               ? EatsTheme.accentGold
+                                                               : (isClipSelected ? EatsTheme.highlightColor : Colors.white.withOpacity(0.15)),
+                                                           width: isPresetHover ? 2.0 : (isClipSelected ? 2.0 : 1.0),
+                                                         ),
+                                                         boxShadow: [
+                                                           if (isPresetHover)
+                                                             BoxShadow(
+                                                               color: EatsTheme.accentGold.withOpacity(0.6),
+                                                               blurRadius: 12,
+                                                               spreadRadius: 2,
+                                                             )
+                                                           else if (isClipSelected)
+                                                             BoxShadow(
+                                                               color: EatsTheme.highlightColor.withOpacity(0.6),
+                                                               blurRadius: 10,
+                                                               spreadRadius: 1,
+                                                             ),
+                                                           BoxShadow(color: track.color.withOpacity(0.4), blurRadius: 6),
+                                                         ],
+                                                       ),
+                                                       child: ClipRRect(
+                                                         borderRadius: BorderRadius.circular(5),
+                                                         child: Stack(
+                                                           children: [
+                                                             // Full Dimensions Note Content Preview Canvas
+                                                             Positioned.fill(
+                                                               child: CustomPaint(
+                                                                 painter: PatternClipNotePainter(
+                                                                   clip: clip,
+                                                                   track: track,
+                                                                   isSelected: isClipSelected,
+                                                                 ),
                                                                ),
                                                              ),
-                                                             child: Row(
-                                                               mainAxisSize: MainAxisSize.min,
-                                                               children: [
-                                                                 if (isClipSelected) ...[
-                                                                   Container(
-                                                                     width: 5,
-                                                                     height: 5,
-                                                                     margin: const EdgeInsets.only(right: 4),
-                                                                     decoration: BoxDecoration(
-                                                                       color: EatsTheme.highlightColor,
-                                                                       shape: BoxShape.circle,
-                                                                     ),
-                                                                   ),
-                                                                 ],
-                                                                 Text(
-                                                                   clip.name,
-                                                                   style: TextStyle(
-                                                                     color: isClipSelected ? EatsTheme.highlightColor : Colors.white,
-                                                                     fontWeight: FontWeight.bold,
-                                                                     fontSize: 9,
+
+                                                             // 2. Top-Left Clip Title Badge with Background Container
+                                                             Positioned(
+                                                               left: 4,
+                                                               top: 3,
+                                                               child: Container(
+                                                                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                                                 decoration: BoxDecoration(
+                                                                   color: EatsTheme.backgroundDark.withOpacity(0.72),
+                                                                   borderRadius: BorderRadius.circular(3),
+                                                                   border: Border.all(
+                                                                     color: isClipSelected ? EatsTheme.highlightColor.withOpacity(0.8) : Colors.white12,
+                                                                     width: 0.8,
                                                                    ),
                                                                  ),
-                                                               ],
-                                                             ),
-                                                           ),
-                                                         ),
-
-                                                         // 3. Right Edge Drag Handle to Resize Clip Length (Transparent Background)
-                                                         Positioned(
-                                                           right: 0,
-                                                           top: 0,
-                                                           bottom: 0,
-                                                           width: 18,
-                                                           child: GestureDetector(
-                                                             behavior: HitTestBehavior.opaque,
-                                                             onHorizontalDragStart: (_) {
-                                                               _resizeDragDxAccumulator = 0.0;
-                                                             },
-                                                             onHorizontalDragUpdate: (details) {
-                                                               _resizeDragDxAccumulator += details.delta.dx;
-                                                               if (_resizeDragDxAccumulator.abs() >= barWidth * 0.5) {
-                                                                 final shiftBars = (_resizeDragDxAccumulator / barWidth).round();
-                                                                 if (shiftBars != 0) {
-                                                                   setState(() {
-                                                                     clip.barLength = (clip.barLength + shiftBars).clamp(1, totalBars - clip.startBar);
-                                                                   });
-                                                                   _resizeDragDxAccumulator -= shiftBars * barWidth;
-                                                                 }
-                                                               }
-                                                             },
-                                                             child: Container(
-                                                               color: Colors.transparent,
-                                                               alignment: Alignment.center,
-                                                               child: Icon(
-                                                                 Icons.code,
-                                                                 size: 11,
-                                                                 color: isClipSelected ? EatsTheme.highlightColor : EatsTheme.backgroundDark.withOpacity(0.8),
+                                                                 child: Row(
+                                                                   mainAxisSize: MainAxisSize.min,
+                                                                   children: [
+                                                                     if (isClipSelected) ...[
+                                                                       Container(
+                                                                         width: 5,
+                                                                         height: 5,
+                                                                         margin: const EdgeInsets.only(right: 4),
+                                                                         decoration: BoxDecoration(
+                                                                           color: EatsTheme.highlightColor,
+                                                                           shape: BoxShape.circle,
+                                                                         ),
+                                                                       ),
+                                                                     ],
+                                                                     Text(
+                                                                       clip.name,
+                                                                       style: TextStyle(
+                                                                         color: isClipSelected ? EatsTheme.highlightColor : Colors.white,
+                                                                         fontWeight: FontWeight.bold,
+                                                                         fontSize: 9,
+                                                                       ),
+                                                                     ),
+                                                                   ],
+                                                                 ),
                                                                ),
                                                              ),
-                                                           ),
+
+                                                             // 3. Drop Hover Overlay
+                                                             if (isPresetHover)
+                                                               Positioned.fill(
+                                                                 child: Container(
+                                                                   color: Colors.black54,
+                                                                   alignment: Alignment.center,
+                                                                   child: Container(
+                                                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                                     decoration: BoxDecoration(
+                                                                       color: EatsTheme.accentGold,
+                                                                       borderRadius: BorderRadius.circular(4),
+                                                                     ),
+                                                                     child: const Text(
+                                                                       'REPLACE SEQUENCE',
+                                                                       style: TextStyle(
+                                                                         color: Colors.black,
+                                                                         fontWeight: FontWeight.bold,
+                                                                         fontSize: 8.5,
+                                                                       ),
+                                                                     ),
+                                                                   ),
+                                                                 ),
+                                                               ),
+
+                                                             // 4. Right Edge Drag Handle to Resize Clip Length (Transparent Background)
+                                                             Positioned(
+                                                               right: 0,
+                                                               top: 0,
+                                                               bottom: 0,
+                                                               width: 18,
+                                                               child: GestureDetector(
+                                                                 behavior: HitTestBehavior.opaque,
+                                                                 onHorizontalDragStart: (_) {
+                                                                   _resizeDragDxAccumulator = 0.0;
+                                                                 },
+                                                                 onHorizontalDragUpdate: (details) {
+                                                                   _resizeDragDxAccumulator += details.delta.dx;
+                                                                   if (_resizeDragDxAccumulator.abs() >= barWidth * 0.5) {
+                                                                     final shiftBars = (_resizeDragDxAccumulator / barWidth).round();
+                                                                     if (shiftBars != 0) {
+                                                                       setState(() {
+                                                                         clip.barLength = (clip.barLength + shiftBars).clamp(1, totalBars - clip.startBar);
+                                                                       });
+                                                                       _resizeDragDxAccumulator -= shiftBars * barWidth;
+                                                                     }
+                                                                   }
+                                                                 },
+                                                                 child: Container(
+                                                                   color: Colors.transparent,
+                                                                   alignment: Alignment.center,
+                                                                   child: Icon(
+                                                                     Icons.code,
+                                                                     size: 11,
+                                                                     color: isClipSelected ? EatsTheme.highlightColor : EatsTheme.backgroundDark.withOpacity(0.8),
+                                                                   ),
+                                                                 ),
+                                                               ),
+                                                             ),
+                                                           ],
                                                          ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            );
-                                          }),
-                                        ],
-                                      ),
+                                                       ),
+                                                     ),
+                                                   );
+                                                 },
+                                               ),
+                                             );
+                                           }),
+                                         ],
+                                       ),
                                     );
                                   },
                                 ),
@@ -676,11 +913,13 @@ class _ArrangerViewState extends State<ArrangerView> {
                   ),
                 ),
               ),
-            ],
+            ),
           ),
-        ),
-      ],
-    );
+        ],
+      ),
+    ),
+  ],
+);
   }
 
   Widget _buildMuteButton(TrackChannel track) {

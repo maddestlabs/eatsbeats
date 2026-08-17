@@ -220,6 +220,7 @@ class TrackInspectorView extends StatelessWidget {
                 const SizedBox(width: 12),
                 GestureDetector(
                   onLongPress: () => showRenameTrackDialog(context, dawState, track),
+                  onSecondaryTap: () => showRenameTrackDialog(context, dawState, track),
                   onDoubleTap: () {
                     // DOUBLE TAP TRACK TITLE: Navigate to Scripts Section (tab 4)
                     dawState.activeTabIndex = 4;

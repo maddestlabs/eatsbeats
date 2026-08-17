@@ -1,5 +1,5 @@
 # Eatsbits
-Mobile-first and web-first, totally unprofessional digital everything workstation (DEW) built around a core of Lua scripting with a multimedia focused API. Made with Flutter and Lua, relying on WebAudio API for audio features.
+Mobile-first and web-first, totally unprofessional digital audio workstation (DAW) built around a core of Lua scripting with a multimedia focused API. Made with Flutter and Lua, relying on WebAudio API for audio features.
 
 ---
 
@@ -12,7 +12,7 @@ Mobile-first and web-first, totally unprofessional digital everything workstatio
 ## Features
 
 - Web-first: Built for easy access on the web
-- Made with Flutter: Easy portability for native mobile and desktop
+- Made with Flutter (using wajuce for native Web Audio): Easy portability for native mobile and desktop
 - Lua scripting: Everything is Lua scripts, built on a WebAudio based API
 
 ---

@@ -6,9 +6,7 @@ import '../../theme/eats_theme.dart';
 Future<void> showTrackPropertiesDialog(BuildContext context, DawState dawState, TrackChannel track) async {
   final controller = TextEditingController(text: track.name);
   Color selectedColor = track.color;
-  String selectedIconName = track.iconName;
   bool isColorsExpanded = false;
-  bool isIconsExpanded = false;
 
   final List<Color> initialColorPalette = [
     const Color(0xFF21F4E8), // Neon Cyan
@@ -30,46 +28,11 @@ Future<void> showTrackPropertiesDialog(BuildContext context, DawState dawState, 
     const Color(0xFF651FFF), const Color(0xFFFF5252), const Color(0xFFFFC400), const Color(0xFF00B0FF),
   ];
 
-  final List<Map<String, dynamic>> initialIconOptions = [
-    {'name': 'synth', 'icon': Icons.piano},
-    {'name': 'drums', 'icon': Icons.album},
-    {'name': 'bass', 'icon': Icons.waves},
-    {'name': 'vocal', 'icon': Icons.mic},
-    {'name': 'lead', 'icon': Icons.bolt},
-    {'name': 'fx', 'icon': Icons.tune},
-    {'name': 'sampler', 'icon': Icons.graphic_eq},
-    {'name': 'guitar', 'icon': Icons.queue_music},
-    {'name': 'headset', 'icon': Icons.headset},
-    {'name': 'speaker', 'icon': Icons.speaker},
-    {'name': 'code', 'icon': Icons.code},
-    {'name': 'music', 'icon': Icons.music_note},
-  ];
-
-  final List<Map<String, dynamic>> expandedIconOptions = [
-    {'name': 'synth', 'icon': Icons.piano},
-    {'name': 'drums', 'icon': Icons.album},
-    {'name': 'bass', 'icon': Icons.waves},
-    {'name': 'vocal', 'icon': Icons.mic},
-    {'name': 'lead', 'icon': Icons.bolt},
-    {'name': 'fx', 'icon': Icons.tune},
-    {'name': 'sampler', 'icon': Icons.graphic_eq},
-    {'name': 'guitar', 'icon': Icons.queue_music},
-    {'name': 'headset', 'icon': Icons.headset},
-    {'name': 'speaker', 'icon': Icons.speaker},
-    {'name': 'code', 'icon': Icons.code},
-    {'name': 'music', 'icon': Icons.music_note},
-    {'name': 'spatial_audio', 'icon': Icons.spatial_audio},
-    {'name': 'equalizer', 'icon': Icons.equalizer},
-    {'name': 'radio', 'icon': Icons.radio},
-    {'name': 'memory', 'icon': Icons.memory},
-    {'name': 'subtitles', 'icon': Icons.subtitles},
-    {'name': 'videogame_asset', 'icon': Icons.videogame_asset},
-    {'name': 'star', 'icon': Icons.star},
-    {'name': 'favorite', 'icon': Icons.favorite},
-    {'name': 'flare', 'icon': Icons.flare},
-    {'name': 'brush', 'icon': Icons.brush},
-    {'name': 'palette', 'icon': Icons.palette},
-    {'name': 'auto_awesome', 'icon': Icons.auto_awesome},
+  final List<String> musicEmojiPalette = [
+    '🎹', '🎸', '🥁', '🎷', '🎺', '🎻', '🪕', '🪗',
+    '🎙️', '🎛️', '🔊', '⚡', '🎧', '🎵', '🎶', '👾',
+    '🤖', '🔥', '✨', '🌊', '💣', '🎤', '🪘', '🔔',
+    '📼', '💻', '💿', '📻', '📢', '🪐',
   ];
 
   return showDialog<void>(
@@ -238,79 +201,52 @@ Future<void> showTrackPropertiesDialog(BuildContext context, DawState dawState, 
 
                     const SizedBox(height: 16),
 
-                    // 3. Track Icon Swatches
-                    Row(
-                      children: [
-                        Text(
-                          'TRACK ICON',
-                          style: EatsTheme.getPrimaryFontStyle(
-                            color: EatsTheme.textMuted,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Spacer(),
-                        if (!isIconsExpanded)
-                          GestureDetector(
-                            onTap: () => setState(() => isIconsExpanded = true),
-                            child: Text(
-                              '+ MORE ICONS',
-                              style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 9, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                      ],
+                    // 3. Quick Music / Instrument Emoji Palette
+                    Text(
+                      'QUICK INSTRUMENT / EMOJI SYMBOLS (CLICK TO ADD)',
+                      style: EatsTheme.getPrimaryFontStyle(
+                        color: EatsTheme.textMuted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
-                      children: [
-                        ...(isIconsExpanded ? expandedIconOptions : initialIconOptions).map((opt) {
-                          final String name = opt['name'];
-                          final IconData icon = opt['icon'];
-                          final isSelected = name.toLowerCase() == selectedIconName.toLowerCase();
-
-                          return GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                selectedIconName = name;
-                              });
-                            },
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: isSelected ? selectedColor.withOpacity(0.2) : EatsTheme.controlBackground,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: isSelected ? selectedColor : EatsTheme.panelHeader,
-                                  width: isSelected ? 2.0 : 1.0,
-                                ),
-                              ),
-                              child: Icon(
-                                icon,
-                                size: 16,
-                                color: isSelected ? selectedColor : EatsTheme.textMuted,
-                              ),
+                      children: musicEmojiPalette.map((emoji) {
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap: () {
+                            final cur = controller.text;
+                            if (cur.isEmpty) {
+                              controller.text = '$emoji ';
+                            } else if (!cur.startsWith(emoji)) {
+                              controller.text = '$emoji $cur';
+                            } else {
+                              controller.text = '$cur $emoji';
+                            }
+                            controller.selection = TextSelection.fromPosition(
+                              TextPosition(offset: controller.text.length),
+                            );
+                            setState(() {});
+                          },
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: EatsTheme.controlBackground,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: EatsTheme.panelHeader, width: 1.0),
                             ),
-                          );
-                        }),
-                        if (!isIconsExpanded)
-                          GestureDetector(
-                            onTap: () => setState(() => isIconsExpanded = true),
-                            child: Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: EatsTheme.controlBackground,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: EatsTheme.panelHeader, width: 1.5),
-                              ),
-                              child: Icon(Icons.add, size: 18, color: EatsTheme.textMuted),
+                            child: Text(
+                              emoji,
+                              style: const TextStyle(fontSize: 16),
                             ),
                           ),
-                      ],
+                        );
+                      }).toList(),
                     ),
 
                     const SizedBox(height: 16),
@@ -430,7 +366,6 @@ Future<void> showTrackPropertiesDialog(BuildContext context, DawState dawState, 
                   if (trimmed.isNotEmpty) {
                     track.name = trimmed;
                   }
-                  track.iconName = selectedIconName;
                   dawState.setTrackColor(track, selectedColor);
                   Navigator.of(context).pop();
                 },

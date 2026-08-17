@@ -2,6 +2,7 @@ enum LuaPresetCategory {
   instrument,
   audioFx,
   midiFx,
+  midiSeq,
   utility;
 
   String get displayName {
@@ -12,6 +13,8 @@ enum LuaPresetCategory {
         return 'AUDIO FX';
       case LuaPresetCategory.midiFx:
         return 'MIDI FX';
+      case LuaPresetCategory.midiSeq:
+        return 'MIDI SEQ';
       case LuaPresetCategory.utility:
         return 'UTILITY';
     }
@@ -19,6 +22,9 @@ enum LuaPresetCategory {
 
   static LuaPresetCategory parse(String categoryStr) {
     final clean = categoryStr.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    if (clean.contains('midiseq') || clean.contains('seq') || clean.contains('pattern')) {
+      return LuaPresetCategory.midiSeq;
+    }
     if (clean.contains('audiofx') || clean.contains('effect') || clean.contains('fx')) {
       if (clean.contains('midi')) return LuaPresetCategory.midiFx;
       return LuaPresetCategory.audioFx;
@@ -47,6 +53,7 @@ class LuaPreset {
   bool get isInstrument => category == LuaPresetCategory.instrument;
   bool get isAudioFx => category == LuaPresetCategory.audioFx;
   bool get isMidiFx => category == LuaPresetCategory.midiFx;
+  bool get isMidiSeq => category == LuaPresetCategory.midiSeq;
 }
 
 class LuaPresetLibrary {
@@ -102,57 +109,6 @@ class LuaPresetLibrary {
   }
 
   static const List<LuaPreset> _builtinPresets = [
-    // 0. Eatsbits.v1 Native Node & Automation API Showcase Preset
-    LuaPreset(
-      id: 'eatsbits_v1_acid_automation',
-      name: 'Eatsbits.v1 Native TB-303 + Delay (v1 API)',
-      category: LuaPresetCategory.instrument,
-      description: 'Demonstrates eatsbits.v1 opaque handles (NodeHandle, ParamHandle), WebAudio graph routing, and sample-accurate parameter automation curves.',
-      code: '''
--- @name: Eatsbits.v1 Native TB-303
--- @category: instrument
-local EatsbitsAcidPreset = {}
-
-function EatsbitsAcidPreset.onInit(config)
-  local synth = eatsbits.v1.createNode("TB303", {
-    waveform = 0,
-    oversample = 2
-  })
-
-  local delay = eatsbits.v1.createNode("StereoDelayFX", {
-    timeMs = 250.0,
-    feedback = 0.45,
-    mix = 0.4
-  })
-
-  local master = eatsbits.v1.getMasterBus()
-  synth:connect(delay)
-  delay:connect(master)
-
-  local cutoff = synth:getParam("Cutoff")
-  local now = Scheduler.currentTime()
-  cutoff:setValueAtTime(200.0, now)
-  cutoff:exponentialRampToValueAtTime(8000.0, now + Scheduler.beatsToSeconds(8.0))
-end
-
-function EatsbitsAcidPreset.onTransportStart(bar, beat)
-  Scheduler.scheduleNote(36, 0.95, 0.0, 2.0)
-  Scheduler.scheduleNote(48, 1.00, 2.0, 1.0)
-  Scheduler.scheduleNote(39, 0.85, 3.0, 1.0)
-end
-
-function EatsbitsAcidPreset.getState()
-  return {
-    version = "v1",
-    preset = "EatsbitsAcidPreset",
-    cutoff = 2400.0
-  }
-end
-
-return EatsbitsAcidPreset
-''',
-    ),
-
     // 1. Eats 303 Acid Bass Synth (JC-303 based)
     LuaPreset(
       id: 'acid_303',
@@ -351,44 +307,7 @@ return ProceduralHiHat
 ''',
     ),
 
-    // 5. Procedural Clap Preset
-    LuaPreset(
-      id: 'procedural_clap',
-      name: 'Procedural Handclap',
-      category: LuaPresetCategory.instrument,
-      description: 'Multi-burst noise clap synthesizer simulating human handclap reverberation.',
-      code: '''
--- @name: Procedural Handclap
--- @category: instrument
-local ProceduralClap = {}
-
-function ProceduralClap.init()
-  Param.add("RoomDecay", 0.05, 0.4, 0.18)
-  Param.add("Tone", 800.0, 4000.0, 2200.0)
-end
-
-function ProceduralClap.process(time, freq, note, params)
-  local roomDecay = params["RoomDecay"] or 0.18
-  local tone = params["Tone"] or 2200.0
-
-  local burstEnv = 0.0
-  if time < 0.01 then burstEnv = 1.0
-  elseif time < 0.022 then burstEnv = 0.75
-  elseif time < 0.035 then burstEnv = 0.85
-  else burstEnv = math.exp(-(time - 0.035) / roomDecay)
-  end
-
-  local noise = (math.random() * 2.0 - 1.0)
-  local filtered = DSP.bandpass(noise, tone, 2.0)
-
-  return filtered * burstEnv * 0.8
-end
-
-return ProceduralClap
-''',
-    ),
-
-    // 6. Poly Lead Synth Preset
+    // 5. Poly Lead Synth Preset
     LuaPreset(
       id: 'poly_lead',
       name: 'Poly Lead Synth',
@@ -701,6 +620,218 @@ function ArpeggiatorMidiFX.transform_notes(notes, params, timeContext)
 end
 
 return ArpeggiatorMidiFX
+''',
+    ),
+
+    // --- MIDI SEQUENCES (MIDI SEQ) ---
+
+    // 15. 4-to-Floor Kick Pattern
+    LuaPreset(
+      id: 'seq_4_to_floor',
+      name: '4-to-Floor Kick',
+      category: LuaPresetCategory.midiSeq,
+      description: 'Classic four-on-the-floor kick drum pattern hitting on every downbeat (1, 2, 3, 4).',
+      code: '''
+-- @name: 4-to-Floor Kick
+-- @category: midiSeq
+-- @description: Classic 4-on-the-floor kick pattern for house/techno/EDM
+
+notes = {
+  { pitch = 36, start = 0.00, duration = 1.00, vel = 0.95 },
+  { pitch = 36, start = 4.00, duration = 1.00, vel = 0.90 },
+  { pitch = 36, start = 8.00, duration = 1.00, vel = 0.95 },
+  { pitch = 36, start = 12.00, duration = 1.00, vel = 0.90 }
+}
+
+function process(notes, time_ctx)
+  return notes
+end
+''',
+    ),
+
+    // 16. Quarter Hats Pattern
+    LuaPreset(
+      id: 'seq_quarter_hats',
+      name: 'Quarter Hats',
+      category: LuaPresetCategory.midiSeq,
+      description: 'Hi-hat pattern hitting on every quarter beat (1, 2, 3, 4).',
+      code: '''
+-- @name: Quarter Hats
+-- @category: midiSeq
+-- @description: Hi-hat hits on every quarter beat
+
+notes = {
+  { pitch = 42, start = 0.00, duration = 1.00, vel = 0.85 },
+  { pitch = 42, start = 4.00, duration = 1.00, vel = 0.80 },
+  { pitch = 42, start = 8.00, duration = 1.00, vel = 0.85 },
+  { pitch = 42, start = 12.00, duration = 1.00, vel = 0.80 }
+}
+
+function process(notes, time_ctx)
+  return notes
+end
+''',
+    ),
+
+    // 17. Eighth Hats Pattern
+    LuaPreset(
+      id: 'seq_eighth_hats',
+      name: 'Eighth Hats',
+      category: LuaPresetCategory.midiSeq,
+      description: 'Driving 8th-note hi-hat groove hitting on the beat and between beats with dynamic accents.',
+      code: '''
+-- @name: Eighth Hats
+-- @category: midiSeq
+-- @description: Driving 8th-note hi-hat groove with alternating velocity accents
+
+notes = {
+  { pitch = 42, start = 0.00, duration = 1.00, vel = 0.85 },
+  { pitch = 42, start = 2.00, duration = 1.00, vel = 0.70 },
+  { pitch = 42, start = 4.00, duration = 1.00, vel = 0.80 },
+  { pitch = 42, start = 6.00, duration = 1.00, vel = 0.70 },
+  { pitch = 42, start = 8.00, duration = 1.00, vel = 0.85 },
+  { pitch = 42, start = 10.00, duration = 1.00, vel = 0.70 },
+  { pitch = 42, start = 12.00, duration = 1.00, vel = 0.80 },
+  { pitch = 42, start = 14.00, duration = 1.00, vel = 0.70 }
+}
+
+function process(notes, time_ctx)
+  return notes
+end
+''',
+    ),
+
+    // 18. Offbeat Open Hats
+    LuaPreset(
+      id: 'seq_offbeat_hats',
+      name: 'Offbeat Open Hats',
+      category: LuaPresetCategory.midiSeq,
+      description: 'Classic house and garage offbeat open hi-hat groove hitting on the upbeat of every beat.',
+      code: '''
+-- @name: Offbeat Open Hats
+-- @category: midiSeq
+-- @description: Classic house and garage offbeat open hi-hat pattern
+
+notes = {
+  { pitch = 46, start = 2.00, duration = 1.50, vel = 0.88 },
+  { pitch = 46, start = 6.00, duration = 1.50, vel = 0.85 },
+  { pitch = 46, start = 10.00, duration = 1.50, vel = 0.88 },
+  { pitch = 46, start = 14.00, duration = 1.50, vel = 0.85 }
+}
+
+function process(notes, time_ctx)
+  return notes
+end
+''',
+    ),
+
+    // 19. Snares Backbeat
+    LuaPreset(
+      id: 'seq_snares',
+      name: 'Snares (Backbeat)',
+      category: LuaPresetCategory.midiSeq,
+      description: 'Standard backbeat snare pattern hitting on beats 2 and 4.',
+      code: '''
+-- @name: Snares (Backbeat)
+-- @category: midiSeq
+-- @description: Standard snare backbeat on beats 2 and 4
+
+notes = {
+  { pitch = 38, start = 4.00, duration = 1.00, vel = 0.92 },
+  { pitch = 38, start = 12.00, duration = 1.00, vel = 0.95 }
+}
+
+function process(notes, time_ctx)
+  return notes
+end
+''',
+    ),
+
+    // 20. Trap / Half-time Snare
+    LuaPreset(
+      id: 'seq_trap_snare',
+      name: 'Trap Snare (Half-Time)',
+      category: LuaPresetCategory.midiSeq,
+      description: 'Half-time hip-hop / trap snare pattern hitting firmly on beat 3.',
+      code: '''
+-- @name: Trap Snare (Half-Time)
+-- @category: midiSeq
+-- @description: Half-time hip-hop / trap snare hit on beat 3
+
+notes = {
+  { pitch = 38, start = 8.00, duration = 1.00, vel = 0.95 }
+}
+
+function process(notes, time_ctx)
+  return notes
+end
+''',
+    ),
+
+    // 21. Bass Full
+    LuaPreset(
+      id: 'seq_bass_full',
+      name: 'Bass Full',
+      category: LuaPresetCategory.midiSeq,
+      description: 'Single sustained full 1-bar root bass note (16 steps).',
+      code: '''
+-- @name: Bass Full
+-- @category: midiSeq
+-- @description: Sustained full-bar root bass note
+
+notes = {
+  { pitch = 36, start = 0.00, duration = 16.00, vel = 0.90 }
+}
+
+function process(notes, time_ctx)
+  return notes
+end
+''',
+    ),
+
+    // 22. Bass Halves
+    LuaPreset(
+      id: 'seq_bass_halves',
+      name: 'Bass Halves',
+      category: LuaPresetCategory.midiSeq,
+      description: 'Two half-bar sustained bass notes (8 steps each).',
+      code: '''
+-- @name: Bass Halves
+-- @category: midiSeq
+-- @description: Two half-bar sustained bass notes
+
+notes = {
+  { pitch = 36, start = 0.00, duration = 8.00, vel = 0.90 },
+  { pitch = 36, start = 8.00, duration = 8.00, vel = 0.88 }
+}
+
+function process(notes, time_ctx)
+  return notes
+end
+''',
+    ),
+
+    // 23. Offbeat Bass
+    LuaPreset(
+      id: 'seq_offbeat_bass',
+      name: 'Offbeat Bass (Pump)',
+      category: LuaPresetCategory.midiSeq,
+      description: 'Pumping offbeat bass notes hitting between kick downbeats for EDM and house grooves.',
+      code: '''
+-- @name: Offbeat Bass (Pump)
+-- @category: midiSeq
+-- @description: Pumping offbeat bass pattern
+
+notes = {
+  { pitch = 36, start = 2.00, duration = 2.00, vel = 0.90 },
+  { pitch = 36, start = 6.00, duration = 2.00, vel = 0.88 },
+  { pitch = 36, start = 10.00, duration = 2.00, vel = 0.90 },
+  { pitch = 36, start = 14.00, duration = 2.00, vel = 0.88 }
+}
+
+function process(notes, time_ctx)
+  return notes
+end
 ''',
     ),
   ];

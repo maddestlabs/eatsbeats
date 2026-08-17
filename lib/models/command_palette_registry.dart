@@ -289,6 +289,8 @@ class CommandPaletteRegistry {
         return Icons.graphic_eq;
       case LuaPresetCategory.midiFx:
         return Icons.music_note;
+      case LuaPresetCategory.midiSeq:
+        return Icons.view_timeline_outlined;
       case LuaPresetCategory.utility:
         return Icons.build;
     }

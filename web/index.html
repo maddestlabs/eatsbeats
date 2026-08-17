@@ -215,6 +215,11 @@
         }, 450);
       }
     };
+
+    // Disable default browser context menu for DAW right-click actions
+    window.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+    });
   </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

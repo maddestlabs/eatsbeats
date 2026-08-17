@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 class LuaParamDef {
   final String name;
@@ -211,6 +212,68 @@ class LuaEngine {
   static final Map<String, _AcidVoiceState> _acidVoiceStates = {};
   static final Map<String, _HiHatVoiceState> _hihatVoiceStates = {};
 
+  // Fast synthesis of complete buffer avoiding redundant per-sample parsing
+  static Float32List synthesizeBuffer({
+    required String code,
+    required double durationSec,
+    required double freq,
+    required int note,
+    required Map<String, double> params,
+    int? targetMidiNote,
+    bool isSlide = false,
+    bool isAccent = false,
+    String? trackId,
+  }) {
+    final int numSamples = (44100 * durationSec).toInt().clamp(1, 441000);
+    final buffer = Float32List(numSamples);
+
+    // 0. Procedural Kick Fast Synthesis
+    if (code.contains('ProceduralKick') || code.contains('StartFreq')) {
+      final startF = params['StartFreq'] ?? 160.0;
+      final endF = params['EndFreq'] ?? 42.0;
+      final pDecay = (params['PitchDecay'] ?? 0.035).clamp(0.005, 0.5);
+      final aDecay = (params['AmpDecay'] ?? 0.35).clamp(0.01, 1.5);
+      final click = params['Click'] ?? 0.0;
+      final fadeSamples = (44100 * 0.04).toInt().clamp(64, math.max(1, numSamples ~/ 4));
+
+      for (int i = 0; i < numSamples; i++) {
+        final time = i / 44100.0;
+        final curFreq = endF + (startF - endF) * math.exp(-time / pDecay);
+        final subSine = math.sin(2.0 * math.pi * curFreq * time);
+        final clickTransient = _fastRnd(i * 1664525 + 1013904223) * math.exp(-time * 150.0) * click;
+        final env = math.exp(-time * 5.0 / aDecay);
+        final rawOutput = (subSine * 0.85 + clickTransient * 0.15) * env;
+
+        final samplesRemaining = numSamples - 1 - i;
+        double boundaryFade = 1.0;
+        if (samplesRemaining < fadeSamples) {
+          final norm = (samplesRemaining / fadeSamples).clamp(0.0, 1.0);
+          boundaryFade = 0.5 * (1.0 - math.cos(math.pi * norm));
+        }
+        buffer[i] = _tanh(rawOutput * boundaryFade * 1.3);
+      }
+      return buffer;
+    }
+
+    // Default: sample-by-sample evaluation
+    for (int i = 0; i < numSamples; i++) {
+      buffer[i] = evaluateSynth(
+        code: code,
+        time: i / 44100.0,
+        freq: freq,
+        note: note,
+        params: params,
+        targetMidiNote: targetMidiNote,
+        isSlide: isSlide,
+        isAccent: isAccent,
+        trackId: trackId,
+        sampleIndex: i,
+        totalSamples: numSamples,
+      );
+    }
+    return buffer;
+  }
+
   // DSP Math & Synthesis Evaluator for Lua custom synths and drum engines
   static double evaluateSynth({
     required String code,
@@ -235,8 +298,8 @@ class LuaEngine {
 
       final curFreq = endF + (startF - endF) * math.exp(-time / pDecay.clamp(0.005, 0.5));
       final subSine = math.sin(2.0 * math.pi * curFreq * time);
-      final rnd = math.Random(sampleIndex * 1664525 + 1013904223);
-      final clickTransient = (rnd.nextDouble() * 2.0 - 1.0) * math.exp(-time * 150.0) * click;
+      // Zero-allocation LCG noise — no heap object created per sample
+      final clickTransient = _fastRnd(sampleIndex * 1664525 + 1013904223) * math.exp(-time * 150.0) * click;
 
       // Exponential amplitude envelope decaying to < 1% by time = aDecay
       final env = math.exp(-time * 5.0 / aDecay.clamp(0.01, 1.5));
@@ -274,9 +337,19 @@ class LuaEngine {
 
       if (sampleIndex == 0) {
         if (!isSlide) {
-          vState.lastEnv = 1.0;
+          // Full state reset for non-slide notes: makes output deterministic so
+          // the PCM cache can store and reuse this note's buffer correctly.
+          vState.lastEnv  = 1.0;
           vState.startFreq = freq;
+          vState.phase    = 0.0;
+          vState.stage1   = 0.0;
+          vState.stage2   = 0.0;
+          vState.stage3   = 0.0;
+          vState.stage4   = 0.0;
+          vState.hpfX1    = 0.0;
+          vState.hpfY1    = 0.0;
         } else {
+          // Slide: carry all filter state from previous note (authentic legato)
           vState.startFreq = vState.lastFreq > 0 ? vState.lastFreq : freq;
         }
       }
@@ -336,7 +409,16 @@ class LuaEngine {
         output = _tanh(output * gain);
       }
 
-      return output.clamp(-1.0, 1.0);
+      // Smooth raised-cosine boundary fade-out over final 40ms of note buffer
+      final fadeSamples = (44100 * 0.04).toInt().clamp(64, math.max(1, totalSamples ~/ 4));
+      final samplesRemaining = totalSamples - 1 - sampleIndex;
+      double boundaryFade = 1.0;
+      if (samplesRemaining < fadeSamples && fadeSamples > 0) {
+        final norm = (samplesRemaining / fadeSamples).clamp(0.0, 1.0);
+        boundaryFade = 0.5 * (1.0 - math.cos(math.pi * norm));
+      }
+
+      return (output * boundaryFade).clamp(-1.0, 1.0);
     }
 
     // 2. Procedural Snare Drum
@@ -398,32 +480,7 @@ class LuaEngine {
       return output.clamp(-1.0, 1.0);
     }
 
-    // 4. Procedural Handclap
-    else if (code.contains('ProceduralClap') || code.contains('RoomDecay')) {
-      final roomDecay = params['RoomDecay'] ?? 0.18;
-      final tone = params['Tone'] ?? 2200.0;
-
-      double burstEnv = 0.0;
-      if (time < 0.01) {
-        burstEnv = 1.0;
-      } else if (time < 0.022) {
-        burstEnv = 0.75;
-      } else if (time < 0.035) {
-        burstEnv = 0.85;
-      } else {
-        burstEnv = math.exp(-(time - 0.035) / roomDecay.clamp(0.01, 1.0));
-      }
-
-      final rnd = math.Random((time * 10000).toInt() % 100000 + 999);
-      final noise = (rnd.nextDouble() * 2.0 - 1.0);
-
-      final f = (tone / 44100.0 * 2.0 * math.pi).clamp(0.05, 0.95);
-      final filtered = noise * f * burstEnv * 0.8;
-
-      return filtered.clamp(-1.0, 1.0);
-    }
-
-    // 5. Dual-Op FM Synth
+    // 4. Dual-Op FM Synth
     else if (code.contains('FMSynth') || code.contains('ModRatio')) {
       final ratio = params['ModRatio'] ?? 2.0;
       final index = params['ModIndex'] ?? 3.5;
@@ -468,13 +525,15 @@ class LuaEngine {
     required double time,
     required Map<String, double> params,
   }) {
-    if (code.contains('StereoDelayFX') || code.contains('TimeMs')) {
+    final lower = code.toLowerCase().replaceAll(' ', '').replaceAll('_', '');
+
+    if (lower.contains('stereodelay') || lower.contains('delay') || lower.contains('timems')) {
       final feedback = params['Feedback'] ?? 0.45;
       final mix = params['Mix'] ?? 0.4;
 
       final echo = inputSample * feedback;
       return (inputSample * (1.0 - mix)) + (echo * mix);
-    } else if (code.contains('StereoChorusFX') || code.contains('DepthMs')) {
+    } else if (lower.contains('stereochorus') || lower.contains('chorus') || lower.contains('depthms')) {
       final mix = params['Mix'] ?? 0.5;
       final rate = params['RateHz'] ?? 1.2;
 
@@ -482,8 +541,8 @@ class LuaEngine {
       final wet = inputSample * (0.8 + lfo * 0.2);
 
       return (inputSample * (1.0 - mix)) + (wet * mix);
-    } else if (code.contains('Bitcrusher') || code.contains('Downsample')) {
-      final bits = params['Bits'] ?? 6.0;
+    } else if (lower.contains('bitcrush') || lower.contains('downsample')) {
+      final bits = params['Bits'] ?? 8.0;
       final downsample = params['Downsample'] ?? 4.0;
       final mix = params['Mix'] ?? 0.8;
 
@@ -492,14 +551,20 @@ class LuaEngine {
 
       final holdSample = (time * 44100 % downsample < 1.0) ? quantized : quantized * 0.9;
       return (inputSample * (1.0 - mix)) + (holdSample * mix);
-    } else if (code.contains('TubeDistortion') || code.contains('OutGain')) {
-      final drive = params['Drive'] ?? 6.0;
-      final outGain = params['OutGain'] ?? 0.7;
+    } else if (lower.contains('tubedistortion') || lower.contains('distortion') || lower.contains('warmtube') || lower.contains('drive') || lower.contains('outgain')) {
+      final rawDrive = params['Drive'] ?? 6.0;
+      // If drive is in normalized 0.0..1.0 range, scale to 1.0..20.0x
+      final effectiveDrive = rawDrive <= 1.0 ? (1.0 + rawDrive * 19.0) : rawDrive;
+      final outGain = params['OutGain'] ?? (rawDrive <= 1.0 ? 0.75 : 0.7);
 
-      final driven = inputSample * drive;
-      // Hyperbolic tangent soft clipping
+      final driven = inputSample * effectiveDrive;
+      // Hyperbolic tangent soft clipping saturation
       final clipped = _tanh(driven);
-      return clipped * outGain;
+      return (clipped * outGain).clamp(-1.0, 1.0);
+    } else if (lower.contains('lowpass') || lower.contains('biquadfilter') || lower.contains('filter')) {
+      final cutoff = params['Cutoff'] ?? 3500.0;
+      final fNorm = (cutoff / 44100.0 * math.pi * 2.0).clamp(0.01, 0.95);
+      return (inputSample * fNorm).clamp(-1.0, 1.0);
     } else {
       return (inputSample * 1.2).clamp(-1.0, 1.0);
     }

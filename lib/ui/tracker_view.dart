@@ -22,10 +22,13 @@ class _TrackerViewState extends State<TrackerView> {
 
   DateTime? _lastTapTime;
   String? _lastTapCellKey;
+  bool _followPlayback = true;
+  int _lastFollowStep = -1;
 
   @override
   void initState() {
     super.initState();
+    widget.dawState.addListener(_onDawStateChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _focusNode.requestFocus();
@@ -35,10 +38,24 @@ class _TrackerViewState extends State<TrackerView> {
 
   @override
   void dispose() {
+    widget.dawState.removeListener(_onDawStateChanged);
     _verticalScroll.dispose();
     _horizontalScroll.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _onDawStateChanged() {
+    if (!mounted) return;
+    if (_followPlayback && widget.dawState.isPlaying) {
+      final currentStep = widget.dawState.currentStep;
+      if (currentStep != _lastFollowStep && _verticalScroll.hasClients) {
+        _lastFollowStep = currentStep;
+        final targetOffset = (currentStep * 32.0) - 100.0;
+        final maxScroll = _verticalScroll.position.maxScrollExtent;
+        _verticalScroll.jumpTo(targetOffset.clamp(0.0, maxScroll));
+      }
+    }
   }
 
   void _scrollToSelectedStep() {
@@ -270,20 +287,48 @@ class _TrackerViewState extends State<TrackerView> {
                 ),
                 const SizedBox(width: 8),
 
-                // QWERTY Octave Indicator
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: EatsTheme.panelBackground,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: EatsTheme.panelHeader),
-                  ),
-                  child: Text(
-                    'OCT: C$_qwertyBaseOctave',
-                    style: TextStyle(
-                      color: EatsTheme.primaryCyan,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                // Follow Playback Toggle Button
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _followPlayback = !_followPlayback;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(4),
+                  child: Tooltip(
+                    message: _followPlayback ? 'Follow Playback: ON' : 'Follow Playback: OFF',
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: _followPlayback
+                            ? EatsTheme.primaryCyan.withOpacity(0.2)
+                            : EatsTheme.panelBackground,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: _followPlayback ? EatsTheme.primaryCyan : EatsTheme.panelHeader,
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.gps_fixed,
+                            size: 13,
+                            color: _followPlayback ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'FOLLOW',
+                            style: TextStyle(
+                              color: _followPlayback ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

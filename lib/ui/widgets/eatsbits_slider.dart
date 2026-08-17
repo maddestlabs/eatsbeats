@@ -14,6 +14,7 @@ class EatsBitsSlider extends StatelessWidget {
   final int? divisions;
   final double step;
   final String Function(double)? formatValue;
+  final bool showTooltip;
 
   const EatsBitsSlider({
     super.key,
@@ -28,6 +29,7 @@ class EatsBitsSlider extends StatelessWidget {
     this.divisions,
     this.step = 0.0,
     this.formatValue,
+    this.showTooltip = true,
   });
 
   @override
@@ -43,6 +45,7 @@ class EatsBitsSlider extends StatelessWidget {
       divisions: divisions,
       step: step,
       formatValue: formatValue,
+      showTooltip: showTooltip,
     );
   }
 }
