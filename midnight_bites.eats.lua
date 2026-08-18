@@ -44,8 +44,8 @@ local ProceduralKick = {}
 function ProceduralKick.init()
   Param.add("StartFreq", 100.0, 300.0, 160.0)
   Param.add("EndFreq", 30.0, 60.0, 42.0)
-  Param.add("PitchDecay", 0.01, 0.1, 0.035)
-  Param.add("AmpDecay", 0.1, 0.6, 0.35)
+  Param.add("PitchDecay", 0.01, 0.2, 0.035)
+  Param.add("AmpDecay", 0.05, 4.0, 0.35)
   Param.add("Click", 0.0, 1.0, 0.0)
 end
 
@@ -64,8 +64,8 @@ function ProceduralKick.process(time, freq, note, params)
   -- Transient click
   local clickTransient = (math.random() * 2.0 - 1.0) * math.exp(-time * 150.0) * click
 
-  -- Amplitude envelope decaying to near zero by time = aDecay
-  local env = math.exp(-time * 5.0 / math.max(0.01, aDecay))
+  -- Amplitude envelope decaying cleanly
+  local env = math.exp(-time * 4.0 / math.max(0.01, aDecay))
   local rawOutput = (subSine * 0.85 + clickTransient * 0.15) * env
 
   -- Smooth fade toward edge of kick duration to guarantee clean drop to silence
@@ -155,26 +155,36 @@ return ProceduralKick
 local ProceduralSnare = {}
 
 function ProceduralSnare.init()
-  Param.add("ToneFreq", 100.0, 300.0, 185.0)
+  Param.add("ToneFreq", 100.0, 320.0, 185.0)
   Param.add("Snappy", 0.0, 1.0, 0.65)
-  Param.add("Decay", 0.05, 0.5, 0.1)
+  Param.add("Decay", 0.05, 0.8, 0.18)
+  Param.add("Variation", 0.0, 1.0, 0.0)
 end
 
 function ProceduralSnare.process(time, freq, note, params)
   local toneFreq = params["ToneFreq"] or 185.0
   local snappy = params["Snappy"] or 0.65
-  local decay = params["Decay"] or 0.1
+  local decay = params["Decay"] or 0.18
+  local variation = params["Variation"] or 0.0
 
-  -- Body tone (pitch sweep)
-  local sweepFreq = toneFreq * math.exp(-time * 40.0)
-  local body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 25.0)
+  if variation > 0.001 then
+    local vOffset = (math.sin(note * 12.9898) * 0.5 + 0.5) * variation
+    toneFreq = toneFreq * (1.0 + (vOffset - 0.5 * variation) * 0.08)
+    decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.15)
+  end
 
-  -- Snare noise wires
-  local noise = (math.random() * 2.0 - 1.0) * math.exp(-time / decay)
-  local filteredNoise = DSP.highpass(noise, 1500.0, 1.0)
+  local sweepFreq = toneFreq * (1.0 + 1.2 * math.exp(-time * 60.0))
+  local body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 22.0)
+  local overtone = math.sin(2.0 * math.pi * (toneFreq * 1.75) * time) * math.exp(-time * 30.0) * 0.35
+  local tonalCore = body + overtone
 
-  local output = body * (1.0 - snappy) + filteredNoise * snappy
-  return math.tanh(output * 1.2)
+  local noise = (math.random() * 2.0 - 1.0) * math.exp(-time / math.max(0.01, decay))
+  local filteredNoise = DSP.highpass(noise, 1800.0, 1.2)
+
+  local click = (math.random() * 2.0 - 1.0) * math.exp(-time * 250.0) * 0.25
+
+  local output = (tonalCore * (1.0 - snappy * 0.6) + filteredNoise * (snappy * 1.2) + click)
+  return math.tanh(output * 1.3)
 end
 
 return ProceduralSnare
@@ -238,35 +248,36 @@ return ProceduralSnare
 local ProceduralHiHat = {}
 
 function ProceduralHiHat.init()
-  Param.add("Cutoff", 4000.0, 14000.0, 8500.0)
-  Param.add("Decay", 0.01, 0.4, 0.05)
+  Param.add("Cutoff", 3000.0, 14000.0, 7500.0)
+  Param.add("Decay", 0.01, 0.6, 0.06)
   Param.add("Metallic", 0.0, 1.0, 0.15)
+  Param.add("Variation", 0.0, 1.0, 0.0)
 end
 
 function ProceduralHiHat.process(time, freq, note, params)
-  local cutoff = params["Cutoff"] or 8500.0
-  local decay = params["Decay"] or 0.05
+  local cutoff = params["Cutoff"] or 7500.0
+  local decay = params["Decay"] or 0.06
   local metallic = params["Metallic"] or 0.15
+  local variation = params["Variation"] or 0.0
+
+  if variation > 0.001 then
+    local vOffset = (math.sin(note * 78.233) * 0.5 + 0.5) * variation
+    cutoff = cutoff * (1.0 + (vOffset - 0.5 * variation) * 0.12)
+    decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.18)
+  end
 
   local env = math.exp(-time / math.max(0.005, decay))
 
-  -- Metallic ring harmonics (6 detuned square waves for TR-style metallic sheen)
-  local ring1 = math.sin(2.0 * math.pi * 205.0 * time) > 0 and 1.0 or -1.0
-  local ring2 = math.sin(2.0 * math.pi * 305.0 * time) > 0 and 1.0 or -1.0
-  local ring3 = math.sin(2.0 * math.pi * 365.0 * time) > 0 and 1.0 or -1.0
-  local ring4 = math.sin(2.0 * math.pi * 396.0 * time) > 0 and 1.0 or -1.0
-  local ring5 = math.sin(2.0 * math.pi * 434.0 * time) > 0 and 1.0 or -1.0
-  local ring6 = math.sin(2.0 * math.pi * 700.0 * time) > 0 and 1.0 or -1.0
-  local metallicRing = (ring1 + ring2 + ring3 + ring4 + ring5 + ring6) / 6.0
+  local ring1 = math.sin(2.0 * math.pi * 320.0 * time)
+  local ring2 = math.sin(2.0 * math.pi * 540.0 * time)
+  local ring3 = math.sin(2.0 * math.pi * 890.0 * time)
+  local metallicRing = (ring1 + ring2 + ring3) * 0.333
 
-  -- White noise generator (primary hi-hat sound source)
   local noise = (math.random() * 2.0 - 1.0)
-  local rawSignal = noise * (1.0 - metallic * 0.4) + metallicRing * (metallic * 0.4)
+  local rawSignal = noise * (1.0 - metallic * 0.3) + metallicRing * (metallic * 0.3)
+  local filtered = DSP.highpass(rawSignal, cutoff, 1.4)
 
-  -- High-pass filtered noise sibilance
-  local filtered = DSP.highpass(rawSignal, cutoff, 1.2)
-
-  return filtered * env * 0.75
+  return math.tanh(filtered * env * 1.1)
 end
 
 return ProceduralHiHat
@@ -529,8 +540,8 @@ local ProceduralKick = {}
 function ProceduralKick.init()
   Param.add("StartFreq", 100.0, 300.0, 160.0)
   Param.add("EndFreq", 30.0, 60.0, 42.0)
-  Param.add("PitchDecay", 0.01, 0.1, 0.035)
-  Param.add("AmpDecay", 0.1, 0.6, 0.35)
+  Param.add("PitchDecay", 0.01, 0.2, 0.035)
+  Param.add("AmpDecay", 0.05, 4.0, 0.35)
   Param.add("Click", 0.0, 1.0, 0.0)
 end
 
@@ -549,8 +560,8 @@ function ProceduralKick.process(time, freq, note, params)
   -- Transient click
   local clickTransient = (math.random() * 2.0 - 1.0) * math.exp(-time * 150.0) * click
 
-  -- Amplitude envelope decaying to near zero by time = aDecay
-  local env = math.exp(-time * 5.0 / math.max(0.01, aDecay))
+  -- Amplitude envelope decaying cleanly
+  local env = math.exp(-time * 4.0 / math.max(0.01, aDecay))
   local rawOutput = (subSine * 0.85 + clickTransient * 0.15) * env
 
   -- Smooth fade toward edge of kick duration to guarantee clean drop to silence
@@ -637,26 +648,36 @@ return ProceduralKick
 local ProceduralSnare = {}
 
 function ProceduralSnare.init()
-  Param.add("ToneFreq", 100.0, 300.0, 185.0)
+  Param.add("ToneFreq", 100.0, 320.0, 185.0)
   Param.add("Snappy", 0.0, 1.0, 0.65)
-  Param.add("Decay", 0.05, 0.5, 0.1)
+  Param.add("Decay", 0.05, 0.8, 0.18)
+  Param.add("Variation", 0.0, 1.0, 0.0)
 end
 
 function ProceduralSnare.process(time, freq, note, params)
   local toneFreq = params["ToneFreq"] or 185.0
   local snappy = params["Snappy"] or 0.65
-  local decay = params["Decay"] or 0.1
+  local decay = params["Decay"] or 0.18
+  local variation = params["Variation"] or 0.0
 
-  -- Body tone (pitch sweep)
-  local sweepFreq = toneFreq * math.exp(-time * 40.0)
-  local body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 25.0)
+  if variation > 0.001 then
+    local vOffset = (math.sin(note * 12.9898) * 0.5 + 0.5) * variation
+    toneFreq = toneFreq * (1.0 + (vOffset - 0.5 * variation) * 0.08)
+    decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.15)
+  end
 
-  -- Snare noise wires
-  local noise = (math.random() * 2.0 - 1.0) * math.exp(-time / decay)
-  local filteredNoise = DSP.highpass(noise, 1500.0, 1.0)
+  local sweepFreq = toneFreq * (1.0 + 1.2 * math.exp(-time * 60.0))
+  local body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 22.0)
+  local overtone = math.sin(2.0 * math.pi * (toneFreq * 1.75) * time) * math.exp(-time * 30.0) * 0.35
+  local tonalCore = body + overtone
 
-  local output = body * (1.0 - snappy) + filteredNoise * snappy
-  return math.tanh(output * 1.2)
+  local noise = (math.random() * 2.0 - 1.0) * math.exp(-time / math.max(0.01, decay))
+  local filteredNoise = DSP.highpass(noise, 1800.0, 1.2)
+
+  local click = (math.random() * 2.0 - 1.0) * math.exp(-time * 250.0) * 0.25
+
+  local output = (tonalCore * (1.0 - snappy * 0.6) + filteredNoise * (snappy * 1.2) + click)
+  return math.tanh(output * 1.3)
 end
 
 return ProceduralSnare
@@ -717,35 +738,36 @@ return ProceduralSnare
 local ProceduralHiHat = {}
 
 function ProceduralHiHat.init()
-  Param.add("Cutoff", 4000.0, 14000.0, 8500.0)
-  Param.add("Decay", 0.01, 0.4, 0.05)
+  Param.add("Cutoff", 3000.0, 14000.0, 7500.0)
+  Param.add("Decay", 0.01, 0.6, 0.06)
   Param.add("Metallic", 0.0, 1.0, 0.15)
+  Param.add("Variation", 0.0, 1.0, 0.0)
 end
 
 function ProceduralHiHat.process(time, freq, note, params)
-  local cutoff = params["Cutoff"] or 8500.0
-  local decay = params["Decay"] or 0.05
+  local cutoff = params["Cutoff"] or 7500.0
+  local decay = params["Decay"] or 0.06
   local metallic = params["Metallic"] or 0.15
+  local variation = params["Variation"] or 0.0
+
+  if variation > 0.001 then
+    local vOffset = (math.sin(note * 78.233) * 0.5 + 0.5) * variation
+    cutoff = cutoff * (1.0 + (vOffset - 0.5 * variation) * 0.12)
+    decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.18)
+  end
 
   local env = math.exp(-time / math.max(0.005, decay))
 
-  -- Metallic ring harmonics (6 detuned square waves for TR-style metallic sheen)
-  local ring1 = math.sin(2.0 * math.pi * 205.0 * time) > 0 and 1.0 or -1.0
-  local ring2 = math.sin(2.0 * math.pi * 305.0 * time) > 0 and 1.0 or -1.0
-  local ring3 = math.sin(2.0 * math.pi * 365.0 * time) > 0 and 1.0 or -1.0
-  local ring4 = math.sin(2.0 * math.pi * 396.0 * time) > 0 and 1.0 or -1.0
-  local ring5 = math.sin(2.0 * math.pi * 434.0 * time) > 0 and 1.0 or -1.0
-  local ring6 = math.sin(2.0 * math.pi * 700.0 * time) > 0 and 1.0 or -1.0
-  local metallicRing = (ring1 + ring2 + ring3 + ring4 + ring5 + ring6) / 6.0
+  local ring1 = math.sin(2.0 * math.pi * 320.0 * time)
+  local ring2 = math.sin(2.0 * math.pi * 540.0 * time)
+  local ring3 = math.sin(2.0 * math.pi * 890.0 * time)
+  local metallicRing = (ring1 + ring2 + ring3) * 0.333
 
-  -- White noise generator (primary hi-hat sound source)
   local noise = (math.random() * 2.0 - 1.0)
-  local rawSignal = noise * (1.0 - metallic * 0.4) + metallicRing * (metallic * 0.4)
+  local rawSignal = noise * (1.0 - metallic * 0.3) + metallicRing * (metallic * 0.3)
+  local filtered = DSP.highpass(rawSignal, cutoff, 1.4)
 
-  -- High-pass filtered noise sibilance
-  local filtered = DSP.highpass(rawSignal, cutoff, 1.2)
-
-  return filtered * env * 0.75
+  return math.tanh(filtered * env * 1.1)
 end
 
 return ProceduralHiHat

@@ -3,17 +3,21 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../audio/soundfont_engine.dart';
+import '../models/daw_state.dart';
 import '../theme/eats_theme.dart';
 import '../utils/html_preloader_helper.dart';
+import '../utils/soundfont_pack_manager.dart';
 import 'transport_header.dart';
 
 /// Skeuomorphic vintage rack panel loading screen for Eatsbits startup.
 class EatsbitsLoadingScreen extends StatefulWidget {
   final VoidCallback onInitializationComplete;
+  final DawState? dawState;
 
   const EatsbitsLoadingScreen({
     super.key,
     required this.onInitializationComplete,
+    this.dawState,
   });
 
   @override
@@ -30,8 +34,8 @@ class _EatsbitsLoadingScreenState extends State<EatsbitsLoadingScreen> with Sing
     'POWERING ON DIGITAL RACK HARDWARE...',
     'INITIALIZING WEBAUDIO GRAPH CONTEXT...',
     'PRE-LOADING BUNDLED SOUNDFONT (SUPER SMALL FONT)...',
+    'RESTORE CACHED SOUNDFONTS & USER PREFERENCES...',
     'PRE-COMPILING LUA SYNTH MODULES (303, KICK, SNARE)...',
-    'ALLOCATING STEREO BUFFER PIPELINES...',
     'WARMING UP DSP RACK FX PROCESSORS...',
     'SYSTEM INITIALIZATION COMPLETE - DAWN OF SOUND',
   ];
@@ -51,6 +55,14 @@ class _EatsbitsLoadingScreenState extends State<EatsbitsLoadingScreen> with Sing
 
   void _startInitializationSequence() {
     SoundFontEngine.instance.loadDefaultBundledFont();
+    SoundFontPackManager.instance.restoreCachedPacks();
+    if (widget.dawState != null) {
+      widget.dawState!.loadPersistedSettings().then((_) {
+        if (widget.dawState!.autoRestoreSession) {
+          widget.dawState!.restoreSavedSession();
+        }
+      });
+    }
     const totalDurationMs = 1500;
     const intervalMs = 60;
     const totalTicks = totalDurationMs ~/ intervalMs;

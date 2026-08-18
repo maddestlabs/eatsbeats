@@ -29,7 +29,6 @@ class EatsLuaParser {
     final isLooping = (meta['isLooping'] as bool?) ?? true;
     final loopStartBar = (meta['loopStartBar'] as int?) ?? 0;
     final loopEndBar = (meta['loopEndBar'] as int?) ?? 2;
-    final themeName = meta['theme'] as String?;
 
     dawState.setProjectDetails(title, author);
     dawState.setBpm(bpm);
@@ -37,30 +36,6 @@ class EatsLuaParser {
     dawState.isSongMode = isSongMode;
     dawState.setLoopPoints(loopStartBar, loopEndBar);
     dawState.setLooping(isLooping);
-
-    if (themeName != null) {
-      EatsThemePreset? matchingPreset;
-      for (final p in EatsThemePreset.values) {
-        if (p.name == themeName) {
-          matchingPreset = p;
-          break;
-        }
-      }
-      if (matchingPreset == null) {
-        if (themeName == 'grungyHardware') {
-          matchingPreset = EatsThemePreset.ateTrack;
-        } else if (themeName == 'studioLight') {
-          matchingPreset = EatsThemePreset.lightSnack;
-        } else if (themeName == 'midnightOled' || themeName == 'cyberpunkCyan') {
-          matchingPreset = EatsThemePreset.midnightBites;
-        } else if (themeName == 'solarizedLight') {
-          matchingPreset = EatsThemePreset.breakfast;
-        } else if (themeName == 'solarizedDark') {
-          matchingPreset = EatsThemePreset.dinner;
-        }
-      }
-      dawState.setThemePreset(matchingPreset ?? EatsThemePreset.ateTrack);
-    }
 
     // 2. Patterns & Tracks
     final rawPatterns = map['patterns'];

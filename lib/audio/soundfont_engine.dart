@@ -180,7 +180,7 @@ class SoundFontEngine extends ChangeNotifier {
       if (t < delayT) {
         envGain = 0.0;
       } else if (t < attackT) {
-        envGain = (t - delayT) / (attackT - delayT);
+        envGain = attackT > delayT ? (t - delayT) / (attackT - delayT) : 1.0;
       } else if (t < holdT) {
         envGain = 1.0;
       } else if (t < decayT) {

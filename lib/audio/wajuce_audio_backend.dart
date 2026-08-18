@@ -474,6 +474,18 @@ class WajuceAudioBackend {
     } catch (_) {}
   }
 
+  /// Panic: Stops all active audio source nodes immediately.
+  void stopAllSound() {
+    try {
+      for (final src in _activeSources.values) {
+        try {
+          src.stop();
+        } catch (_) {}
+      }
+      _activeSources.clear();
+    } catch (_) {}
+  }
+
   // ── IR loading ─────────────────────────────────────────────────────────────
 
   Future<WABuffer?> _loadIrAsync(String irName) {

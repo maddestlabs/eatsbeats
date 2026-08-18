@@ -41,6 +41,14 @@ void main() {
         expect(p.presetNum, lessThanOrEqualTo(127), reason: 'Preset number ${p.presetNum} for "${p.name}" exceeds 127');
         expect(p.bankNum, lessThanOrEqualTo(128), reason: 'Bank number ${p.bankNum} for "${p.name}" exceeds 128');
       }
+
+      // Verify Grand Piano (Preset 0) has immediate attack (no slow fade-in)
+      final grandPiano = decoded.presets.firstWhere((p) => p.presetNum == 0 && p.bankNum == 0);
+      expect(grandPiano.zones.isNotEmpty, isTrue);
+      for (final zone in grandPiano.zones) {
+        expect(zone.volEnvDelay, lessThanOrEqualTo(0.01), reason: 'volEnvDelay should be 0 for acoustic piano');
+        expect(zone.volEnvAttack, lessThanOrEqualTo(0.02), reason: 'volEnvAttack should be immediate for acoustic piano');
+      }
     });
   });
 }

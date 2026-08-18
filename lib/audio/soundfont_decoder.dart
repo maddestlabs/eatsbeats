@@ -120,16 +120,30 @@ class GeneralMidiNames {
   ];
 
   static String getPresetDisplayName(int bankNum, int presetNum, String sf2Name) {
-    if (sf2Name.isNotEmpty && sf2Name != 'Untitled') {
-      return "${presetNum.toString().padLeft(3, '0')}: $sf2Name";
-    }
+    final progStr = presetNum.toString().padLeft(3, '0');
+    final hasCustomName = sf2Name.isNotEmpty && sf2Name != 'Untitled';
+
     if (bankNum == 128 || bankNum == 127) {
-      return "128/${presetNum.toString().padLeft(3, '0')}: Drum Kit";
+      final drumName = hasCustomName ? sf2Name : 'Drum Kit';
+      return "[Drums] $progStr: $drumName";
+    }
+
+    if (bankNum > 0) {
+      final nameStr = hasCustomName
+          ? sf2Name
+          : (presetNum >= 0 && presetNum < melodicInstruments.length
+              ? melodicInstruments[presetNum].replaceFirst(RegExp(r'^\d+:\s*'), '')
+              : 'Program $presetNum');
+      return "[Bank $bankNum] $progStr: $nameStr";
+    }
+
+    if (hasCustomName) {
+      return "$progStr: $sf2Name";
     }
     if (presetNum >= 0 && presetNum < melodicInstruments.length) {
       return melodicInstruments[presetNum];
     }
-    return "${presetNum.toString().padLeft(3, '0')}: Program $presetNum";
+    return "$progStr: Program $presetNum";
   }
 }
 
@@ -349,7 +363,7 @@ class SoundFontDecoder {
 
       sampleHeaders = rawSampleHeaders;
 
-      // 3. Assemble Presets & Zones from SoundFont Generator hierarchy (TinySoundFont spec)
+      // 3. Assemble Presets & Zones from SoundFont Generator hierarchy (SoundFont 2.04 spec)
       for (int i = 0; i < rawPresets.length - 1; i++) {
         final p = rawPresets[i];
         final name = p['name'] as String;
@@ -374,6 +388,26 @@ class SoundFontDecoder {
           if (!pgenMap.containsKey(41)) {
             globalPresetGens.addAll(pgenMap);
             continue;
+          }
+
+          // Effective preset-level generators (global preset gens overlaid by local preset zone gens)
+          final effectivePresetGens = <int, int>{}
+            ..addAll(globalPresetGens)
+            ..addAll(pgenMap);
+
+          // Parse Preset-level key and velocity range constraints (default 0..127)
+          int pMinKey = 0, pMaxKey = 127;
+          if (effectivePresetGens.containsKey(43)) {
+            final val = effectivePresetGens[43]!;
+            pMinKey = val & 0xFF;
+            pMaxKey = (val >> 8) & 0xFF;
+          }
+
+          int pMinVel = 0, pMaxVel = 127;
+          if (effectivePresetGens.containsKey(44)) {
+            final val = effectivePresetGens[44]!;
+            pMinVel = val & 0xFF;
+            pMaxVel = (val >> 8) & 0xFF;
           }
 
           final instIdx = pgenMap[41]!;
@@ -402,43 +436,70 @@ class SoundFontDecoder {
               final sampleHeaderIdx = igenMap[53]!;
               if (sampleHeaderIdx < 0 || sampleHeaderIdx >= sampleHeaders.length) continue;
 
-              // Merge hierarchy: Global Inst Gens + Inst Gens + Global Preset Gens + Preset Gens
-              final mergedGens = <int, int>{}
+              // Effective instrument-level generators (global inst gens overlaid by local inst zone gens)
+              final effectiveInstGens = <int, int>{}
                 ..addAll(globalInstGens)
-                ..addAll(igenMap)
-                ..addAll(globalPresetGens)
-                ..addAll(pgenMap);
+                ..addAll(igenMap);
 
-              // Parse ranges (gen 43 = keyRange, gen 44 = velRange)
-              int minKey = 0, maxKey = 127;
-              if (mergedGens.containsKey(43)) {
-                final val = mergedGens[43]!;
-                minKey = val & 0xFF;
-                maxKey = (val >> 8) & 0xFF;
+              // Parse Instrument-level key and velocity range constraints (default 0..127)
+              int iMinKey = 0, iMaxKey = 127;
+              if (effectiveInstGens.containsKey(43)) {
+                final val = effectiveInstGens[43]!;
+                iMinKey = val & 0xFF;
+                iMaxKey = (val >> 8) & 0xFF;
               }
 
-              int minVel = 0, maxVel = 127;
-              if (mergedGens.containsKey(44)) {
-                final val = mergedGens[44]!;
-                minVel = val & 0xFF;
-                maxVel = (val >> 8) & 0xFF;
+              int iMinVel = 0, iMaxVel = 127;
+              if (effectiveInstGens.containsKey(44)) {
+                final val = effectiveInstGens[44]!;
+                iMinVel = val & 0xFF;
+                iMaxVel = (val >> 8) & 0xFF;
               }
 
-              final rootKeyOverride = mergedGens.containsKey(58) && mergedGens[58]! > 0 ? mergedGens[58]! : null;
-              final coarseTune = mergedGens[51] ?? 0;
-              final fineTune = mergedGens[52] ?? 0;
-              final pan = mergedGens.containsKey(17) ? (mergedGens[17]! / 500.0).clamp(-1.0, 1.0) : 0.0;
-              final sampleModes = mergedGens[54] ?? 0;
+              // SoundFont 2.04 spec: Effective zone range is intersection of Preset and Instrument ranges
+              final minKey = math.max(pMinKey, iMinKey);
+              final maxKey = math.min(pMaxKey, iMaxKey);
+              if (minKey > maxKey) continue; // Skip non-overlapping zone
 
-              final startLoopOffset = (mergedGens[2] ?? 0) + ((mergedGens[45] ?? 0) * 32768);
-              final endLoopOffset = (mergedGens[3] ?? 0) + ((mergedGens[50] ?? 0) * 32768);
+              final minVel = math.max(pMinVel, iMinVel);
+              final maxVel = math.min(pMaxVel, iMaxVel);
+              if (minVel > maxVel) continue; // Skip non-overlapping velocity range
 
-              final volEnvDelay = _timecentsToSeconds(mergedGens[29] ?? -32768);
-              final volEnvAttack = math.max(0.001, _timecentsToSeconds(mergedGens[30] ?? -32768));
-              final volEnvHold = _timecentsToSeconds(mergedGens[31] ?? -32768);
-              final volEnvDecay = math.max(0.001, _timecentsToSeconds(mergedGens[32] ?? -32768));
-              final volEnvSustain = _cbToGain(mergedGens[33] ?? 0);
-              final volEnvRelease = math.max(0.01, _timecentsToSeconds(mergedGens[34] ?? -32768));
+              // Tuning & Offsets combine additively
+              final coarseTune = (effectiveInstGens[51] ?? 0) + (effectivePresetGens[51] ?? 0);
+              final fineTune = (effectiveInstGens[52] ?? 0) + (effectivePresetGens[52] ?? 0);
+
+              // Overriding Root Key (gen 58): Local inst overrides global inst, then preset
+              final rootKeyVal = effectiveInstGens[58] ?? effectivePresetGens[58];
+              final rootKeyOverride = (rootKeyVal != null && rootKeyVal > 0) ? rootKeyVal : null;
+
+              // Pan (gen 17): pan amounts add together
+              final instPan = effectiveInstGens.containsKey(17) ? (effectiveInstGens[17]! / 500.0) : 0.0;
+              final presetPan = effectivePresetGens.containsKey(17) ? (effectivePresetGens[17]! / 500.0) : 0.0;
+              final pan = (instPan + presetPan).clamp(-1.0, 1.0);
+
+              // Sample loop mode is defined at instrument level (gen 54)
+              final sampleModes = effectiveInstGens[54] ?? 0;
+
+              // Loop address offsets
+              final startLoopOffset = (effectiveInstGens[2] ?? 0) + ((effectiveInstGens[45] ?? 0) * 32768);
+              final endLoopOffset = (effectiveInstGens[3] ?? 0) + ((effectiveInstGens[50] ?? 0) * 32768);
+
+              // SoundFont 2.04 Volume Envelope generators (gen 33..38):
+              // 33: delayVolEnv, 34: attackVolEnv, 35: holdVolEnv, 36: decayVolEnv, 37: sustainVolEnv, 38: releaseVolEnv
+              final delayVal = (effectiveInstGens[33] ?? -32768) + (effectivePresetGens[33] ?? 0);
+              final attackVal = (effectiveInstGens[34] ?? -32768) + (effectivePresetGens[34] ?? 0);
+              final holdVal = (effectiveInstGens[35] ?? -32768) + (effectivePresetGens[35] ?? 0);
+              final decayVal = (effectiveInstGens[36] ?? -32768) + (effectivePresetGens[36] ?? 0);
+              final sustainVal = (effectiveInstGens[37] ?? 0) + (effectivePresetGens[37] ?? 0);
+              final releaseVal = (effectiveInstGens[38] ?? -32768) + (effectivePresetGens[38] ?? 0);
+
+              final volEnvDelay = _timecentsToSeconds(delayVal);
+              final volEnvAttack = math.max(0.001, _timecentsToSeconds(attackVal));
+              final volEnvHold = _timecentsToSeconds(holdVal);
+              final volEnvDecay = math.max(0.001, _timecentsToSeconds(decayVal));
+              final volEnvSustain = _cbToGain(sustainVal);
+              final volEnvRelease = math.max(0.01, _timecentsToSeconds(releaseVal));
 
               zones.add(Sf2Zone(
                 minKey: minKey,
@@ -490,6 +551,13 @@ class SoundFontDecoder {
       }
     }
 
+    // Sort presets systematically by Bank then Preset number (e.g. Bank 0 -> GS Variations -> Drum Bank 128)
+    presets.sort((a, b) {
+      final cmp = a.bankNum.compareTo(b.bankNum);
+      if (cmp != 0) return cmp;
+      return a.presetNum.compareTo(b.presetNum);
+    });
+
     if (presets.isNotEmpty) {
       fontName = presets.first.name;
     }
@@ -520,4 +588,5 @@ class SoundFontDecoder {
     return ascii.decode(validBytes, allowInvalid: true).trim();
   }
 }
+
 

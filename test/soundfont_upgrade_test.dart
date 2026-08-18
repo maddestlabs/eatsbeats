@@ -86,5 +86,63 @@ void main() {
       expect(foundZone!.sampleModes, equals(1));
       expect(foundZone.sampleHeaderIdx, equals(0));
     });
+
+    test('GeneralMidiNames formats bank and drum preset names correctly', () {
+      expect(GeneralMidiNames.getPresetDisplayName(0, 0, 'Acoustic Grand Piano'), equals('000: Acoustic Grand Piano'));
+      expect(GeneralMidiNames.getPresetDisplayName(0, 6, 'Harpsichord'), equals('006: Harpsichord'));
+      expect(GeneralMidiNames.getPresetDisplayName(8, 6, 'Coupled Harpsichord'), equals('[Bank 8] 006: Coupled Harpsichord'));
+      expect(GeneralMidiNames.getPresetDisplayName(128, 56, 'SFX Kit'), equals('[Drums] 056: SFX Kit'));
+      expect(GeneralMidiNames.getPresetDisplayName(128, 0, ''), equals('[Drums] 000: Drum Kit'));
+    });
+
+    test('Multi-zone melodic instrument key split maps to correct sample zone', () {
+      final lowZone = Sf2Zone(
+        sampleHeaderIdx: 0,
+        minKey: 0,
+        maxKey: 47, // C0 to B2
+        rootKeyOverride: 36,
+      );
+      final midZone = Sf2Zone(
+        sampleHeaderIdx: 1,
+        minKey: 48,
+        maxKey: 71, // C3 to B4
+        rootKeyOverride: 60,
+      );
+      final highZone = Sf2Zone(
+        sampleHeaderIdx: 2,
+        minKey: 72,
+        maxKey: 127, // C5 to G9
+        rootKeyOverride: 84,
+      );
+
+      final pianoPreset = Sf2Preset(
+        name: 'Concert Grand',
+        presetNum: 0,
+        bankNum: 0,
+        zones: [lowZone, midZone, highZone],
+      );
+
+      final sfData = SoundFontData(
+        fontName: 'Concert Grand Bank',
+        pcmData: [0.0],
+        sampleHeaders: [],
+        presets: [pianoPreset],
+      );
+
+      // Low note C2 (36) -> lowZone (sampleHeaderIdx: 0)
+      final z1 = sfData.findZone(pianoPreset, 36);
+      expect(z1, isNotNull);
+      expect(z1!.sampleHeaderIdx, equals(0));
+
+      // Middle C (60) -> midZone (sampleHeaderIdx: 1)
+      final z2 = sfData.findZone(pianoPreset, 60);
+      expect(z2, isNotNull);
+      expect(z2!.sampleHeaderIdx, equals(1));
+
+      // High note C6 (84) -> highZone (sampleHeaderIdx: 2)
+      final z3 = sfData.findZone(pianoPreset, 84);
+      expect(z3, isNotNull);
+      expect(z3!.sampleHeaderIdx, equals(2));
+    });
   });
 }

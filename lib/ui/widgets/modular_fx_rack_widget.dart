@@ -121,7 +121,10 @@ class ModularFxRackWidget extends StatelessWidget {
             )
           else
             ...track.fxRack.asMap().entries.map((entry) {
+              final idx = entry.key;
               final fx = entry.value;
+              final isFirst = idx == 0;
+              final isLast = idx == track.fxRack.length - 1;
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
@@ -144,50 +147,39 @@ class ModularFxRackWidget extends StatelessWidget {
                           onChanged: (val) => dawState.toggleFXInsert(track, fx.id, val),
                         ),
                         const SizedBox(width: 6),
-                        Text(
-                          fx.name.toUpperCase(),
-                          style: EatsTheme.getPrimaryFontStyle(
-                            color: fx.enabled ? EatsTheme.textPrimary : EatsTheme.textMuted,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          icon: Icon(Icons.delete_outline, color: EatsTheme.textMuted, size: 18),
-                          onPressed: () => dawState.removeFXInsert(track, fx.id),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-
-                    // Dry/Wet Mix Slider
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 80,
-                          child: Text(
-                            'DRY/WET',
-                            style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 10),
-                          ),
-                        ),
                         Expanded(
-                          child: EatsBitsSlider(
-                            value: fx.mix,
-                            min: 0.0,
-                            max: 1.0,
-                            defaultValue: 0.5,
-                            label: 'Dry/Wet',
-                            activeColor: EatsTheme.secondaryMagenta,
-                            onChanged: (val) => dawState.updateFXMix(track, fx.id, val),
+                          child: Text(
+                            fx.name.toUpperCase(),
+                            style: EatsTheme.getPrimaryFontStyle(
+                              color: fx.enabled ? EatsTheme.textPrimary : EatsTheme.textMuted,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        SizedBox(
-                          width: 45,
-                          child: Text(
-                            '${(fx.mix * 100).toInt()}%',
-                            style: EatsTheme.getDisplayFontStyle(color: EatsTheme.secondaryMagenta, fontSize: 10),
-                          ),
+                        IconButton(
+                          tooltip: 'Move FX Up',
+                          icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+                          color: isFirst ? Colors.white12 : EatsTheme.primaryCyan,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                          onPressed: isFirst ? null : () => dawState.moveFXUp(track, idx),
+                        ),
+                        IconButton(
+                          tooltip: 'Move FX Down',
+                          icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+                          color: isLast ? Colors.white12 : EatsTheme.primaryCyan,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                          onPressed: isLast ? null : () => dawState.moveFXDown(track, idx),
+                        ),
+                        IconButton(
+                          tooltip: 'Remove FX',
+                          icon: Icon(Icons.delete_outline, color: EatsTheme.textMuted, size: 18),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                          onPressed: () => dawState.removeFXInsert(track, fx.id),
                         ),
                       ],
                     ),

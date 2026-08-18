@@ -184,7 +184,7 @@ return Acid303
       id: 'procedural_kick',
       name: 'Eats Kick',
       category: LuaPresetCategory.instrument,
-      description: 'Synthesized punchy sub kick drum with exponential pitch sweep and smooth edge fade.',
+      description: 'Synthesized punchy sub kick drum with exponential pitch sweep, extended sub-bass decay, and smooth edge fade.',
       code: '''
 -- @name: Eats Kick
 -- @category: instrument
@@ -193,8 +193,8 @@ local ProceduralKick = {}
 function ProceduralKick.init()
   Param.add("StartFreq", 100.0, 300.0, 160.0)
   Param.add("EndFreq", 30.0, 60.0, 42.0)
-  Param.add("PitchDecay", 0.01, 0.1, 0.035)
-  Param.add("AmpDecay", 0.1, 0.6, 0.35)
+  Param.add("PitchDecay", 0.01, 0.2, 0.035)
+  Param.add("AmpDecay", 0.05, 4.0, 0.35)
   Param.add("Click", 0.0, 1.0, 0.0)
 end
 
@@ -210,7 +210,7 @@ function ProceduralKick.process(time, freq, note, params)
   local subSine = math.sin(phase)
 
   local clickTransient = (math.random() * 2.0 - 1.0) * math.exp(-time * 150.0) * click
-  local env = math.exp(-time * 5.0 / math.max(0.01, aDecay))
+  local env = math.exp(-time * 4.0 / math.max(0.01, aDecay))
   local rawOutput = (subSine * 0.85 + clickTransient * 0.15) * env
 
   local maxDur = math.max(0.1, aDecay)
@@ -233,31 +233,43 @@ return ProceduralKick
       id: 'procedural_snare',
       name: 'Eats Snare',
       category: LuaPresetCategory.instrument,
-      description: 'Synthesized snare drum combining a 180Hz tonal body oscillator and high-pass filtered noise wires.',
+      description: 'Synthesized snare drum combining swept fundamental dual-body oscillator, filtered noise wires, and subtle variation.',
       code: '''
 -- @name: Eats Snare
 -- @category: instrument
 local ProceduralSnare = {}
 
 function ProceduralSnare.init()
-  Param.add("ToneFreq", 100.0, 300.0, 185.0)
+  Param.add("ToneFreq", 100.0, 320.0, 185.0)
   Param.add("Snappy", 0.0, 1.0, 0.65)
-  Param.add("Decay", 0.05, 0.5, 0.1)
+  Param.add("Decay", 0.05, 0.8, 0.18)
+  Param.add("Variation", 0.0, 1.0, 0.0)
 end
 
 function ProceduralSnare.process(time, freq, note, params)
   local toneFreq = params["ToneFreq"] or 185.0
   local snappy = params["Snappy"] or 0.65
-  local decay = params["Decay"] or 0.1
+  local decay = params["Decay"] or 0.18
+  local variation = params["Variation"] or 0.0
 
-  local sweepFreq = toneFreq * math.exp(-time * 40.0)
-  local body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 25.0)
+  if variation > 0.001 then
+    local vOffset = (math.sin(note * 12.9898) * 0.5 + 0.5) * variation
+    toneFreq = toneFreq * (1.0 + (vOffset - 0.5 * variation) * 0.08)
+    decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.15)
+  end
 
-  local noise = (math.random() * 2.0 - 1.0) * math.exp(-time / decay)
-  local filteredNoise = DSP.highpass(noise, 1500.0, 1.0)
+  local sweepFreq = toneFreq * (1.0 + 1.2 * math.exp(-time * 60.0))
+  local body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 22.0)
+  local overtone = math.sin(2.0 * math.pi * (toneFreq * 1.75) * time) * math.exp(-time * 30.0) * 0.35
+  local tonalCore = body + overtone
 
-  local output = body * (1.0 - snappy) + filteredNoise * snappy
-  return math.tanh(output * 1.2)
+  local noise = (math.random() * 2.0 - 1.0) * math.exp(-time / math.max(0.01, decay))
+  local filteredNoise = DSP.highpass(noise, 1800.0, 1.2)
+
+  local click = (math.random() * 2.0 - 1.0) * math.exp(-time * 250.0) * 0.25
+
+  local output = (tonalCore * (1.0 - snappy * 0.6) + filteredNoise * (snappy * 1.2) + click)
+  return math.tanh(output * 1.3)
 end
 
 return ProceduralSnare
@@ -269,38 +281,43 @@ return ProceduralSnare
       id: 'procedural_hihat',
       name: 'Eats Hats',
       category: LuaPresetCategory.instrument,
-      description: 'Synthesized hi-hat dominated by high-pass filtered white noise with adjustable metallic sheen and decay.',
+      description: 'Synthesized hi-hat dominated by high-pass filtered white noise with adjustable metallic sheen, decay, and variation.',
       code: '''
 -- @name: Eats Hats
 -- @category: instrument
 local ProceduralHiHat = {}
 
 function ProceduralHiHat.init()
-  Param.add("Cutoff", 4000.0, 14000.0, 8500.0)
-  Param.add("Decay", 0.01, 0.4, 0.05)
+  Param.add("Cutoff", 3000.0, 14000.0, 7500.0)
+  Param.add("Decay", 0.01, 0.6, 0.06)
   Param.add("Metallic", 0.0, 1.0, 0.15)
+  Param.add("Variation", 0.0, 1.0, 0.0)
 end
 
 function ProceduralHiHat.process(time, freq, note, params)
-  local cutoff = params["Cutoff"] or 8500.0
-  local decay = params["Decay"] or 0.05
+  local cutoff = params["Cutoff"] or 7500.0
+  local decay = params["Decay"] or 0.06
   local metallic = params["Metallic"] or 0.15
+  local variation = params["Variation"] or 0.0
+
+  if variation > 0.001 then
+    local vOffset = (math.sin(note * 78.233) * 0.5 + 0.5) * variation
+    cutoff = cutoff * (1.0 + (vOffset - 0.5 * variation) * 0.12)
+    decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.18)
+  end
 
   local env = math.exp(-time / math.max(0.005, decay))
 
-  local ring1 = math.sin(2.0 * math.pi * 205.0 * time) > 0 and 1.0 or -1.0
-  local ring2 = math.sin(2.0 * math.pi * 305.0 * time) > 0 and 1.0 or -1.0
-  local ring3 = math.sin(2.0 * math.pi * 365.0 * time) > 0 and 1.0 or -1.0
-  local ring4 = math.sin(2.0 * math.pi * 396.0 * time) > 0 and 1.0 or -1.0
-  local ring5 = math.sin(2.0 * math.pi * 434.0 * time) > 0 and 1.0 or -1.0
-  local ring6 = math.sin(2.0 * math.pi * 700.0 * time) > 0 and 1.0 or -1.0
-  local metallicRing = (ring1 + ring2 + ring3 + ring4 + ring5 + ring6) / 6.0
+  local ring1 = math.sin(2.0 * math.pi * 320.0 * time)
+  local ring2 = math.sin(2.0 * math.pi * 540.0 * time)
+  local ring3 = math.sin(2.0 * math.pi * 890.0 * time)
+  local metallicRing = (ring1 + ring2 + ring3) * 0.333
 
   local noise = (math.random() * 2.0 - 1.0)
-  local rawSignal = noise * (1.0 - metallic * 0.4) + metallicRing * (metallic * 0.4)
-  local filtered = DSP.highpass(rawSignal, cutoff, 1.2)
+  local rawSignal = noise * (1.0 - metallic * 0.3) + metallicRing * (metallic * 0.3)
+  local filtered = DSP.highpass(rawSignal, cutoff, 1.4)
 
-  return filtered * env * 0.75
+  return math.tanh(filtered * env * 1.1)
 end
 
 return ProceduralHiHat
@@ -502,7 +519,9 @@ local SamplerInstrument = {}
 
 function SamplerInstrument.init()
   Param.add("RootKey", 36.0, 84.0, 60.0)
-  Param.add("AttackSec", 0.0, 1.0, 0.005)
+  Param.add("AttackSec", 0.0, 1.0, 0.0)
+  Param.add("DecaySec", 0.01, 1.0, 0.1)
+  Param.add("Sustain", 0.0, 1.0, 0.8)
   Param.add("ReleaseSec", 0.01, 2.0, 0.4)
   Param.add("FilterCutoff", 200.0, 12000.0, 8000.0)
 end
@@ -512,11 +531,13 @@ function SamplerInstrument.process(time, freq, note, params)
   local pitchOffset = note - rootKey
 
   local rawSample = Sampler.read(note, time, pitchOffset)
-  local attack = params["AttackSec"] or 0.005
+  local attack = params["AttackSec"] or 0.0
+  local decay = params["DecaySec"] or 0.1
+  local sustain = params["Sustain"] or 0.8
   local release = params["ReleaseSec"] or 0.4
   local cutoff = params["FilterCutoff"] or 8000.0
 
-  local env = DSP.env(time, attack, release)
+  local env = DSP.adsr(time, attack, decay, sustain, release)
   local filtered = DSP.lowpass(rawSample, cutoff, 1.0)
   return filtered * env
 end
@@ -573,7 +594,7 @@ return DrumKitSampler
       id: 'soundfont_sampler',
       name: 'SoundFont 2 Player',
       category: LuaPresetCategory.instrument,
-      description: 'Multi-sampled SoundFont 2 (.sf2) bank player with key-zone mapping, bank selection, and filter control.',
+      description: 'Multi-sampled SoundFont 2 (.sf2) bank player with key-zone mapping, bank selection, and transient envelope control.',
       code: '''
 -- @name: SoundFont 2 Player
 -- @category: instrument
@@ -582,20 +603,17 @@ local SoundFontSampler = {}
 function SoundFontSampler.init()
   Param.add("PresetNum", 0, 127, 0, 1)
   Param.add("BankNum", 0, 128, 0, 1)
-  Param.add("FilterCutoff", 200.0, 12000.0, 10000.0)
-  Param.add("AttackSec", 0.0, 1.0, 0.005)
+  Param.add("AttackSec", 0.0, 1.0, 0.0)
   Param.add("ReleaseSec", 0.01, 2.0, 0.4)
 end
 
 function SoundFontSampler.process(time, freq, note, params)
   local rawSample = SoundFont.readZone(note, time)
-  local attack = params["AttackSec"] or 0.005
+  local attack = params["AttackSec"] or 0.0
   local release = params["ReleaseSec"] or 0.4
-  local cutoff = params["FilterCutoff"] or 10000.0
 
   local env = DSP.env(time, attack, release)
-  local filtered = DSP.lowpass(rawSample, cutoff, 1.0)
-  return filtered * env
+  return rawSample * env
 end
 
 return SoundFontSampler

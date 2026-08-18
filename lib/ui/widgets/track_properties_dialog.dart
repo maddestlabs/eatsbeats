@@ -343,7 +343,7 @@ Future<void> showTrackPropertiesDialog(BuildContext context, DawState dawState, 
                               ? null
                               : () {
                                   Navigator.of(context).pop();
-                                  _confirmDeleteTrack(context, dawState, track);
+                                  dawState.deleteTrack(track);
                                 },
                         ),
                       ],
@@ -375,42 +375,6 @@ Future<void> showTrackPropertiesDialog(BuildContext context, DawState dawState, 
             ],
           );
         },
-      );
-    },
-  );
-}
-
-void _confirmDeleteTrack(BuildContext context, DawState dawState, TrackChannel track) {
-  showDialog<void>(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        backgroundColor: EatsTheme.panelBackground,
-        title: Text(
-          'DELETE TRACK?',
-          style: TextStyle(color: EatsTheme.muteColor, fontWeight: FontWeight.bold, fontSize: 14),
-        ),
-        content: Text(
-          'Are you sure you want to delete track "${track.name}"? This action cannot be undone.',
-          style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('CANCEL', style: TextStyle(color: EatsTheme.textMuted, fontSize: 12)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: EatsTheme.muteColor,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              Navigator.of(context).pop();
-              dawState.deleteTrack(track);
-            },
-            child: const Text('DELETE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-          ),
-        ],
       );
     },
   );

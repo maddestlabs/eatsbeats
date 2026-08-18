@@ -97,19 +97,25 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.folder_copy, color: EatsTheme.primaryCyan, size: 18),
-                    const SizedBox(width: 6),
-                    Text(
-                      'PROJECT BROWSER',
-                      style: EatsTheme.getDisplayFontStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: EatsTheme.textLight,
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(Icons.folder_copy, color: EatsTheme.primaryCyan, size: 18),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'PROJECT BROWSER',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: EatsTheme.getDisplayFontStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: EatsTheme.textLight,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 Row(
                   children: [
@@ -222,31 +228,34 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                 width: 1,
               ),
             ),
-            child: ListTile(
-              dense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-              leading: CircleAvatar(
-                radius: 6,
-                backgroundColor: track.color,
-              ),
-              title: Text(
-                track.name,
-                style: EatsTheme.getPrimaryFontStyle(
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected ? Colors.white : EatsTheme.textLight,
+            child: Material(
+              type: MaterialType.transparency,
+              child: ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                leading: CircleAvatar(
+                  radius: 6,
+                  backgroundColor: track.color,
                 ),
+                title: Text(
+                  track.name,
+                  style: EatsTheme.getPrimaryFontStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? Colors.white : EatsTheme.textLight,
+                  ),
+                ),
+                subtitle: Text(
+                  '${track.type.name.toUpperCase()} • ${track.clips.length} clip(s)',
+                  style: EatsTheme.getPrimaryFontStyle(fontSize: 10, color: EatsTheme.textMuted),
+                ),
+                trailing: isSelected
+                    ? Icon(Icons.check_circle, size: 14, color: EatsTheme.primaryCyan)
+                    : null,
+                onTap: () {
+                  state.activeTrackIndex = idx;
+                },
               ),
-              subtitle: Text(
-                '${track.type.name.toUpperCase()} • ${track.clips.length} clip(s)',
-                style: EatsTheme.getPrimaryFontStyle(fontSize: 10, color: EatsTheme.textMuted),
-              ),
-              trailing: isSelected
-                  ? Icon(Icons.check_circle, size: 14, color: EatsTheme.primaryCyan)
-                  : null,
-              onTap: () {
-                state.activeTrackIndex = idx;
-              },
             ),
           );
         }),
@@ -260,23 +269,26 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
               color: Colors.black.withOpacity(0.2),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: ListTile(
-              dense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-              leading: const Icon(Icons.integration_instructions, size: 16, color: Color(0xFFFF8C00)),
-              title: Text(
-                t.name,
-                style: EatsTheme.getPrimaryFontStyle(fontSize: 11, color: EatsTheme.textLight),
+            child: Material(
+              type: MaterialType.transparency,
+              child: ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                leading: const Icon(Icons.integration_instructions, size: 16, color: Color(0xFFFF8C00)),
+                title: Text(
+                  t.name,
+                  style: EatsTheme.getPrimaryFontStyle(fontSize: 11, color: EatsTheme.textLight),
+                ),
+                subtitle: Text(
+                  'Bound to Channel ${t.name}',
+                  style: EatsTheme.getPrimaryFontStyle(fontSize: 9, color: EatsTheme.textMuted),
+                ),
+                onTap: () {
+                  final idx = activePattern.tracks.indexOf(t);
+                  if (idx != -1) state.activeTrackIndex = idx;
+                  state.activeTabIndex = 4; // Jump to Lua Workbench
+                },
               ),
-              subtitle: Text(
-                'Bound to Channel ${t.name}',
-                style: EatsTheme.getPrimaryFontStyle(fontSize: 9, color: EatsTheme.textMuted),
-              ),
-              onTap: () {
-                final idx = activePattern.tracks.indexOf(t);
-                if (idx != -1) state.activeTrackIndex = idx;
-                state.activeTabIndex = 4; // Jump to Lua Workbench
-              },
             ),
           );
         }),
@@ -300,41 +312,43 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(color: EatsTheme.panelHeader.withOpacity(0.6), width: 1),
                   ),
-                  child: ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                    leading: Draggable<SoundFontDragItem>(
-                      data: dragItem,
-                      feedback: Material(
-                        color: Colors.transparent,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: EatsTheme.panelHeader,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: EatsTheme.accentGreen, width: 2),
-                            boxShadow: [
-                              BoxShadow(color: EatsTheme.accentGreen.withOpacity(0.4), blurRadius: 12),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.piano, color: EatsTheme.accentGreen, size: 16),
-                              const SizedBox(width: 8),
-                              Text(
-                                displayName,
-                                style: EatsTheme.getPrimaryFontStyle(
-                                  color: EatsTheme.accentGreen,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                      leading: Draggable<SoundFontDragItem>(
+                        data: dragItem,
+                        feedback: Material(
+                          color: Colors.transparent,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: EatsTheme.panelHeader,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: EatsTheme.accentGreen, width: 2),
+                              boxShadow: [
+                                BoxShadow(color: EatsTheme.accentGreen.withOpacity(0.4), blurRadius: 12),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.piano, color: EatsTheme.accentGreen, size: 16),
+                                const SizedBox(width: 8),
+                                Text(
+                                  displayName,
+                                  style: EatsTheme.getPrimaryFontStyle(
+                                    color: EatsTheme.accentGreen,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      child: MouseRegion(
+                        child: MouseRegion(
                         cursor: SystemMouseCursors.grab,
                         child: Tooltip(
                           message: 'Drag icon to track',
@@ -377,8 +391,9 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                       );
                     },
                   ),
-                );
-              }).toList(),
+                ),
+              );
+            }).toList(),
             );
           },
         ),
@@ -489,10 +504,12 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(color: EatsTheme.panelHeader.withOpacity(0.6), width: 1),
                       ),
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        leading: Draggable<LuaPreset>(
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          leading: Draggable<LuaPreset>(
                           data: preset,
                           feedback: Material(
                             color: Colors.transparent,
@@ -609,8 +626,9 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                           }
                         },
                       ),
-                    );
-                  },
+                    ),
+                  );
+                },
                 ),
         ),
       ],
@@ -642,9 +660,11 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                     width: 1,
                   ),
                 ),
-                child: Column(
-                  children: [
-                    ListTile(
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Column(
+                    children: [
+                      ListTile(
                       dense: true,
                       contentPadding: const EdgeInsets.all(8),
                       leading: Icon(
@@ -722,8 +742,9 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                     ],
                   ],
                 ),
-              );
-            }),
+              ),
+            );
+          }),
           ],
         );
       },
@@ -786,28 +807,31 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                 width: isSelected ? 1.5 : 1,
               ),
             ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              leading: CircleAvatar(
-                radius: 12,
-                backgroundColor: accentColor,
-                child: isSelected ? const Icon(Icons.check, size: 14, color: Colors.black) : null,
-              ),
-              title: Text(
-                t['name'] as String,
-                style: EatsTheme.getPrimaryFontStyle(
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected ? Colors.white : EatsTheme.textLight,
+            child: Material(
+              type: MaterialType.transparency,
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                leading: CircleAvatar(
+                  radius: 12,
+                  backgroundColor: accentColor,
+                  child: isSelected ? const Icon(Icons.check, size: 14, color: Colors.black) : null,
                 ),
+                title: Text(
+                  t['name'] as String,
+                  style: EatsTheme.getPrimaryFontStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? Colors.white : EatsTheme.textLight,
+                  ),
+                ),
+                subtitle: Text(
+                  t['desc'] as String,
+                  style: EatsTheme.getPrimaryFontStyle(fontSize: 10, color: EatsTheme.textMuted),
+                ),
+                onTap: () {
+                  widget.dawState.setThemePreset(themePreset);
+                },
               ),
-              subtitle: Text(
-                t['desc'] as String,
-                style: EatsTheme.getPrimaryFontStyle(fontSize: 10, color: EatsTheme.textMuted),
-              ),
-              onTap: () {
-                widget.dawState.setThemePreset(themePreset);
-              },
             ),
           );
         }),
@@ -1057,10 +1081,11 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                       itemCount: timeline.length,
                       itemBuilder: (context, index) {
-                        final entry = timeline[index];
-                        final isCurrent = index == currentIndex;
-                        final isPast = index < currentIndex;
-                        final isFuture = index > currentIndex;
+                        final timelineIndex = (timeline.length - 1) - index;
+                        final entry = timeline[timelineIndex];
+                        final isCurrent = timelineIndex == currentIndex;
+                        final isPast = timelineIndex < currentIndex;
+                        final isFuture = timelineIndex > currentIndex;
 
                         Color itemColor;
                         if (isCurrent) {
@@ -1100,7 +1125,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                             onTap: isCurrent
                                 ? null
                                 : () {
-                                    history.jumpToTimelineIndex(state, index);
+                                    history.jumpToTimelineIndex(state, timelineIndex);
                                   },
                             child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1215,7 +1240,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                     onPressed: () {
-                                      final prevEntry = index > 0 ? timeline[index - 1] : null;
+                                      final prevEntry = timelineIndex > 0 ? timeline[timelineIndex - 1] : null;
                                       _showDiffDialog(context, entry, prevEntry);
                                     },
                                   ),

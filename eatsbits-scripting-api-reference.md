@@ -92,8 +92,8 @@ Scripts request audio processing nodes via `eatsbits.v1.createNode(nodeType, con
 | **Instrument** | `"TB303"` | `{waveform = 0, oversample = 2}` | `Cutoff`, `Resonance`, `EnvMod`, `Decay`, `Accent`, `Slide`, `Overdrive` |
 | **Instrument** | `"Sampler"` | `{sampleBuffer = "snare"}` | `Pitch`, `Gain`, `StartOffset` |
 | **Instrument** | `"ProceduralKick"` | `{startFreq = 160, endFreq = 42}` | `StartFreq`, `EndFreq`, `PitchDecay`, `AmpDecay`, `Click` |
-| **Instrument** | `"ProceduralSnare"`| `{toneFreq = 185}` | `ToneFreq`, `Snappy`, `Decay` |
-| **Instrument** | `"ProceduralHiHat"`| `{cutoff = 8500}` | `Cutoff`, `Decay`, `Metallic` |
+| **Instrument** | `"ProceduralSnare"`| `{toneFreq = 185}` | `ToneFreq`, `Snappy`, `Decay`, `Variation` |
+| **Instrument** | `"ProceduralHiHat"`| `{cutoff = 7500}` | `Cutoff`, `Decay`, `Metallic`, `Variation` |
 | **Instrument** | `"ProceduralClap"` | `{roomDecay = 0.18}` | `Tone`, `RoomDecay` |
 | **Instrument** | `"FMSynth"` | `{modRatio = 2.0}` | `ModRatio`, `ModIndex`, `Attack`, `Release` |
 | **Effect** | `"StereoDelayFX"` | `{timeMs = 250}` | `TimeMs`, `Feedback`, `Dampening`, `Mix` |

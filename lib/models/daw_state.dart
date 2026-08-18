@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/platform_env_helper.dart';
+import '../utils/eats_storage_helper.dart';
 
 import '../audio/audio_engine.dart';
 import '../audio/sampler_engine.dart';
@@ -85,6 +86,7 @@ class DawState extends ChangeNotifier {
 
   void commitUiScale(double scale) {
     _uiScale = (scale * 100).roundToDouble() / 100;
+    EatsStorageHelper.setDouble(EatsStorageHelper.keyUiScale, _uiScale);
     notifyListeners();
   }
 
@@ -95,6 +97,92 @@ class DawState extends ChangeNotifier {
 
   void resetUiScale() {
     commitUiScale(1.0);
+  }
+
+  // Session Persistence & Auto-Restore Settings
+  bool _autoRestoreSession = true;
+  bool get autoRestoreSession => _autoRestoreSession;
+  set autoRestoreSession(bool val) {
+    _autoRestoreSession = val;
+    EatsStorageHelper.setBool(EatsStorageHelper.keyAutoRestoreSession, val);
+    notifyListeners();
+  }
+
+  bool _autoSaveEnabled = true;
+  bool get autoSaveEnabled => _autoSaveEnabled;
+  set autoSaveEnabled(bool val) {
+    _autoSaveEnabled = val;
+    EatsStorageHelper.setBool(EatsStorageHelper.keyAutoSaveEnabled, val);
+    notifyListeners();
+  }
+
+  Timer? _autoSaveDebounceTimer;
+
+  void triggerAutoSave() {
+    if (_isDisposed || !_autoSaveEnabled || isTestEnvironment) return;
+    _autoSaveDebounceTimer?.cancel();
+    _autoSaveDebounceTimer = Timer(const Duration(milliseconds: 1500), () async {
+      if (_isDisposed) return;
+      try {
+        final luaScript = exportToEatsLua();
+        await EatsStorageHelper.saveSessionLua(luaScript);
+        debugPrint('DawState: Autosaved session (${luaScript.length} chars)');
+      } catch (e) {
+        debugPrint('DawState: Autosave error: $e');
+      }
+    });
+  }
+
+  Future<void> loadPersistedSettings() async {
+    try {
+      final themeName = await EatsStorageHelper.getString(EatsStorageHelper.keyThemePreset);
+      if (themeName != null) {
+        for (final p in EatsThemePreset.values) {
+          if (p.name == themeName) {
+            EatsTheme.currentPreset = p;
+            break;
+          }
+        }
+      }
+
+      final scale = await EatsStorageHelper.getDouble(EatsStorageHelper.keyUiScale);
+      if (scale != null && scale >= 0.70 && scale <= 1.30) {
+        _uiScale = (scale * 100).roundToDouble() / 100;
+      }
+
+      final autoRestore = await EatsStorageHelper.getBool(EatsStorageHelper.keyAutoRestoreSession);
+      if (autoRestore != null) {
+        _autoRestoreSession = autoRestore;
+      }
+
+      final autoSave = await EatsStorageHelper.getBool(EatsStorageHelper.keyAutoSaveEnabled);
+      if (autoSave != null) {
+        _autoSaveEnabled = autoSave;
+      }
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('DawState: Error loading persisted settings: $e');
+    }
+  }
+
+  Future<bool> restoreSavedSession() async {
+    try {
+      final savedLua = await EatsStorageHelper.loadSessionLua();
+      if (savedLua != null && savedLua.trim().isNotEmpty) {
+        loadFromEatsLua(savedLua);
+        debugPrint('DawState: Restored saved session successfully.');
+        return true;
+      }
+    } catch (e) {
+      debugPrint('DawState: Error restoring saved session: $e');
+    }
+    return false;
+  }
+
+  Future<void> clearSavedSession() async {
+    await EatsStorageHelper.clearSessionLua();
+    debugPrint('DawState: Cleared saved session.');
   }
 
   bool isBrowserOpen = false;
@@ -220,6 +308,7 @@ class DawState extends ChangeNotifier {
 
   void setThemePreset(EatsThemePreset preset) {
     EatsTheme.currentPreset = preset;
+    EatsStorageHelper.setString(EatsStorageHelper.keyThemePreset, preset.name);
     notifyListeners();
   }
 
@@ -352,6 +441,9 @@ class DawState extends ChangeNotifier {
 
   static bool get isTestEnvironment => PlatformEnvHelper.isFlutterTest;
 
+  bool _isDisposed = false;
+  bool get isDisposed => _isDisposed;
+
   DawState({bool? enableMeterTimer}) {
     SoundFontEngine.instance.loadDefaultBundledFont();
     _initDemoTracks();
@@ -380,6 +472,7 @@ class DawState extends ChangeNotifier {
       milestoneName: milestoneName,
       force: force,
     );
+    triggerAutoSave();
   }
   void beginHistoryTransaction(String description, {IconData icon = Icons.tune}) =>
       history.beginTransaction(this, description, icon: icon);
@@ -400,6 +493,8 @@ class DawState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
+    _autoSaveDebounceTimer?.cancel();
     _meterTimer?.cancel();
     _playbackTimer?.cancel();
     history.dispose();
@@ -668,6 +763,15 @@ class DawState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Panic Button: Instantly halts all playback, stops active sound source nodes,
+  /// clears PCM note audio cache and calculations, and resets meters.
+  void panic() {
+    stop();
+    audioEngine.stopAllSound();
+    audioEngine.clearPcmCache();
+    notifyListeners();
+  }
+
   void _startSchedulerTimer() {
     _playbackTimer?.cancel();
     // High frequency 25ms ticker enqueueing notes into WebAudio hardware clock queue
@@ -707,7 +811,9 @@ class DawState extends ChangeNotifier {
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      notifyListeners();
+      if (!_isDisposed) {
+        notifyListeners();
+      }
     });
   }
 
@@ -730,32 +836,48 @@ class DawState extends ChangeNotifier {
           if (clip.notes.isNotEmpty) {
             final matchingNotes = clip.notes.where((n) => n.startStep.toInt() == localStep).toList();
             if (matchingNotes.isNotEmpty) {
-              final note = matchingNotes.first;
-              final nextLocalStep = localStep + 1;
-              final nextNotes = clip.notes.where((n) => n.startStep.toInt() == nextLocalStep).toList();
-              final int? targetPitch = nextNotes.isNotEmpty
-                  ? nextNotes.first.pitch
-                  : (matchingNotes.length > 1 ? matchingNotes.last.pitch : null);
+              if (track.isMonophonicTrack) {
+                final note = matchingNotes.first;
+                final nextLocalStep = localStep + 1;
+                final nextNotes = clip.notes.where((n) => n.startStep.toInt() == nextLocalStep).toList();
+                final int? targetPitch = nextNotes.isNotEmpty
+                    ? nextNotes.first.pitch
+                    : (matchingNotes.length > 1 ? matchingNotes.last.pitch : null);
 
-              final bool hasPrevOverlap = track.isMonophonicTrack &&
-                  clip.notes.any((n) => n.startStep < localStep && (n.startStep + n.durationSteps) > localStep);
+                final bool hasPrevOverlap =
+                    clip.notes.any((n) => n.startStep < localStep && (n.startStep + n.durationSteps) > localStep);
 
-              final bool isSlideNote = note.isSlide ||
-                  hasPrevOverlap ||
-                  (note.durationSteps > 1.0) ||
-                  (nextNotes.isNotEmpty && (note.isSlide || note.durationSteps >= 1.0));
-              final bool isAccentNote = note.isAccent || note.velocity > 0.75;
+                final bool isSlideNote = note.isSlide ||
+                    hasPrevOverlap ||
+                    (note.durationSteps > 1.0) ||
+                    (nextNotes.isNotEmpty && (note.isSlide || note.durationSteps >= 1.0));
+                final bool isAccentNote = note.isAccent || note.velocity > 0.75;
 
-              audioEngine.playNoteOrSample(
-                track: track,
-                midiNote: note.pitch,
-                targetMidiNote: targetPitch,
-                isSlide: isSlideNote,
-                isAccent: isAccentNote,
-                velocity: note.velocity,
-                durationSec: note.durationSteps * stepDurationSec,
-                scheduledTime: hardwareTime,
-              );
+                audioEngine.playNoteOrSample(
+                  track: track,
+                  midiNote: note.pitch,
+                  targetMidiNote: targetPitch,
+                  isSlide: isSlideNote,
+                  isAccent: isAccentNote,
+                  velocity: note.velocity,
+                  durationSec: note.durationSteps * stepDurationSec,
+                  scheduledTime: hardwareTime,
+                );
+              } else {
+                // Polyphonic track: schedule all simultaneous notes on this step
+                for (final note in matchingNotes) {
+                  final bool isAccentNote = note.isAccent || note.velocity > 0.75;
+                  audioEngine.playNoteOrSample(
+                    track: track,
+                    midiNote: note.pitch,
+                    isSlide: note.isSlide,
+                    isAccent: isAccentNote,
+                    velocity: note.velocity,
+                    durationSec: note.durationSteps * stepDurationSec,
+                    scheduledTime: hardwareTime,
+                  );
+                }
+              }
             }
           } else if (localStep < track.steps.length) {
             final step = track.steps[localStep % track.steps.length];
@@ -994,6 +1116,26 @@ class DawState extends ChangeNotifier {
       final item = track.fxRack.removeAt(oldIndex);
       track.fxRack.insert(newIndex, item);
       audioEngine.invalidateLuaCache(track.id);
+      notifyListeners();
+    }
+  }
+
+  void moveFXUp(TrackChannel track, int index) {
+    if (index > 0 && index < track.fxRack.length) {
+      final fx = track.fxRack.removeAt(index);
+      track.fxRack.insert(index - 1, fx);
+      audioEngine.invalidateLuaCache(track.id);
+      recordHistory('Move FX Up (${fx.name})', icon: Icons.arrow_upward);
+      notifyListeners();
+    }
+  }
+
+  void moveFXDown(TrackChannel track, int index) {
+    if (index >= 0 && index < track.fxRack.length - 1) {
+      final fx = track.fxRack.removeAt(index);
+      track.fxRack.insert(index + 1, fx);
+      audioEngine.invalidateLuaCache(track.id);
+      recordHistory('Move FX Down (${fx.name})', icon: Icons.arrow_downward);
       notifyListeners();
     }
   }

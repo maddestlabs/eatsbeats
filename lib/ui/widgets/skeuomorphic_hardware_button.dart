@@ -10,6 +10,7 @@ class SkeuomorphicHardwareButton extends StatefulWidget {
   final bool isActive;
   final Color? activeColor;
   final VoidCallback onTap;
+  final VoidCallback? onDoubleTap;
   final double height;
   final double? width;
   final EdgeInsetsGeometry padding;
@@ -24,6 +25,7 @@ class SkeuomorphicHardwareButton extends StatefulWidget {
     this.isActive = false,
     this.activeColor,
     required this.onTap,
+    this.onDoubleTap,
     this.height = 36.0,
     this.width,
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -57,6 +59,7 @@ class _SkeuomorphicHardwareButtonState extends State<SkeuomorphicHardwareButton>
         setState(() => _isPressed = false);
         widget.onTap();
       },
+      onDoubleTap: widget.onDoubleTap,
       onTapCancel: () => setState(() => _isPressed = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 60),

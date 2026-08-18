@@ -1,6 +1,5 @@
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
-import '../theme/eats_theme.dart';
 
 class EatsLuaSerializer {
   /// Serializes a full [DawState] object into a formatted `.eats.lua` script.
@@ -23,7 +22,6 @@ class EatsLuaSerializer {
     buffer.writeln('    isLooping = ${dawState.isLooping},');
     buffer.writeln('    loopStartBar = ${dawState.loopStartBar},');
     buffer.writeln('    loopEndBar = ${dawState.loopEndBar},');
-    buffer.writeln('    theme = "${EatsTheme.currentPreset.name}",');
     buffer.writeln('  },');
     buffer.writeln();
 

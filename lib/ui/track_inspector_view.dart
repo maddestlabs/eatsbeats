@@ -45,9 +45,12 @@ class TrackInspectorView extends StatelessWidget {
         final currentPreset = (track.luaParams['PresetNum'] ?? 0.0).toInt();
 
         final activePresetIdx = fontData.presets.indexWhere(
-          (p) => p.presetNum == currentPreset && (p.bankNum == currentBank || currentBank == 0),
+          (p) => p.presetNum == currentPreset && p.bankNum == currentBank,
         );
-        final validIdx = activePresetIdx != -1 ? activePresetIdx : 0;
+        final validIdx = activePresetIdx != -1
+            ? activePresetIdx
+            : fontData.presets.indexWhere((p) => p.presetNum == currentPreset);
+        final finalIdx = validIdx != -1 ? validIdx : 0;
 
         final loadedFonts = SoundFontEngine.instance.loadedDisplayFonts;
         final currentFontId = loadedFonts.containsKey(track.sampleName) ? track.sampleName : loadedFonts.keys.first;
@@ -125,7 +128,7 @@ class TrackInspectorView extends StatelessWidget {
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<int>(
-                    value: validIdx,
+                    value: finalIdx,
                     isExpanded: true,
                     dropdownColor: EatsTheme.panelHeader,
                     style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.bold),

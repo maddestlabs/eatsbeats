@@ -50,10 +50,7 @@ class EatsFileHelper {
 
   /// Downloads binary bytes from an HTTP URL.
   static Future<Uint8List?> fetchUrlBytes(String url) async {
-    if (kIsWeb) {
-      return fetchUrlBytesWebImpl(url);
-    }
-    return null;
+    return fetchUrlBytesWebImpl(url);
   }
 }
 

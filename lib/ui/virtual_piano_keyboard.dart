@@ -117,7 +117,7 @@ class _VirtualPianoKeyboardState extends State<VirtualPianoKeyboard>
       track: track,
       midiNote: pitch,
       velocity: velocity,
-      durationSec: 0.35,
+      durationSec: 0.8,
     );
     if (track.activeView == MusicViewType.tracker) {
       widget.dawState.addOrUpdateTrackerNote(
@@ -574,17 +574,26 @@ class _PianoKeyboardPainter extends CustomPainter {
           keyPaint,
         );
 
-        // Velocity Fill Bar on active touch (Y-axis visual feedback)
+        // Velocity Fill Bar on active touch (Y-axis visual feedback, top to touch position)
         if (isActive && activeTouch != null) {
           final double velHeight = size.height * activeTouch.velocity;
           final Rect velRect = Rect.fromLTWH(
             left + 2,
-            size.height - velHeight,
+            0,
             whiteKeyWidth - 4,
             velHeight,
           );
           final Paint velPaint = Paint()..color = trackColor.withOpacity(0.75);
-          canvas.drawRect(velRect, velPaint);
+          canvas.drawRRect(
+            RRect.fromRectAndCorners(
+              velRect,
+              topLeft: const Radius.circular(2),
+              topRight: const Radius.circular(2),
+              bottomLeft: velHeight >= size.height - 4 ? const Radius.circular(2) : Radius.zero,
+              bottomRight: velHeight >= size.height - 4 ? const Radius.circular(2) : Radius.zero,
+            ),
+            velPaint,
+          );
         }
 
         // Key Border & Separator
@@ -662,17 +671,24 @@ class _PianoKeyboardPainter extends CustomPainter {
           keyPaint,
         );
 
-        // Velocity Fill Bar on active touch for black key
+        // Velocity Fill Bar on active touch for black key (top to touch position)
         if (isActive && activeTouch != null) {
           final double velHeight = blackKeyHeight * activeTouch.velocity;
           final Rect velRect = Rect.fromLTWH(
             left + 1,
-            blackKeyHeight - velHeight,
+            0,
             blackKeyWidth - 2,
             velHeight,
           );
           final Paint velPaint = Paint()..color = trackColor.withOpacity(0.85);
-          canvas.drawRect(velRect, velPaint);
+          canvas.drawRRect(
+            RRect.fromRectAndCorners(
+              velRect,
+              bottomLeft: velHeight >= blackKeyHeight - 2 ? const Radius.circular(3) : Radius.zero,
+              bottomRight: velHeight >= blackKeyHeight - 2 ? const Radius.circular(3) : Radius.zero,
+            ),
+            velPaint,
+          );
         }
 
         // Highlight top rim bevel

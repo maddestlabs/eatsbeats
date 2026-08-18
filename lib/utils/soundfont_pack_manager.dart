@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import '../audio/soundfont_engine.dart';
 import 'eats_file_helper.dart';
+import 'eats_storage_helper.dart';
 
 class SoundFontPackInfo {
   final String id;
@@ -54,10 +55,44 @@ class SoundFontPackManager extends ChangeNotifier {
       fileName: 'super_small_font.sf2',
       fileSizeMb: 1,
       isDownloaded: true,
+      statusMessage: 'Bundled',
     ),
   ];
 
   List<SoundFontPackInfo> get packs => List.unmodifiable(_packs);
+
+  bool _isRestored = false;
+
+  /// Checks persistent storage (IndexedDB on Web, AppData on Windows) for cached SoundFonts
+  /// and registers them immediately.
+  Future<void> restoreCachedPacks({bool force = false}) async {
+    if (_isRestored && !force) return;
+    _isRestored = true;
+
+    for (final pack in _packs) {
+      if (pack.url.isNotEmpty && !pack.isDownloaded) {
+        try {
+          final cachedBytes = await EatsStorageHelper.loadSoundFont(pack.fileName);
+          if (cachedBytes != null && cachedBytes.isNotEmpty) {
+            final loaded = SoundFontEngine.instance.registerSoundFont(pack.fileName, cachedBytes);
+            if (loaded) {
+              if (pack.id == 'generaluser_gs') {
+                SoundFontEngine.instance.registerSoundFont('GeneralUser GS', cachedBytes);
+                SoundFontEngine.instance.registerSoundFont('GeneralUser', cachedBytes);
+              }
+              pack.isDownloaded = true;
+              pack.downloadProgress = 1.0;
+              pack.statusMessage = 'Installed (Cached)';
+              debugPrint('SoundFontPackManager: Restored "${pack.title}" from persistent storage cache.');
+            }
+          }
+        } catch (e) {
+          debugPrint('SoundFontPackManager: Error restoring cached pack ${pack.id}: $e');
+        }
+      }
+    }
+    notifyListeners();
+  }
 
   Future<bool> downloadAndInstallPack(SoundFontPackInfo pack) async {
     if (pack.isDownloading || pack.isDownloaded) return true;
@@ -92,15 +127,20 @@ class SoundFontPackManager extends ChangeNotifier {
 
       final loaded = SoundFontEngine.instance.registerSoundFont(pack.fileName, sfBytes);
       if (loaded) {
-        SoundFontEngine.instance.registerSoundFont('GeneralUser GS', sfBytes);
-        SoundFontEngine.instance.registerSoundFont('GeneralUser', sfBytes);
+        if (pack.id == 'generaluser_gs') {
+          SoundFontEngine.instance.registerSoundFont('GeneralUser GS', sfBytes);
+          SoundFontEngine.instance.registerSoundFont('GeneralUser', sfBytes);
+        }
+
+        // Persist to storage (IndexedDB on Web, AppData on Windows)
+        await EatsStorageHelper.saveSoundFont(pack.fileName, sfBytes);
 
         pack.isDownloaded = true;
         pack.isDownloading = false;
         pack.downloadProgress = 1.0;
         pack.statusMessage = 'Installed';
         notifyListeners();
-        debugPrint('SoundFontPackManager: Successfully installed SoundFont pack "${pack.title}"!');
+        debugPrint('SoundFontPackManager: Successfully installed and cached SoundFont pack "${pack.title}"!');
         return true;
       } else {
         pack.isDownloading = false;

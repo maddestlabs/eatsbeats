@@ -68,6 +68,50 @@ class LuaEngine {
     return (ex - enx) / (ex + enx);
   }
 
+  /// Evaluates a 4-stage ADSR envelope at [time] seconds.
+  /// [attack]: Attack time in seconds (0.0 to N)
+  /// [decay]: Decay time in seconds (0.0 to N)
+  /// [sustain]: Sustain gain level (0.0 to 1.0)
+  /// [release]: Release time in seconds (0.001 to N)
+  /// [duration]: Note active gate duration before release phase (default 0.4s)
+  static double evaluateAdsr(
+    double time,
+    double attack,
+    double decay,
+    double sustain,
+    double release, [
+    double duration = 0.4,
+  ]) {
+    final a = math.max(0.0, attack);
+    final d = math.max(0.001, decay);
+    final s = sustain.clamp(0.0, 1.0);
+    final r = math.max(0.001, release);
+    final gate = math.max(a + d, duration);
+
+    if (time < a) {
+      if (a <= 0.0001) return 1.0;
+      return (time / a).clamp(0.0, 1.0);
+    } else if (time < a + d) {
+      final decayProgress = (time - a) / d;
+      return 1.0 - (decayProgress * (1.0 - s));
+    } else if (time < gate) {
+      return s;
+    } else {
+      final releaseProgress = (time - gate) / r;
+      return (s * math.max(0.0, 1.0 - releaseProgress)).clamp(0.0, 1.0);
+    }
+  }
+
+  /// Evaluates a 2-stage Attack-Release envelope at [time] seconds.
+  static double evaluateEnv(
+    double time,
+    double attack,
+    double release, [
+    double duration = 0.4,
+  ]) {
+    return evaluateAdsr(time, attack, 0.001, 1.0, release, duration);
+  }
+
   static final RegExp _paramRegExp = RegExp(
     "Param\\.add\\(\\s*[\"']([^\"']+)[\"']\\s*,\\s*([\\d\\.-]+)\\s*,\\s*([\\d\\.-]+)\\s*,\\s*([\\d\\.-]+)(?:\\s*,\\s*([\\d\\.-]+))?\\s*\\)",
   );
@@ -211,6 +255,7 @@ class LuaEngine {
   // Voice state map for stateful synthesis
   static final Map<String, _AcidVoiceState> _acidVoiceStates = {};
   static final Map<String, _HiHatVoiceState> _hihatVoiceStates = {};
+  static final Map<String, _SnareVoiceState> _snareVoiceStates = {};
 
   // Fast synthesis of complete buffer avoiding redundant per-sample parsing
   static Float32List synthesizeBuffer({
@@ -232,7 +277,7 @@ class LuaEngine {
       final startF = params['StartFreq'] ?? 160.0;
       final endF = params['EndFreq'] ?? 42.0;
       final pDecay = (params['PitchDecay'] ?? 0.035).clamp(0.005, 0.5);
-      final aDecay = (params['AmpDecay'] ?? 0.35).clamp(0.01, 1.5);
+      final aDecay = (params['AmpDecay'] ?? 0.35).clamp(0.01, 10.0);
       final click = params['Click'] ?? 0.0;
       final fadeSamples = (44100 * 0.04).toInt().clamp(64, math.max(1, numSamples ~/ 4));
 
@@ -241,7 +286,7 @@ class LuaEngine {
         final curFreq = endF + (startF - endF) * math.exp(-time / pDecay);
         final subSine = math.sin(2.0 * math.pi * curFreq * time);
         final clickTransient = _fastRnd(i * 1664525 + 1013904223) * math.exp(-time * 150.0) * click;
-        final env = math.exp(-time * 5.0 / aDecay);
+        final env = math.exp(-time * 4.0 / aDecay);
         final rawOutput = (subSine * 0.85 + clickTransient * 0.15) * env;
 
         final samplesRemaining = numSamples - 1 - i;
@@ -302,7 +347,7 @@ class LuaEngine {
       final clickTransient = _fastRnd(sampleIndex * 1664525 + 1013904223) * math.exp(-time * 150.0) * click;
 
       // Exponential amplitude envelope decaying to < 1% by time = aDecay
-      final env = math.exp(-time * 5.0 / aDecay.clamp(0.01, 1.5));
+      final env = math.exp(-time * 4.0 / aDecay.clamp(0.01, 10.0));
 
       final rawOutput = (subSine * 0.85 + clickTransient * 0.15) * env;
 
@@ -423,26 +468,58 @@ class LuaEngine {
 
     // 2. Procedural Snare Drum
     else if (code.contains('ProceduralSnare') || code.contains('Snappy')) {
-      final toneFreq = params['ToneFreq'] ?? 185.0;
-      final snappy = params['Snappy'] ?? 0.65;
-      final decay = params['Decay'] ?? 0.1;
+      double toneFreq = params['ToneFreq'] ?? 185.0;
+      double snappy = params['Snappy'] ?? 0.65;
+      double decay = params['Decay'] ?? 0.18;
+      final variation = params['Variation'] ?? 0.0;
 
-      final sweepFreq = toneFreq * math.exp(-time * 40.0);
-      final body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 25.0);
+      if (variation > 0.001) {
+        final vOffset = (math.sin(note * 12.9898) * 0.5 + 0.5) * variation;
+        toneFreq = toneFreq * (1.0 + (vOffset - 0.5 * variation) * 0.08);
+        decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.15);
+      }
 
-      final noise = _fastRnd(sampleIndex + (time * 100000).toInt()) * math.exp(-time / decay.clamp(0.01, 1.0));
+      final voiceKey = '${trackId ?? "default"}_snare';
+      final vState = _snareVoiceStates.putIfAbsent(voiceKey, () => _SnareVoiceState());
+      if (sampleIndex == 0) {
+        vState.x1 = 0.0;
+        vState.y1 = 0.0;
+      }
 
-      final output = body * (1.0 - snappy) + noise * snappy;
-      return _tanh(output * 1.2);
+      final sweepFreq = toneFreq * (1.0 + 1.2 * math.exp(-time * 60.0));
+      final body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 22.0);
+      final overtone = math.sin(2.0 * math.pi * (toneFreq * 1.75) * time) * math.exp(-time * 30.0) * 0.35;
+      final tonalCore = body + overtone;
+
+      final noise = _fastRnd(sampleIndex * 1664525 + 1013904223);
+      final noiseEnv = math.exp(-time / math.max(0.01, decay));
+
+      // High-pass filter noise wires ~ 1800Hz
+      final alpha = 1.0 / (1.0 + (2.0 * math.pi * 1800.0 / 44100.0));
+      vState.y1 = alpha * (vState.y1 + noise - vState.x1);
+      vState.x1 = noise;
+      final filteredNoise = vState.y1 * noiseEnv;
+
+      final click = _fastRnd(sampleIndex * 1103515245 + 12345) * math.exp(-time * 250.0) * 0.25;
+
+      final output = (tonalCore * (1.0 - snappy * 0.6) + filteredNoise * (snappy * 1.2) + click);
+      return _tanh(output * 1.3);
     }
 
     // 3. Procedural Hi-Hat
     else if (code.contains('ProceduralHiHat') || code.contains('Metallic')) {
-      final cutoff = params['Cutoff'] ?? 8500.0;
-      final decay = params['Decay'] ?? 0.05;
+      double cutoff = params['Cutoff'] ?? 7500.0;
+      double decay = params['Decay'] ?? 0.06;
       final metallic = params['Metallic'] ?? 0.15;
+      final variation = params['Variation'] ?? 0.0;
 
-      final env = math.exp(-time / decay.clamp(0.005, 0.5));
+      if (variation > 0.001) {
+        final vOffset = (math.sin(note * 78.233) * 0.5 + 0.5) * variation;
+        cutoff = (cutoff * (1.0 + (vOffset - 0.5 * variation) * 0.12)).clamp(1000.0, 18000.0);
+        decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.18);
+      }
+
+      final env = math.exp(-time / math.max(0.005, decay));
 
       final voiceKey = '${trackId ?? "default"}_hihat';
       final vState = _hihatVoiceStates.putIfAbsent(voiceKey, () => _HiHatVoiceState());
@@ -454,21 +531,16 @@ class LuaEngine {
         vState.y2 = 0.0;
       }
 
-      // True white noise calculated per sample (zero-allocation)
       final noise = _fastRnd(sampleIndex * 1664525 + 1013904223);
 
-      // TR-808 inspired metallic square ring cluster
-      final ring1 = math.sin(2.0 * math.pi * 205.0 * time) > 0 ? 1.0 : -1.0;
-      final ring2 = math.sin(2.0 * math.pi * 305.0 * time) > 0 ? 1.0 : -1.0;
-      final ring3 = math.sin(2.0 * math.pi * 365.0 * time) > 0 ? 1.0 : -1.0;
-      final ring4 = math.sin(2.0 * math.pi * 396.0 * time) > 0 ? 1.0 : -1.0;
-      final ring5 = math.sin(2.0 * math.pi * 434.0 * time) > 0 ? 1.0 : -1.0;
-      final ring6 = math.sin(2.0 * math.pi * 700.0 * time) > 0 ? 1.0 : -1.0;
-      final metallicRing = (ring1 + ring2 + ring3 + ring4 + ring5 + ring6) / 6.0;
+      final ring1 = math.sin(2.0 * math.pi * 320.0 * time);
+      final ring2 = math.sin(2.0 * math.pi * 540.0 * time);
+      final ring3 = math.sin(2.0 * math.pi * 890.0 * time);
+      final metallicRing = (ring1 + ring2 + ring3) * 0.333;
 
-      final rawSignal = noise * (1.0 - metallic * 0.4) + metallicRing * (metallic * 0.4);
+      final rawSignal = noise * (1.0 - metallic * 0.3) + metallicRing * (metallic * 0.3);
 
-      // Cascaded 2-Pole High-Pass Filter
+      // Cascaded 2-Pole High-Pass Filter for controllable, clean sizzle
       final alpha = 1.0 / (1.0 + (2.0 * math.pi * cutoff.clamp(1000.0, 18000.0) / 44100.0));
       vState.y1 = alpha * (vState.y1 + rawSignal - vState.x1);
       vState.x1 = rawSignal;
@@ -476,7 +548,7 @@ class LuaEngine {
       vState.y2 = alpha * (vState.y2 + vState.y1 - vState.x2);
       vState.x2 = vState.y1;
 
-      final output = vState.y2 * env * 0.75;
+      final output = _tanh(vState.y2 * env * 1.1);
       return output.clamp(-1.0, 1.0);
     }
 
@@ -589,5 +661,10 @@ class _HiHatVoiceState {
   double y1 = 0.0;
   double x2 = 0.0;
   double y2 = 0.0;
+}
+
+class _SnareVoiceState {
+  double x1 = 0.0;
+  double y1 = 0.0;
 }
 

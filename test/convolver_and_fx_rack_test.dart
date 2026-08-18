@@ -40,8 +40,23 @@ void main() {
       dawState.updateFXMix(track, addedFx.id, 0.75);
       expect(addedFx.mix, equals(0.75));
 
+      // Reorder FX Inserts (move up and down)
+      dawState.addFXInsert(track, FXType.distortion);
+      dawState.addFXInsert(track, FXType.bitcrusher);
+      final distFx = track.fxRack[track.fxRack.length - 2];
+      final bitFx = track.fxRack.last;
+
+      final bitIndex = track.fxRack.length - 1;
+      dawState.moveFXUp(track, bitIndex);
+      expect(track.fxRack[bitIndex - 1].id, equals(bitFx.id));
+
+      dawState.moveFXDown(track, bitIndex - 1);
+      expect(track.fxRack[bitIndex].id, equals(bitFx.id));
+
       // Remove FX Insert
       dawState.removeFXInsert(track, addedFx.id);
+      dawState.removeFXInsert(track, distFx.id);
+      dawState.removeFXInsert(track, bitFx.id);
       expect(track.fxRack.length, equals(initialFxCount));
 
       dawState.dispose();

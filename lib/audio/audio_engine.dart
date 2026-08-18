@@ -306,6 +306,20 @@ class AudioEngine {
     _backend.stopTrackNotes(track.id);
   }
 
+  /// Panic: Immediately stops all playing sources and clears audio meters.
+  void stopAllSound() {
+    _backend.stopAllSound();
+    _leftPeak = 0.0;
+    _rightPeak = 0.0;
+    _trackLeftPeaks.clear();
+    _trackRightPeaks.clear();
+  }
+
+  /// Clears all synthesized PCM note/audio caches and buffers.
+  void clearPcmCache() {
+    _pcmCache.clear();
+  }
+
   /// Pre-warms the PCM cache and IR samples so playback has 0 latency.
   void prewarmPatternCache(List<TrackChannel> tracks, double stepDurationSec) {
     _backend.preloadIrSamples();

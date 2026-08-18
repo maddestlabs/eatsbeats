@@ -47,6 +47,7 @@ class _WrenDawAppState extends State<WrenDawApp> {
   @override
   void initState() {
     super.initState();
+    _dawState.loadPersistedSettings();
     EatsFileHelper.initGlobalAudioDrop((fileName, fileBytes) {
       _dawState.addSampleTrackFromFile(fileName: fileName, fileBytes: fileBytes);
     });
@@ -106,6 +107,7 @@ class _WrenDawAppState extends State<WrenDawApp> {
                 ? DawMainShell(key: const ValueKey('daw_shell'), dawState: _dawState)
                 : EatsbitsLoadingScreen(
                     key: const ValueKey('loading_screen'),
+                    dawState: _dawState,
                     onInitializationComplete: () {
                       setState(() {
                         _isInitialized = true;
@@ -129,6 +131,34 @@ class DawMainShell extends StatefulWidget {
 }
 
 class _DawMainShellState extends State<DawMainShell> {
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
+    super.dispose();
+  }
+
+  bool _handleKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (event.logicalKey == LogicalKeyboardKey.space) {
+      final primaryFocus = FocusManager.instance.primaryFocus;
+      if (primaryFocus != null && primaryFocus.context != null) {
+        final editableState = primaryFocus.context!.findAncestorStateOfType<EditableTextState>();
+        if (editableState != null) {
+          // User is editing text (Script Editor, TextFields, manual dialogs). Do not interrupt typing.
+          return false;
+        }
+      }
+      widget.dawState.togglePlay();
+      return true;
+    }
+    return false;
+  }
   @override
   Widget build(BuildContext context) {
     final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
