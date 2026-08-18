@@ -28,7 +28,7 @@ void main() {
   };
   PlatformDispatcher.instance.onError = (error, stack) {
     debugPrint('PLATFORM UNHANDLED ERROR: $error\n$stack');
-    return true;
+    return false;
   };
   runApp(const WrenDawApp());
 }
@@ -67,6 +67,39 @@ class _WrenDawAppState extends State<WrenDawApp> {
           title: 'Eatsbits',
           debugShowCheckedModeBanner: false,
           theme: EatsTheme.themeData,
+          builder: (context, child) {
+            final scale = _dawState.uiScale;
+            if (scale == 1.0) {
+              return child ?? const SizedBox.shrink();
+            }
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final logicalWidth = constraints.maxWidth / scale;
+                final logicalHeight = constraints.maxHeight / scale;
+                final logicalSize = Size(logicalWidth, logicalHeight);
+                final mediaQuery = MediaQuery.of(context);
+
+                return SizedBox(
+                  width: constraints.maxWidth,
+                  height: constraints.maxHeight,
+                  child: FittedBox(
+                    fit: BoxFit.fill,
+                    alignment: Alignment.topLeft,
+                    child: SizedBox(
+                      width: logicalWidth,
+                      height: logicalHeight,
+                      child: MediaQuery(
+                        data: mediaQuery.copyWith(
+                          size: logicalSize,
+                        ),
+                        child: child ?? const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
           home: AnimatedSwitcher(
             duration: const Duration(milliseconds: 350),
             child: _isInitialized
@@ -129,6 +162,48 @@ class _DawMainShellState extends State<DawMainShell> {
         },
         const SingleActivator(LogicalKeyboardKey.keyB, meta: true): () {
           widget.dawState.toggleBrowser();
+        },
+        const SingleActivator(LogicalKeyboardKey.keyZ, control: true): () {
+          final primaryFocus = FocusManager.instance.primaryFocus;
+          if (primaryFocus != null && primaryFocus.context != null) {
+            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
+          }
+          widget.dawState.undo();
+        },
+        const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): () {
+          final primaryFocus = FocusManager.instance.primaryFocus;
+          if (primaryFocus != null && primaryFocus.context != null) {
+            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
+          }
+          widget.dawState.undo();
+        },
+        const SingleActivator(LogicalKeyboardKey.keyY, control: true): () {
+          final primaryFocus = FocusManager.instance.primaryFocus;
+          if (primaryFocus != null && primaryFocus.context != null) {
+            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
+          }
+          widget.dawState.redo();
+        },
+        const SingleActivator(LogicalKeyboardKey.keyY, meta: true): () {
+          final primaryFocus = FocusManager.instance.primaryFocus;
+          if (primaryFocus != null && primaryFocus.context != null) {
+            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
+          }
+          widget.dawState.redo();
+        },
+        const SingleActivator(LogicalKeyboardKey.keyZ, control: true, shift: true): () {
+          final primaryFocus = FocusManager.instance.primaryFocus;
+          if (primaryFocus != null && primaryFocus.context != null) {
+            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
+          }
+          widget.dawState.redo();
+        },
+        const SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true): () {
+          final primaryFocus = FocusManager.instance.primaryFocus;
+          if (primaryFocus != null && primaryFocus.context != null) {
+            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
+          }
+          widget.dawState.redo();
         },
       },
       child: Scaffold(

@@ -63,6 +63,18 @@ void main() {
       // Change theme preset
       dawState.setThemePreset(EatsThemePreset.midnightBites);
       expect(EatsTheme.currentPreset, equals(EatsThemePreset.midnightBites));
+      expect(EatsTheme.isLight, isFalse);
+
+      dawState.setThemePreset(EatsThemePreset.breakfast);
+      expect(EatsTheme.currentPreset, equals(EatsThemePreset.breakfast));
+      expect(EatsTheme.isLight, isTrue);
+
+      dawState.setThemePreset(EatsThemePreset.dinner);
+      expect(EatsTheme.currentPreset, equals(EatsThemePreset.dinner));
+      expect(EatsTheme.isLight, isFalse);
+
+      dawState.setThemePreset(EatsThemePreset.ateTrack);
+      expect(EatsTheme.currentPreset, equals(EatsThemePreset.ateTrack));
     });
   });
 }

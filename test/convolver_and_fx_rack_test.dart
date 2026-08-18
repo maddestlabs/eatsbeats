@@ -43,6 +43,8 @@ void main() {
       // Remove FX Insert
       dawState.removeFXInsert(track, addedFx.id);
       expect(track.fxRack.length, equals(initialFxCount));
+
+      dawState.dispose();
     });
 
     test('IrPackManager catalog contains designated Sadiquecat IR zip collection', () {

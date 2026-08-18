@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../lua/lua_preset_library.dart';
 import '../theme/eats_theme.dart';
+import '../ui/widgets/ui_scale_dialog.dart';
 import 'daw_state.dart';
+import 'track_model.dart';
 
 enum CommandCategory {
   action,
@@ -124,10 +126,90 @@ class CommandPaletteRegistry {
         shortcutHint: 'Ctrl+B',
         onExecute: (state, ctx) => state.toggleBrowser(),
       ),
+      QuickCommand(
+        id: 'nav_history_browser',
+        title: 'Open History & Time Travel Drawer',
+        subtitle: 'Inspect action timeline, Lua diffs, and time-travel',
+        category: CommandCategory.view,
+        icon: Icons.history,
+        shortcutHint: 'Browser Tab 5',
+        onExecute: (state, ctx) {
+          state.browserTabIndex = 4;
+          if (!state.isBrowserOpen) state.toggleBrowser();
+        },
+      ),
+      QuickCommand(
+        id: 'view_adjust_scale',
+        title: 'View: Adjust UI Scale (Magnification)...',
+        subtitle: 'Open UI scale configuration dialog (70% - 130%)',
+        category: CommandCategory.view,
+        icon: Icons.aspect_ratio,
+        onExecute: (state, ctx) => UiScaleDialog.show(ctx, state),
+      ),
+      QuickCommand(
+        id: 'view_scale_100',
+        title: 'View: Reset UI Scale to 100% (Default)',
+        subtitle: 'Reset interface scaling to standard 1:1 ratio',
+        category: CommandCategory.view,
+        icon: Icons.restart_alt,
+        onExecute: (state, ctx) => state.resetUiScale(),
+      ),
+      QuickCommand(
+        id: 'view_scale_75',
+        title: 'View: Set UI Scale to 75% (Compact)',
+        subtitle: 'Compact UI scaling for maximum workspace visibility',
+        category: CommandCategory.view,
+        icon: Icons.zoom_out,
+        onExecute: (state, ctx) => state.commitUiScale(0.75),
+      ),
+      QuickCommand(
+        id: 'view_scale_125',
+        title: 'View: Set UI Scale to 125% (Large)',
+        subtitle: 'Enlarged UI scaling for high-resolution displays',
+        category: CommandCategory.view,
+        icon: Icons.zoom_in,
+        onExecute: (state, ctx) => state.commitUiScale(1.25),
+      ),
     ]);
 
     // --- 2. TRANSPORT & DAW ACTIONS ---
     commands.addAll([
+      if (dawState.history.canUndo)
+        QuickCommand(
+          id: 'action_undo',
+          title: 'Undo: ${dawState.history.nextUndoDescription ?? "Previous Action"}',
+          subtitle: 'Revert last modification to song state',
+          category: CommandCategory.action,
+          icon: Icons.undo,
+          shortcutHint: 'Ctrl+Z',
+          onExecute: (state, ctx) => state.undo(),
+        ),
+      if (dawState.history.canRedo)
+        QuickCommand(
+          id: 'action_redo',
+          title: 'Redo: ${dawState.history.nextRedoDescription ?? "Next Action"}',
+          subtitle: 'Re-apply reverted modification',
+          category: CommandCategory.action,
+          icon: Icons.redo,
+          shortcutHint: 'Ctrl+Y',
+          onExecute: (state, ctx) => state.redo(),
+        ),
+      QuickCommand(
+        id: 'action_save_checkpoint',
+        title: 'Save Project Checkpoint / Milestone',
+        subtitle: 'Bookmark current state in the history timeline',
+        category: CommandCategory.action,
+        icon: Icons.bookmark_add,
+        onExecute: (state, ctx) {
+          state.history.createMilestone(state, 'Checkpoint ${DateTime.now().minute}');
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            const SnackBar(
+              content: Text('Project checkpoint saved to history!'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        },
+      ),
       QuickCommand(
         id: 'action_play_pause',
         title: dawState.isPlaying ? 'Pause Playback' : 'Start Playback',
@@ -178,6 +260,36 @@ class CommandPaletteRegistry {
             orElse: () => LuaPresetLibrary.presets.first,
           );
           state.addNewPresetTrack(customPreset);
+        },
+      ),
+      QuickCommand(
+        id: 'action_add_fx_reverb',
+        title: 'Insert FX: Convolution Reverb',
+        subtitle: 'Add space & acoustic impulse response reverb insert to active track',
+        category: CommandCategory.action,
+        icon: Icons.waves,
+        onExecute: (state, ctx) {
+          state.addFXInsert(state.activeTrack, FXType.convolutionReverb);
+        },
+      ),
+      QuickCommand(
+        id: 'action_add_fx_delay',
+        title: 'Insert FX: Stereo Delay / Echo',
+        subtitle: 'Add tempo-synced feedback delay insert to active track',
+        category: CommandCategory.action,
+        icon: Icons.replay,
+        onExecute: (state, ctx) {
+          state.addFXInsert(state.activeTrack, FXType.delay);
+        },
+      ),
+      QuickCommand(
+        id: 'action_add_fx_distortion',
+        title: 'Insert FX: Overdrive / Distortion',
+        subtitle: 'Add analog-style saturator distortion insert to active track',
+        category: CommandCategory.action,
+        icon: Icons.bolt,
+        onExecute: (state, ctx) {
+          state.addFXInsert(state.activeTrack, FXType.distortion);
         },
       ),
     ]);
@@ -262,22 +374,30 @@ class CommandPaletteRegistry {
   static String _getThemeDisplayName(EatsThemePreset preset) {
     switch (preset) {
       case EatsThemePreset.ateTrack:
-        return '8-Track Vintage (Ate Track)';
+        return 'Ate Track';
       case EatsThemePreset.midnightBites:
         return 'Midnight Bites (Obsidian Dark)';
       case EatsThemePreset.lightSnack:
         return 'Light Snack (Bright Studio)';
+      case EatsThemePreset.breakfast:
+        return 'Breakfast (Solarized Light)';
+      case EatsThemePreset.dinner:
+        return 'Dinner (Solarized Dark)';
     }
   }
 
   static String _getThemeDescription(EatsThemePreset preset) {
     switch (preset) {
       case EatsThemePreset.ateTrack:
-        return 'Authentic retro skeuomorphic hardware aesthetic with nixie displays & metallic grunts';
+        return 'Authentic retro skeuomorphic hardware aesthetic with nixie displays & metallic chassis';
       case EatsThemePreset.midnightBites:
         return 'Sleek dark neon cyber aesthetic with high-contrast glowing accents';
       case EatsThemePreset.lightSnack:
         return 'Clean daylight studio theme for high visibility';
+      case EatsThemePreset.breakfast:
+        return 'Solarized light theme with creamy parchment & warm accents';
+      case EatsThemePreset.dinner:
+        return 'Solarized dark theme with deep ocean teal & cyan accents';
     }
   }
 

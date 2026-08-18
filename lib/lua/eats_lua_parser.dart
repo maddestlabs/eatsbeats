@@ -51,10 +51,12 @@ class EatsLuaParser {
           matchingPreset = EatsThemePreset.ateTrack;
         } else if (themeName == 'studioLight') {
           matchingPreset = EatsThemePreset.lightSnack;
-        } else if (themeName == 'midnightOled') {
+        } else if (themeName == 'midnightOled' || themeName == 'cyberpunkCyan') {
           matchingPreset = EatsThemePreset.midnightBites;
-        } else if (themeName == 'cyberpunkCyan') {
-          matchingPreset = EatsThemePreset.midnightBites;
+        } else if (themeName == 'solarizedLight') {
+          matchingPreset = EatsThemePreset.breakfast;
+        } else if (themeName == 'solarizedDark') {
+          matchingPreset = EatsThemePreset.dinner;
         }
       }
       dawState.setThemePreset(matchingPreset ?? EatsThemePreset.ateTrack);

@@ -25,6 +25,7 @@ void main() {
       final newTrack = dawState.activePattern.tracks.last;
       expect(newTrack.name, equals('vintage_piano'));
       expect(newTrack.sampleName, equals('vintage_piano.sf2'));
+      dawState.dispose();
     });
 
     test('Bundled super_small_font.sf2 asset decodes successfully with valid preset & bank numbers', () {

@@ -13,6 +13,8 @@ class SkeuomorphicHardwareSlider extends StatefulWidget {
   final double defaultValue;
   final String? label;
   final ValueChanged<double> onChanged;
+  final VoidCallback? onChangeStart;
+  final VoidCallback? onChangeEnd;
   final Color? activeColor;
   final Axis orientation;
   final double length;
@@ -30,6 +32,8 @@ class SkeuomorphicHardwareSlider extends StatefulWidget {
     required this.defaultValue,
     this.label,
     required this.onChanged,
+    this.onChangeStart,
+    this.onChangeEnd,
     this.activeColor,
     this.orientation = Axis.horizontal,
     this.length = 160.0,
@@ -97,10 +101,21 @@ class _SkeuomorphicHardwareSliderState extends State<SkeuomorphicHardwareSlider>
         );
 
         return GestureDetector(
-          onTapDown: (details) => _updateValueFromPos(details.localPosition, totalLength, isHoriz),
-          onPanDown: (details) => _updateValueFromPos(details.localPosition, totalLength, isHoriz),
+          onTapDown: (details) {
+            widget.onChangeStart?.call();
+            _updateValueFromPos(details.localPosition, totalLength, isHoriz);
+            widget.onChangeEnd?.call();
+          },
+          onPanDown: (details) => widget.onChangeStart?.call(),
+          onPanStart: (details) => _updateValueFromPos(details.localPosition, totalLength, isHoriz),
           onPanUpdate: (details) => _updateValueFromPos(details.localPosition, totalLength, isHoriz),
-          onDoubleTap: () => widget.onChanged(widget.defaultValue),
+          onPanEnd: (_) => widget.onChangeEnd?.call(),
+          onPanCancel: () => widget.onChangeEnd?.call(),
+          onDoubleTap: () {
+            widget.onChangeStart?.call();
+            widget.onChanged(widget.defaultValue);
+            widget.onChangeEnd?.call();
+          },
           onLongPress: () => _showManualEditDialog(context),
           onSecondaryTap: () => _showManualEditDialog(context),
           onSecondaryTapDown: (_) => _showManualEditDialog(context),

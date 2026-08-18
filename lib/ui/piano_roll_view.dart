@@ -1258,6 +1258,7 @@ class _PianoRollViewState extends State<PianoRollView> {
                                           _moveStartStep = note.startStep;
                                           _moveStartPitch = note.pitch;
                                           _moveStartPos = details.globalPosition;
+                                          widget.dawState.beginHistoryTransaction('Move Note ${_getNoteName(note.pitch)}', icon: Icons.open_with);
                                           if (_selectedNoteId != note.id) {
                                             setState(() => _selectedNoteId = note.id);
                                           }
@@ -1285,6 +1286,7 @@ class _PianoRollViewState extends State<PianoRollView> {
                                         onPanEnd: (_) {
                                           if (_activeMoveNoteId == note.id) {
                                             _activeMoveNoteId = null;
+                                            widget.dawState.commitHistoryTransaction();
                                             widget.dawState.audioEngine.playNoteOrSample(
                                               track: track,
                                               midiNote: note.pitch,
@@ -1292,6 +1294,10 @@ class _PianoRollViewState extends State<PianoRollView> {
                                             );
                                             _ensureNoteAndMenuVisible(note);
                                           }
+                                        },
+                                        onPanCancel: () {
+                                          _activeMoveNoteId = null;
+                                          widget.dawState.commitHistoryTransaction();
                                         },
                                         child: Container(
                                           decoration: BoxDecoration(
@@ -1345,6 +1351,7 @@ class _PianoRollViewState extends State<PianoRollView> {
                                           _activeResizeNoteId = selectedNote!.id;
                                           _resizeStartDuration = selectedNote.durationSteps;
                                           _resizeStartPos = details.globalPosition;
+                                          widget.dawState.beginHistoryTransaction('Resize Note', icon: Icons.straighten);
                                         },
                                         onPanUpdate: (details) {
                                           if (_activeResizeNoteId != selectedNote!.id ||
@@ -1367,6 +1374,11 @@ class _PianoRollViewState extends State<PianoRollView> {
                                         },
                                         onPanEnd: (_) {
                                           _activeResizeNoteId = null;
+                                          widget.dawState.commitHistoryTransaction();
+                                        },
+                                        onPanCancel: () {
+                                          _activeResizeNoteId = null;
+                                          widget.dawState.commitHistoryTransaction();
                                         },
                                         child: Tooltip(
                                           message: 'Drag to resize note',

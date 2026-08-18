@@ -7,6 +7,7 @@ import '../utils/eats_file_helper.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
 import 'widgets/glowing_nixie_display.dart';
 import 'widgets/compact_value_dialog.dart';
+import 'widgets/ui_scale_dialog.dart';
 
 
 class TransportHeader extends StatelessWidget {
@@ -144,6 +145,56 @@ class TransportHeader extends StatelessWidget {
           ),
 
           const Spacer(),
+
+          // Undo & Redo Transport Controls
+          ListenableBuilder(
+            listenable: dawState.history,
+            builder: (context, _) {
+              final canUndo = dawState.history.canUndo;
+              final canRedo = dawState.history.canRedo;
+              final undoTip = dawState.history.nextUndoDescription != null
+                  ? 'Undo: ${dawState.history.nextUndoDescription} (Ctrl+Z)'
+                  : 'Undo (Ctrl+Z)';
+              final redoTip = dawState.history.nextRedoDescription != null
+                  ? 'Redo: ${dawState.history.nextRedoDescription} (Ctrl+Y)'
+                  : 'Redo (Ctrl+Y)';
+
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Tooltip(
+                    message: undoTip,
+                    child: SkeuomorphicHardwareButton(
+                      icon: Icons.undo,
+                      isActive: canUndo,
+                      activeColor: EatsTheme.primaryCyan,
+                      onTap: canUndo ? () => dawState.undo() : () {},
+                      height: 34,
+                      width: 32,
+                      padding: EdgeInsets.zero,
+                      showLed: false,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Tooltip(
+                    message: redoTip,
+                    child: SkeuomorphicHardwareButton(
+                      icon: Icons.redo,
+                      isActive: canRedo,
+                      activeColor: EatsTheme.secondaryMagenta,
+                      onTap: canRedo ? () => dawState.redo() : () {},
+                      height: 34,
+                      width: 32,
+                      padding: EdgeInsets.zero,
+                      showLed: false,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(width: 10),
 
           // Glass-Encased Stereo Master Peak Meter (L/R)
           _buildGlassLrMasterMeter(dawState),
@@ -400,6 +451,49 @@ class TransportHeader extends StatelessWidget {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  Text(
+                    'DISPLAY & WORKSPACE',
+                    style: TextStyle(color: EatsTheme.textSecondary, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.0),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: EatsTheme.controlBackground,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: EatsTheme.panelHeader),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('UI MAGNIFICATION', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Current Scale: ${(dawState.uiScale * 100).toStringAsFixed(0)}%',
+                              style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                        SkeuomorphicHardwareButton(
+                          label: 'ADJUST SCALE',
+                          icon: Icons.aspect_ratio,
+                          isActive: true,
+                          activeColor: EatsTheme.primaryCyan,
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            UiScaleDialog.show(context, dawState);
+                          },
+                          height: 32,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 16),
 

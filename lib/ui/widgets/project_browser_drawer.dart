@@ -5,6 +5,7 @@ import '../../theme/eats_theme.dart';
 import '../../audio/soundfont_engine.dart';
 import '../../utils/soundfont_pack_manager.dart';
 import '../../utils/ir_pack_manager.dart';
+import '../../models/history_manager.dart';
 import 'command_palette_dialog.dart';
 
 class SoundFontDragItem {
@@ -39,7 +40,11 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this, initialIndex: widget.dawState.browserTabIndex);
+    _tabController = TabController(
+      length: 5,
+      vsync: this,
+      initialIndex: widget.dawState.browserTabIndex.clamp(0, 4),
+    );
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) {
         widget.dawState.browserTabIndex = _tabController.index;
@@ -140,12 +145,37 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
               indicatorWeight: 3,
               labelColor: EatsTheme.primaryCyan,
               unselectedLabelColor: EatsTheme.textMuted,
-              labelStyle: EatsTheme.getDisplayFontStyle(fontSize: 10, fontWeight: FontWeight.bold),
               tabs: const [
-                Tab(text: 'ASSETS'),
-                Tab(text: 'PRESETS'),
-                Tab(text: 'PACKS'),
-                Tab(text: 'THEMES'),
+                Tab(
+                  icon: Tooltip(
+                    message: 'Project Assets (Tracks & SoundFonts)',
+                    child: Icon(Icons.inventory_2_outlined, size: 20),
+                  ),
+                ),
+                Tab(
+                  icon: Tooltip(
+                    message: 'Preset Library (Synths & Sequences)',
+                    child: Icon(Icons.library_music_outlined, size: 20),
+                  ),
+                ),
+                Tab(
+                  icon: Tooltip(
+                    message: 'Expansion Packs (SoundFonts & IRs)',
+                    child: Icon(Icons.cloud_download_outlined, size: 20),
+                  ),
+                ),
+                Tab(
+                  icon: Tooltip(
+                    message: 'UI Themes & Visual Styles',
+                    child: Icon(Icons.palette_outlined, size: 20),
+                  ),
+                ),
+                Tab(
+                  icon: Tooltip(
+                    message: 'History & Time Travel (Undo/Redo)',
+                    child: Icon(Icons.history, size: 20),
+                  ),
+                ),
               ],
             ),
           ),
@@ -159,6 +189,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                 _buildPresetsTab(),
                 _buildPacksTab(),
                 _buildThemesTab(),
+                _buildHistoryTab(),
               ],
             ),
           ),
@@ -395,18 +426,42 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
           ),
         ),
 
-        // Category Filter Chips
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        // Category Filter Chips (Compact Icons)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildCategoryChip(null, 'ALL'),
-              _buildCategoryChip(LuaPresetCategory.midiSeq, 'MIDI SEQ'),
-              _buildCategoryChip(LuaPresetCategory.instrument, 'SYNTH'),
-              _buildCategoryChip(LuaPresetCategory.audioFx, 'AUDIO FX'),
-              _buildCategoryChip(LuaPresetCategory.midiFx, 'MIDI FX'),
-              _buildCategoryChip(LuaPresetCategory.utility, 'UTIL'),
+              _buildCategoryChip(
+                category: null,
+                icon: Icons.apps,
+                tooltip: 'All Presets',
+              ),
+              _buildCategoryChip(
+                category: LuaPresetCategory.midiSeq,
+                icon: Icons.view_timeline_outlined,
+                tooltip: 'Filter: MIDI Sequences',
+              ),
+              _buildCategoryChip(
+                category: LuaPresetCategory.instrument,
+                icon: Icons.piano,
+                tooltip: 'Filter: Synth Instruments',
+              ),
+              _buildCategoryChip(
+                category: LuaPresetCategory.audioFx,
+                icon: Icons.graphic_eq,
+                tooltip: 'Filter: Audio FX',
+              ),
+              _buildCategoryChip(
+                category: LuaPresetCategory.midiFx,
+                icon: Icons.music_note,
+                tooltip: 'Filter: MIDI FX',
+              ),
+              _buildCategoryChip(
+                category: LuaPresetCategory.utility,
+                icon: Icons.build,
+                tooltip: 'Filter: Utilities',
+              ),
             ],
           ),
         ),
@@ -682,7 +737,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
     final themes = [
       {
         'preset': EatsThemePreset.ateTrack,
-        'name': '8-Track Vintage (Ate Track)',
+        'name': 'Ate Track',
         'desc': 'Skeuomorphic analog console, metallic texture & nixie tubes',
         'color': const Color(0xFFFF8C00),
       },
@@ -697,6 +752,18 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
         'name': 'Light Snack',
         'desc': 'Bright studio theme optimized for daylight visibility',
         'color': const Color(0xFF0088FF),
+      },
+      {
+        'preset': EatsThemePreset.breakfast,
+        'name': 'Breakfast',
+        'desc': 'Solarized light theme with creamy parchment & warm accents',
+        'color': const Color(0xFFB58900),
+      },
+      {
+        'preset': EatsThemePreset.dinner,
+        'name': 'Dinner',
+        'desc': 'Solarized dark theme with deep ocean teal & cyan accents',
+        'color': const Color(0xFF2AA198),
       },
     ];
 
@@ -769,30 +836,39 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
     );
   }
 
-  Widget _buildCategoryChip(LuaPresetCategory? category, String label) {
+  Widget _buildCategoryChip({
+    required LuaPresetCategory? category,
+    required IconData icon,
+    required String tooltip,
+  }) {
     final isSelected = _selectedCategoryFilter == category;
+    final accentColor = category != null ? _getCategoryColor(category) : EatsTheme.primaryCyan;
 
-    return Padding(
-      padding: const EdgeInsets.only(right: 4),
-      child: ChoiceChip(
-        label: Text(
-          label,
-          style: EatsTheme.getDisplayFontStyle(
-            fontSize: 9,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            color: isSelected ? Colors.black : EatsTheme.textLight,
-          ),
-        ),
-        selected: isSelected,
-        selectedColor: EatsTheme.primaryCyan,
-        backgroundColor: Colors.black.withOpacity(0.3),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        onSelected: (selected) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: () {
           setState(() {
-            _selectedCategoryFilter = selected ? category : null;
+            _selectedCategoryFilter = isSelected ? null : category;
           });
         },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? accentColor.withOpacity(0.2) : Colors.black.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: isSelected ? accentColor : EatsTheme.panelHeader.withOpacity(0.8),
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
+          child: Icon(
+            icon,
+            size: 16,
+            color: isSelected ? accentColor : (category != null ? accentColor.withOpacity(0.7) : EatsTheme.textMuted),
+          ),
+        ),
       ),
     );
   }
@@ -826,4 +902,516 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
         return const Color(0xFFBD00FF);
     }
   }
+
+  // --- TAB 5: HISTORY & TIME TRAVEL ---
+  Widget _buildHistoryTab() {
+    final state = widget.dawState;
+    final history = state.history;
+
+    return ListenableBuilder(
+      listenable: history,
+      builder: (context, _) {
+        final timeline = history.timeline;
+        final currentIndex = history.currentTimelineIndex;
+        final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
+
+        return Column(
+          children: [
+            // Top Controls Bar (Undo, Redo, + Checkpoint, Clear)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: EatsTheme.panelHeader,
+                border: Border(
+                  bottom: BorderSide(
+                    color: isGrungy ? const Color(0xFF4A423A) : EatsTheme.controlBackground,
+                    width: 1.0,
+                  ),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      // Undo Button
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: history.canUndo ? () => history.undo(state) : null,
+                          icon: const Icon(Icons.undo, size: 14),
+                          label: const Text('UNDO', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: EatsTheme.primaryCyan.withOpacity(0.15),
+                            foregroundColor: EatsTheme.primaryCyan,
+                            disabledBackgroundColor: Colors.white.withOpacity(0.04),
+                            disabledForegroundColor: EatsTheme.textMuted,
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              side: BorderSide(
+                                color: history.canUndo
+                                    ? EatsTheme.primaryCyan.withOpacity(0.4)
+                                    : Colors.transparent,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // Redo Button
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: history.canRedo ? () => history.redo(state) : null,
+                          icon: const Icon(Icons.redo, size: 14),
+                          label: const Text('REDO', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: EatsTheme.secondaryMagenta.withOpacity(0.15),
+                            foregroundColor: EatsTheme.secondaryMagenta,
+                            disabledBackgroundColor: Colors.white.withOpacity(0.04),
+                            disabledForegroundColor: EatsTheme.textMuted,
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              side: BorderSide(
+                                color: history.canRedo
+                                    ? EatsTheme.secondaryMagenta.withOpacity(0.4)
+                                    : Colors.transparent,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // Add Checkpoint / Milestone
+                      IconButton(
+                        tooltip: 'Save Milestone / Checkpoint',
+                        icon: const Icon(Icons.bookmark_add, size: 18),
+                        color: EatsTheme.accentGold,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        style: IconButton.styleFrom(
+                          backgroundColor: EatsTheme.accentGold.withOpacity(0.12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        ),
+                        onPressed: () => _showCreateCheckpointDialog(context),
+                      ),
+                      const SizedBox(width: 4),
+                      // Clear History
+                      IconButton(
+                        tooltip: 'Clear History Stack',
+                        icon: const Icon(Icons.delete_sweep_outlined, size: 18),
+                        color: EatsTheme.textMuted,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        onPressed: timeline.length > 1
+                            ? () {
+                                history.clear(state);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('History stack cleared.'),
+                                    duration: Duration(seconds: 1),
+                                  ),
+                                );
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  // Status summary
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'STEP ${currentIndex + 1} OF ${timeline.length}',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.8,
+                          color: EatsTheme.primaryCyan,
+                        ),
+                      ),
+                      Text(
+                        'DIFF SOURCE: .eats.lua',
+                        style: TextStyle(
+                          fontSize: 8,
+                          letterSpacing: 0.5,
+                          color: EatsTheme.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Interactive Timeline List
+            Expanded(
+              child: timeline.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No history entries recorded yet.',
+                        style: TextStyle(color: EatsTheme.textMuted, fontSize: 11),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      itemCount: timeline.length,
+                      itemBuilder: (context, index) {
+                        final entry = timeline[index];
+                        final isCurrent = index == currentIndex;
+                        final isPast = index < currentIndex;
+                        final isFuture = index > currentIndex;
+
+                        Color itemColor;
+                        if (isCurrent) {
+                          itemColor = EatsTheme.primaryCyan;
+                        } else if (entry.isMilestone) {
+                          itemColor = EatsTheme.accentGold;
+                        } else if (isPast) {
+                          itemColor = EatsTheme.textPrimary;
+                        } else {
+                          itemColor = EatsTheme.textMuted.withOpacity(0.5);
+                        }
+
+                        final timeStr = entry.timestamp.toLocal().toString().length >= 19
+                            ? entry.timestamp.toLocal().toString().substring(11, 19)
+                            : '';
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 6),
+                          decoration: BoxDecoration(
+                            color: isCurrent
+                                ? EatsTheme.primaryCyan.withOpacity(0.12)
+                                : entry.isMilestone
+                                    ? EatsTheme.accentGold.withOpacity(0.08)
+                                    : EatsTheme.controlBackground.withOpacity(isFuture ? 0.3 : 0.7),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isCurrent
+                                  ? EatsTheme.primaryCyan
+                                  : entry.isMilestone
+                                      ? EatsTheme.accentGold.withOpacity(0.6)
+                                      : Colors.white.withOpacity(isFuture ? 0.03 : 0.08),
+                              width: isCurrent ? 1.5 : 1.0,
+                            ),
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: isCurrent
+                                ? null
+                                : () {
+                                    history.jumpToTimelineIndex(state, index);
+                                  },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              child: Row(
+                                children: [
+                                  // Timeline Marker Icon
+                                  Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: isCurrent
+                                          ? EatsTheme.primaryCyan.withOpacity(0.2)
+                                          : entry.isMilestone
+                                              ? EatsTheme.accentGold.withOpacity(0.2)
+                                              : Colors.white.withOpacity(0.05),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      isCurrent
+                                          ? Icons.play_arrow
+                                          : (entry.isMilestone ? Icons.bookmark : entry.icon),
+                                      size: 13,
+                                      color: itemColor,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+
+                                  // Description & Timestamp
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                entry.description,
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                                                  color: itemColor,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (isCurrent)
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                                decoration: BoxDecoration(
+                                                  color: EatsTheme.primaryCyan,
+                                                  borderRadius: BorderRadius.circular(3),
+                                                ),
+                                                child: const Text(
+                                                  'CURRENT',
+                                                  style: TextStyle(
+                                                    color: Colors.black,
+                                                    fontSize: 8,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              )
+                                            else if (isFuture)
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white.withOpacity(0.08),
+                                                  borderRadius: BorderRadius.circular(3),
+                                                ),
+                                                child: Text(
+                                                  'REDO',
+                                                  style: TextStyle(
+                                                    color: EatsTheme.textMuted,
+                                                    fontSize: 8,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Row(
+                                          children: [
+                                            if (entry.isMilestone && entry.milestoneName != null) ...[
+                                              Text(
+                                                '🔖 ${entry.milestoneName!} • ',
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: EatsTheme.accentGold,
+                                                ),
+                                              ),
+                                            ],
+                                            Text(
+                                              timeStr,
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                color: EatsTheme.textMuted.withOpacity(isFuture ? 0.4 : 0.8),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  // Diff Button
+                                  IconButton(
+                                    icon: const Icon(Icons.difference_outlined, size: 16),
+                                    tooltip: 'Inspect Lua Diff',
+                                    color: EatsTheme.primaryCyan.withOpacity(0.8),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                    onPressed: () {
+                                      final prevEntry = index > 0 ? timeline[index - 1] : null;
+                                      _showDiffDialog(context, entry, prevEntry);
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showCreateCheckpointDialog(BuildContext context) {
+    final controller = TextEditingController(text: 'Milestone ${DateTime.now().minute}');
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: EatsTheme.panelBackground,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Row(
+            children: [
+              Icon(Icons.bookmark_add, color: EatsTheme.accentGold, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'SAVE CHECKPOINT',
+                style: EatsTheme.getDisplayFontStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: EatsTheme.accentGold,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Bookmark this exact project state as a named milestone.',
+                style: TextStyle(color: EatsTheme.textSecondary, fontSize: 11),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: TextStyle(color: EatsTheme.textPrimary, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'Checkpoint Name',
+                  labelStyle: TextStyle(color: EatsTheme.textMuted),
+                  filled: true,
+                  fillColor: EatsTheme.controlBackground,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('CANCEL', style: TextStyle(color: EatsTheme.textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: EatsTheme.accentGold),
+              onPressed: () {
+                final name = controller.text.trim();
+                widget.dawState.history.createMilestone(widget.dawState, name);
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Checkpoint "$name" saved!'),
+                    backgroundColor: EatsTheme.panelBackground,
+                  ),
+                );
+              },
+              child: const Text('SAVE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDiffDialog(BuildContext context, HistoryEntry entry, HistoryEntry? prevEntry) {
+    final oldText = prevEntry?.snapshotLua ?? '';
+    final newText = entry.snapshotLua;
+    final diff = HistoryManager.computeDiff(oldText, newText);
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: EatsTheme.backgroundDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.4), width: 1.5),
+          ),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.difference, color: EatsTheme.primaryCyan, size: 20),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'LUA STATE DIFF',
+                        style: EatsTheme.getDisplayFontStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: EatsTheme.primaryCyan,
+                        ),
+                      ),
+                      Text(
+                        entry.description,
+                        style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                color: EatsTheme.textMuted,
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 700,
+            height: 450,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: EatsTheme.controlBackground,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
+              ),
+              child: ListView.builder(
+                itemCount: diff.length,
+                itemBuilder: (ctx, i) {
+                  final line = diff[i];
+                  Color textColor;
+                  Color? bgColor;
+                  String prefix;
+
+                  switch (line.type) {
+                    case HistoryDiffType.added:
+                      textColor = const Color(0xFF00FF66);
+                      bgColor = const Color(0xFF00FF66).withOpacity(0.1);
+                      prefix = '+ ';
+                      break;
+                    case HistoryDiffType.removed:
+                      textColor = const Color(0xFFFF4040);
+                      bgColor = const Color(0xFFFF4040).withOpacity(0.1);
+                      prefix = '- ';
+                      break;
+                    case HistoryDiffType.unchanged:
+                      textColor = EatsTheme.textMuted;
+                      bgColor = null;
+                      prefix = '  ';
+                      break;
+                  }
+
+                  return Container(
+                    color: bgColor,
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    child: Text(
+                      '$prefix${line.text}',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        color: textColor,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('CLOSE', style: TextStyle(color: EatsTheme.primaryCyan)),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
+

@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import '../utils/platform_env_helper.dart';
 
 import '../audio/audio_engine.dart';
 import '../audio/sampler_engine.dart';
@@ -19,17 +20,26 @@ import '../lua/lua_preset_library.dart';
 import '../lua/midi_pipeline_engine.dart';
 import '../lua/default_song.dart';
 import 'track_model.dart';
+import 'history_manager.dart';
 
 class DawState extends ChangeNotifier {
   final AudioEngine audioEngine = AudioEngine();
   final LuaEngine luaEngine = LuaEngine();
+  final HistoryManager history = HistoryManager();
 
   String projectName = 'Untitled Song';
   String authorName = 'Anonymous Producer';
 
+  String _formatPitch(int pitch) {
+    const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    final octave = (pitch ~/ 12) - 1;
+    return '${names[pitch % 12]}$octave';
+  }
+
   void setProjectDetails(String name, String author) {
     projectName = name.trim().isEmpty ? 'Untitled Song' : name.trim();
     authorName = author.trim().isEmpty ? 'Anonymous Producer' : author.trim();
+    recordHistory('Project Info: "$projectName"', icon: Icons.edit);
     notifyListeners();
   }
 
@@ -62,6 +72,29 @@ class DawState extends ChangeNotifier {
   set activeTabIndex(int index) {
     _activeTabIndex = index;
     notifyListeners();
+  }
+
+  // UI Scale Settings (0.70x to 1.30x)
+  double _uiScale = 1.0;
+  double get uiScale => _uiScale;
+
+  void setUiScalePreview(double scale) {
+    _uiScale = (scale * 100).roundToDouble() / 100;
+    notifyListeners();
+  }
+
+  void commitUiScale(double scale) {
+    _uiScale = (scale * 100).roundToDouble() / 100;
+    notifyListeners();
+  }
+
+  void revertUiScale(double originalScale) {
+    _uiScale = (originalScale * 100).roundToDouble() / 100;
+    notifyListeners();
+  }
+
+  void resetUiScale() {
+    commitUiScale(1.0);
   }
 
   bool isBrowserOpen = false;
@@ -193,9 +226,12 @@ class DawState extends ChangeNotifier {
   void applyLuaTheme(Map<String, dynamic> themeConfig) {
     if (themeConfig.containsKey('preset')) {
       final pName = themeConfig['preset']?.toString();
-      if (pName == 'midnightBites') setThemePreset(EatsThemePreset.midnightBites);
-      if (pName == 'lightSnack') setThemePreset(EatsThemePreset.lightSnack);
-      if (pName == 'ateTrack') setThemePreset(EatsThemePreset.ateTrack);
+      for (final p in EatsThemePreset.values) {
+        if (p.name == pName) {
+          setThemePreset(p);
+          break;
+        }
+      }
     }
     notifyListeners();
   }
@@ -251,8 +287,13 @@ class DawState extends ChangeNotifier {
   }
 
   void loadFromEatsLua(String eatsLuaCode) {
-    projectName = EatsLuaParser.populateDawState(this, eatsLuaCode);
-    resetActiveIndices();
+    history.pauseRecording();
+    try {
+      projectName = EatsLuaParser.populateDawState(this, eatsLuaCode);
+      resetActiveIndices();
+    } finally {
+      history.resumeRecording();
+    }
   }
 
   Timer? _playbackTimer;
@@ -261,15 +302,19 @@ class DawState extends ChangeNotifier {
   final List<DateTime> _tapTimes = [];
 
   // Patterns & Tracks
-  late List<Pattern> patterns;
+  List<Pattern> patterns = [];
   int _activePatternIndex = 0;
   int get activePatternIndex => _activePatternIndex;
 
-  Pattern get activePattern => patterns[_activePatternIndex];
+  Pattern get activePattern => patterns.isNotEmpty
+      ? patterns[_activePatternIndex.clamp(0, patterns.length - 1)]
+      : Pattern(id: 'p0', name: 'Pattern 1', tracks: []);
 
   int _activeTrackIndex = 0;
   int get activeTrackIndex => _activeTrackIndex;
-  TrackChannel get activeTrack => activePattern.tracks[_activeTrackIndex];
+  TrackChannel get activeTrack => (activePattern.tracks.isNotEmpty)
+      ? activePattern.tracks[_activeTrackIndex.clamp(0, activePattern.tracks.length - 1)]
+      : TrackChannel(id: 'dummy', name: 'Track', color: const Color(0xFF00E5FF), type: TrackType.synth);
 
   set activeTrackIndex(int index) {
     final newIndex = index.clamp(0, activePattern.tracks.length - 1);
@@ -305,11 +350,41 @@ class DawState extends ChangeNotifier {
   String get wrenCode => luaCode;
   set wrenCode(String val) => luaCode = val;
 
-  DawState() {
+  static bool get isTestEnvironment => PlatformEnvHelper.isFlutterTest;
+
+  DawState({bool? enableMeterTimer}) {
     SoundFontEngine.instance.loadDefaultBundledFont();
     _initDemoTracks();
-    _startMeterTimer();
+    history.init(this, initialDescription: 'Project Started');
+    final shouldStartTimer = enableMeterTimer ?? !isTestEnvironment;
+    if (shouldStartTimer) {
+      _startMeterTimer();
+    }
   }
+
+  // History & Time Travel convenience methods
+  bool undo() => history.undo(this);
+  bool redo() => history.redo(this);
+  void recordHistory(
+    String description, {
+    IconData icon = Icons.edit,
+    bool isMilestone = false,
+    String? milestoneName,
+    bool force = false,
+  }) {
+    history.record(
+      this,
+      description,
+      icon: icon,
+      isMilestone: isMilestone,
+      milestoneName: milestoneName,
+      force: force,
+    );
+  }
+  void beginHistoryTransaction(String description, {IconData icon = Icons.tune}) =>
+      history.beginTransaction(this, description, icon: icon);
+  void commitHistoryTransaction() => history.commitTransaction(this);
+  void cancelHistoryTransaction() => history.cancelTransaction();
 
   Timer? _meterTimer;
 
@@ -326,6 +401,9 @@ class DawState extends ChangeNotifier {
   @override
   void dispose() {
     _meterTimer?.cancel();
+    _playbackTimer?.cancel();
+    history.dispose();
+    audioEngine.setMasterVolume(0.0);
     super.dispose();
   }
 
@@ -352,6 +430,7 @@ class DawState extends ChangeNotifier {
       // Invalidate PCM cache entries for this track so the next note trigger
       // re-synthesizes with the new Lua code rather than playing stale buffers.
       audioEngine.invalidateLuaCache(activeTrack.id);
+      recordHistory('Compile Lua Script (${activeTrack.name})', icon: Icons.code);
     }
     notifyListeners();
   }
@@ -381,6 +460,7 @@ class DawState extends ChangeNotifier {
     );
     track.clips.add(newClip);
     activeClip = newClip;
+    recordHistory('Add Clip to ${track.name} (Bar ${startBar + 1})', icon: Icons.view_timeline);
     notifyListeners();
   }
 
@@ -422,6 +502,7 @@ class DawState extends ChangeNotifier {
       timeContext: timeContext,
     );
 
+    recordHistory('Apply Preset "${preset.name}" to Clip', icon: Icons.tune);
     notifyListeners();
   }
 
@@ -466,6 +547,7 @@ class DawState extends ChangeNotifier {
       timeContext: timeContext,
     );
 
+    recordHistory('Add Clip "${preset.name}" to ${track.name}', icon: Icons.view_timeline);
     notifyListeners();
   }
 
@@ -488,6 +570,7 @@ class DawState extends ChangeNotifier {
       audioEngine.prewarmPatternCache(activePattern.tracks, stepDurationSec);
       _restartTimer();
     }
+    recordHistory('Set BPM to ${_bpm.toStringAsFixed(1)}', icon: Icons.speed);
     notifyListeners();
   }
 
@@ -736,6 +819,10 @@ class DawState extends ChangeNotifier {
         track.notes.removeWhere((n) => n.startStep.toInt() == stepIndex && n.pitch == step.pitch);
       }
       _syncClipNotes(track);
+      recordHistory(
+        '${step.active ? "Activate" : "Deactivate"} Step ${stepIndex + 1} (${track.name})',
+        icon: Icons.grid_view,
+      );
       notifyListeners();
     }
   }
@@ -764,6 +851,7 @@ class DawState extends ChangeNotifier {
       midiNote: note.pitch,
       velocity: note.velocity,
     );
+    recordHistory('Add Note ${_formatPitch(note.pitch)} (${track.name})', icon: Icons.music_note);
     notifyListeners();
   }
 
@@ -772,6 +860,7 @@ class DawState extends ChangeNotifier {
     if (idx != -1) {
       track.notes[idx] = updatedNote;
       _syncClipNotes(track);
+      recordHistory('Update Note ${_formatPitch(updatedNote.pitch)} (${track.name})', icon: Icons.music_note);
       notifyListeners();
     }
   }
@@ -779,12 +868,14 @@ class DawState extends ChangeNotifier {
   void removeNote(TrackChannel track, String noteId) {
     track.notes.removeWhere((n) => n.id == noteId);
     _syncClipNotes(track);
+    recordHistory('Delete Note (${track.name})', icon: Icons.delete_outline);
     notifyListeners();
   }
 
   void setTrackClipBarLength(TrackClip clip, int newBarLength) {
     final clamped = newBarLength.clamp(1, 16);
     clip.barLength = clamped;
+    recordHistory('Resize Clip "${clip.name}" to $clamped Bars', icon: Icons.straighten);
     notifyListeners();
   }
 
@@ -801,11 +892,13 @@ class DawState extends ChangeNotifier {
 
   void toggleMute(TrackChannel track) {
     track.isMuted = !track.isMuted;
+    recordHistory('${track.isMuted ? "Mute" : "Unmute"} ${track.name}', icon: Icons.volume_off);
     notifyListeners();
   }
 
   void toggleSolo(TrackChannel track) {
     track.isSoloed = !track.isSoloed;
+    recordHistory('${track.isSoloed ? "Solo" : "Unsolo"} ${track.name}', icon: Icons.headphones);
     notifyListeners();
   }
 
@@ -822,6 +915,7 @@ class DawState extends ChangeNotifier {
       if (_activeTrackIndex >= activePattern.tracks.length) {
         _activeTrackIndex = activePattern.tracks.length - 1;
       }
+      recordHistory('Delete Track "${track.name}"', icon: Icons.delete);
       notifyListeners();
     }
   }
@@ -875,6 +969,7 @@ class DawState extends ChangeNotifier {
       activePattern.tracks.add(newTrack);
       activeTrackIndex = activePattern.tracks.length - 1;
     }
+    recordHistory('Duplicate Track "${track.name}"', icon: Icons.copy);
     notifyListeners();
   }
 

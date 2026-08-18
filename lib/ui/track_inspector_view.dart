@@ -301,6 +301,8 @@ class TrackInspectorView extends StatelessWidget {
                         label: '${track.name} Volume',
                         activeColor: track.color,
                         onChanged: (val) => dawState.setTrackVolume(track, val),
+                        onChangeStart: () => dawState.beginHistoryTransaction('Volume (${track.name})', icon: Icons.volume_up),
+                        onChangeEnd: () => dawState.commitHistoryTransaction(),
                       ),
                     ),
                     SizedBox(width: 45, child: Text('${(track.volume * 100).toInt()}%', style: EatsTheme.getDisplayFontStyle(color: EatsTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 11))),
@@ -320,6 +322,8 @@ class TrackInspectorView extends StatelessWidget {
                         label: '${track.name} Pan',
                         activeColor: track.color,
                         onChanged: (val) => dawState.setTrackPan(track, val),
+                        onChangeStart: () => dawState.beginHistoryTransaction('Pan (${track.name})', icon: Icons.tune),
+                        onChangeEnd: () => dawState.commitHistoryTransaction(),
                       ),
                     ),
                     SizedBox(width: 45, child: Text(track.pan == 0 ? 'C' : (track.pan < 0 ? 'L${(track.pan.abs() * 100).toInt()}' : 'R${(track.pan * 100).toInt()}'), style: EatsTheme.getDisplayFontStyle(color: EatsTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 11))),
@@ -387,6 +391,8 @@ class TrackInspectorView extends StatelessWidget {
                                 final snapped = paramDef.isInteger ? val.roundToDouble() : val;
                                 dawState.updateLuaParam(paramDef.name, snapped);
                               },
+                              onChangeStart: () => dawState.beginHistoryTransaction('${paramDef.name} (${track.name})', icon: Icons.tune),
+                              onChangeEnd: () => dawState.commitHistoryTransaction(),
                             ),
                           ),
                           SizedBox(
@@ -459,6 +465,8 @@ class TrackInspectorView extends StatelessWidget {
                           ? const Color(0xFFFF8C00)
                           : track.color,
                       onChanged: (val) => dawState.setTrackVolume(track, val),
+                      onChangeStart: () => dawState.beginHistoryTransaction('Volume (${track.name})', icon: Icons.volume_up),
+                      onChangeEnd: () => dawState.commitHistoryTransaction(),
                       formatValue: (v) => '${(v * 100).toInt()}%',
                     ),
                     SkeuomorphicHardwareKnob(
@@ -471,6 +479,8 @@ class TrackInspectorView extends StatelessWidget {
                           ? const Color(0xFFFF8C00)
                           : track.color,
                       onChanged: (val) => dawState.setTrackPan(track, val),
+                      onChangeStart: () => dawState.beginHistoryTransaction('Pan (${track.name})', icon: Icons.tune),
+                      onChangeEnd: () => dawState.commitHistoryTransaction(),
                       formatValue: (v) => v == 0 ? 'CTR' : (v < 0 ? 'L${(v.abs() * 100).toInt()}' : 'R${(v * 100).toInt()}'),
                     ),
 
@@ -492,6 +502,11 @@ class TrackInspectorView extends StatelessWidget {
                         onChanged: (val) {
                           dawState.updateLuaParam(dawState.compilationResult.params.first.name, val);
                         },
+                        onChangeStart: () => dawState.beginHistoryTransaction(
+                          '${dawState.compilationResult.params.first.name} (${track.name})',
+                          icon: Icons.tune,
+                        ),
+                        onChangeEnd: () => dawState.commitHistoryTransaction(),
                       ),
                     ],
                   ],

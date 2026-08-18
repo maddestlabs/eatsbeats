@@ -14,6 +14,8 @@ class SkeuomorphicHardwareKnob extends StatefulWidget {
   final String? label;
   final bool showLabelText;
   final ValueChanged<double> onChanged;
+  final VoidCallback? onChangeStart;
+  final VoidCallback? onChangeEnd;
   final double size;
   final Color? accentColor;
   final String Function(double)? formatValue;
@@ -28,6 +30,8 @@ class SkeuomorphicHardwareKnob extends StatefulWidget {
     this.label,
     this.showLabelText = true,
     required this.onChanged,
+    this.onChangeStart,
+    this.onChangeEnd,
     this.size = 56.0,
     this.accentColor,
     this.formatValue,
@@ -66,6 +70,7 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
         ],
         GestureDetector(
           onVerticalDragStart: (details) {
+            widget.onChangeStart?.call();
             _dragStartValue = widget.value;
             _dragStartY = details.globalPosition.dy;
           },
@@ -80,7 +85,13 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
             }
             widget.onChanged(newValue);
           },
-          onDoubleTap: () => widget.onChanged(widget.defaultValue),
+          onVerticalDragEnd: (_) => widget.onChangeEnd?.call(),
+          onVerticalDragCancel: () => widget.onChangeEnd?.call(),
+          onDoubleTap: () {
+            widget.onChangeStart?.call();
+            widget.onChanged(widget.defaultValue);
+            widget.onChangeEnd?.call();
+          },
           onLongPress: () => _showManualEditDialog(context),
           onSecondaryTap: () => _showManualEditDialog(context),
           onSecondaryTapDown: (_) => _showManualEditDialog(context),

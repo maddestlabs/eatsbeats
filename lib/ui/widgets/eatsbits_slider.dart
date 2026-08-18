@@ -9,6 +9,8 @@ class EatsBitsSlider extends StatelessWidget {
   final double defaultValue;
   final String? label;
   final ValueChanged<double> onChanged;
+  final VoidCallback? onChangeStart;
+  final VoidCallback? onChangeEnd;
   final Color? activeColor;
   final Color? inactiveColor;
   final int? divisions;
@@ -24,6 +26,8 @@ class EatsBitsSlider extends StatelessWidget {
     required this.defaultValue,
     this.label,
     required this.onChanged,
+    this.onChangeStart,
+    this.onChangeEnd,
     this.activeColor,
     this.inactiveColor,
     this.divisions,
@@ -41,6 +45,8 @@ class EatsBitsSlider extends StatelessWidget {
       defaultValue: defaultValue,
       label: label,
       onChanged: onChanged,
+      onChangeStart: onChangeStart,
+      onChangeEnd: onChangeEnd,
       activeColor: activeColor ?? EatsTheme.primaryCyan,
       divisions: divisions,
       step: step,

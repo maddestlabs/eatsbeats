@@ -7,6 +7,8 @@ import 'package:mobile_wren_daw/lua/midi_pipeline_engine.dart';
 import 'package:flutter/material.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('TimeContext Unit Tests', () {
     test('Calculates beat, bar, seconds, and frameIndex accurately', () {
       final ctx = TimeContext.fromBeat(
@@ -179,6 +181,7 @@ void main() {
         (n) => n.startStep.toInt() == 2 && n.column == 0,
       );
       expect(remaining.isEmpty, isTrue);
+      dawState.dispose();
     });
   });
 }

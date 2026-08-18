@@ -39,6 +39,9 @@ void main() {
       final importedState = DawState();
       importedState.loadFromEatsZipOrLua(zipBytes: zipBytes);
       expect(importedState.projectName, equals('iOS Test Project'));
+
+      dawState.dispose();
+      importedState.dispose();
     });
 
 
@@ -66,6 +69,7 @@ void main() {
       final newTrack = dawState.activePattern.tracks.last;
       expect(newTrack.sampleName, equals('vocal_lead.wav'));
       expect(newTrack.clips.length, equals(1));
+      dawState.dispose();
     });
 
     test('getPitchShiftedPcm returns an isolated copy that does not mutate cached samples', () {

@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:wajuce/wajuce.dart';
 
+import '../utils/platform_env_helper.dart';
+
 import '../models/track_model.dart';
 import 'convolver_engine.dart';
 
@@ -287,7 +289,13 @@ class WajuceAudioBackend {
 
   Future<void> get ready => _readyFuture;
 
+  static bool get isTestEnvironment => PlatformEnvHelper.isFlutterTest;
+
   Future<void> _initialize() async {
+    if (isTestEnvironment) {
+      _initialized = true;
+      return;
+    }
     try {
       final ctx = WAContext(sampleRate: 44100, bufferSize: 512);
       final masterGain = ctx.createGain();

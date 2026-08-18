@@ -4,7 +4,8 @@ import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
 
 Future<void> showTrackPropertiesDialog(BuildContext context, DawState dawState, TrackChannel track) async {
-  final controller = TextEditingController(text: track.name);
+  final controller = TextEditingController(text: track.name)
+    ..selection = TextSelection(baseOffset: 0, extentOffset: track.name.length);
   Color selectedColor = track.color;
   bool isColorsExpanded = false;
 

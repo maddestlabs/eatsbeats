@@ -15,7 +15,7 @@ void main() {
   });
 
   testWidgets('Pattern Clip Selection & Note Preview Test', (WidgetTester tester) async {
-    final dawState = DawState();
+    final dawState = DawState(enableMeterTimer: false);
     final track = dawState.activeTrack;
     expect(track.clips, isNotEmpty);
 
@@ -48,5 +48,6 @@ void main() {
     expect(find.byType(CustomPaint), findsWidgets);
 
     dawState.dispose();
+    await tester.pumpWidget(const SizedBox());
   });
 }

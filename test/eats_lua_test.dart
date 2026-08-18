@@ -21,6 +21,7 @@ void main() {
       expect(luaString, contains('bpm = 128.00'));
       expect(luaString, contains('masterVolume = 0.90'));
       expect(luaString, contains('tracks = {'));
+      state.dispose();
     });
 
     test('Round-trip serialization and deserialization preserves song state', () {
@@ -82,6 +83,9 @@ void main() {
       final n2 = loadedTrack.notes.firstWhere((n) => n.id == 'n_test_2');
       expect(n2.pitch, equals(48));
       expect(n2.isSlide, isTrue);
+
+      state.dispose();
+      newState.dispose();
     });
 
     test('Parses multiline embedded Lua clip code blocks', () {
@@ -121,6 +125,7 @@ end
       final genTrack = newState.patterns.first.tracks.firstWhere((t) => t.name == 'Procedural Hats');
       expect(genTrack.clips.length, equals(1));
       expect(genTrack.clips.first.luaScriptCode, contains('function process(notes, context)'));
+      newState.dispose();
     });
 
     test('Full default DawState export and re-import works cleanly with Lua comments', () {
@@ -132,6 +137,8 @@ end
       final newState = DawState();
       expect(() => newState.loadFromEatsLua(exported), returnsNormally);
       expect(newState.patterns.first.tracks.length, equals(state.patterns.first.tracks.length));
+      state.dispose();
+      newState.dispose();
     });
   });
 

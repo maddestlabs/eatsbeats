@@ -231,22 +231,23 @@ class _EatsbitsLoadingScreenState extends State<EatsbitsLoadingScreen> with Sing
                             borderRadius: BorderRadius.circular(6),
                             child: Align(
                               alignment: Alignment.centerLeft,
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 60),
-                                width: MediaQuery.of(context).size.width * 0.8 * _progress,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      primaryColor,
-                                      accentAmber,
+                              child: FractionallySizedBox(
+                                widthFactor: _progress.clamp(0.0, 1.0),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        primaryColor,
+                                        accentAmber,
+                                      ],
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: primaryColor.withOpacity(0.6),
+                                        blurRadius: 8,
+                                      )
                                     ],
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: primaryColor.withOpacity(0.6),
-                                      blurRadius: 8,
-                                    )
-                                  ],
                                 ),
                               ),
                             ),

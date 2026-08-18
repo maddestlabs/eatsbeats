@@ -12,7 +12,8 @@ void showCompactValueEditDialog({
   VoidCallback? onResetDefault,
 }) {
   final effectiveAccent = accentColor ?? EatsTheme.primaryCyan;
-  final controller = TextEditingController(text: initialValue);
+  final controller = TextEditingController(text: initialValue)
+    ..selection = TextSelection(baseOffset: 0, extentOffset: initialValue.length);
 
   showDialog(
     context: context,

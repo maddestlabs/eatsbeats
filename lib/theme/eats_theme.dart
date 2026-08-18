@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 enum EatsThemePreset {
   ateTrack,      // Ate Track (Default Vintage Gear)
-  midnightBites, // Midnight Bites
-  lightSnack,    // Light Snack
+  midnightBites, // Midnight Bites (Obsidian Dark)
+  lightSnack,    // Light Snack (Studio Light)
+  breakfast,     // Breakfast (Solarized Light)
+  dinner,        // Dinner (Solarized Dark)
 }
 
 /// Central Theme Engine for Eatsbits.
@@ -11,7 +13,9 @@ enum EatsThemePreset {
 class EatsTheme {
   static EatsThemePreset currentPreset = EatsThemePreset.ateTrack;
 
-  static bool get isLight => currentPreset == EatsThemePreset.lightSnack;
+  static bool get isLight =>
+      currentPreset == EatsThemePreset.lightSnack ||
+      currentPreset == EatsThemePreset.breakfast;
 
   // --- Dual-Context Font Settings ---
   static String primaryFontName = 'Sans Serif';
@@ -39,6 +43,10 @@ class EatsTheme {
         return const Color(0xFF000000);
       case EatsThemePreset.lightSnack:
         return const Color(0xFFF4F6F9); // Crisp clean light background
+      case EatsThemePreset.breakfast:
+        return const Color(0xFFFDF6E3); // Solarized base3 light background
+      case EatsThemePreset.dinner:
+        return const Color(0xFF002B36); // Solarized base03 dark background
       case EatsThemePreset.ateTrack:
       default:
         return const Color(0xFF141210); // Weathered vintage rack dark background
@@ -51,6 +59,10 @@ class EatsTheme {
         return const Color(0xFF101010);
       case EatsThemePreset.lightSnack:
         return const Color(0xFFFFFFFF); // Pure white panel
+      case EatsThemePreset.breakfast:
+        return const Color(0xFFEEE8D5); // Solarized base2 panel
+      case EatsThemePreset.dinner:
+        return const Color(0xFF073642); // Solarized base02 panel
       case EatsThemePreset.ateTrack:
       default:
         return const Color(0xFF24211D); // Aged metal chassis surface
@@ -63,6 +75,10 @@ class EatsTheme {
         return const Color(0xFF181818);
       case EatsThemePreset.lightSnack:
         return const Color(0xFFE2E8F0); // Light grey header
+      case EatsThemePreset.breakfast:
+        return const Color(0xFFE0D8C3); // Solarized light header
+      case EatsThemePreset.dinner:
+        return const Color(0xFF0A4858); // Solarized dark header
       case EatsThemePreset.ateTrack:
       default:
         return const Color(0xFF332F2A); // Dark brushed metallic header
@@ -75,6 +91,10 @@ class EatsTheme {
         return const Color(0xFF222222);
       case EatsThemePreset.lightSnack:
         return const Color(0xFFCBD5E1); // Soft control fill
+      case EatsThemePreset.breakfast:
+        return const Color(0xFFE4DCC8); // Solarized light control well
+      case EatsThemePreset.dinner:
+        return const Color(0xFF001F27); // Solarized dark control well
       case EatsThemePreset.ateTrack:
       default:
         return const Color(0xFF181614); // Recessed control well background
@@ -85,6 +105,10 @@ class EatsTheme {
     switch (currentPreset) {
       case EatsThemePreset.lightSnack:
         return const Color(0xFF007799); // Deep Teal for high contrast
+      case EatsThemePreset.breakfast:
+        return const Color(0xFF2AA198); // Solarized Cyan
+      case EatsThemePreset.dinner:
+        return const Color(0xFF2AA198); // Solarized Cyan
       case EatsThemePreset.ateTrack:
         return const Color(0xFFFF8C00); // Warm Amber / Vintage Nixie Glow
       case EatsThemePreset.midnightBites:
@@ -97,6 +121,10 @@ class EatsTheme {
     switch (currentPreset) {
       case EatsThemePreset.lightSnack:
         return const Color(0xFF0284C7);
+      case EatsThemePreset.breakfast:
+        return const Color(0xFF268BD2); // Solarized Blue
+      case EatsThemePreset.dinner:
+        return const Color(0xFF268BD2); // Solarized Blue
       case EatsThemePreset.ateTrack:
         return const Color(0xFFFF8C00);
       case EatsThemePreset.midnightBites:
@@ -115,17 +143,50 @@ class EatsTheme {
   static const Color soloColor = Color(0xFFFFCC00);
 
   static Color get textPrimary {
-    return currentPreset == EatsThemePreset.lightSnack ? const Color(0xFF0F172A) : const Color(0xFFF0F4F8);
+    switch (currentPreset) {
+      case EatsThemePreset.lightSnack:
+        return const Color(0xFF0F172A);
+      case EatsThemePreset.breakfast:
+        return const Color(0xFF073642); // Solarized base02 (high contrast dark)
+      case EatsThemePreset.dinner:
+        return const Color(0xFFEEE8D5); // Solarized base2 (high contrast light)
+      case EatsThemePreset.ateTrack:
+      case EatsThemePreset.midnightBites:
+      default:
+        return const Color(0xFFF0F4F8);
+    }
   }
 
   static Color get textLight => textPrimary;
 
   static Color get textSecondary {
-    return currentPreset == EatsThemePreset.lightSnack ? const Color(0xFF334155) : const Color(0xFF8E9BAE);
+    switch (currentPreset) {
+      case EatsThemePreset.lightSnack:
+        return const Color(0xFF334155);
+      case EatsThemePreset.breakfast:
+        return const Color(0xFF586E75); // Solarized base01
+      case EatsThemePreset.dinner:
+        return const Color(0xFF93A1A1); // Solarized base1
+      case EatsThemePreset.ateTrack:
+      case EatsThemePreset.midnightBites:
+      default:
+        return const Color(0xFF8E9BAE);
+    }
   }
 
   static Color get textMuted {
-    return currentPreset == EatsThemePreset.lightSnack ? const Color(0xFF64748B) : const Color(0xFF535D6E);
+    switch (currentPreset) {
+      case EatsThemePreset.lightSnack:
+        return const Color(0xFF64748B);
+      case EatsThemePreset.breakfast:
+        return const Color(0xFF93A1A1); // Solarized base1
+      case EatsThemePreset.dinner:
+        return const Color(0xFF586E75); // Solarized base01
+      case EatsThemePreset.ateTrack:
+      case EatsThemePreset.midnightBites:
+      default:
+        return const Color(0xFF535D6E);
+    }
   }
 
 

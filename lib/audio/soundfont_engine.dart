@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'sampler_engine.dart';
@@ -66,6 +65,10 @@ class SoundFontEngine extends ChangeNotifier {
 
   /// Asynchronously loads the core bundled fallback SoundFont from Flutter assets ('assets/soundfonts/super_small_font.sf2').
   Future<bool> loadDefaultBundledFont() async {
+    if (_loadedFonts.containsKey('super_small_font.sf2') ||
+        _loadedFonts.containsKey('default.sf2')) {
+      return true;
+    }
     try {
       final ByteData data = await rootBundle.load('assets/soundfonts/super_small_font.sf2');
       final Uint8List bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);

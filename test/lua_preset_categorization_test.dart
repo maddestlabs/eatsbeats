@@ -53,6 +53,7 @@ end
 
       expect(track.fxRack.length, equals(initialFxCount + 1));
       expect(track.fxRack.last.name, equals('Tube Saturator'));
+      dawState.dispose();
     });
   });
 }

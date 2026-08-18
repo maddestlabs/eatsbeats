@@ -106,6 +106,7 @@ class AudioEngine {
 
     if (!_backend.isInitialized) {
       _backend.ready.then((_) {
+        if (!_backend.isInitialized) return;
         playNoteOrSample(
           track: track,
           midiNote: midiNote,

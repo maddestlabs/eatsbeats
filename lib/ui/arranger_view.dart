@@ -716,6 +716,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                      },
                                                      onHorizontalDragStart: (_) {
                                                        _moveDragDxAccumulator = 0.0;
+                                                       widget.dawState.beginHistoryTransaction('Move Clip "${clip.name}"', icon: Icons.open_with);
                                                      },
                                                      onHorizontalDragUpdate: (details) {
                                                        _moveDragDxAccumulator += details.delta.dx;
@@ -729,6 +730,8 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                          }
                                                        }
                                                      },
+                                                     onHorizontalDragEnd: (_) => widget.dawState.commitHistoryTransaction(),
+                                                     onHorizontalDragCancel: () => widget.dawState.commitHistoryTransaction(),
                                                      child: AnimatedContainer(
                                                        duration: const Duration(milliseconds: 120),
                                                        decoration: BoxDecoration(
@@ -850,6 +853,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                                  behavior: HitTestBehavior.opaque,
                                                                  onHorizontalDragStart: (_) {
                                                                    _resizeDragDxAccumulator = 0.0;
+                                                                   widget.dawState.beginHistoryTransaction('Resize Clip "${clip.name}"', icon: Icons.straighten);
                                                                  },
                                                                  onHorizontalDragUpdate: (details) {
                                                                    _resizeDragDxAccumulator += details.delta.dx;
@@ -863,6 +867,8 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                                      }
                                                                    }
                                                                  },
+                                                                 onHorizontalDragEnd: (_) => widget.dawState.commitHistoryTransaction(),
+                                                                 onHorizontalDragCancel: () => widget.dawState.commitHistoryTransaction(),
                                                                  child: Container(
                                                                    color: Colors.transparent,
                                                                    alignment: Alignment.center,
