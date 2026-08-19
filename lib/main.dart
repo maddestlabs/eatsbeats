@@ -235,6 +235,62 @@ class _DawMainShellState extends State<DawMainShell> {
           }
           widget.dawState.redo();
         },
+        const SingleActivator(LogicalKeyboardKey.delete): () {
+          final primaryFocus = FocusManager.instance.primaryFocus;
+          if (primaryFocus != null && primaryFocus.context != null) {
+            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
+          }
+          final activeClip = widget.dawState.activeClip;
+          if (activeClip != null) {
+            final track = widget.dawState.activePattern.tracks.firstWhere(
+              (t) => t.id == activeClip.trackId || t.clips.any((c) => c.id == activeClip.id),
+              orElse: () => widget.dawState.activeTrack,
+            );
+            widget.dawState.deleteClip(track, activeClip);
+          }
+        },
+        const SingleActivator(LogicalKeyboardKey.backspace): () {
+          final primaryFocus = FocusManager.instance.primaryFocus;
+          if (primaryFocus != null && primaryFocus.context != null) {
+            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
+          }
+          final activeClip = widget.dawState.activeClip;
+          if (activeClip != null) {
+            final track = widget.dawState.activePattern.tracks.firstWhere(
+              (t) => t.id == activeClip.trackId || t.clips.any((c) => c.id == activeClip.id),
+              orElse: () => widget.dawState.activeTrack,
+            );
+            widget.dawState.deleteClip(track, activeClip);
+          }
+        },
+        const SingleActivator(LogicalKeyboardKey.keyD, control: true): () {
+          final primaryFocus = FocusManager.instance.primaryFocus;
+          if (primaryFocus != null && primaryFocus.context != null) {
+            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
+          }
+          final activeClip = widget.dawState.activeClip;
+          if (activeClip != null) {
+            final track = widget.dawState.activePattern.tracks.firstWhere(
+              (t) => t.id == activeClip.trackId || t.clips.any((c) => c.id == activeClip.id),
+              orElse: () => widget.dawState.activeTrack,
+            );
+            widget.dawState.duplicateClip(track, activeClip);
+          }
+        },
+        const SingleActivator(LogicalKeyboardKey.keyD, meta: true): () {
+          final primaryFocus = FocusManager.instance.primaryFocus;
+          if (primaryFocus != null && primaryFocus.context != null) {
+            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
+          }
+          final activeClip = widget.dawState.activeClip;
+          if (activeClip != null) {
+            final track = widget.dawState.activePattern.tracks.firstWhere(
+              (t) => t.id == activeClip.trackId || t.clips.any((c) => c.id == activeClip.id),
+              orElse: () => widget.dawState.activeTrack,
+            );
+            widget.dawState.duplicateClip(track, activeClip);
+          }
+        },
       },
       child: Scaffold(
         backgroundColor: EatsTheme.backgroundDark,

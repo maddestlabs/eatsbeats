@@ -6,6 +6,44 @@ enum TrackType { sampler, synth, luaScript, bass;
   bool get isScript => this == TrackType.luaScript;
 }
 
+enum ChordFollowMode {
+  off,
+  bass,
+  chord,
+  scale,
+  colorLead;
+
+  String get displayName {
+    switch (this) {
+      case ChordFollowMode.off:
+        return 'Off';
+      case ChordFollowMode.bass:
+        return 'Bass';
+      case ChordFollowMode.chord:
+        return 'Chord';
+      case ChordFollowMode.scale:
+        return 'Scale';
+      case ChordFollowMode.colorLead:
+        return 'Lead';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case ChordFollowMode.off:
+        return 'Play original MIDI notes unadjusted';
+      case ChordFollowMode.bass:
+        return 'Snap to chord root or bass inversion note';
+      case ChordFollowMode.chord:
+        return 'Snap notes to nearest active chord tones (1, 3, 5, 7)';
+      case ChordFollowMode.scale:
+        return 'Snap notes to active chord diatonic scale';
+      case ChordFollowMode.colorLead:
+        return 'Preserve melodic shape while resolving harmonic clashes';
+    }
+  }
+}
+
 class Note {
   String id;
   int pitch; // MIDI Note Number (e.g., 60 = C4)
@@ -281,6 +319,21 @@ class TrackClip {
   Map<String, double> luaParams;
   List<Note>? evaluatedNotesCache;
 
+  bool get hasMidiScript {
+    if (luaScriptCode.trim().isEmpty) return false;
+    final lower = luaScriptCode.toLowerCase();
+    return lower.contains('transform_notes') ||
+        lower.contains('function process') ||
+        lower.contains('midi.') ||
+        lower.contains('chord.') ||
+        lower.contains('@category: midifx') ||
+        lower.contains('chord_follow') ||
+        lower.contains('chord_arp') ||
+        lower.contains('chord_stabs') ||
+        lower.contains('arpeggiat') ||
+        lower.contains('arp');
+  }
+
   TrackClip({
     required this.id,
     required this.name,
@@ -382,6 +435,7 @@ class TrackChannel {
   int trackerColumns; // Number of tracker sub-channel columns for polyphony (default 4)
   MusicViewType activeView; // Active view for this track (pianoRoll, tracker, score)
   bool isMonophonic;
+  ChordFollowMode chordFollowMode;
 
   bool get isMonophonicTrack =>
       isMonophonic ||
@@ -451,6 +505,7 @@ class TrackChannel {
     this.trackerColumns = 4,
     this.activeView = MusicViewType.pianoRoll,
     this.isMonophonic = false,
+    this.chordFollowMode = ChordFollowMode.off,
     Map<String, double>? luaParams,
     Map<String, double>? wrenParams,
     List<StepEvent>? steps,
@@ -501,6 +556,7 @@ class TrackChannel {
     int? trackerColumns,
     MusicViewType? activeView,
     bool? isMonophonic,
+    ChordFollowMode? chordFollowMode,
     Map<String, double>? luaParams,
     Map<String, double>? wrenParams,
     List<StepEvent>? steps,
@@ -529,6 +585,7 @@ class TrackChannel {
       trackerColumns: trackerColumns ?? this.trackerColumns,
       activeView: activeView ?? this.activeView,
       isMonophonic: isMonophonic ?? this.isMonophonic,
+      chordFollowMode: chordFollowMode ?? this.chordFollowMode,
       luaParams: luaParams ?? wrenParams ?? Map.from(this.luaParams),
       steps: steps ?? this.steps.map((s) => s.copyWith()).toList(),
       notes: notes ?? this.notes.map((n) => n.copyWith()).toList(),
@@ -559,6 +616,7 @@ class TrackChannel {
     'trackerColumns': trackerColumns,
     'activeView': activeView.name,
     'isMonophonic': isMonophonic,
+    'chordFollowMode': chordFollowMode.name,
     'luaParams': luaParams,
     'wrenParams': luaParams,
     'steps': steps.map((s) => s.toJson()).toList(),

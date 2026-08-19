@@ -21,6 +21,7 @@ import '../lua/lua_preset_library.dart';
 import '../lua/midi_pipeline_engine.dart';
 import '../lua/default_song.dart';
 import 'track_model.dart';
+import 'chord_model.dart';
 import 'history_manager.dart';
 
 class DawState extends ChangeNotifier {
@@ -30,6 +31,150 @@ class DawState extends ChangeNotifier {
 
   String projectName = 'Untitled Song';
   String authorName = 'Anonymous Producer';
+
+  // Global Harmonic & Chord Track State
+  String _songKey = 'C Major';
+  String get songKey => _songKey;
+  
+  int get songKeyRoot {
+    final rootPart = _songKey.split(' ').first;
+    final idx = ChordTheory.pitchClassNames.indexOf(rootPart);
+    if (idx != -1) return idx;
+    final flatIdx = ChordTheory.pitchClassFlatNames.indexOf(rootPart);
+    if (flatIdx != -1) return flatIdx;
+    return 0;
+  }
+
+  bool get isSongKeyMinor => _songKey.toLowerCase().contains('minor') || _songKey.toLowerCase().contains('min');
+
+  void setSongKey(String newKey) {
+    if (_songKey != newKey) {
+      _songKey = newKey;
+      recordHistory('Set Song Key: $newKey', icon: Icons.music_note);
+      triggerAutoSave();
+      notifyListeners();
+    }
+  }
+
+  List<ChordEvent> chordTrack = [];
+
+  ChordEvent? getActiveChordAtStep(int stepIdx) {
+    final bar = stepIdx / 16.0;
+    for (final chord in chordTrack) {
+      if (bar >= chord.startBar && bar < (chord.startBar + chord.barLength)) {
+        return chord;
+      }
+    }
+    return null;
+  }
+
+  ChordEvent? getActiveChordAtBar(int barIdx) {
+    for (final chord in chordTrack) {
+      if (barIdx >= chord.startBar && barIdx < (chord.startBar + chord.barLength)) {
+        return chord;
+      }
+    }
+    return null;
+  }
+
+  void addOrUpdateChord(ChordEvent chord) {
+    final existingIdx = chordTrack.indexWhere((c) => c.id == chord.id);
+    if (existingIdx != -1) {
+      chordTrack[existingIdx] = chord;
+    } else {
+      // Remove any overlapping chord at exactly that start bar
+      chordTrack.removeWhere((c) => c.startBar == chord.startBar);
+      chordTrack.add(chord);
+      chordTrack.sort((a, b) => a.startBar.compareTo(b.startBar));
+    }
+    recordHistory('Set Chord ${chord.displayName} at Bar ${chord.startBar + 1}', icon: Icons.queue_music);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void removeChord(String chordId) {
+    final removed = chordTrack.firstWhere((c) => c.id == chordId, orElse: () => ChordEvent(id: '', startBar: 0, rootPitchClass: 0, quality: ChordQuality.major));
+    chordTrack.removeWhere((c) => c.id == chordId);
+    if (removed.id.isNotEmpty) {
+      recordHistory('Removed Chord ${removed.displayName}', icon: Icons.delete_outline);
+      triggerAutoSave();
+      notifyListeners();
+    }
+  }
+
+  void clearChordTrack() {
+    chordTrack.clear();
+    recordHistory('Cleared Chord Track', icon: Icons.clear_all);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void applyChordProgressionPreset(ChordProgressionPreset preset, {int startBar = 0}) {
+    int currentBar = startBar;
+    for (final chordDef in preset.chords) {
+      final rootPc = (songKeyRoot + chordDef.$1) % 12;
+      chordTrack.removeWhere((c) => c.startBar >= currentBar && c.startBar < (currentBar + chordDef.$3));
+      chordTrack.add(ChordEvent(
+        id: 'chord_${DateTime.now().millisecondsSinceEpoch}_$currentBar',
+        startBar: currentBar,
+        barLength: chordDef.$3,
+        rootPitchClass: rootPc,
+        quality: chordDef.$2,
+      ));
+      currentBar += chordDef.$3.toInt();
+    }
+    chordTrack.sort((a, b) => a.startBar.compareTo(b.startBar));
+    recordHistory('Applied Progression "${preset.name}"', icon: Icons.auto_awesome);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void auditionChord(ChordEvent chord) {
+    final midiNotes = ChordTheory.getAuditionMidiNotes(chord);
+    for (final pitch in midiNotes) {
+      audioEngine.playNoteOrSample(
+        track: activeTrack,
+        midiNote: pitch,
+        velocity: 0.8,
+        durationSec: 1.2,
+      );
+    }
+  }
+
+  void setTrackChordFollowMode(TrackChannel track, ChordFollowMode mode) {
+    track.chordFollowMode = mode;
+    recordHistory('Track "${track.name}" Follow: ${mode.displayName}', icon: Icons.tune);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void bakeTrackChordsToMidi(TrackChannel track) {
+    if (track.chordFollowMode == ChordFollowMode.off) return;
+
+    for (final clip in track.clips) {
+      for (final note in clip.notes) {
+        final stepIdx = (clip.startBar * 16) + note.startStep.toInt();
+        final chord = getActiveChordAtStep(stepIdx);
+        if (chord != null) {
+          note.pitch = ChordTheory.remapPitchForChord(note.pitch, chord, track.chordFollowMode.name);
+        }
+      }
+    }
+    for (int i = 0; i < track.steps.length; i++) {
+      final step = track.steps[i];
+      if (step.active) {
+        final chord = getActiveChordAtStep(i);
+        if (chord != null) {
+          step.pitch = ChordTheory.remapPitchForChord(step.pitch, chord, track.chordFollowMode.name);
+        }
+      }
+    }
+    track.chordFollowMode = ChordFollowMode.off;
+    _syncClipNotes(track);
+    recordHistory('Baked Chords to MIDI for "${track.name}"', icon: Icons.lock_clock);
+    triggerAutoSave();
+    notifyListeners();
+  }
 
   String _formatPitch(int pitch) {
     const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -46,10 +191,18 @@ class DawState extends ChangeNotifier {
 
   void notifyState() => notifyListeners();
 
-  TimeContext get timeContext => TimeContext.fromBeat(
-    beat: (_currentBar * 4 + _currentStep / 4).toDouble(),
-    bpm: _bpm,
-  );
+  TimeContext get timeContext {
+    final curStep = (_currentBar * 16 + _currentStep).toInt();
+    return TimeContext.fromBeat(
+      beat: (_currentBar * 4 + _currentStep / 4).toDouble(),
+      bpm: _bpm,
+      activeChord: getActiveChordAtStep(curStep),
+      chordTrack: List.unmodifiable(chordTrack),
+      songKey: songKey,
+      songKeyRoot: songKeyRoot,
+      isSongKeyMinor: isSongKeyMinor,
+    );
+  }
 
   TrackClip get activeTrackClip {
     if (activeTrack.clips.isEmpty) {
@@ -59,9 +212,9 @@ class DawState extends ChangeNotifier {
         trackId: activeTrack.id,
         startBar: 0,
         barLength: 2,
-        notes: activeTrack.notes,
-        luaScriptCode: activeTrack.luaScriptCode,
-        luaParams: activeTrack.luaParams,
+        notes: activeTrack.notes.map((n) => n.copyWith()).toList(),
+        luaScriptCode: '',
+        luaParams: {},
       ));
     }
     return activeTrack.clips.first;
@@ -200,10 +353,44 @@ class DawState extends ChangeNotifier {
       track.type = TrackType.luaScript;
       track.luaScriptCode = preset.code;
       compileLuaCode(preset.code);
+      recordHistory('Applied instrument "${preset.name}" to ${track.name}', icon: Icons.piano);
     } else if (preset.isAudioFx) {
-      addFXInsert(track, FXType.distortion);
-      final fx = track.fxRack.last;
+      FXType fxType = FXType.distortion;
+      final lowerId = preset.id.toLowerCase();
+      final lowerName = preset.name.toLowerCase();
+      if (lowerId.contains('delay') || lowerName.contains('delay') || lowerName.contains('chorus')) {
+        fxType = FXType.delay;
+      } else if (lowerId.contains('crush') || lowerName.contains('crush') || lowerName.contains('bit')) {
+        fxType = FXType.bitcrusher;
+      } else if (lowerId.contains('reverb') || lowerName.contains('reverb')) {
+        fxType = FXType.convolutionReverb;
+      } else if (lowerId.contains('filter') || lowerName.contains('filter')) {
+        fxType = FXType.biquadFilter;
+      }
+      final fx = FXInsert.create(fxType);
       fx.name = preset.name;
+      track.fxRack.add(fx);
+      audioEngine.invalidateLuaCache(track.id);
+      recordHistory('Add FX "${preset.name}" to end of ${track.name} FX rack', icon: Icons.tune);
+    } else if (preset.isMidiFx) {
+      if (activeClip != null && activeClip!.trackId == track.id) {
+        applyPresetToClip(track, activeClip!, preset);
+      } else if (track.clips.isNotEmpty) {
+        applyPresetToClip(track, track.clips.first, preset);
+      } else {
+        addMidiFXInsert(
+          track,
+          name: preset.name,
+          luaScriptCode: preset.code,
+        );
+        recordHistory('Add MIDI FX "${preset.name}" to ${track.name}', icon: Icons.music_note);
+      }
+    } else if (preset.isMidiSeq) {
+      if (activeClip != null && activeClip!.trackId == track.id) {
+        applyPresetToClip(track, activeClip!, preset);
+      } else if (track.clips.isNotEmpty) {
+        applyPresetToClip(track, track.clips.first, preset);
+      }
     } else {
       track.luaScriptCode = preset.code;
       compileLuaCode(preset.code);
@@ -212,6 +399,11 @@ class DawState extends ChangeNotifier {
   }
 
   void addNewPresetTrack(LuaPreset preset) {
+    if (!preset.isInstrument) {
+      debugPrint('DawState: Cannot create a new track from non-instrument preset "${preset.name}" (${preset.category.displayName})');
+      return;
+    }
+
     final trackId = 'track_${DateTime.now().millisecondsSinceEpoch}';
     final trackColors = [
       const Color(0xFF21F4E8),
@@ -409,6 +601,7 @@ class DawState extends ChangeNotifier {
     final newIndex = index.clamp(0, activePattern.tracks.length - 1);
     if (_activeTrackIndex != newIndex || luaCode.isEmpty) {
       _activeTrackIndex = newIndex;
+      activeClip = null;
       if (activeTrack.luaScriptCode.isNotEmpty) {
         luaCode = activeTrack.luaScriptCode;
         compilationResult = LuaEngine.compile(luaCode);
@@ -421,6 +614,9 @@ class DawState extends ChangeNotifier {
           scriptType: 'synth',
         );
       }
+    } else {
+      // Also clear active clip if re-selecting active track without clicking a clip
+      activeClip = null;
     }
     notifyListeners();
   }
@@ -550,12 +746,74 @@ class DawState extends ChangeNotifier {
       startBar: startBar,
       barLength: 2,
       notes: track.notes.map((n) => n.copyWith()).toList(),
-      luaScriptCode: track.luaScriptCode,
-      luaParams: Map.from(track.luaParams),
+      luaScriptCode: '',
+      luaParams: {},
     );
     track.clips.add(newClip);
     activeClip = newClip;
     recordHistory('Add Clip to ${track.name} (Bar ${startBar + 1})', icon: Icons.view_timeline);
+    notifyListeners();
+  }
+
+  void deleteClip(TrackChannel track, TrackClip clip) {
+    final idx = track.clips.indexOf(clip);
+    if (idx != -1) {
+      track.clips.removeAt(idx);
+      if (activeClip?.id == clip.id) {
+        activeClip = track.clips.isNotEmpty ? track.clips.first : null;
+      }
+      recordHistory('Delete Clip "${clip.name}" from ${track.name}', icon: Icons.delete_outline);
+      notifyListeners();
+    }
+  }
+
+  void duplicateClip(TrackChannel track, TrackClip clip) {
+    final newStartBar = clip.startBar + clip.barLength;
+    final duplicated = TrackClip(
+      id: 'c_${DateTime.now().millisecondsSinceEpoch}',
+      name: '${clip.name} (Copy)',
+      trackId: track.id,
+      startBar: newStartBar,
+      barLength: clip.barLength,
+      notes: clip.notes.map((n) => n.copyWith()).toList(),
+      luaScriptCode: clip.luaScriptCode,
+      luaParams: Map.from(clip.luaParams),
+    );
+    track.clips.add(duplicated);
+    activeClip = duplicated;
+    recordHistory('Duplicate Clip "${clip.name}"', icon: Icons.copy);
+    notifyListeners();
+  }
+
+  void renameClip(TrackClip clip, String newName) {
+    if (newName.trim().isNotEmpty && clip.name != newName.trim()) {
+      clip.name = newName.trim();
+      recordHistory('Rename Clip to "${clip.name}"', icon: Icons.edit);
+      notifyListeners();
+    }
+  }
+
+  void setTrackClipStartBar(TrackClip clip, int startBar) {
+    clip.startBar = startBar.clamp(0, 128);
+    recordHistory('Move Clip "${clip.name}" to Bar ${clip.startBar + 1}', icon: Icons.drag_handle);
+    notifyListeners();
+  }
+
+  void toggleTrackMidiFXRack(TrackChannel track, bool enableAll) {
+    for (final fx in track.midiFXRack) {
+      fx.enabled = enableAll;
+    }
+    invalidateTrackMidiCache(track);
+    recordHistory('${enableAll ? "Enable" : "Bypass"} MIDI FX Rack on ${track.name}', icon: Icons.bolt);
+    notifyListeners();
+  }
+
+  void toggleTrackAudioFXRack(TrackChannel track, bool enableAll) {
+    for (final fx in track.fxRack) {
+      fx.enabled = enableAll;
+    }
+    audioEngine.invalidateLuaCache(track.id);
+    recordHistory('${enableAll ? "Enable" : "Bypass"} Audio FX Rack on ${track.name}', icon: Icons.tune);
     notifyListeners();
   }
 
@@ -820,10 +1078,19 @@ class DawState extends ChangeNotifier {
   void _scheduleStep(int stepIdx, double hardwareTime, double stepDurationSec) {
     final currentPattern = activePattern;
     final hasSolo = currentPattern.tracks.any((t) => t.isSoloed);
+    final activeChord = getActiveChordAtStep(stepIdx);
+    final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
 
     for (final track in currentPattern.tracks) {
       if (track.isMuted) continue;
       if (hasSolo && !track.isSoloed) continue;
+
+      int remapPitch(int pitch) {
+        if (activeChord != null && track.chordFollowMode != ChordFollowMode.off) {
+          return ChordTheory.remapPitchForChord(pitch, activeChord, track.chordFollowMode.name);
+        }
+        return pitch;
+      }
 
       // Arranger Clip Position Playback Logic
       for (final clip in track.clips) {
@@ -833,48 +1100,66 @@ class DawState extends ChangeNotifier {
         if (stepIdx >= clipStartStep && stepIdx < clipEndStep) {
           final int localStep = stepIdx - clipStartStep;
           
-          if (clip.notes.isNotEmpty) {
-            final matchingNotes = clip.notes.where((n) => n.startStep.toInt() == localStep).toList();
+          final List<Note> effectiveNotes = clip.evaluatedNotesCache ??
+              ((track.midiFXRack.any((f) => f.enabled) || clip.hasMidiScript)
+                  ? pipeline.processClip(clip: clip, track: track, timeContext: timeContext)
+                  : clip.notes);
+
+          if (effectiveNotes.isNotEmpty) {
+            // Find all notes starting within this 16th step window: [localStep, localStep + 1.0)
+            final matchingNotes = effectiveNotes.where(
+              (n) => n.startStep >= localStep && n.startStep < (localStep + 1.0),
+            ).toList();
+
             if (matchingNotes.isNotEmpty) {
               if (track.isMonophonicTrack) {
-                final note = matchingNotes.first;
-                final nextLocalStep = localStep + 1;
-                final nextNotes = clip.notes.where((n) => n.startStep.toInt() == nextLocalStep).toList();
-                final int? targetPitch = nextNotes.isNotEmpty
-                    ? nextNotes.first.pitch
-                    : (matchingNotes.length > 1 ? matchingNotes.last.pitch : null);
+                for (int mIdx = 0; mIdx < matchingNotes.length; mIdx++) {
+                  final note = matchingNotes[mIdx];
+                  final double subOffset = (note.startStep - localStep).clamp(0.0, 0.99);
+                  final double noteHardwareTime = hardwareTime + (subOffset * stepDurationSec);
 
-                final bool hasPrevOverlap =
-                    clip.notes.any((n) => n.startStep < localStep && (n.startStep + n.durationSteps) > localStep);
+                  final nextNotes = effectiveNotes.where((n) => n.startStep > note.startStep && n.startStep <= (note.startStep + 1.5)).toList();
+                  final int? rawTargetPitch = nextNotes.isNotEmpty ? nextNotes.first.pitch : null;
+                  final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
 
-                final bool isSlideNote = note.isSlide ||
-                    hasPrevOverlap ||
-                    (note.durationSteps > 1.0) ||
-                    (nextNotes.isNotEmpty && (note.isSlide || note.durationSteps >= 1.0));
-                final bool isAccentNote = note.isAccent || note.velocity > 0.75;
+                  final bool hasPrevOverlap = effectiveNotes.any(
+                    (n) => n.startStep < note.startStep && (n.startStep + n.durationSteps) > note.startStep,
+                  );
 
-                audioEngine.playNoteOrSample(
-                  track: track,
-                  midiNote: note.pitch,
-                  targetMidiNote: targetPitch,
-                  isSlide: isSlideNote,
-                  isAccent: isAccentNote,
-                  velocity: note.velocity,
-                  durationSec: note.durationSteps * stepDurationSec,
-                  scheduledTime: hardwareTime,
-                );
-              } else {
-                // Polyphonic track: schedule all simultaneous notes on this step
-                for (final note in matchingNotes) {
+                  final bool isSlideNote = note.isSlide ||
+                      hasPrevOverlap ||
+                      (note.durationSteps > 1.0) ||
+                      (nextNotes.isNotEmpty && (note.isSlide || note.durationSteps >= 1.0));
                   final bool isAccentNote = note.isAccent || note.velocity > 0.75;
+                  final effectiveMidi = remapPitch(note.pitch);
+
                   audioEngine.playNoteOrSample(
                     track: track,
-                    midiNote: note.pitch,
+                    midiNote: effectiveMidi,
+                    targetMidiNote: targetPitch,
+                    isSlide: isSlideNote,
+                    isAccent: isAccentNote,
+                    velocity: note.velocity,
+                    durationSec: math.max(0.02, note.durationSteps * stepDurationSec),
+                    scheduledTime: noteHardwareTime,
+                  );
+                }
+              } else {
+                // Polyphonic track: schedule all simultaneous / sub-step notes in this window
+                for (final note in matchingNotes) {
+                  final double subOffset = (note.startStep - localStep).clamp(0.0, 0.99);
+                  final double noteHardwareTime = hardwareTime + (subOffset * stepDurationSec);
+                  final bool isAccentNote = note.isAccent || note.velocity > 0.75;
+                  final effectiveMidi = remapPitch(note.pitch);
+
+                  audioEngine.playNoteOrSample(
+                    track: track,
+                    midiNote: effectiveMidi,
                     isSlide: note.isSlide,
                     isAccent: isAccentNote,
                     velocity: note.velocity,
-                    durationSec: note.durationSteps * stepDurationSec,
-                    scheduledTime: hardwareTime,
+                    durationSec: math.max(0.02, note.durationSteps * stepDurationSec),
+                    scheduledTime: noteHardwareTime,
                   );
                 }
               }
@@ -887,12 +1172,15 @@ class DawState extends ChangeNotifier {
               final bool isSlideStep = step.isSlide ||
                   (track.isMonophonicTrack && nextStep.active) ||
                   (track.isMonophonicTrack && prevStep.active);
-              final int? targetPitch = nextStep.active ? nextStep.pitch : null;
+              final int? rawTargetPitch = nextStep.active ? nextStep.pitch : null;
+              final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
               final bool isAccentStep = step.isAccent || step.velocity > 0.75;
+
+              final effectiveMidi = remapPitch(step.pitch);
 
               audioEngine.playNoteOrSample(
                 track: track,
-                midiNote: step.pitch,
+                midiNote: effectiveMidi,
                 targetMidiNote: targetPitch,
                 isSlide: isSlideStep,
                 isAccent: isAccentStep,
@@ -1042,6 +1330,43 @@ class DawState extends ChangeNotifier {
     }
   }
 
+  void moveTrackUp(TrackChannel track) {
+    final idx = activePattern.tracks.indexOf(track);
+    if (idx > 0) {
+      activePattern.tracks.removeAt(idx);
+      activePattern.tracks.insert(idx - 1, track);
+      _activeTrackIndex = idx - 1;
+      recordHistory('Move Track "${track.name}" Up', icon: Icons.keyboard_arrow_up);
+      triggerAutoSave();
+      notifyListeners();
+    }
+  }
+
+  void moveTrackDown(TrackChannel track) {
+    final idx = activePattern.tracks.indexOf(track);
+    if (idx != -1 && idx < activePattern.tracks.length - 1) {
+      activePattern.tracks.removeAt(idx);
+      activePattern.tracks.insert(idx + 1, track);
+      _activeTrackIndex = idx + 1;
+      recordHistory('Move Track "${track.name}" Down', icon: Icons.keyboard_arrow_down);
+      triggerAutoSave();
+      notifyListeners();
+    }
+  }
+
+  void reorderTracks(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= activePattern.tracks.length) return;
+    if (newIndex < 0 || newIndex >= activePattern.tracks.length) return;
+    if (oldIndex == newIndex) return;
+
+    final track = activePattern.tracks.removeAt(oldIndex);
+    activePattern.tracks.insert(newIndex, track);
+    _activeTrackIndex = newIndex;
+    recordHistory('Reorder Track "${track.name}" to position ${newIndex + 1}', icon: Icons.swap_vert);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
   void duplicateTrack(TrackChannel track) {
     final newId = 't_${DateTime.now().millisecondsSinceEpoch}';
     final duplicatedClips = track.clips.map((c) {
@@ -1182,6 +1507,180 @@ class DawState extends ChangeNotifier {
         break;
       }
     }
+  }
+
+  // MIDI FX Insert Management
+  void addMidiFXInsert(
+    TrackChannel track, {
+    String name = 'Arpeggiator FX',
+    String luaScriptCode = 'arpeggiator',
+    Map<String, double>? params,
+  }) {
+    final id = 'mfx_${DateTime.now().millisecondsSinceEpoch}_${track.midiFXRack.length}';
+    final initialParams = params ?? {
+      'Rate': 1.0,
+      'Octaves': 2.0,
+      'Pattern': 0.0,
+      'Gate': 0.85,
+      'Swing': 0.0,
+    };
+    track.midiFXRack.add(MidiFXInsert(
+      id: id,
+      name: name,
+      enabled: true,
+      luaScriptCode: luaScriptCode,
+      luaParams: initialParams,
+    ));
+    invalidateTrackMidiCache(track);
+    recordHistory('Add MIDI FX "$name" to ${track.name}', icon: Icons.music_note);
+    notifyListeners();
+  }
+
+  void removeMidiFXInsert(TrackChannel track, String midiFxId) {
+    track.midiFXRack.removeWhere((f) => f.id == midiFxId);
+    invalidateTrackMidiCache(track);
+    recordHistory('Remove MIDI FX from ${track.name}', icon: Icons.delete_outline);
+    notifyListeners();
+  }
+
+  void reorderMidiFXInsert(TrackChannel track, int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    if (oldIndex >= 0 && oldIndex < track.midiFXRack.length && newIndex >= 0 && newIndex <= track.midiFXRack.length) {
+      final item = track.midiFXRack.removeAt(oldIndex);
+      track.midiFXRack.insert(newIndex, item);
+      invalidateTrackMidiCache(track);
+      notifyListeners();
+    }
+  }
+
+  void moveMidiFXUp(TrackChannel track, int index) {
+    if (index > 0 && index < track.midiFXRack.length) {
+      final fx = track.midiFXRack.removeAt(index);
+      track.midiFXRack.insert(index - 1, fx);
+      invalidateTrackMidiCache(track);
+      recordHistory('Move MIDI FX Up (${fx.name})', icon: Icons.arrow_upward);
+      notifyListeners();
+    }
+  }
+
+  void moveMidiFXDown(TrackChannel track, int index) {
+    if (index >= 0 && index < track.midiFXRack.length - 1) {
+      final fx = track.midiFXRack.removeAt(index);
+      track.midiFXRack.insert(index + 1, fx);
+      invalidateTrackMidiCache(track);
+      recordHistory('Move MIDI FX Down (${fx.name})', icon: Icons.arrow_downward);
+      notifyListeners();
+    }
+  }
+
+  void toggleMidiFXInsert(TrackChannel track, String midiFxId, bool enabled) {
+    for (final f in track.midiFXRack) {
+      if (f.id == midiFxId) {
+        f.enabled = enabled;
+        invalidateTrackMidiCache(track);
+        notifyListeners();
+        break;
+      }
+    }
+  }
+
+  void updateMidiFXParam(TrackChannel track, String midiFxId, String paramName, double val) {
+    for (final f in track.midiFXRack) {
+      if (f.id == midiFxId) {
+        f.luaParams[paramName] = val;
+        invalidateTrackMidiCache(track);
+        notifyListeners();
+        break;
+      }
+    }
+  }
+
+  void invalidateTrackMidiCache(TrackChannel track) {
+    final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+    for (final clip in track.clips) {
+      clip.evaluatedNotesCache = pipeline.processClip(
+        clip: clip,
+        track: track,
+        timeContext: timeContext,
+      );
+    }
+    if (activeClip != null && activeClip!.trackId == track.id) {
+      activeClip!.evaluatedNotesCache = pipeline.processClip(
+        clip: activeClip!,
+        track: track,
+        timeContext: timeContext,
+      );
+    }
+  }
+
+  /// Bakes / renders transformed MIDI FX notes down into real permanent notes in a single [clip].
+  void bakeMidiFXToClip(TrackChannel track, TrackClip clip, {bool disableTrackMidiFx = false}) {
+    final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+    final evaluated = pipeline.processClip(
+      clip: clip,
+      track: track,
+      timeContext: timeContext,
+    );
+
+    clip.notes = evaluated.map((n) => n.copyWith(id: 'n_${clip.id}_baked_${n.startStep}_${n.pitch}')).toList();
+    clip.evaluatedNotesCache = null;
+    clip.luaScriptCode = ''; // Clear clip-level transform
+    clip.luaParams.clear();
+
+    if (activeTrack.id == track.id && activeClip?.id == clip.id) {
+      track.notes = clip.notes.map((n) => n.copyWith()).toList();
+    }
+
+    if (disableTrackMidiFx) {
+      for (final fx in track.midiFXRack) {
+        fx.enabled = false;
+      }
+    }
+
+    invalidateTrackMidiCache(track);
+    recordHistory('Bake MIDI FX to Clip "${clip.name}"', icon: Icons.auto_fix_high);
+    notifyListeners();
+  }
+
+  /// Bakes / renders transformed MIDI FX notes across all clips on the [track] and disables the MIDI FX rack.
+  void bakeTrackMidiFX(TrackChannel track) {
+    final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+    for (final clip in track.clips) {
+      final evaluated = pipeline.processClip(
+        clip: clip,
+        track: track,
+        timeContext: timeContext,
+      );
+      clip.notes = evaluated.map((n) => n.copyWith(id: 'n_${clip.id}_baked_${n.startStep}_${n.pitch}')).toList();
+      clip.evaluatedNotesCache = null;
+    }
+
+    if (activeTrack.id == track.id && activeClip != null) {
+      track.notes = activeClip!.notes.map((n) => n.copyWith()).toList();
+    }
+
+    for (final fx in track.midiFXRack) {
+      fx.enabled = false;
+    }
+
+    invalidateTrackMidiCache(track);
+    recordHistory('Bake MIDI FX on Track "${track.name}"', icon: Icons.auto_fix_high);
+    notifyListeners();
+  }
+
+  /// Returns real-time evaluated notes for ghost preview rendering in Piano Roll and Arranger.
+  List<Note> getEvaluatedClipNotes(TrackClip clip, TrackChannel track) {
+    if (clip.evaluatedNotesCache != null && clip.evaluatedNotesCache!.isNotEmpty) {
+      return clip.evaluatedNotesCache!;
+    }
+    final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+    return pipeline.processClip(
+      clip: clip,
+      track: track,
+      timeContext: timeContext,
+    );
   }
 
   // Legacy compatibility methods

@@ -11,8 +11,8 @@ import 'widgets/skeuomorphic_hardware_knob.dart';
 import 'widgets/grungy_rack_panel.dart';
 import 'widgets/glowing_nixie_display.dart';
 import 'widgets/project_browser_drawer.dart';
-import 'widgets/rename_track_dialog.dart';
 import 'widgets/modular_fx_rack_widget.dart';
+import 'widgets/midi_fx_rack_widget.dart';
 
 
 
@@ -167,7 +167,14 @@ class TrackInspectorView extends StatelessWidget {
     final track = dawState.activeTrack;
 
     return DragTarget<Object>(
-      onWillAcceptWithDetails: (details) => details.data is LuaPreset || details.data is SoundFontDragItem,
+      onWillAcceptWithDetails: (details) {
+        final data = details.data;
+        if (data is SoundFontDragItem) return true;
+        if (data is LuaPreset) {
+          return data.isInstrument || data.isAudioFx;
+        }
+        return false;
+      },
       onAcceptWithDetails: (details) {
         final data = details.data;
         if (data is SoundFontDragItem) {
@@ -185,7 +192,7 @@ class TrackInspectorView extends StatelessWidget {
             SnackBar(
               content: Text(data.isInstrument
                   ? 'Applied instrument "${data.name}" to ${track.name}'
-                  : 'Added FX "${data.name}" to ${track.name} chain'),
+                  : 'Added FX "${data.name}" to end of ${track.name} FX chain'),
               backgroundColor: EatsTheme.panelHeader,
               duration: const Duration(seconds: 2),
             ),
@@ -222,8 +229,12 @@ class TrackInspectorView extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 GestureDetector(
-                  onLongPress: () => showRenameTrackDialog(context, dawState, track),
-                  onSecondaryTap: () => showRenameTrackDialog(context, dawState, track),
+                  onLongPress: () {
+                    dawState.activeTabIndex = 0; // Arranger tab with track selected
+                  },
+                  onSecondaryTap: () {
+                    dawState.activeTabIndex = 0;
+                  },
                   onDoubleTap: () {
                     // DOUBLE TAP TRACK TITLE: Navigate to Scripts Section (tab 4)
                     dawState.activeTabIndex = 4;
@@ -336,6 +347,107 @@ class TrackInspectorView extends StatelessWidget {
             ),
           ),
 
+
+          const SizedBox(height: 16),
+
+          // Pre-Instrument MIDI FX Rack (Arpeggiator, Chord Arp, Scale Snap, Humanize)
+          MidiFxRackWidget(dawState: dawState, track: track),
+
+          const SizedBox(height: 16),
+
+          // Harmonic Chord Track Follow Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: EatsTheme.panelBackground,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: track.chordFollowMode != ChordFollowMode.off ? EatsTheme.primaryCyan : const Color(0xFF2B3245),
+                width: 1.5,
+              ),
+              boxShadow: track.chordFollowMode != ChordFollowMode.off
+                  ? [BoxShadow(color: EatsTheme.primaryCyan.withOpacity(0.12), blurRadius: 8)]
+                  : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.queue_music, color: EatsTheme.accentGold, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      'HARMONIC CHORD TRACK FOLLOW',
+                      style: EatsTheme.getPrimaryFontStyle(
+                        color: EatsTheme.accentGold,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (track.chordFollowMode != ChordFollowMode.off)
+                      TextButton.icon(
+                        onPressed: () {
+                          dawState.bakeTrackChordsToMidi(track);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Baked chord follow pitches into MIDI for "${track.name}"'),
+                              backgroundColor: EatsTheme.panelHeader,
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: EatsTheme.accentGold,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        ),
+                        icon: const Icon(Icons.lock_clock, size: 14),
+                        label: const Text('Bake to MIDI', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Conform notes on this track non-destructively to the active chord progression on the Chord Track.',
+                  style: TextStyle(color: EatsTheme.textMuted, fontSize: 11),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: ChordFollowMode.values.map((mode) {
+                    final isSelected = track.chordFollowMode == mode;
+                    return ChoiceChip(
+                      label: Text(
+                        mode.displayName,
+                        style: TextStyle(
+                          color: isSelected ? Colors.black : Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      selected: isSelected,
+                      selectedColor: EatsTheme.primaryCyan,
+                      backgroundColor: EatsTheme.controlBackground,
+                      side: BorderSide(
+                        color: isSelected ? EatsTheme.primaryCyan : Colors.white.withOpacity(0.12),
+                      ),
+                      onSelected: (_) => dawState.setTrackChordFollowMode(track, mode),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  track.chordFollowMode.description,
+                  style: TextStyle(
+                    color: track.chordFollowMode != ChordFollowMode.off ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                    fontSize: 10.5,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
 
           const SizedBox(height: 16),
 

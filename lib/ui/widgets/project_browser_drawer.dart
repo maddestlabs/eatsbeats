@@ -540,7 +540,15 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                           child: MouseRegion(
                             cursor: SystemMouseCursors.grab,
                             child: Tooltip(
-                              message: preset.isMidiSeq ? 'Drag sequence onto clip or timeline' : 'Drag icon to track',
+                              message: preset.isInstrument
+                                  ? 'Drag instrument to track or empty space to create track'
+                                  : preset.isAudioFx
+                                      ? 'Drag FX to existing track header or FX rack'
+                                      : preset.isMidiFx
+                                          ? 'Drag MIDI FX to clip in arranger'
+                                          : preset.isMidiSeq
+                                              ? 'Drag sequence to clip in arranger'
+                                              : 'Drag to track',
                               child: Container(
                                 padding: const EdgeInsets.all(4),
                                 decoration: BoxDecoration(
@@ -571,11 +579,100 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                           overflow: TextOverflow.ellipsis,
                         ),
                         trailing: IconButton(
-                          icon: Icon(preset.isMidiSeq ? Icons.playlist_add : Icons.add_circle_outline, size: 18),
-                          tooltip: preset.isMidiSeq ? 'Add as Clip to Active Track' : 'Add as New Track',
+                          icon: Icon(
+                            preset.isInstrument
+                                ? Icons.add_circle_outline
+                                : preset.isAudioFx
+                                    ? Icons.playlist_add
+                                    : preset.isMidiFx
+                                        ? Icons.auto_fix_high
+                                        : Icons.playlist_add,
+                            size: 18,
+                          ),
+                          tooltip: preset.isInstrument
+                              ? 'Add as New Track'
+                              : preset.isAudioFx
+                                  ? 'Add FX to Active Track FX Chain'
+                                  : preset.isMidiFx
+                                      ? 'Apply MIDI FX to Active Clip'
+                                      : 'Add as Clip to Active Track',
                           color: _getCategoryColor(preset.category),
                           onPressed: () {
-                            if (preset.isMidiSeq) {
+                            if (preset.isInstrument) {
+                              widget.dawState.addNewPresetTrack(preset);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Added new track "${preset.name}"'),
+                                  backgroundColor: EatsTheme.panelHeader,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            } else if (preset.isAudioFx) {
+                              widget.dawState.applyPreset(preset, targetTrack: widget.dawState.activeTrack);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Added FX "${preset.name}" to ${widget.dawState.activeTrack.name}'),
+                                  backgroundColor: EatsTheme.panelHeader,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            } else if (preset.isMidiFx) {
+                              final clip = widget.dawState.activeClip ??
+                                  (widget.dawState.activeTrack.clips.isNotEmpty ? widget.dawState.activeTrack.clips.first : null);
+                              if (clip != null) {
+                                widget.dawState.applyPresetToClip(widget.dawState.activeTrack, clip, preset);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Applied MIDI FX "${preset.name}" to clip "${clip.name}"'),
+                                    backgroundColor: EatsTheme.panelHeader,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: const Text('Select or create a clip first to apply MIDI FX'),
+                                    backgroundColor: EatsTheme.panelHeader,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            } else if (preset.isMidiSeq) {
+                              widget.dawState.addClipWithPresetToTrack(
+                                widget.dawState.activeTrack,
+                                widget.dawState.currentBar,
+                                preset,
+                              );
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Added sequence "${preset.name}" as clip at Bar ${widget.dawState.currentBar + 1}'),
+                                  backgroundColor: EatsTheme.panelHeader,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                        onTap: () {
+                          if (preset.isMidiSeq || preset.isMidiFx) {
+                            final clip = widget.dawState.activeClip ??
+                                (widget.dawState.activeTrack.clips.isNotEmpty ? widget.dawState.activeTrack.clips.first : null);
+                            if (clip != null) {
+                              widget.dawState.applyPresetToClip(
+                                widget.dawState.activeTrack,
+                                clip,
+                                preset,
+                              );
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(preset.isMidiSeq
+                                      ? 'Applied sequence "${preset.name}" to clip "${clip.name}"'
+                                      : 'Applied MIDI FX "${preset.name}" to clip "${clip.name}"'),
+                                  backgroundColor: EatsTheme.panelHeader,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            } else if (preset.isMidiSeq) {
                               widget.dawState.addClipWithPresetToTrack(
                                 widget.dawState.activeTrack,
                                 widget.dawState.currentBar,
@@ -589,27 +686,19 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                                 ),
                               );
                             } else {
-                              widget.dawState.addNewPresetTrack(preset);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Added new track "${preset.name}"'),
+                                  content: const Text('Select a clip first to apply MIDI FX'),
                                   backgroundColor: EatsTheme.panelHeader,
                                   duration: const Duration(seconds: 2),
                                 ),
                               );
                             }
-                          },
-                        ),
-                        onTap: () {
-                          if (preset.isMidiSeq) {
-                            widget.dawState.applyPresetToClip(
-                              widget.dawState.activeTrack,
-                              widget.dawState.activeTrackClip,
-                              preset,
-                            );
+                          } else if (preset.isAudioFx) {
+                            widget.dawState.applyPreset(preset, targetTrack: widget.dawState.activeTrack);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Applied sequence "${preset.name}" to active clip'),
+                                content: Text('Added FX "${preset.name}" to end of ${widget.dawState.activeTrack.name} FX rack'),
                                 backgroundColor: EatsTheme.panelHeader,
                                 duration: const Duration(seconds: 2),
                               ),
@@ -618,7 +707,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                             widget.dawState.applyPreset(preset);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Applied preset "${preset.name}" to channel'),
+                                content: Text('Applied instrument "${preset.name}" to ${widget.dawState.activeTrack.name}'),
                                 backgroundColor: EatsTheme.panelHeader,
                                 duration: const Duration(seconds: 2),
                               ),

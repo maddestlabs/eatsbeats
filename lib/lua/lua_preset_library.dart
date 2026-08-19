@@ -625,16 +625,19 @@ return SoundFontSampler
       id: 'arpeggiator_midi_fx',
       name: 'Lua MIDI Arpeggiator FX',
       category: LuaPresetCategory.midiFx,
-      description: 'MIDI pattern transformer generating up/down octave arpeggio note sequences.',
+      description: 'Advanced MIDI arpeggiator with multi-octave cycling, rate dividers, gate, swing, and 8 pattern modes.',
       code: '''
 -- @name: Lua MIDI Arpeggiator FX
 -- @category: midiFx
+-- @param: Rate = 1.0 (0.25: 1/64, 0.5: 1/32, 1.0: 1/16, 2.0: 1/8, 4.0: 1/4)
+-- @param: Octaves = 2.0 (1 to 4 octaves)
+-- @param: Pattern = 0.0 (0: Up, 1: Down, 2: UpDown, 3: DownUp, 4: Converge, 5: Diverge, 6: Random, 7: Chord, 8: AsPlayed)
+-- @param: Gate = 0.85 (0.1: Staccato to 2.0: Legato)
+-- @param: Swing = 0.0 (0.0 to 0.5 groove timing)
 local ArpeggiatorMidiFX = {}
 
 function ArpeggiatorMidiFX.transform_notes(notes, params, timeContext)
-  local rate = params["Rate"] or 1.0
-  local octaves = params["Octaves"] or 2.0
-  return Midi.arpeggiate(notes, rate, octaves)
+  return Midi.arpeggiate(notes, params, timeContext)
 end
 
 return ArpeggiatorMidiFX
@@ -849,6 +852,100 @@ notes = {
 
 function process(notes, time_ctx)
   return notes
+end
+''',
+    ),
+
+    // 24. Harmonic Chord Follower MIDI FX
+    LuaPreset(
+      id: 'chord_follower_midi_fx',
+      name: 'Harmonic Chord Follower FX',
+      category: LuaPresetCategory.midiFx,
+      description: 'Conforms incoming notes non-destructively to the active project Chord Track.',
+      code: '''
+-- @name: Harmonic Chord Follower FX
+-- @category: midiFx
+-- @param: Mode = 0 (0: Chord, 1: Bass, 2: Scale, 3: Color)
+local ChordFollower = {}
+
+function ChordFollower.transform_notes(notes, params, timeContext)
+  -- Uses timeContext.chord / timeContext.chordTrack to conform notes
+  return Midi.chord_follow(notes, params["Mode"] or 0, timeContext)
+end
+
+return ChordFollower
+''',
+    ),
+
+    // 25. Chord Arpeggiator MIDI FX
+    LuaPreset(
+      id: 'chord_arp_midi_fx',
+      name: 'Chord Arpeggiator FX',
+      category: LuaPresetCategory.midiFx,
+      description: 'Generates running arpeggio lines voiced directly from the active chord pitch classes.',
+      code: '''
+-- @name: Chord Arpeggiator FX
+-- @category: midiFx
+-- @param: Rate = 0.25 (0.25: 16th, 0.5: 8th, 1.0: Quarter)
+-- @param: Octaves = 2 (1 to 3 octaves)
+-- @param: Pattern = 0 (0: Up, 1: Down, 2: UpDown, 3: Random)
+local ChordArp = {}
+
+function ChordArp.transform_notes(notes, params, timeContext)
+  return Midi.chord_arp(notes, params, timeContext)
+end
+
+return ChordArp
+''',
+    ),
+
+    // 26. Chord Stabs & Voicings (MIDI SEQ)
+    LuaPreset(
+      id: 'seq_chord_stabs',
+      name: 'Chord Stabs (Chord Track Follow)',
+      category: LuaPresetCategory.midiSeq,
+      description: 'Dynamic polyphonic chord stabs automatically voiced to the active project Chord Track progression.',
+      code: '''
+-- @name: Chord Stabs (Chord Track Follow)
+-- @category: midiSeq
+-- @description: Dynamic polyphonic chord stabs voiced to project Chord Track
+
+notes = {
+  { pitch = 60, start = 0.00, duration = 3.00, vel = 0.90 },
+  { pitch = 60, start = 4.00, duration = 2.00, vel = 0.85 },
+  { pitch = 60, start = 8.00, duration = 3.00, vel = 0.90 },
+  { pitch = 60, start = 12.00, duration = 3.00, vel = 0.85 }
+}
+
+function process(notes, time_ctx)
+  -- Automatically builds rich voicings using active Chord Track
+  return Chord.generate_voicing(notes, time_ctx)
+end
+''',
+    ),
+
+    // 27. Dynamic Bassline (MIDI SEQ)
+    LuaPreset(
+      id: 'seq_dynamic_bassline',
+      name: 'Dynamic Bassline (Chord Track Follow)',
+      category: LuaPresetCategory.midiSeq,
+      description: 'Rhythmic bass groove that tracks root and slash bass notes from the Chord Track.',
+      code: '''
+-- @name: Dynamic Bassline (Chord Track Follow)
+-- @category: midiSeq
+-- @description: Rhythmic bassline conforming to active Chord Track root/slash bass notes
+
+notes = {
+  { pitch = 36, start = 0.00, duration = 1.50, vel = 0.95 },
+  { pitch = 36, start = 3.00, duration = 1.00, vel = 0.80 },
+  { pitch = 36, start = 6.00, duration = 1.50, vel = 0.90 },
+  { pitch = 36, start = 8.00, duration = 2.00, vel = 0.95 },
+  { pitch = 36, start = 12.00, duration = 1.50, vel = 0.85 },
+  { pitch = 36, start = 14.00, duration = 1.00, vel = 0.80 }
+}
+
+function process(notes, time_ctx)
+  return Chord.snap_to_chord(notes, time_ctx, "bass")
 end
 ''',
     ),

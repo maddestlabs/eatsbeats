@@ -86,13 +86,13 @@ void main() {
       expect(processedNotes[0].id, equals('n1')); // Preserves voice ID
     });
 
-    test('Evaluates Arpeggiator clip transform', () {
+    test('Evaluates Arpeggiator clip transform with multi-octave cycling and chord patterns', () {
       final clip = TrackClip(
         id: 'clip_arp',
         name: 'Arp Clip',
         trackId: 'track_1',
         luaScriptCode: 'arpeggiate',
-        luaParams: {'rate': 0.25},
+        luaParams: {'rate': 0.25, 'octaves': 2.0, 'pattern': 0.0},
         notes: [
           Note(id: 'n_root', pitch: 60, startStep: 0.0, durationSteps: 1.0),
         ],
@@ -114,10 +114,53 @@ void main() {
 
       expect(arpedNotes.length, equals(4));
       expect(arpedNotes[0].pitch, equals(60));
-      expect(arpedNotes[1].pitch, equals(64));
-      expect(arpedNotes[2].pitch, equals(68));
-      expect(arpedNotes[3].pitch, equals(60));
+      expect(arpedNotes[1].pitch, equals(72));
+      expect(arpedNotes[2].pitch, equals(60));
+      expect(arpedNotes[3].pitch, equals(72));
       expect(arpedNotes[0].id, contains('n_root_arp_0'));
+    });
+
+    test('Evaluates Chord Arpeggiator with UpDown pattern and Gate scaling', () {
+      final chordClip = TrackClip(
+        id: 'clip_chord_arp',
+        name: 'Chord Arp Clip',
+        trackId: 'track_1',
+        notes: [
+          Note(id: 'c1', pitch: 60, startStep: 0.0, durationSteps: 4.0), // C4
+          Note(id: 'c2', pitch: 64, startStep: 0.0, durationSteps: 4.0), // E4
+          Note(id: 'c3', pitch: 67, startStep: 0.0, durationSteps: 4.0), // G4
+        ],
+      );
+
+      final track = TrackChannel(
+        id: 'track_1',
+        name: 'Arp Synth',
+        color: Colors.purple,
+        type: TrackType.synth,
+        midiFXRack: [
+          MidiFXInsert(
+            id: 'arp_fx',
+            name: 'Arpeggiator FX',
+            luaScriptCode: 'arpeggiator',
+            luaParams: {'Rate': 1.0, 'Octaves': 1.0, 'Pattern': 2.0, 'Gate': 0.5}, // UpDown
+          ),
+        ],
+      );
+
+      final ctx = TimeContext.fromBeat(beat: 0.0, bpm: 120.0);
+      final arpedNotes = midiPipeline.processClip(
+        clip: chordClip,
+        track: track,
+        timeContext: ctx,
+      );
+
+      // C4 (60), E4 (64), G4 (67), E4 (64)
+      expect(arpedNotes.length, equals(4));
+      expect(arpedNotes[0].pitch, equals(60));
+      expect(arpedNotes[1].pitch, equals(64));
+      expect(arpedNotes[2].pitch, equals(67));
+      expect(arpedNotes[3].pitch, equals(64));
+      expect(arpedNotes[0].durationSteps, closeTo(0.5, 0.01)); // Gate = 0.5 * 1.0
     });
 
     test('Serializes Notes into Lua table code and parses back', () {

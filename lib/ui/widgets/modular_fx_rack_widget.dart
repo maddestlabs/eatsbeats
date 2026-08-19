@@ -6,6 +6,7 @@ import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
 import 'eatsbits_slider.dart';
+import 'skeuomorphic_hardware_switch.dart';
 
 class ModularFxRackWidget extends StatelessWidget {
   final DawState dawState;
@@ -22,13 +23,13 @@ class ModularFxRackWidget extends StatelessWidget {
     final availableIrs = ConvolverEngine.instance.getAvailableIrNames();
 
     return DragTarget<LuaPreset>(
-      onWillAcceptWithDetails: (details) => true,
+      onWillAcceptWithDetails: (details) => details.data.isAudioFx,
       onAcceptWithDetails: (details) {
         final preset = details.data;
         dawState.applyPreset(preset, targetTrack: track);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Added FX "${preset.name}" to ${track.name} rack'),
+            content: Text('Added FX "${preset.name}" to end of ${track.name} FX rack'),
             backgroundColor: EatsTheme.panelHeader,
             duration: const Duration(seconds: 2),
           ),
@@ -141,9 +142,10 @@ class ModularFxRackWidget extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Switch(
+                        SkeuomorphicHardwareSwitch(
                           value: fx.enabled,
                           activeColor: EatsTheme.secondaryMagenta,
+                          tooltip: 'Toggle ${fx.name} (Bypass / Active)',
                           onChanged: (val) => dawState.toggleFXInsert(track, fx.id, val),
                         ),
                         const SizedBox(width: 6),

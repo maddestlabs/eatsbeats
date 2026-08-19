@@ -1,6 +1,7 @@
 import 'dart:ui';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
+import '../models/chord_model.dart';
 import '../theme/eats_theme.dart';
 
 class EatsLuaParser {
@@ -23,6 +24,7 @@ class EatsLuaParser {
     final meta = map['meta'] is Map ? Map<String, dynamic>.from(map['meta']) : {};
     final title = (meta['title'] as String?) ?? 'Untitled Song';
     final author = (meta['author'] as String?) ?? 'Anonymous Producer';
+    final songKey = (meta['songKey'] as String?) ?? 'C Major';
     final bpm = (meta['bpm'] as num?)?.toDouble() ?? 124.0;
     final masterVol = (meta['masterVolume'] as num?)?.toDouble() ?? 0.85;
     final isSongMode = (meta['isSongMode'] as bool?) ?? false;
@@ -31,6 +33,7 @@ class EatsLuaParser {
     final loopEndBar = (meta['loopEndBar'] as int?) ?? 2;
 
     dawState.setProjectDetails(title, author);
+    dawState.setSongKey(songKey);
     dawState.setBpm(bpm);
     dawState.setMasterVolume(masterVol);
     dawState.isSongMode = isSongMode;
@@ -108,6 +111,18 @@ class EatsLuaParser {
       if (items.isNotEmpty) {
         dawState.arrangement = items;
       }
+    }
+
+    // 5. Chord Track if present
+    final rawChords = map['chordTrack'];
+    if (rawChords is List) {
+      final loadedChords = <ChordEvent>[];
+      for (final ch in rawChords) {
+        if (ch is Map) {
+          loadedChords.add(ChordEvent.fromJson(Map<String, dynamic>.from(ch)));
+        }
+      }
+      dawState.chordTrack = loadedChords;
     }
 
     dawState.notifyState();
@@ -222,10 +237,8 @@ class EatsLuaParser {
         startBar: 0,
         barLength: 2,
         notes: notes,
-        luaScriptCode: map['luaScriptCode'] ?? '',
-        luaParams: map['luaParams'] is Map ? Map<String, double>.from(
-          (map['luaParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
-        ) : {},
+        luaScriptCode: '',
+        luaParams: {},
       ));
     } else {
       for (final c in clips) {
@@ -289,6 +302,12 @@ class EatsLuaParser {
       orElse: () => MusicViewType.pianoRoll,
     );
 
+    final chordFollowModeStr = map['chordFollowMode'] as String? ?? 'off';
+    final chordFollowMode = ChordFollowMode.values.firstWhere(
+      (m) => m.name == chordFollowModeStr,
+      orElse: () => ChordFollowMode.off,
+    );
+
     return TrackChannel(
       id: map['id'] ?? 'tr_${DateTime.now().millisecondsSinceEpoch}',
       name: map['name'] ?? 'Track',
@@ -315,6 +334,7 @@ class EatsLuaParser {
       midiFXRack: midiFXRack,
       trackerColumns: map['trackerColumns'] ?? 4,
       activeView: activeView,
+      chordFollowMode: chordFollowMode,
     );
   }
 

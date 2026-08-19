@@ -8,7 +8,6 @@ import 'widgets/skeuomorphic_hardware_knob.dart';
 import 'widgets/skeuomorphic_hardware_slider.dart';
 import 'widgets/stereo_meter_widget.dart';
 import 'widgets/modular_fx_rack_widget.dart';
-import 'widgets/rename_track_dialog.dart';
 
 
 
@@ -136,8 +135,14 @@ class _MixerViewState extends State<MixerView> {
     final rightPeak = dawState.audioEngine.getTrackRightPeak(track.id);
 
     return GestureDetector(
-      onLongPress: () => showRenameTrackDialog(context, dawState, track),
-      onSecondaryTap: () => showRenameTrackDialog(context, dawState, track),
+      onLongPress: () {
+        dawState.activeTrackIndex = trackIdx;
+        dawState.activeTabIndex = 0; // Switch to Arranger with Track selected in Inspector
+      },
+      onSecondaryTap: () {
+        dawState.activeTrackIndex = trackIdx;
+        dawState.activeTabIndex = 0;
+      },
       onTapDown: (_) {
         final now = DateTime.now();
         final isDoubleTap = _lastTapTrackIdx == trackIdx &&

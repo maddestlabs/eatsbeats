@@ -841,6 +841,31 @@ class _PianoRollViewState extends State<PianoRollView> {
                   }
                 },
               ),
+
+              if (track.midiFXRack.any((fx) => fx.enabled) || activeClip.hasMidiScript) ...[
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () {
+                    widget.dawState.bakeMidiFXToClip(track, activeClip);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Baked MIDI FX to Clip "${activeClip.name}"'),
+                        backgroundColor: EatsTheme.panelHeader,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    backgroundColor: EatsTheme.panelHeader,
+                    foregroundColor: EatsTheme.accentGold,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    side: BorderSide(color: EatsTheme.accentGold.withOpacity(0.6)),
+                  ),
+                  icon: const Icon(Icons.auto_fix_high, size: 13),
+                  label: const Text('BAKE MIDI FX', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                ),
+              ],
+
               const Spacer(),
 
               // Snap Quantize Dropdown
@@ -1187,6 +1212,57 @@ class _PianoRollViewState extends State<PianoRollView> {
                                   color: EatsTheme.primaryCyan,
                                 ),
                               ),
+
+                              // Render Real-Time MIDI FX Ghost / Arpeggiator Notes Layer
+                              if (track.midiFXRack.any((fx) => fx.enabled) || activeClip.hasMidiScript)
+                                ...widget.dawState.getEvaluatedClipNotes(activeClip, track)
+                                    .where((gn) => !track.notes.any((bn) => bn.id == gn.id))
+                                    .map((ghostNote) {
+                                  final keyIdx = maxPitch - ghostNote.pitch;
+                                  if (keyIdx < 0 || keyIdx >= totalKeys) return const SizedBox();
+
+                                  final noteLeft = ghostNote.startStep * _stepWidth + 1;
+                                  final noteTop = keyIdx * _keyHeight + 1;
+                                  final noteWidth = ((ghostNote.durationSteps * _stepWidth) - 2).clamp(4.0, double.infinity);
+                                  final noteHeight = _keyHeight - 2;
+
+                                  return Positioned(
+                                    left: noteLeft,
+                                    top: noteTop,
+                                    width: noteWidth,
+                                    height: noteHeight,
+                                    child: IgnorePointer(
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: EatsTheme.primaryCyan.withOpacity(0.20),
+                                          borderRadius: BorderRadius.circular(3),
+                                          border: Border.all(
+                                            color: EatsTheme.primaryCyan.withOpacity(0.65),
+                                            width: 1.0,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: EatsTheme.primaryCyan.withOpacity(0.2),
+                                              blurRadius: 4,
+                                            ),
+                                          ],
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            _getNoteName(ghostNote.pitch),
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: EatsTheme.primaryCyan,
+                                              fontSize: (_keyHeight * 0.32).clamp(7.0, 9.5),
+                                              fontStyle: FontStyle.italic,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }),
 
                               // Render Note Events Blocks
                               ...track.notes.map((note) {

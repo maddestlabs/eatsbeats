@@ -16,6 +16,7 @@ class EatsLuaSerializer {
     buffer.writeln('  meta = {');
     buffer.writeln('    title = "${_escapeString(dawState.projectName)}",');
     buffer.writeln('    author = "${_escapeString(dawState.authorName)}",');
+    buffer.writeln('    songKey = "${_escapeString(dawState.songKey)}",');
     buffer.writeln('    bpm = ${dawState.bpm.toStringAsFixed(2)},');
     buffer.writeln('    masterVolume = ${dawState.masterVolume.toStringAsFixed(2)},');
     buffer.writeln('    isSongMode = ${dawState.isSongMode},');
@@ -50,7 +51,18 @@ class EatsLuaSerializer {
       buffer.writeln('      { patternId = "${_escapeString(item.patternId)}", startBar = ${item.startBar}, barLength = ${item.barLength} },');
     }
     buffer.writeln('    }');
-    buffer.writeln('  }');
+    buffer.writeln('  },');
+    buffer.writeln();
+
+    // 4. Chord Track
+    if (dawState.chordTrack.isNotEmpty) {
+      buffer.writeln('  chordTrack = {');
+      for (final chord in dawState.chordTrack) {
+        final bassStr = chord.bassPitchClass != null ? ', bassPitchClass = ${chord.bassPitchClass}' : '';
+        buffer.writeln('    { id = "${_escapeString(chord.id)}", startBar = ${chord.startBar}, barLength = ${chord.barLength}, rootPitchClass = ${chord.rootPitchClass}, quality = "${chord.quality.name}"$bassStr },');
+      }
+      buffer.writeln('  }');
+    }
     buffer.writeln('}');
 
     return buffer.toString();
@@ -68,6 +80,7 @@ class EatsLuaSerializer {
     buffer.writeln('${childIndent}pan = ${track.pan.toStringAsFixed(3)},');
     buffer.writeln('${childIndent}isMuted = ${track.isMuted},');
     buffer.writeln('${childIndent}isSoloed = ${track.isSoloed},');
+    buffer.writeln('${childIndent}chordFollowMode = "${track.chordFollowMode.name}",');
 
     // Instrument parameters
     buffer.writeln('${childIndent}sampleName = "${_escapeString(track.sampleName)}",');

@@ -76,6 +76,14 @@ if (-not (Test-Path $windowsDir)) {
     }
 }
 
+# Close any running instances of the app to prevent CMake file lock errors
+$runningProcesses = Get-Process | Where-Object { $_.ProcessName -eq "eatsbits" -or $_.ProcessName -eq "mobile_wren_daw" }
+if ($runningProcesses) {
+    Write-Host "    Closing running application instances to release file locks..." -ForegroundColor Yellow
+    $runningProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
+}
+
 # ------------------------------------------------------------------
 # STEP 2: Optional Clean
 # ------------------------------------------------------------------

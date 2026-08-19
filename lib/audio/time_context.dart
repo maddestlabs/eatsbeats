@@ -1,8 +1,9 @@
 import 'dart:math' as math;
+import '../models/chord_model.dart';
 
 /// Represents a snapshot of the DAW's playback position and transport state.
 /// This unified clock structure bridges real-time audio scheduling with
-/// 60fps visual/video frame indexing.
+/// 60fps visual/video frame indexing and provides harmonic chord track context.
 class TimeContext {
   final double bpm;
   final int timeSignatureNumerator;
@@ -11,6 +12,11 @@ class TimeContext {
   final double currentBeat; // Absolute beat position from start (0.0, 1.0, 2.0...)
   final double audioTimeSeconds; // Absolute audio clock timestamp in seconds
   final double frameRate; // Target video/visual FPS (default 60.0)
+  final ChordEvent? activeChord; // Active Chord on Chord Track at this moment
+  final List<ChordEvent> chordTrack; // Full project chord track
+  final String songKey; // Project key (e.g. 'C Major', 'A Minor')
+  final int songKeyRoot; // 0..11
+  final bool isSongKeyMinor;
 
   const TimeContext({
     required this.bpm,
@@ -20,6 +26,11 @@ class TimeContext {
     required this.currentBeat,
     required this.audioTimeSeconds,
     this.frameRate = 60.0,
+    this.activeChord,
+    this.chordTrack = const [],
+    this.songKey = 'C Major',
+    this.songKeyRoot = 0,
+    this.isSongKeyMinor = false,
   });
 
   /// Derived 60fps video/visual frame index based on absolute audio time.
@@ -50,6 +61,11 @@ class TimeContext {
     int numerator = 4,
     int denominator = 4,
     double frameRate = 60.0,
+    ChordEvent? activeChord,
+    List<ChordEvent> chordTrack = const [],
+    String songKey = 'C Major',
+    int songKeyRoot = 0,
+    bool isSongKeyMinor = false,
   }) {
     final secPerBeat = 60.0 / math.max(1.0, bpm);
     final audioSec = beat * secPerBeat;
@@ -63,12 +79,17 @@ class TimeContext {
       currentBeat: beat,
       audioTimeSeconds: audioSec,
       frameRate: frameRate,
+      activeChord: activeChord,
+      chordTrack: chordTrack,
+      songKey: songKey,
+      songKeyRoot: songKeyRoot,
+      isSongKeyMinor: isSongKeyMinor,
     );
   }
 
   /// Converts TimeContext state into a map for passing into Lua scripts.
   Map<String, dynamic> toLuaTable() {
-    return {
+    final map = <String, dynamic>{
       'bpm': bpm,
       'timeSignatureNumerator': timeSignatureNumerator,
       'timeSignatureDenominator': timeSignatureDenominator,
@@ -77,7 +98,46 @@ class TimeContext {
       'seconds': audioTimeSeconds,
       'frameIndex': frameIndex,
       'frameFraction': frameFraction,
+      'songKey': songKey,
+      'songKeyRoot': songKeyRoot,
+      'isSongKeyMinor': isSongKeyMinor,
     };
+
+    if (activeChord != null) {
+      map['chord'] = {
+        'name': activeChord!.displayName,
+        'root': activeChord!.rootPitchClass,
+        'rootName': activeChord!.rootName,
+        'quality': activeChord!.quality.name,
+        'qualitySymbol': activeChord!.quality.symbol,
+        'bass': activeChord!.bassPitchClass,
+        'bassName': activeChord!.bassName,
+        'pitches': activeChord!.pitchClasses,
+        'startBar': activeChord!.startBar,
+        'barLength': activeChord!.barLength,
+      };
+    } else {
+      map['chord'] = null;
+    }
+
+    if (chordTrack.isNotEmpty) {
+      map['chordTrack'] = chordTrack.map((c) => {
+        'name': c.displayName,
+        'root': c.rootPitchClass,
+        'rootName': c.rootName,
+        'quality': c.quality.name,
+        'qualitySymbol': c.quality.symbol,
+        'bass': c.bassPitchClass,
+        'bassName': c.bassName,
+        'pitches': c.pitchClasses,
+        'startBar': c.startBar,
+        'barLength': c.barLength,
+      }).toList();
+    } else {
+      map['chordTrack'] = [];
+    }
+
+    return map;
   }
 
   TimeContext copyWith({
@@ -88,6 +148,11 @@ class TimeContext {
     double? currentBeat,
     double? audioTimeSeconds,
     double? frameRate,
+    ChordEvent? activeChord,
+    List<ChordEvent>? chordTrack,
+    String? songKey,
+    int? songKeyRoot,
+    bool? isSongKeyMinor,
   }) {
     return TimeContext(
       bpm: bpm ?? this.bpm,
@@ -97,6 +162,11 @@ class TimeContext {
       currentBeat: currentBeat ?? this.currentBeat,
       audioTimeSeconds: audioTimeSeconds ?? this.audioTimeSeconds,
       frameRate: frameRate ?? this.frameRate,
+      activeChord: activeChord ?? this.activeChord,
+      chordTrack: chordTrack ?? this.chordTrack,
+      songKey: songKey ?? this.songKey,
+      songKeyRoot: songKeyRoot ?? this.songKeyRoot,
+      isSongKeyMinor: isSongKeyMinor ?? this.isSongKeyMinor,
     );
   }
 }

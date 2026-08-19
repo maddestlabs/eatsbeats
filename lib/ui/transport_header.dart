@@ -6,6 +6,7 @@ import '../theme/eats_theme.dart';
 import '../utils/eats_file_helper.dart';
 import '../lua/default_song.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
+import 'widgets/skeuomorphic_hardware_switch.dart';
 import 'widgets/glowing_nixie_display.dart';
 import 'widgets/compact_value_dialog.dart';
 import 'widgets/ui_scale_dialog.dart';
@@ -236,20 +237,16 @@ class TransportHeader extends StatelessWidget {
   }
 
   void _handleLoad(BuildContext context) {
-    if (kIsWeb) {
-      EatsFileHelper.pickEatsFileWeb((zipBytes, textContent, fileName) {
-        dawState.loadFromEatsZipOrLua(zipBytes: zipBytes, luaContent: textContent);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Loaded project "$fileName"'),
-            backgroundColor: EatsTheme.panelBackground,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      });
-    } else {
-      _showCodeViewDialog(context);
-    }
+    EatsFileHelper.pickEatsFile((zipBytes, textContent, fileName) {
+      dawState.loadFromEatsZipOrLua(zipBytes: zipBytes, luaContent: textContent);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Loaded project "$fileName"'),
+          backgroundColor: EatsTheme.panelBackground,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    });
   }
 
   void _showCodeViewDialog(BuildContext context) {
@@ -492,9 +489,10 @@ class TransportHeader extends StatelessWidget {
                                     ],
                                   ),
                                 ),
-                                Switch(
+                                SkeuomorphicHardwareSwitch(
                                   value: dawState.autoRestoreSession,
                                   activeColor: EatsTheme.primaryCyan,
+                                  tooltip: 'Restore last project on startup',
                                   onChanged: (val) {
                                     setDialogState(() {
                                       dawState.autoRestoreSession = val;
@@ -523,9 +521,10 @@ class TransportHeader extends StatelessWidget {
                                     ],
                                   ),
                                 ),
-                                Switch(
+                                SkeuomorphicHardwareSwitch(
                                   value: dawState.autoSaveEnabled,
                                   activeColor: EatsTheme.accentGold,
+                                  tooltip: 'Auto-save project state',
                                   onChanged: (val) {
                                     setDialogState(() {
                                       dawState.autoSaveEnabled = val;
