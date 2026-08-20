@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../audio/soundfont_engine.dart';
 import '../audio/soundfont_decoder.dart';
+import '../lua/lua_engine.dart';
 import '../lua/lua_preset_library.dart';
 
 import '../models/daw_state.dart';
@@ -482,78 +483,142 @@ class TrackInspectorView extends StatelessWidget {
           _buildSoundFontPresetSelector(context, track),
 
           // Dynamic Lua Script Parameters (Exposed by Code)
-          if ((track.type == TrackType.luaScript || track.luaParams.isNotEmpty) && dawState.compilationResult.params.isNotEmpty) ...[
+          () {
+            final trackCompilation = track.luaScriptCode.isNotEmpty
+                ? LuaEngine.compile(track.luaScriptCode)
+                : dawState.compilationResult;
 
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: EatsTheme.panelBackground,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: EatsTheme.accentGreen.withOpacity(0.5)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.code, color: EatsTheme.accentGreen, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        'DYNAMIC SCRIPT PARAMETERS (CODE DRIVEN)',
-                        style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.accentGreen, fontWeight: FontWeight.bold, fontSize: 12),
-                      ),
-                    ],
+            if ((track.type != TrackType.luaScript && track.luaParams.isEmpty) || trackCompilation.params.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            return Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: EatsTheme.panelBackground,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: EatsTheme.accentGreen.withOpacity(0.5)),
                   ),
-                  const SizedBox(height: 12),
-                  ...dawState.compilationResult.params.map((paramDef) {
-                    final rawVal = (track.luaParams[paramDef.name] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
-                    final currentVal = paramDef.isInteger ? rawVal.roundToDouble() : rawVal;
-                    final displayLabel = paramDef.getFormattedValue(currentVal);
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          SizedBox(
-                            width: 100,
-                            child: Text(
-                              paramDef.name,
-                              style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 11),
-                            ),
-                          ),
-                          Expanded(
-                            child: EatsBitsSlider(
-                              value: currentVal,
-                              min: paramDef.min,
-                              max: paramDef.max,
-                              defaultValue: paramDef.defaultValue,
-                              label: paramDef.name,
-                              activeColor: EatsTheme.accentGreen,
-                              onChanged: (val) {
-                                final snapped = paramDef.isInteger ? val.roundToDouble() : val;
-                                dawState.updateLuaParam(paramDef.name, snapped);
-                              },
-                              onChangeStart: () => dawState.beginHistoryTransaction('${paramDef.name} (${track.name})', icon: Icons.tune),
-                              onChangeEnd: () => dawState.commitHistoryTransaction(),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 75,
-                            child: Text(
-                              displayLabel,
-                              style: EatsTheme.getDisplayFontStyle(color: EatsTheme.accentGreen, fontWeight: FontWeight.bold, fontSize: 11),
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                          const Icon(Icons.code, color: EatsTheme.accentGreen, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'DYNAMIC SCRIPT PARAMETERS (CODE DRIVEN)',
+                            style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.accentGreen, fontWeight: FontWeight.bold, fontSize: 12),
                           ),
                         ],
                       ),
-                    );
-                  }).toList(),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
+                      const SizedBox(height: 12),
+                      ...trackCompilation.params.map((paramDef) {
+                        final rawVal = (track.luaParams[paramDef.name] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
+                        final currentVal = paramDef.isInteger ? rawVal.roundToDouble() : rawVal;
+                        final displayLabel = paramDef.getFormattedValue(currentVal);
+
+                        if (paramDef.options.isNotEmpty) {
+                          final selectedIdx = currentVal.toInt().clamp(0, paramDef.options.length - 1);
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10.0),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 100,
+                                  child: Text(
+                                    paramDef.name,
+                                    style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 11),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Container(
+                                    height: 34,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                                    decoration: BoxDecoration(
+                                      color: EatsTheme.panelBackground,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: EatsTheme.accentGreen.withOpacity(0.4)),
+                                    ),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<double>(
+                                        value: selectedIdx.toDouble(),
+                                        isExpanded: true,
+                                        dropdownColor: EatsTheme.panelBackground,
+                                        icon: const Icon(Icons.arrow_drop_down, color: EatsTheme.accentGreen, size: 20),
+                                        items: List.generate(paramDef.options.length, (idx) {
+                                          return DropdownMenuItem<double>(
+                                            value: idx.toDouble(),
+                                            child: Text(
+                                              paramDef.options[idx],
+                                              style: EatsTheme.getDisplayFontStyle(color: EatsTheme.accentGreen, fontSize: 12, fontWeight: FontWeight.bold),
+                                            ),
+                                          );
+                                        }),
+                                        onChanged: (val) {
+                                          if (val != null) {
+                                            dawState.beginHistoryTransaction('Change ${paramDef.name} (${track.name})', icon: Icons.tune);
+                                            dawState.updateLuaParam(paramDef.name, val);
+                                            dawState.commitHistoryTransaction();
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 100,
+                                child: Text(
+                                  paramDef.name,
+                                  style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 11),
+                                ),
+                              ),
+                              Expanded(
+                                child: EatsBitsSlider(
+                                  value: currentVal,
+                                  min: paramDef.min,
+                                  max: paramDef.max,
+                                  defaultValue: paramDef.defaultValue,
+                                  label: paramDef.name,
+                                  activeColor: EatsTheme.accentGreen,
+                                  onChanged: (val) {
+                                    final snapped = paramDef.isInteger ? val.roundToDouble() : val;
+                                    dawState.updateLuaParam(paramDef.name, snapped);
+                                  },
+                                  onChangeStart: () => dawState.beginHistoryTransaction('${paramDef.name} (${track.name})', icon: Icons.tune),
+                                  onChangeEnd: () => dawState.commitHistoryTransaction(),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 75,
+                                child: Text(
+                                  displayLabel,
+                                  style: EatsTheme.getDisplayFontStyle(color: EatsTheme.accentGreen, fontWeight: FontWeight.bold, fontSize: 11),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            );
+          }(),
 
           // Modular FX Insert Rack
           ModularFxRackWidget(dawState: dawState, track: track),

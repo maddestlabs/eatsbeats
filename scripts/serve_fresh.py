@@ -59,6 +59,59 @@ def find_random_port():
         s.bind(('127.0.0.1', 0))
         return s.getsockname()[1]
 
+def format_file_size(size_bytes):
+    if size_bytes >= 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB ({size_bytes:,} bytes)"
+    elif size_bytes >= 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.2f} MB ({size_bytes:,} bytes)"
+    elif size_bytes >= 1024:
+        return f"{size_bytes / 1024:.2f} KB ({size_bytes:,} bytes)"
+    else:
+        return f"{size_bytes} bytes"
+
+def print_build_sizes():
+    if not os.path.exists(WEB_DIR):
+        return
+    print("\n" + "=" * 60)
+    print("  Web Build Artifact & Package Sizes")
+    print("=" * 60)
+
+    print("  Binaries / Compiled Scripts:")
+    key_files = [
+        "main.dart.js",
+        "main.dart.wasm",
+        "main.dart.mjs",
+        "flutter.js",
+        "flutter_bootstrap.js",
+        "flutter_service_worker.js"
+    ]
+    for kf in key_files:
+        fp = os.path.join(WEB_DIR, kf)
+        if os.path.isfile(fp):
+            print(f"    - {kf:<26} : {format_file_size(os.path.getsize(fp))}")
+
+    ck_dir = os.path.join(WEB_DIR, "canvaskit")
+    if os.path.isdir(ck_dir):
+        ck_size = sum(os.path.getsize(os.path.join(root, f)) for root, _, files in os.walk(ck_dir) for f in files)
+        print(f"    - {'canvaskit/ (wasm engines)':<26} : {format_file_size(ck_size)}")
+
+    print("\n  Assets & Bundles:")
+    assets_dir = os.path.join(WEB_DIR, "assets")
+    if os.path.isdir(assets_dir):
+        assets_size = sum(os.path.getsize(os.path.join(root, f)) for root, _, files in os.walk(assets_dir) for f in files)
+        print(f"    - {'assets/':<26} : {format_file_size(assets_size)}")
+
+    audio_dir = os.path.join(WEB_DIR, "audio")
+    if os.path.isdir(audio_dir):
+        audio_size = sum(os.path.getsize(os.path.join(root, f)) for root, _, files in os.walk(audio_dir) for f in files)
+        print(f"    - {'audio/':<26} : {format_file_size(audio_size)}")
+
+    total_bytes = sum(os.path.getsize(os.path.join(root, f)) for root, _, files in os.walk(WEB_DIR) for f in files)
+    print("  ----------------------------------------------------------")
+    print(f"  Total Package Size         : {format_file_size(total_bytes)}")
+    print(f"  Output Location            : {WEB_DIR}")
+    print("=" * 60 + "\n")
+
 def build_flutter_web(wasm=False, profile=False):
     print("=" * 60)
     print("[+] Building Flutter Web application...")
@@ -76,6 +129,7 @@ def build_flutter_web(wasm=False, profile=False):
         print("[!] Flutter build failed. Exiting.")
         sys.exit(res.returncode)
     patch_service_worker()
+    print_build_sizes()
 
 def patch_service_worker():
     sw_path = os.path.join(WEB_DIR, "flutter_service_worker.js")

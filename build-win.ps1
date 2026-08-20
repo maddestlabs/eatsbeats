@@ -134,6 +134,18 @@ if (-not (Test-Path $outDir)) {
     $outDir = Join-Path $rootDir "build\windows\runner\$buildMode"
 }
 
+function Format-FileSize ([long]$bytes) {
+    if ($bytes -ge 1GB) {
+        return ("{0:N2} GB ({1:N0} bytes)" -f ($bytes / 1GB), $bytes)
+    } elseif ($bytes -ge 1MB) {
+        return ("{0:N2} MB ({1:N0} bytes)" -f ($bytes / 1MB), $bytes)
+    } elseif ($bytes -ge 1KB) {
+        return ("{0:N2} KB ({1:N0} bytes)" -f ($bytes / 1KB), $bytes)
+    } else {
+        return ("{0:N0} bytes" -f $bytes)
+    }
+}
+
 Write-Host "`n[+] Build completed successfully!" -ForegroundColor Green
 Write-Host "    Output Directory: $outDir" -ForegroundColor Cyan
 
@@ -142,6 +154,50 @@ $exeFile = Get-ChildItem -Path $outDir -Filter "*.exe" | Select-Object -First 1
 if ($exeFile) {
     Write-Host "    Executable: $($exeFile.FullName)" -ForegroundColor Green
 }
+
+# ------------------------------------------------------------------
+# Build Artifact & Package Sizes
+# ------------------------------------------------------------------
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "  Windows Build Artifact & Package Sizes" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+
+$allWinFiles = Get-ChildItem -Path $outDir -Recurse -File -ErrorAction SilentlyContinue
+$totalWinBytes = if ($allWinFiles) { ($allWinFiles | Measure-Object -Property Length -Sum).Sum } else { 0 }
+
+Write-Host "  Binaries & Libraries:" -ForegroundColor Yellow
+$exeFiles = Get-ChildItem -Path $outDir -Filter "*.exe" -File -ErrorAction SilentlyContinue
+foreach ($ef in $exeFiles) {
+    Write-Host ("    - {0,-26} : {1}" -f $ef.Name, (Format-FileSize $ef.Length)) -ForegroundColor Gray
+}
+
+$appSo = Join-Path $outDir "data\app.so"
+if (Test-Path $appSo) {
+    Write-Host ("    - {0,-26} : {1}" -f "data/app.so (AOT binary)", (Format-FileSize (Get-Item $appSo).Length)) -ForegroundColor Gray
+}
+
+$dllFiles = Get-ChildItem -Path $outDir -Filter "*.dll" -File -ErrorAction SilentlyContinue
+foreach ($df in $dllFiles) {
+    Write-Host ("    - {0,-26} : {1}" -f $df.Name, (Format-FileSize $df.Length)) -ForegroundColor Gray
+}
+
+$icu = Join-Path $outDir "data\icudtl.dat"
+if (Test-Path $icu) {
+    Write-Host ("    - {0,-26} : {1}" -f "data/icudtl.dat", (Format-FileSize (Get-Item $icu).Length)) -ForegroundColor Gray
+}
+
+Write-Host "`n  Assets & Bundles:" -ForegroundColor Yellow
+$flutterAssets = Join-Path $outDir "data\flutter_assets"
+if (Test-Path $flutterAssets) {
+    $faFiles = Get-ChildItem -Path $flutterAssets -Recurse -File -ErrorAction SilentlyContinue
+    $faBytes = if ($faFiles) { ($faFiles | Measure-Object -Property Length -Sum).Sum } else { 0 }
+    Write-Host ("    - {0,-26} : {1}" -f "data/flutter_assets/", (Format-FileSize $faBytes)) -ForegroundColor Gray
+}
+
+Write-Host "  ----------------------------------------------------------" -ForegroundColor DarkGray
+Write-Host ("  Total Package Size         : {0}" -f (Format-FileSize $totalWinBytes)) -ForegroundColor Green
+Write-Host ("  Output Location            : {0}" -f $outDir) -ForegroundColor DarkGray
+Write-Host "============================================================" -ForegroundColor Cyan
 
 # ------------------------------------------------------------------
 # STEP 4: Post-Build Actions (-Open / -Run)

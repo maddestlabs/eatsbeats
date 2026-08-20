@@ -356,7 +356,16 @@ class DawState extends ChangeNotifier {
       track.name = preset.name;
       track.type = TrackType.luaScript;
       track.luaScriptCode = preset.code;
-      compileLuaCode(preset.code);
+      final compiled = LuaEngine.compile(preset.code);
+      track.luaParams.clear();
+      for (final p in compiled.params) {
+        track.luaParams[p.name] = p.defaultValue;
+      }
+      if (track.id == activeTrack.id) {
+        luaCode = preset.code;
+        compilationResult = compiled;
+      }
+      audioEngine.invalidateLuaCache(track.id);
       recordHistory('Applied instrument "${preset.name}" to ${track.name}', icon: Icons.piano);
     } else if (preset.isAudioFx) {
       FXType fxType = FXType.distortion;
@@ -412,12 +421,19 @@ class DawState extends ChangeNotifier {
     ];
     final color = trackColors[activePattern.tracks.length % trackColors.length];
 
+    final compiled = LuaEngine.compile(preset.code);
+    final initialParams = <String, double>{};
+    for (final p in compiled.params) {
+      initialParams[p.name] = p.defaultValue;
+    }
+
     final newTrack = TrackChannel(
       id: trackId,
       name: preset.name,
       type: TrackType.luaScript,
       color: color,
       luaScriptCode: preset.code,
+      luaParams: initialParams,
     );
 
     final clip = TrackClip(
@@ -430,7 +446,11 @@ class DawState extends ChangeNotifier {
 
     newTrack.clips.add(clip);
     activePattern.tracks.add(newTrack);
-    activeTrackIndex = activePattern.tracks.length - 1;
+    _activeTrackIndex = activePattern.tracks.length - 1;
+    luaCode = preset.code;
+    compilationResult = compiled;
+    activeClip = null;
+    recordHistory('Added track "${preset.name}"', icon: Icons.add);
     notifyListeners();
   }
 
@@ -667,24 +687,22 @@ class DawState extends ChangeNotifier {
 
   set activeTrackIndex(int index) {
     final newIndex = index.clamp(0, activePattern.tracks.length - 1);
-    if (_activeTrackIndex != newIndex || luaCode.isEmpty) {
-      _activeTrackIndex = newIndex;
-      activeClip = null;
-      if (activeTrack.luaScriptCode.isNotEmpty) {
-        luaCode = activeTrack.luaScriptCode;
-        compilationResult = LuaEngine.compile(luaCode);
-      } else {
-        luaCode = '';
-        compilationResult = LuaCompilationResult(
-          isSuccess: true,
-          errorMessage: 'No active Lua script on channel',
-          params: [],
-          scriptType: 'synth',
-        );
+    _activeTrackIndex = newIndex;
+    activeClip = null;
+    if (activeTrack.luaScriptCode.isNotEmpty) {
+      luaCode = activeTrack.luaScriptCode;
+      compilationResult = LuaEngine.compile(luaCode);
+      for (final p in compilationResult.params) {
+        activeTrack.luaParams.putIfAbsent(p.name, () => p.defaultValue);
       }
     } else {
-      // Also clear active clip if re-selecting active track without clicking a clip
-      activeClip = null;
+      luaCode = '';
+      compilationResult = LuaCompilationResult(
+        isSuccess: true,
+        errorMessage: 'No active Lua script on channel',
+        params: [],
+        scriptType: 'synth',
+      );
     }
     notifyListeners();
   }

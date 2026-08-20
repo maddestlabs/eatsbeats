@@ -91,17 +91,31 @@ if (-not (Test-Path $buildWebDir)) {
     exit 1
 }
 
+function Format-FileSize ([long]$bytes) {
+    if ($bytes -ge 1GB) {
+        return ("{0:N2} GB ({1:N0} bytes)" -f ($bytes / 1GB), $bytes)
+    } elseif ($bytes -ge 1MB) {
+        return ("{0:N2} MB ({1:N0} bytes)" -f ($bytes / 1MB), $bytes)
+    } elseif ($bytes -ge 1KB) {
+        return ("{0:N2} KB ({1:N0} bytes)" -f ($bytes / 1KB), $bytes)
+    } else {
+        return ("{0:N0} bytes" -f $bytes)
+    }
+}
+
 # Patch flutter_service_worker.js to prevent onlineFirst uncaught TypeError on fetch failure
 $swFile = Join-Path $buildWebDir "flutter_service_worker.js"
 if (Test-Path $swFile) {
     try {
-        $swContent = Get-Content $swFile -Raw -Encoding UTF8
-        $swContent = $swContent.Replace("throw error;", "return new Response('', {status: 404, statusText: 'Not Found'});")
-        if ($swContent -notmatch "unhandledrejection") {
-            $swContent += "`nself.addEventListener('unhandledrejection', function(e) { e.preventDefault(); });`n"
+        $swContent = Get-Content $swFile -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+        if ($swContent) {
+            $swContent = $swContent.Replace("throw error;", "return new Response('', {status: 404, statusText: 'Not Found'});")
+            if ($swContent -notmatch "unhandledrejection") {
+                $swContent += "`nself.addEventListener('unhandledrejection', function(e) { e.preventDefault(); });`n"
+            }
+            Set-Content -Path $swFile -Value $swContent -Encoding UTF8
+            Write-Host "    [+] Patched flutter_service_worker.js for network resilience." -ForegroundColor Gray
         }
-        Set-Content -Path $swFile -Value $swContent -Encoding UTF8
-        Write-Host "    [+] Patched flutter_service_worker.js for network resilience." -ForegroundColor Gray
     } catch {
         Write-Host "    [!] Note: Unable to patch service worker file: $_" -ForegroundColor Gray
     }
@@ -116,6 +130,60 @@ if (Test-Path $audioSource) {
 }
 
 Write-Host "[+] Build completed successfully!" -ForegroundColor Green
+
+# ------------------------------------------------------------------
+# Build Artifact & Package Sizes
+# ------------------------------------------------------------------
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "  Web Build Artifact & Package Sizes" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+
+$allWebFiles = Get-ChildItem -Path $buildWebDir -Recurse -File -ErrorAction SilentlyContinue
+$totalWebBytes = if ($allWebFiles) { ($allWebFiles | Measure-Object -Property Length -Sum).Sum } else { 0 }
+
+Write-Host "  Binaries / Compiled Scripts:" -ForegroundColor Yellow
+$keyWebFiles = @(
+    "main.dart.js",
+    "main.dart.wasm",
+    "main.dart.mjs",
+    "flutter.js",
+    "flutter_bootstrap.js",
+    "flutter_service_worker.js"
+)
+foreach ($kf in $keyWebFiles) {
+    $item = Join-Path $buildWebDir $kf
+    if (Test-Path $item) {
+        $len = (Get-Item $item).Length
+        Write-Host ("    - {0,-26} : {1}" -f $kf, (Format-FileSize $len)) -ForegroundColor Gray
+    }
+}
+
+$ckDir = Join-Path $buildWebDir "canvaskit"
+if (Test-Path $ckDir) {
+    $ckFiles = Get-ChildItem -Path $ckDir -Recurse -File -ErrorAction SilentlyContinue
+    $ckBytes = if ($ckFiles) { ($ckFiles | Measure-Object -Property Length -Sum).Sum } else { 0 }
+    Write-Host ("    - {0,-26} : {1}" -f "canvaskit/ (wasm engines)", (Format-FileSize $ckBytes)) -ForegroundColor Gray
+}
+
+Write-Host "`n  Assets & Bundles:" -ForegroundColor Yellow
+$assetsDir = Join-Path $buildWebDir "assets"
+if (Test-Path $assetsDir) {
+    $assetFiles = Get-ChildItem -Path $assetsDir -Recurse -File -ErrorAction SilentlyContinue
+    $assetBytes = if ($assetFiles) { ($assetFiles | Measure-Object -Property Length -Sum).Sum } else { 0 }
+    Write-Host ("    - {0,-26} : {1}" -f "assets/", (Format-FileSize $assetBytes)) -ForegroundColor Gray
+}
+
+$audioDir = Join-Path $buildWebDir "audio"
+if (Test-Path $audioDir) {
+    $audioFiles = Get-ChildItem -Path $audioDir -Recurse -File -ErrorAction SilentlyContinue
+    $audioBytes = if ($audioFiles) { ($audioFiles | Measure-Object -Property Length -Sum).Sum } else { 0 }
+    Write-Host ("    - {0,-26} : {1}" -f "audio/", (Format-FileSize $audioBytes)) -ForegroundColor Gray
+}
+
+Write-Host "  ----------------------------------------------------------" -ForegroundColor DarkGray
+Write-Host ("  Total Package Size         : {0}" -f (Format-FileSize $totalWebBytes)) -ForegroundColor Green
+Write-Host ("  Output Location            : {0}" -f $buildWebDir) -ForegroundColor DarkGray
+Write-Host "============================================================" -ForegroundColor Cyan
 
 
 # ------------------------------------------------------------------

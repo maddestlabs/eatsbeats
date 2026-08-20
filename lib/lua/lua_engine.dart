@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import '../audio/easing.dart';
 import '../audio/fm_chip_engine.dart';
+import '../audio/snes_dsp_engine.dart';
 import '../audio/time_context.dart';
 import '../models/automation_model.dart';
 
@@ -275,6 +276,7 @@ class LuaEngine {
   static final Map<String, _HiHatVoiceState> _hihatVoiceStates = {};
   static final Map<String, _SnareVoiceState> _snareVoiceStates = {};
   static final Map<String, FMChipVoice> _fmChipVoices = {};
+  static final Map<String, SNESDSPEngine> _snesDspEngines = {};
 
   // Fast synthesis of complete buffer avoiding redundant per-sample parsing
   static Float32List synthesizeBuffer({
@@ -594,106 +596,141 @@ class LuaEngine {
       return (carrier * env * 0.8).clamp(-1.0, 1.0);
     }
 
-    // 5. YM2612 / OPN2 / OPL3 Hardware FM Chip & SFXR Engine
-    else if (code.contains('YM2612') || code.contains('OPN2') || code.contains('OPL3') || code.contains('FMChip') || code.contains('SFXR')) {
-      final voiceKey = trackId ?? 'default_fm';
-      final voice = _fmChipVoices.putIfAbsent(voiceKey, () => FMChipVoice());
+    // 5. SNES Sony S-DSP & Procedural SFXR Sound Engine
+    else if (code.contains('SNES') || code.contains('S-DSP') || code.contains('SPC700') || code.contains('SNESSFX') || code.contains('SFXR')) {
+      final voiceKey = trackId ?? 'default_snes';
+      final dsp = _snesDspEngines.putIfAbsent(voiceKey, () => SNESDSPEngine());
 
       if (sampleIndex == 0) {
         final seed = (params['Seed'] ?? 42.0).toInt();
 
-        // 1. Configure baseline sound effect template if SFXType is set
+        // 1. Configure baseline archetype template if SFXType is provided
         if (params.containsKey('SFXType')) {
-          final sfxIdx = params['SFXType']!.toInt().clamp(0, 7);
-          SFXRGenerator.configureFromType(voice, sfxIdx, seed: seed);
+          final sfxIdx = params['SFXType']!.toInt().clamp(0, 10);
+          SNESSFXRGenerator.configureFromType(dsp, sfxIdx, seed: seed);
         } else if (code.contains('Laser')) {
-          SFXRGenerator.configureLaser(voice, DeterministicPRNG(seed));
+          SNESSFXRGenerator.configureLaser(dsp, DeterministicPRNG(seed));
         } else if (code.contains('Explosion')) {
-          SFXRGenerator.configureExplosion(voice, DeterministicPRNG(seed));
+          SNESSFXRGenerator.configureExplosion(dsp, DeterministicPRNG(seed));
         } else if (code.contains('Powerup')) {
-          SFXRGenerator.configurePowerup(voice, DeterministicPRNG(seed));
+          SNESSFXRGenerator.configurePowerup(dsp, DeterministicPRNG(seed));
         } else if (code.contains('Coin')) {
-          SFXRGenerator.configureCoin(voice, DeterministicPRNG(seed));
+          SNESSFXRGenerator.configureCoin(dsp, DeterministicPRNG(seed));
         } else if (code.contains('Jump')) {
-          SFXRGenerator.configureJump(voice, DeterministicPRNG(seed));
-        } else if (code.contains('Hit')) {
-          SFXRGenerator.configureHit(voice, DeterministicPRNG(seed));
+          SNESSFXRGenerator.configureJump(dsp, DeterministicPRNG(seed));
+        } else if (code.contains('Hurt')) {
+          SNESSFXRGenerator.configureHurt(dsp, DeterministicPRNG(seed));
+        } else if (code.contains('Lose')) {
+          SNESSFXRGenerator.configureLose(dsp, DeterministicPRNG(seed));
+        } else if (code.contains('Button')) {
+          SNESSFXRGenerator.configureButton(dsp, DeterministicPRNG(seed));
+        } else if (code.contains('Warp')) {
+          SNESSFXRGenerator.configureWarp(dsp, DeterministicPRNG(seed));
+        } else {
+          SNESSFXRGenerator.configureLaser(dsp, DeterministicPRNG(seed));
         }
 
+        final v0 = dsp.voices[0];
+
         // 2. Apply live parameter overlays so sliders/automations directly modulate the sound
-        if (params.containsKey('Algorithm')) {
-          voice.algorithm = params['Algorithm']!.toInt().clamp(0, 7);
+        if (params.containsKey('Waveform')) {
+          final wIdx = params['Waveform']!.toInt().clamp(0, SNESWaveform.values.length - 1);
+          v0.waveform = SNESWaveform.values[wIdx];
         }
-        if (params.containsKey('Feedback')) {
-          voice.feedback = params['Feedback']!.toInt().clamp(0, 7);
+        if (params.containsKey('Attack')) {
+          v0.attack = params['Attack']!.clamp(0.0005, 2.0);
+        }
+        if (params.containsKey('Decay')) {
+          v0.decay = params['Decay']!.clamp(0.005, 3.0);
+        }
+        if (params.containsKey('Sustain')) {
+          v0.sustain = params['Sustain']!.clamp(0.0, 1.0);
+        }
+        if (params.containsKey('Release')) {
+          v0.release = params['Release']!.clamp(0.005, 3.0);
         }
         if (params.containsKey('PitchSweep')) {
           final sweep = params['PitchSweep']!;
           if (sweep >= 0) {
-            voice.startFreqMult = 1.0;
-            voice.endFreqMult = 1.0 + sweep;
+            v0.startFreqMult = 1.0;
+            v0.endFreqMult = 1.0 + sweep;
           } else {
-            voice.startFreqMult = 1.0 - sweep;
-            voice.endFreqMult = 1.0;
+            v0.startFreqMult = 1.0 - sweep;
+            v0.endFreqMult = 1.0;
           }
         }
         if (params.containsKey('SweepSpeed')) {
-          voice.sweepDuration = params['SweepSpeed']!.clamp(0.005, 2.0);
+          v0.sweepDuration = params['SweepSpeed']!.clamp(0.005, 2.0);
         }
-        if (params.containsKey('Waveform')) {
-          final wIdx = params['Waveform']!.toInt().clamp(0, FMWaveform.values.length - 1);
-          final w = FMWaveform.values[wIdx];
-          for (final op in voice.operators) {
-            op.waveform = w;
-          }
+        if (params.containsKey('VibratoRate')) {
+          v0.vibratoRate = params['VibratoRate']!.clamp(0.0, 30.0);
         }
-        if (params.containsKey('Attack')) {
-          final att = params['Attack']!.clamp(0.0005, 2.0);
-          for (final op in voice.operators) {
-            op.attack = att;
-          }
+        if (params.containsKey('VibratoDepth')) {
+          v0.vibratoDepth = params['VibratoDepth']!.clamp(0.0, 2.0);
         }
-        if (params.containsKey('Decay')) {
-          final dec = params['Decay']!.clamp(0.01, 3.0);
-          for (final op in voice.operators) {
-            op.decay = dec;
-          }
+        if (params.containsKey('ArpSpeed')) {
+          v0.arpeggioSpeed = params['ArpSpeed']!.clamp(0.01, 1.0);
         }
-        if (params.containsKey('Sustain')) {
-          final sus = params['Sustain']!.clamp(0.0, 1.0);
-          for (final op in voice.operators) {
-            op.sustain = sus;
-          }
+        if (params.containsKey('EchoDelay')) {
+          dsp.echo.delayMs = params['EchoDelay']!.toInt().clamp(16, 480);
         }
-        if (params.containsKey('Release')) {
-          final rel = params['Release']!.clamp(0.005, 3.0);
-          for (final op in voice.operators) {
-            op.release = rel;
-          }
+        if (params.containsKey('EchoFeedback')) {
+          dsp.echo.feedback = params['EchoFeedback']!.clamp(0.0, 0.95);
+        }
+        if (params.containsKey('EchoVolume')) {
+          dsp.echo.volume = params['EchoVolume']!.clamp(0.0, 1.0);
         }
         if (params.containsKey('NoiseMix')) {
           final nm = params['NoiseMix']!.clamp(0.0, 1.0);
-          voice.noiseMix = nm;
-          voice.noiseMode = nm > 0.001;
-        }
-        if (params.containsKey('ModDepth')) {
-          voice.operators[0].totalLevel = params['ModDepth']!.clamp(0.0, 127.0);
-        }
-        if (params.containsKey('Harmonic')) {
-          voice.operators[0].multiplier = params['Harmonic']!.clamp(0.5, 15.0);
+          v0.noiseMix = nm;
         }
 
-        // Granular operator overrides
-        if (params.containsKey('Op1_Mult')) voice.operators[0].multiplier = params['Op1_Mult']!;
-        if (params.containsKey('Op1_TL')) voice.operators[0].totalLevel = params['Op1_TL']!;
-        if (params.containsKey('Op2_Mult')) voice.operators[1].multiplier = params['Op2_Mult']!;
-        if (params.containsKey('Op2_TL')) voice.operators[1].totalLevel = params['Op2_TL']!;
-        if (params.containsKey('Op3_Mult')) voice.operators[2].multiplier = params['Op3_Mult']!;
-        if (params.containsKey('Op3_TL')) voice.operators[2].totalLevel = params['Op3_TL']!;
-        if (params.containsKey('Op4_Mult')) voice.operators[3].multiplier = params['Op4_Mult']!;
-        if (params.containsKey('Op4_TL')) voice.operators[3].totalLevel = params['Op4_TL']!;
+        // Direct S-DSP register pokes
+        for (final entry in params.entries) {
+          if (entry.key.startsWith('reg_0x') || entry.key.startsWith('0x')) {
+            final regHex = entry.key.replaceFirst('reg_', '');
+            final regAddr = int.tryParse(regHex);
+            if (regAddr != null) {
+              dsp.writeRegister(regAddr, entry.value.toInt());
+            }
+          }
+        }
+      }
 
-        // Direct register poke overrides
+      final stereo = dsp.evaluateStereoSample(
+        time: time,
+        baseFreq: freq,
+        duration: 0.4,
+        sampleIndex: sampleIndex,
+      );
+      return ((stereo[0] + stereo[1]) * 0.5).clamp(-1.0, 1.0);
+    }
+
+    // 6. Yamaha YM2612 / OPN2 / OPL3 Hardware FM Chip Engine
+    else if (code.contains('YM2612') || code.contains('OPN2') || code.contains('OPL3') || code.contains('FMChip')) {
+      final voiceKey = trackId ?? 'default_fm';
+      final voice = _fmChipVoices.putIfAbsent(voiceKey, () => FMChipVoice());
+
+      if (sampleIndex == 0) {
+        voice.algorithm = (params['Algorithm'] ?? 4.0).toInt().clamp(0, 7);
+        voice.feedback = (params['Feedback'] ?? 4.0).toInt().clamp(0, 7);
+
+        voice.operators[0].multiplier = params['Op1_Mult'] ?? 1.0;
+        voice.operators[0].totalLevel = params['Op1_TL'] ?? 10.0;
+        voice.operators[0].attack = params['Op1_Attack'] ?? 0.005;
+        voice.operators[0].decay = params['Op1_Decay'] ?? 0.3;
+
+        voice.operators[1].multiplier = params['Op2_Mult'] ?? 2.0;
+        voice.operators[1].totalLevel = params['Op2_TL'] ?? 0.0;
+        voice.operators[1].attack = params['Op2_Attack'] ?? 0.005;
+        voice.operators[1].decay = params['Op2_Decay'] ?? 0.35;
+
+        voice.operators[2].multiplier = params['Op3_Mult'] ?? 3.0;
+        voice.operators[2].totalLevel = params['Op3_TL'] ?? 20.0;
+
+        voice.operators[3].multiplier = params['Op4_Mult'] ?? 1.0;
+        voice.operators[3].totalLevel = params['Op4_TL'] ?? 0.0;
+
         for (final entry in params.entries) {
           if (entry.key.startsWith('reg_0x') || entry.key.startsWith('0x')) {
             final regHex = entry.key.replaceFirst('reg_', '');

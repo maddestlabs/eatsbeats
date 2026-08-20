@@ -406,39 +406,73 @@ return YM2612
 ''',
     ),
 
-    // 8. Eats SFXR Generator
+    // 8. SNES SFXR Generator (Sony S-DSP / SPC700)
     LuaPreset(
       id: 'eats_sfxr',
-      name: 'Eats SFXR Generator',
+      name: 'SNES SFXR Generator',
       category: LuaPresetCategory.instrument,
-      description: 'Procedural retro sound effect generator built on 4-Op FM hardware chips. Instant SFX macros (Laser, Explosion, Powerup, Coin, Jump, Hit, Mutate, Custom FM) with controllable PRNG Seed, Waveform shaping, ADSR envelope, and real-time live parameter overlays! Completely playable chromatically as musical instruments.',
+      description: 'Authentic Super Nintendo (Sony S-DSP / SPC700) 16-bit procedural sound effect engine with BRR wavetables, 4-point Gaussian filtering, 8-tap FIR echo reverb, and controllable PRNG seed. Instant archetypes: Laser, Explosion, Powerup, Coin, Jump, Hurt, Lose, Button, Warp, Mutate, Custom. Completely playable chromatically across keys!',
       code: '''
--- @name: Eats SFXR Generator
+-- @name: SNES SFXR Generator
 -- @category: instrument
-local SFXR = {}
+local SNESSFX = {}
 
-function SFXR.init()
-  Param.choice("SFXType", {"Laser", "Explosion", "Powerup", "Coin", "Jump", "Hit", "Mutate", "Custom FM"}, 0.0)
+function SNESSFX.init()
+  Param.choice("SFXType", {"Laser", "Explosion", "Powerup", "Coin", "Jump", "Hurt", "Lose", "Button", "Warp", "Mutate", "Custom SNES"}, 0.0)
   Param.add("Seed", 1.0, 9999.0, 42.0, 1.0)
-  Param.choice("Waveform", {"Sine", "Square", "Sawtooth", "Triangle", "HalfSine", "AbsSine"}, 0.0)
+  Param.choice("Waveform", {"Sine", "Square", "Pulse 25%", "Pulse 12%", "Sawtooth", "Triangle", "Organ", "Strings", "Flute", "Slap Bass", "Chime", "Noise"}, 1.0)
   Param.add("Attack", 0.001, 0.5, 0.005)
-  Param.add("Decay", 0.02, 2.0, 0.25)
+  Param.add("Decay", 0.01, 2.0, 0.25)
   Param.add("Sustain", 0.0, 1.0, 0.1)
   Param.add("Release", 0.01, 2.0, 0.2)
   Param.add("PitchSweep", -2.0, 2.0, 0.0)
-  Param.add("SweepSpeed", 0.01, 1.0, 0.18)
-  Param.add("Algorithm", 0.0, 7.0, 4.0, 1.0)
-  Param.add("Feedback", 0.0, 7.0, 5.0, 1.0)
-  Param.add("ModDepth", 0.0, 127.0, 8.0, 1.0)
-  Param.add("Harmonic", 0.5, 15.0, 2.0, 0.5)
+  Param.add("SweepSpeed", 0.01, 1.0, 0.16)
+  Param.add("VibratoRate", 0.0, 30.0, 0.0)
+  Param.add("VibratoDepth", 0.0, 2.0, 0.0)
+  Param.add("ArpSpeed", 0.02, 0.5, 0.05)
+  Param.add("EchoDelay", 16.0, 480.0, 120.0, 16.0)
+  Param.add("EchoFeedback", 0.0, 0.95, 0.45)
+  Param.add("EchoVolume", 0.0, 1.0, 0.35)
   Param.add("NoiseMix", 0.0, 1.0, 0.0)
 end
 
-function SFXR.process(time, freq, note, params)
+function SNESSFX.process(time, freq, note, params)
   return 0.0
 end
 
-return SFXR
+return SNESSFX
+''',
+    ),
+
+    // 9. SNES S-DSP Console Synth
+    LuaPreset(
+      id: 'snes_console_synth',
+      name: 'SNES S-DSP Console Synth',
+      category: LuaPresetCategory.instrument,
+      description: 'Polyphonic 16-bit Super Nintendo sound processor emulation with Gaussian BRR wavetables, pitch modulation (PMOD), and 8-tap FIR echo reverb.',
+      code: '''
+-- @name: SNES S-DSP Console Synth
+-- @category: instrument
+local SNESConsole = {}
+
+function SNESConsole.init()
+  Param.choice("Waveform", {"Square", "Pulse 25%", "Pulse 12%", "Sawtooth", "Triangle", "Sine", "Organ", "Strings", "Flute", "Slap Bass", "Chime", "Noise"}, 0.0)
+  Param.add("Attack", 0.001, 0.5, 0.005)
+  Param.add("Decay", 0.01, 2.0, 0.3)
+  Param.add("Sustain", 0.0, 1.0, 0.5)
+  Param.add("Release", 0.01, 2.0, 0.25)
+  Param.add("VibratoRate", 0.0, 20.0, 5.5)
+  Param.add("VibratoDepth", 0.0, 1.0, 0.1)
+  Param.add("EchoDelay", 16.0, 480.0, 140.0, 16.0)
+  Param.add("EchoFeedback", 0.0, 0.9, 0.55)
+  Param.add("EchoVolume", 0.0, 1.0, 0.4)
+end
+
+function SNESConsole.process(time, freq, note, params)
+  return 0.0
+end
+
+return SNESConsole
 ''',
     ),
 
