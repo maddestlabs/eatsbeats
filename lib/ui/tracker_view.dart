@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/daw_state.dart';
@@ -24,6 +25,50 @@ class _TrackerViewState extends State<TrackerView> {
   String? _lastTapCellKey;
   bool _followPlayback = true;
   int _lastFollowStep = -1;
+
+  // 2D Matrix Block Selection State
+  int? _selectionAnchorStep;
+  int? _selectionAnchorCol;
+  int? _selectionCurrentStep;
+  int? _selectionCurrentCol;
+  Offset? _longPressStartGlobalPos;
+
+  bool get _hasBlockSelection =>
+      _selectionAnchorStep != null &&
+      _selectionAnchorCol != null &&
+      _selectionCurrentStep != null &&
+      _selectionCurrentCol != null &&
+      (_selectionAnchorStep != _selectionCurrentStep || _selectionAnchorCol != _selectionCurrentCol);
+
+  int get _selectionMinStep => math.min(
+      _selectionAnchorStep ?? widget.dawState.trackerSelectedStep,
+      _selectionCurrentStep ?? widget.dawState.trackerSelectedStep);
+  int get _selectionMaxStep => math.max(
+      _selectionAnchorStep ?? widget.dawState.trackerSelectedStep,
+      _selectionCurrentStep ?? widget.dawState.trackerSelectedStep);
+  int get _selectionMinCol => math.min(
+      _selectionAnchorCol ?? widget.dawState.trackerSelectedColumn,
+      _selectionCurrentCol ?? widget.dawState.trackerSelectedColumn);
+  int get _selectionMaxCol => math.max(
+      _selectionAnchorCol ?? widget.dawState.trackerSelectedColumn,
+      _selectionCurrentCol ?? widget.dawState.trackerSelectedColumn);
+
+  bool _isCellInBlock(int step, int col) {
+    if (!_hasBlockSelection) return false;
+    return step >= _selectionMinStep &&
+        step <= _selectionMaxStep &&
+        col >= _selectionMinCol &&
+        col <= _selectionMaxCol;
+  }
+
+  void _clearBlockSelection() {
+    setState(() {
+      _selectionAnchorStep = null;
+      _selectionAnchorCol = null;
+      _selectionCurrentStep = null;
+      _selectionCurrentCol = null;
+    });
+  }
 
   @override
   void initState() {
@@ -74,6 +119,19 @@ class _TrackerViewState extends State<TrackerView> {
 
   void _handleCellTap(int stepIdx, int colIdx, TrackChannel track, Note noteMatch) {
     _focusNode.requestFocus();
+
+    if (HardwareKeyboard.instance.isShiftPressed) {
+      setState(() {
+        _selectionAnchorStep ??= widget.dawState.trackerSelectedStep;
+        _selectionAnchorCol ??= widget.dawState.trackerSelectedColumn;
+        _selectionCurrentStep = stepIdx;
+        _selectionCurrentCol = colIdx;
+        widget.dawState.selectTrackerCell(stepIdx, colIdx);
+      });
+      return;
+    }
+
+    _clearBlockSelection();
     widget.dawState.selectTrackerCell(stepIdx, colIdx);
 
     final now = DateTime.now();
@@ -97,68 +155,94 @@ class _TrackerViewState extends State<TrackerView> {
     final totalSteps = widget.dawState.activeTrackClip.barLength * 16;
     final totalColumns = widget.dawState.activeTrack.trackerColumns;
     final key = event.logicalKey;
+    final isShift = HardwareKeyboard.instance.isShiftPressed;
+    final isCtrlOrCmd = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
+
+    // Ctrl+A / Cmd+A -> Select All Matrix Cells
+    if (isCtrlOrCmd && key == LogicalKeyboardKey.keyA) {
+      setState(() {
+        _selectionAnchorStep = 0;
+        _selectionAnchorCol = 0;
+        _selectionCurrentStep = totalSteps - 1;
+        _selectionCurrentCol = totalColumns - 1;
+      });
+      return KeyEventResult.handled;
+    }
+
+    // Escape -> Clear Block Selection
+    if (key == LogicalKeyboardKey.escape) {
+      if (_hasBlockSelection) {
+        _clearBlockSelection();
+        return KeyEventResult.handled;
+      }
+    }
+
+    // Helper for Shift-Arrow / Arrow Navigation
+    void moveSelection(int newStep, int newCol) {
+      final clampedStep = newStep.clamp(0, totalSteps - 1);
+      final clampedCol = newCol.clamp(0, totalColumns - 1);
+      if (isShift) {
+        setState(() {
+          _selectionAnchorStep ??= widget.dawState.trackerSelectedStep;
+          _selectionAnchorCol ??= widget.dawState.trackerSelectedColumn;
+          _selectionCurrentStep = clampedStep;
+          _selectionCurrentCol = clampedCol;
+          widget.dawState.selectTrackerCell(clampedStep, clampedCol);
+        });
+      } else {
+        _clearBlockSelection();
+        widget.dawState.selectTrackerCell(clampedStep, clampedCol);
+      }
+      _scrollToSelectedStep();
+    }
 
     // Arrow & Navigation Keys
     if (key == LogicalKeyboardKey.arrowUp) {
-      widget.dawState.selectTrackerCell(
-        (widget.dawState.trackerSelectedStep - 1).clamp(0, totalSteps - 1),
-        widget.dawState.trackerSelectedColumn,
-      );
-      _scrollToSelectedStep();
+      moveSelection(widget.dawState.trackerSelectedStep - 1, widget.dawState.trackerSelectedColumn);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowDown) {
-      widget.dawState.selectTrackerCell(
-        (widget.dawState.trackerSelectedStep + 1).clamp(0, totalSteps - 1),
-        widget.dawState.trackerSelectedColumn,
-      );
-      _scrollToSelectedStep();
+      moveSelection(widget.dawState.trackerSelectedStep + 1, widget.dawState.trackerSelectedColumn);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowLeft) {
-      widget.dawState.selectTrackerCell(
-        widget.dawState.trackerSelectedStep,
-        (widget.dawState.trackerSelectedColumn - 1).clamp(0, totalColumns - 1),
-      );
+      moveSelection(widget.dawState.trackerSelectedStep, widget.dawState.trackerSelectedColumn - 1);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowRight) {
-      widget.dawState.selectTrackerCell(
-        widget.dawState.trackerSelectedStep,
-        (widget.dawState.trackerSelectedColumn + 1).clamp(0, totalColumns - 1),
-      );
+      moveSelection(widget.dawState.trackerSelectedStep, widget.dawState.trackerSelectedColumn + 1);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.pageUp) {
-      widget.dawState.selectTrackerCell(
-        (widget.dawState.trackerSelectedStep - 4).clamp(0, totalSteps - 1),
-        widget.dawState.trackerSelectedColumn,
-      );
-      _scrollToSelectedStep();
+      moveSelection(widget.dawState.trackerSelectedStep - 4, widget.dawState.trackerSelectedColumn);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.pageDown) {
-      widget.dawState.selectTrackerCell(
-        (widget.dawState.trackerSelectedStep + 4).clamp(0, totalSteps - 1),
-        widget.dawState.trackerSelectedColumn,
-      );
-      _scrollToSelectedStep();
+      moveSelection(widget.dawState.trackerSelectedStep + 4, widget.dawState.trackerSelectedColumn);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.home) {
-      widget.dawState.selectTrackerCell(0, widget.dawState.trackerSelectedColumn);
-      _scrollToSelectedStep();
+      moveSelection(0, widget.dawState.trackerSelectedColumn);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.end) {
-      widget.dawState.selectTrackerCell(totalSteps - 1, widget.dawState.trackerSelectedColumn);
-      _scrollToSelectedStep();
+      moveSelection(totalSteps - 1, widget.dawState.trackerSelectedColumn);
       return KeyEventResult.handled;
     }
 
-    // Delete / Erase Note
+    // Delete / Erase Note(s)
     if (key == LogicalKeyboardKey.delete || key == LogicalKeyboardKey.backspace) {
-      widget.dawState.deleteTrackerNoteAtSelectedCell();
+      if (_hasBlockSelection) {
+        widget.dawState.deleteTrackerNotesInBlock(
+          startStep: _selectionMinStep,
+          endStep: _selectionMaxStep,
+          startCol: _selectionMinCol,
+          endCol: _selectionMaxCol,
+        );
+        _clearBlockSelection();
+      } else {
+        widget.dawState.deleteTrackerNoteAtSelectedCell();
+      }
       return KeyEventResult.handled;
     }
 
@@ -260,6 +344,73 @@ class _TrackerViewState extends State<TrackerView> {
                     letterSpacing: 1.0,
                   ),
                 ),
+
+                if (_hasBlockSelection) ...[
+                  const SizedBox(width: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: EatsTheme.primaryCyan.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.6)),
+                    ),
+                    child: Text(
+                      'BLOCK: R${_selectionMinStep}..R${_selectionMaxStep} (C${_selectionMinCol + 1}..C${_selectionMaxCol + 1})',
+                      style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text('SEMITONES:', style: TextStyle(color: EatsTheme.textMuted, fontSize: 9, fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 2),
+                  ...[-12, -1, 1, 12].map((st) => Padding(
+                        padding: const EdgeInsets.only(right: 2),
+                        child: InkWell(
+                          onTap: () {
+                            widget.dawState.transposeTrackerNotesInBlock(
+                              startStep: _selectionMinStep,
+                              endStep: _selectionMaxStep,
+                              startCol: _selectionMinCol,
+                              endCol: _selectionMaxCol,
+                              semitones: st,
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: EatsTheme.panelHeader,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: Text(
+                              st > 0 ? '+$st' : '$st',
+                              style: TextStyle(color: EatsTheme.accentGold, fontSize: 9, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      )),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: EatsTheme.accentGold, size: 15),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                    tooltip: 'Delete Block Notes (Del)',
+                    onPressed: () {
+                      widget.dawState.deleteTrackerNotesInBlock(
+                        startStep: _selectionMinStep,
+                        endStep: _selectionMaxStep,
+                        startCol: _selectionMinCol,
+                        endCol: _selectionMaxCol,
+                      );
+                      _clearBlockSelection();
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: EatsTheme.textMuted, size: 15),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                    tooltip: 'Deselect Block (Esc)',
+                    onPressed: _clearBlockSelection,
+                  ),
+                ],
+
                 const Spacer(),
 
                 // Tracker Column Controls
@@ -349,29 +500,45 @@ class _TrackerViewState extends State<TrackerView> {
                     children: [
                       // Sub-channel Column Header Row
                       Container(
-                        color: EatsTheme.controlBackground,
-                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        height: 24,
+                        color: EatsTheme.panelBackground,
                         child: Row(
                           children: [
+                            // Step counter header spacer
                             SizedBox(
                               width: rowHeaderWidth,
-                              child: Text(
-                                'ROW',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: EatsTheme.textMuted,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
+                              child: Center(
+                                child: Text(
+                                  'STEP',
+                                  style: TextStyle(
+                                    color: EatsTheme.textMuted,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ),
+
+                            // Sub-channel Column Labels
                             ...List.generate(totalColumns, (colIdx) {
                               final isSelectedCol = widget.dawState.trackerSelectedColumn == colIdx;
-                              return SizedBox(
-                                width: columnWidth + 4.0,
+                              return Container(
+                                width: columnWidth,
+                                margin: const EdgeInsets.symmetric(horizontal: 2),
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                decoration: BoxDecoration(
+                                  color: isSelectedCol
+                                      ? EatsTheme.primaryCyan.withOpacity(0.15)
+                                      : EatsTheme.controlBackground.withOpacity(0.5),
+                                  borderRadius: BorderRadius.circular(3),
+                                  border: Border.all(
+                                    color: isSelectedCol ? EatsTheme.primaryCyan : Colors.transparent,
+                                    width: 1.0,
+                                  ),
+                                ),
+                                alignment: Alignment.center,
                                 child: Text(
-                                  'COL 0${colIdx + 1}',
-                                  textAlign: TextAlign.center,
+                                  'CH ${colIdx + 1} (NOTE / VEL / FX)',
                                   style: TextStyle(
                                     color: isSelectedCol
                                         ? EatsTheme.accentGold
@@ -441,6 +608,7 @@ class _TrackerViewState extends State<TrackerView> {
 
                                     final hasNote = noteMatch.pitch != -1;
                                     final isSelectedCell = isSelectedLine && widget.dawState.trackerSelectedColumn == colIdx;
+                                    final isInBlock = _isCellInBlock(stepIdx, colIdx);
 
                                     final noteStr = hasNote ? _formatTrackerNote(noteMatch.pitch) : '---';
                                     final volStr = hasNote ? 'V${(noteMatch.velocity * 99).toInt().toString().padLeft(2, '0')}' : '..';
@@ -451,27 +619,59 @@ class _TrackerViewState extends State<TrackerView> {
                                       onTapDown: (_) {
                                         _handleCellTap(stepIdx, colIdx, track, noteMatch);
                                       },
+                                      onLongPressStart: (details) {
+                                        _focusNode.requestFocus();
+                                        _longPressStartGlobalPos = details.globalPosition;
+                                        setState(() {
+                                          _selectionAnchorStep = stepIdx;
+                                          _selectionAnchorCol = colIdx;
+                                          _selectionCurrentStep = stepIdx;
+                                          _selectionCurrentCol = colIdx;
+                                          widget.dawState.selectTrackerCell(stepIdx, colIdx);
+                                        });
+                                      },
+                                      onLongPressMoveUpdate: (details) {
+                                        if (_longPressStartGlobalPos != null) {
+                                          final deltaY = details.globalPosition.dy - _longPressStartGlobalPos!.dy;
+                                          final deltaX = details.globalPosition.dx - _longPressStartGlobalPos!.dx;
+                                          final targetStep = (stepIdx + (deltaY / 32.0).round()).clamp(0, totalSteps - 1);
+                                          final targetCol = (colIdx + (deltaX / (columnWidth + 4.0)).round()).clamp(0, totalColumns - 1);
+                                          if (_selectionCurrentStep != targetStep || _selectionCurrentCol != targetCol) {
+                                            setState(() {
+                                              _selectionCurrentStep = targetStep;
+                                              _selectionCurrentCol = targetCol;
+                                            });
+                                          }
+                                        }
+                                      },
+                                      onLongPressEnd: (_) {
+                                        _longPressStartGlobalPos = null;
+                                      },
                                       child: Container(
                                         width: columnWidth,
                                         margin: const EdgeInsets.symmetric(horizontal: 2),
                                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: isSelectedCell
-                                              ? EatsTheme.highlightColor.withOpacity(0.40)
-                                              : (hasNote
-                                                  ? track.color.withOpacity(0.25)
-                                                  : EatsTheme.controlBackground.withOpacity(0.3)),
+                                          color: isInBlock
+                                              ? EatsTheme.primaryCyan.withOpacity(0.35)
+                                              : (isSelectedCell
+                                                  ? EatsTheme.highlightColor.withOpacity(0.40)
+                                                  : (hasNote
+                                                      ? track.color.withOpacity(0.25)
+                                                      : EatsTheme.controlBackground.withOpacity(0.3))),
                                           borderRadius: BorderRadius.circular(4),
                                           border: Border.all(
-                                            color: isSelectedCell
-                                                ? EatsTheme.highlightColor
-                                                : (hasNote ? track.color.withOpacity(0.6) : Colors.transparent),
-                                            width: isSelectedCell ? 2.0 : 1.0,
+                                            color: isInBlock
+                                                ? EatsTheme.primaryCyan
+                                                : (isSelectedCell
+                                                    ? EatsTheme.highlightColor
+                                                    : (hasNote ? track.color.withOpacity(0.6) : Colors.transparent)),
+                                            width: (isInBlock || isSelectedCell) ? 2.0 : 1.0,
                                           ),
-                                          boxShadow: isSelectedCell
+                                          boxShadow: (isInBlock || isSelectedCell)
                                               ? [
                                                   BoxShadow(
-                                                    color: EatsTheme.highlightColor.withOpacity(0.4),
+                                                    color: (isInBlock ? EatsTheme.primaryCyan : EatsTheme.highlightColor).withOpacity(0.4),
                                                     blurRadius: 4,
                                                     spreadRadius: 1,
                                                   )
@@ -481,11 +681,11 @@ class _TrackerViewState extends State<TrackerView> {
                                         child: Text(
                                           '$noteStr  $volStr  $fxStr',
                                           style: EatsTheme.getDisplayFontStyle(
-                                            color: isSelectedCell
+                                            color: (isInBlock || isSelectedCell)
                                                 ? Colors.white
                                                 : (hasNote ? EatsTheme.textPrimary : EatsTheme.textMuted),
                                             fontSize: 11,
-                                            fontWeight: (hasNote || isSelectedCell) ? FontWeight.bold : FontWeight.normal,
+                                            fontWeight: (hasNote || isSelectedCell || isInBlock) ? FontWeight.bold : FontWeight.normal,
                                           ),
                                         ),
                                       ),

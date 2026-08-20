@@ -6,6 +6,8 @@ import '../../audio/soundfont_engine.dart';
 import '../../utils/soundfont_pack_manager.dart';
 import '../../utils/ir_pack_manager.dart';
 import '../../models/history_manager.dart';
+import '../../models/track_model.dart';
+import '../../models/script_target_model.dart';
 import 'command_palette_dialog.dart';
 
 class SoundFontDragItem {
@@ -261,37 +263,12 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
         }),
 
         const SizedBox(height: 12),
-        _buildSectionHeader('ACTIVE LUA SCRIPTS', Icons.code),
-        ...activePattern.tracks.where((t) => t.luaScriptCode.isNotEmpty).map((t) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 4),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Material(
-              type: MaterialType.transparency,
-              child: ListTile(
-                dense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                leading: const Icon(Icons.integration_instructions, size: 16, color: Color(0xFFFF8C00)),
-                title: Text(
-                  t.name,
-                  style: EatsTheme.getPrimaryFontStyle(fontSize: 11, color: EatsTheme.textLight),
-                ),
-                subtitle: Text(
-                  'Bound to Channel ${t.name}',
-                  style: EatsTheme.getPrimaryFontStyle(fontSize: 9, color: EatsTheme.textMuted),
-                ),
-                onTap: () {
-                  final idx = activePattern.tracks.indexOf(t);
-                  if (idx != -1) state.activeTrackIndex = idx;
-                  state.activeTabIndex = 4; // Jump to Lua Workbench
-                },
-              ),
-            ),
-          );
-        }),
+        _buildSectionHeader('PROJECT SCRIPT MATRIX', Icons.code),
+        ..._buildProjectScriptMatrixList(state),
+
+        const SizedBox(height: 12),
+        _buildSectionHeader('AUDIO FX INSERTS', Icons.tune),
+        ..._buildAudioFxInsertsList(state),
 
         const SizedBox(height: 12),
         _buildSectionHeader('SOUNDFONTS & IMPULSES', Icons.library_music),
@@ -399,6 +376,158 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
         ),
       ],
     );
+  }
+
+  List<Widget> _buildProjectScriptMatrixList(DawState state) {
+    final targets = state.getAllScriptTargets();
+    if (targets.isEmpty) {
+      return [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          child: Text('No active scripts in project', style: EatsTheme.getPrimaryFontStyle(fontSize: 10, color: EatsTheme.textMuted)),
+        ),
+      ];
+    }
+
+    return targets.map((target) {
+      final isCurrent = state.activeScriptTarget.id == target.id;
+      final badgeBg = target.type == ScriptTargetType.trackDsp
+          ? EatsTheme.primaryCyan
+          : (target.type == ScriptTargetType.midiFx ? EatsTheme.accentGold : EatsTheme.secondaryMagenta);
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        decoration: BoxDecoration(
+          color: isCurrent ? EatsTheme.primaryCyan.withOpacity(0.15) : Colors.black.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: isCurrent ? EatsTheme.primaryCyan : Colors.transparent,
+            width: 1,
+          ),
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: ListTile(
+            dense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+            leading: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: badgeBg.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: badgeBg.withOpacity(0.6), width: 0.8),
+              ),
+              child: Icon(target.iconData, size: 14, color: badgeBg),
+            ),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    target.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: EatsTheme.getPrimaryFontStyle(
+                      fontSize: 11,
+                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                      color: isCurrent ? Colors.white : EatsTheme.textLight,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: Text(
+                    target.typeBadge,
+                    style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.bold, color: Colors.black),
+                  ),
+                ),
+              ],
+            ),
+            subtitle: Text(
+              target.subtitle,
+              style: EatsTheme.getPrimaryFontStyle(fontSize: 9, color: EatsTheme.textMuted),
+            ),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 11, color: Colors.white30),
+            onTap: () {
+              state.openScriptInEditor(target);
+            },
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  List<Widget> _buildAudioFxInsertsList(DawState state) {
+    final fxEntries = <Map<String, dynamic>>[];
+    for (final track in state.activePattern.tracks) {
+      for (final fx in track.fxRack) {
+        fxEntries.add({
+          'fx': fx,
+          'track': track,
+        });
+      }
+    }
+
+    if (fxEntries.isEmpty) {
+      return [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          child: Text('No Audio FX inserts active', style: EatsTheme.getPrimaryFontStyle(fontSize: 10, color: EatsTheme.textMuted)),
+        ),
+      ];
+    }
+
+    return fxEntries.map((entry) {
+      final FXInsert fx = entry['fx'];
+      final TrackChannel track = entry['track'];
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: ListTile(
+            dense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+            leading: Icon(
+              Icons.tune,
+              size: 16,
+              color: fx.enabled ? EatsTheme.secondaryMagenta : EatsTheme.textMuted,
+            ),
+            title: Text(
+              fx.name,
+              style: EatsTheme.getPrimaryFontStyle(
+                fontSize: 11,
+                color: fx.enabled ? EatsTheme.textLight : EatsTheme.textMuted,
+              ),
+            ),
+            subtitle: Text(
+              'Track: ${track.name} • Mix: ${(fx.mix * 100).round()}%',
+              style: EatsTheme.getPrimaryFontStyle(fontSize: 9, color: EatsTheme.textMuted),
+            ),
+            trailing: Text(
+              fx.enabled ? 'ACTIVE' : 'BYPASS',
+              style: TextStyle(
+                fontSize: 8,
+                fontWeight: FontWeight.bold,
+                color: fx.enabled ? EatsTheme.accentGreen : EatsTheme.muteColor,
+              ),
+            ),
+            onTap: () {
+              final tIdx = state.activePattern.tracks.indexOf(track);
+              if (tIdx != -1) state.activeTrackIndex = tIdx;
+              state.activeTabIndex = 2; // Jump to Track Inspector
+            },
+          ),
+        ),
+      );
+    }).toList();
   }
 
   // --- TAB 2: PRESET LIBRARY (WITH DRAG & DROP) ---

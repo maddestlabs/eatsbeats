@@ -23,6 +23,7 @@ import '../lua/default_song.dart';
 import 'track_model.dart';
 import 'chord_model.dart';
 import 'history_manager.dart';
+import 'script_target_model.dart';
 
 class DawState extends ChangeNotifier {
   final AudioEngine audioEngine = AudioEngine();
@@ -702,28 +703,212 @@ class DawState extends ChangeNotifier {
     loadFromEatsLua(DefaultSong.midnightBitesLua);
   }
 
-  // Lua Engine Compilation & Hot Swap
-  void compileLuaCode(String code) {
+  // Script Target & Project Script Management
+  ScriptTarget? _activeScriptTarget;
+
+  ScriptTarget get activeScriptTarget {
+    final targets = getAllScriptTargets();
+    if (targets.isEmpty) {
+      return ScriptTarget(
+        id: 'track_${activeTrack.id}_dsp',
+        type: ScriptTargetType.trackDsp,
+        title: '${activeTrack.name} (Synth DSP)',
+        subtitle: 'Channel Instrument Script',
+        trackId: activeTrack.id,
+        trackName: activeTrack.name,
+        trackColor: activeTrack.color,
+      );
+    }
+    if (_activeScriptTarget != null) {
+      final existing = targets.where((t) => t.id == _activeScriptTarget!.id).firstOrNull;
+      if (existing != null) return existing;
+    }
+    final trackTarget = targets.where((t) => t.trackId == activeTrack.id && t.type == ScriptTargetType.trackDsp).firstOrNull;
+    return trackTarget ?? targets.first;
+  }
+
+  set activeScriptTarget(ScriptTarget target) {
+    selectScriptTarget(target);
+  }
+
+  List<ScriptTarget> getAllScriptTargets() {
+    final list = <ScriptTarget>[];
+    for (final track in activePattern.tracks) {
+      // 1. Track DSP / Synth Script
+      list.add(
+        ScriptTarget(
+          id: 'track_${track.id}_dsp',
+          type: ScriptTargetType.trackDsp,
+          title: '${track.name} (Synth DSP)',
+          subtitle: track.luaScriptCode.isNotEmpty ? 'Custom Lua Synth / DSP' : 'Instrument DSP Script',
+          trackId: track.id,
+          trackName: track.name,
+          trackColor: track.color,
+        ),
+      );
+
+      // 2. Track MIDI FX modules
+      for (final mfx in track.midiFXRack) {
+        list.add(
+          ScriptTarget(
+            id: 'mfx_${track.id}_${mfx.id}',
+            type: ScriptTargetType.midiFx,
+            title: '${mfx.name} (${track.name})',
+            subtitle: 'MIDI FX Insert Module',
+            trackId: track.id,
+            trackName: track.name,
+            trackColor: track.color,
+            secondaryId: mfx.id,
+          ),
+        );
+      }
+
+      // 3. Track Clip Scripts
+      for (final clip in track.clips) {
+        list.add(
+          ScriptTarget(
+            id: 'clip_${track.id}_${clip.id}',
+            type: ScriptTargetType.clipScript,
+            title: '${clip.name.isNotEmpty ? clip.name : "Clip"} (${track.name})',
+            subtitle: 'Generative Clip / Sequence Script',
+            trackId: track.id,
+            trackName: track.name,
+            trackColor: track.color,
+            secondaryId: clip.id,
+            clipName: clip.name,
+          ),
+        );
+      }
+    }
+    return list;
+  }
+
+  String getScriptCodeForTarget(ScriptTarget target) {
+    final track = activePattern.tracks.where((t) => t.id == target.trackId).firstOrNull ?? activeTrack;
+    switch (target.type) {
+      case ScriptTargetType.trackDsp:
+        return track.luaScriptCode;
+      case ScriptTargetType.midiFx:
+        final mfx = track.midiFXRack.where((f) => f.id == target.secondaryId).firstOrNull;
+        return mfx?.luaScriptCode ?? '';
+      case ScriptTargetType.clipScript:
+        final clip = track.clips.where((c) => c.id == target.secondaryId).firstOrNull;
+        return clip?.luaScriptCode ?? '';
+    }
+  }
+
+  Map<String, double> getScriptParamsForTarget(ScriptTarget target) {
+    final track = activePattern.tracks.where((t) => t.id == target.trackId).firstOrNull ?? activeTrack;
+    switch (target.type) {
+      case ScriptTargetType.trackDsp:
+        return track.luaParams;
+      case ScriptTargetType.midiFx:
+        final mfx = track.midiFXRack.where((f) => f.id == target.secondaryId).firstOrNull;
+        return mfx?.luaParams ?? {};
+      case ScriptTargetType.clipScript:
+        final clip = track.clips.where((c) => c.id == target.secondaryId).firstOrNull;
+        return clip?.luaParams ?? {};
+    }
+  }
+
+  void updateScriptParamForTarget(ScriptTarget target, String paramName, double value) {
+    final track = activePattern.tracks.where((t) => t.id == target.trackId).firstOrNull ?? activeTrack;
+    switch (target.type) {
+      case ScriptTargetType.trackDsp:
+        track.luaParams[paramName] = value;
+        break;
+      case ScriptTargetType.midiFx:
+        updateMidiFXParam(track, target.secondaryId ?? '', paramName, value);
+        return;
+      case ScriptTargetType.clipScript:
+        final clip = track.clips.where((c) => c.id == target.secondaryId).firstOrNull;
+        if (clip != null) {
+          clip.luaParams[paramName] = value;
+          final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+          pipeline.processClip(clip: clip, track: track, timeContext: timeContext);
+        }
+        break;
+    }
+    notifyListeners();
+  }
+
+  void selectScriptTarget(ScriptTarget target) {
+    _activeScriptTarget = target;
+    final tIdx = activePattern.tracks.indexWhere((t) => t.id == target.trackId);
+    if (tIdx != -1 && tIdx != _activeTrackIndex) {
+      _activeTrackIndex = tIdx;
+    }
+    luaCode = getScriptCodeForTarget(target);
+    compilationResult = LuaEngine.compile(luaCode);
+    notifyListeners();
+  }
+
+  void openScriptInEditor(ScriptTarget target) {
+    selectScriptTarget(target);
+    _activeTabIndex = 4; // Navigate to SCRIPTS tab
+    notifyListeners();
+  }
+
+  // Lua Engine Compilation & Hot Swap across all script types
+  void compileScriptTarget(ScriptTarget target, String code) {
+    // 1. SAVE STATE BEFORE RECOMPILING FOR HISTORY MANAGER
+    recordHistory('Compile ${target.typeBadge}: ${target.title}', icon: Icons.code, force: true);
+
     luaCode = code;
     compilationResult = LuaEngine.compile(code);
 
+    final track = activePattern.tracks.where((t) => t.id == target.trackId).firstOrNull ?? activeTrack;
+
     if (compilationResult.isSuccess) {
-      // Synchronize Lua parameters to active track
-      activeTrack.luaScriptCode = code;
-      activeTrack.type = TrackType.luaScript;
+      switch (target.type) {
+        case ScriptTargetType.trackDsp:
+          track.luaScriptCode = code;
+          track.type = TrackType.luaScript;
+          final newParams = <String, double>{};
+          for (final p in compilationResult.params) {
+            newParams[p.name] = track.luaParams[p.name] ?? p.defaultValue;
+          }
+          track.luaParams = newParams;
+          audioEngine.invalidateLuaCache(track.id);
+          break;
 
-      final newParams = <String, double>{};
-      for (final p in compilationResult.params) {
-        newParams[p.name] = activeTrack.luaParams[p.name] ?? p.defaultValue;
+        case ScriptTargetType.midiFx:
+          final mfx = track.midiFXRack.where((f) => f.id == target.secondaryId).firstOrNull;
+          if (mfx != null) {
+            mfx.luaScriptCode = code;
+            final newParams = <String, double>{};
+            for (final p in compilationResult.params) {
+              newParams[p.name] = mfx.luaParams[p.name] ?? p.defaultValue;
+            }
+            mfx.luaParams = newParams;
+          }
+          break;
+
+        case ScriptTargetType.clipScript:
+          final clip = track.clips.where((c) => c.id == target.secondaryId).firstOrNull;
+          if (clip != null) {
+            clip.luaScriptCode = code;
+            final newParams = <String, double>{};
+            for (final p in compilationResult.params) {
+              newParams[p.name] = clip.luaParams[p.name] ?? p.defaultValue;
+            }
+            clip.luaParams = newParams;
+            final parsedNotes = MidiPipelineEngine.parseNotesFromLuaTable(code);
+            if (parsedNotes.isNotEmpty) {
+              clip.notes = parsedNotes;
+              track.notes = parsedNotes;
+            }
+            final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+            pipeline.processClip(clip: clip, track: track, timeContext: timeContext);
+          }
+          break;
       }
-      activeTrack.luaParams = newParams;
-
-      // Invalidate PCM cache entries for this track so the next note trigger
-      // re-synthesizes with the new Lua code rather than playing stale buffers.
-      audioEngine.invalidateLuaCache(activeTrack.id);
-      recordHistory('Compile Lua Script (${activeTrack.name})', icon: Icons.code);
     }
     notifyListeners();
+  }
+
+  void compileLuaCode(String code) {
+    compileScriptTarget(activeScriptTarget, code);
   }
 
   TrackClip? activeClip;
@@ -1261,7 +1446,7 @@ class DawState extends ChangeNotifier {
       midiNote: note.pitch,
       velocity: note.velocity,
     );
-    recordHistory('Add Note ${_formatPitch(note.pitch)} (${track.name})', icon: Icons.music_note);
+    recordHistory('Add Note ${_formatPitch(note.pitch)} (${track.name})', icon: Icons.music_note, force: true);
     notifyListeners();
   }
 
@@ -1270,7 +1455,7 @@ class DawState extends ChangeNotifier {
     if (idx != -1) {
       track.notes[idx] = updatedNote;
       _syncClipNotes(track);
-      recordHistory('Update Note ${_formatPitch(updatedNote.pitch)} (${track.name})', icon: Icons.music_note);
+      recordHistory('Update Note ${_formatPitch(updatedNote.pitch)} (${track.name})', icon: Icons.music_note, force: true);
       notifyListeners();
     }
   }
@@ -1278,7 +1463,68 @@ class DawState extends ChangeNotifier {
   void removeNote(TrackChannel track, String noteId) {
     track.notes.removeWhere((n) => n.id == noteId);
     _syncClipNotes(track);
-    recordHistory('Delete Note (${track.name})', icon: Icons.delete_outline);
+    recordHistory('Delete Note (${track.name})', icon: Icons.delete_outline, force: true);
+    notifyListeners();
+  }
+
+  void removeNotes(TrackChannel track, Iterable<String> noteIds) {
+    final idSet = noteIds.toSet();
+    if (idSet.isEmpty) return;
+    track.notes.removeWhere((n) => idSet.contains(n.id));
+    _syncClipNotes(track);
+    recordHistory('Delete ${idSet.length} Notes (${track.name})', icon: Icons.delete_outline, force: true);
+    notifyListeners();
+  }
+
+  void transposeNotes(TrackChannel track, Iterable<String> noteIds, int semitones) {
+    final idSet = noteIds.toSet();
+    if (idSet.isEmpty || semitones == 0) return;
+    for (final n in track.notes) {
+      if (idSet.contains(n.id)) {
+        n.pitch = (n.pitch + semitones).clamp(0, 127);
+      }
+    }
+    _syncClipNotes(track);
+    recordHistory('Transpose ${idSet.length} Notes by ${semitones > 0 ? "+$semitones" : semitones} (${track.name})', icon: Icons.tune, force: true);
+    notifyListeners();
+  }
+
+  void setNotesVelocity(TrackChannel track, Iterable<String> noteIds, double velocity) {
+    final idSet = noteIds.toSet();
+    if (idSet.isEmpty) return;
+    final clampedVel = velocity.clamp(0.01, 1.0);
+    for (final n in track.notes) {
+      if (idSet.contains(n.id)) {
+        n.velocity = clampedVel;
+      }
+    }
+    _syncClipNotes(track);
+    notifyListeners();
+  }
+
+  void nudgeNotesPosition(TrackChannel track, Iterable<String> noteIds, double deltaSteps) {
+    final idSet = noteIds.toSet();
+    if (idSet.isEmpty || deltaSteps == 0) return;
+    for (final n in track.notes) {
+      if (idSet.contains(n.id)) {
+        n.startStep = (n.startStep + deltaSteps).clamp(0.0, 64.0);
+      }
+    }
+    _syncClipNotes(track);
+    recordHistory('Nudge ${idSet.length} Notes (${track.name})', icon: Icons.open_with, force: true);
+    notifyListeners();
+  }
+
+  void changeNotesDuration(TrackChannel track, Iterable<String> noteIds, double deltaSteps) {
+    final idSet = noteIds.toSet();
+    if (idSet.isEmpty || deltaSteps == 0) return;
+    for (final n in track.notes) {
+      if (idSet.contains(n.id)) {
+        n.durationSteps = (n.durationSteps + deltaSteps).clamp(0.25, 64.0);
+      }
+    }
+    _syncClipNotes(track);
+    recordHistory('Change Duration of ${idSet.length} Notes (${track.name})', icon: Icons.straighten, force: true);
     notifyListeners();
   }
 
@@ -1982,6 +2228,50 @@ class DawState extends ChangeNotifier {
       (n) => n.startStep.toInt() == trackerSelectedStep && n.column == trackerSelectedColumn,
     );
     _syncClipNotes(track);
+    notifyListeners();
+  }
+
+  void deleteTrackerNotesInBlock({
+    required int startStep,
+    required int endStep,
+    required int startCol,
+    required int endCol,
+  }) {
+    final minS = math.min(startStep, endStep);
+    final maxS = math.max(startStep, endStep);
+    final minC = math.min(startCol, endCol);
+    final maxC = math.max(startCol, endCol);
+
+    final track = activeTrack;
+    track.notes.removeWhere(
+      (n) => n.startStep.toInt() >= minS && n.startStep.toInt() <= maxS && n.column >= minC && n.column <= maxC,
+    );
+    _syncClipNotes(track);
+    recordHistory('Clear Tracker Block ($minS..$maxS, C$minC..C$maxC)', icon: Icons.delete_outline);
+    notifyListeners();
+  }
+
+  void transposeTrackerNotesInBlock({
+    required int startStep,
+    required int endStep,
+    required int startCol,
+    required int endCol,
+    required int semitones,
+  }) {
+    if (semitones == 0) return;
+    final minS = math.min(startStep, endStep);
+    final maxS = math.max(startStep, endStep);
+    final minC = math.min(startCol, endCol);
+    final maxC = math.max(startCol, endCol);
+
+    final track = activeTrack;
+    for (final n in track.notes) {
+      if (n.startStep.toInt() >= minS && n.startStep.toInt() <= maxS && n.column >= minC && n.column <= maxC) {
+        n.pitch = (n.pitch + semitones).clamp(0, 127);
+      }
+    }
+    _syncClipNotes(track);
+    recordHistory('Transpose Tracker Block by ${semitones > 0 ? "+$semitones" : semitones}', icon: Icons.tune);
     notifyListeners();
   }
 

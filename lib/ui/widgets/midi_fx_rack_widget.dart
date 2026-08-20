@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../lua/lua_preset_library.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
+import '../../models/script_target_model.dart';
 import '../../theme/eats_theme.dart';
 import 'eatsbits_slider.dart';
 import 'skeuomorphic_hardware_switch.dart';
@@ -247,6 +248,26 @@ class MidiFxRackWidget extends StatelessWidget {
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
+                            ),
+                            IconButton(
+                              tooltip: 'Edit Script in Scripts Pane',
+                              icon: const Icon(Icons.code, size: 18),
+                              color: EatsTheme.accentGold,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                              onPressed: () {
+                                final target = ScriptTarget(
+                                  id: 'mfx_${track.id}_${fx.id}',
+                                  type: ScriptTargetType.midiFx,
+                                  title: '${fx.name} (${track.name})',
+                                  subtitle: 'MIDI FX Insert Module',
+                                  trackId: track.id,
+                                  trackName: track.name,
+                                  trackColor: track.color,
+                                  secondaryId: fx.id,
+                                );
+                                dawState.openScriptInEditor(target);
+                              },
                             ),
                             IconButton(
                               tooltip: 'Move Up',

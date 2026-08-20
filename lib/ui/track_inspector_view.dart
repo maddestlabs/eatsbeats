@@ -5,6 +5,7 @@ import '../lua/lua_preset_library.dart';
 
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
+import '../models/script_target_model.dart';
 import '../theme/eats_theme.dart';
 import 'widgets/eatsbits_slider.dart';
 import 'widgets/skeuomorphic_hardware_knob.dart';
@@ -236,8 +237,16 @@ class TrackInspectorView extends StatelessWidget {
                     dawState.activeTabIndex = 0;
                   },
                   onDoubleTap: () {
-                    // DOUBLE TAP TRACK TITLE: Navigate to Scripts Section (tab 4)
-                    dawState.activeTabIndex = 4;
+                    final target = ScriptTarget(
+                      id: 'track_${track.id}_dsp',
+                      type: ScriptTargetType.trackDsp,
+                      title: '${track.name} (Synth DSP)',
+                      subtitle: 'Channel Instrument Script',
+                      trackId: track.id,
+                      trackName: track.name,
+                      trackColor: track.color,
+                    );
+                    dawState.openScriptInEditor(target);
                   },
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,9 +263,27 @@ class TrackInspectorView extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                // Mute & Solo
+                // Actions & Mute & Solo
                 Row(
                   children: [
+                    IconButton(
+                      tooltip: 'Open Track Script in Scripts Editor',
+                      icon: const Icon(Icons.code, size: 18),
+                      color: EatsTheme.primaryCyan,
+                      onPressed: () {
+                        final target = ScriptTarget(
+                          id: 'track_${track.id}_dsp',
+                          type: ScriptTargetType.trackDsp,
+                          title: '${track.name} (Synth DSP)',
+                          subtitle: 'Channel Instrument Script',
+                          trackId: track.id,
+                          trackName: track.name,
+                          trackColor: track.color,
+                        );
+                        dawState.openScriptInEditor(target);
+                      },
+                    ),
+                    const SizedBox(width: 4),
                     GestureDetector(
                       onTap: () => dawState.toggleMute(track),
                       child: Container(
