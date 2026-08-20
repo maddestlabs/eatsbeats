@@ -123,7 +123,7 @@ void main() {
       dawState = DawState();
     });
 
-    test('applyPresetToClip applies MIDI FX to clip without overwriting synth instrument', () {
+    test('applyPreset / applyPresetToClip routes MIDI FX to track MIDI FX rack without overwriting synth instrument', () {
       final track = dawState.activeTrack;
       track.type = TrackType.synth;
       track.name = 'Lead Synth';
@@ -133,7 +133,9 @@ void main() {
       dawState.applyPresetToClip(track, clip, arpPreset);
 
       expect(track.type, equals(TrackType.synth)); // Preserves synth
-      expect(clip.luaScriptCode, equals(arpPreset.code));
+      expect(track.midiFXRack, isNotEmpty);
+      expect(track.midiFXRack.first.name, equals(arpPreset.name));
+      expect(clip.luaScriptCode, isEmpty); // Clip does not store clip-level MIDI scripts
     });
 
     test('bakeMidiFXToClip permanently burns evaluated notes into clip and clears cache', () {

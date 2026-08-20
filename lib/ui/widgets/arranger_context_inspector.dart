@@ -744,7 +744,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
               ],
             ),
 
-            if (hasTrackMidiFx || clip.hasMidiScript) ...[
+            if (hasTrackMidiFx) ...[
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,

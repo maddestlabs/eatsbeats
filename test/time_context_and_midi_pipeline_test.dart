@@ -91,8 +91,6 @@ void main() {
         id: 'clip_arp',
         name: 'Arp Clip',
         trackId: 'track_1',
-        luaScriptCode: 'arpeggiate',
-        luaParams: {'rate': 0.25, 'octaves': 2.0, 'pattern': 0.0},
         notes: [
           Note(id: 'n_root', pitch: 60, startStep: 0.0, durationSteps: 1.0),
         ],
@@ -103,6 +101,14 @@ void main() {
         name: 'Arp Synth',
         color: Colors.purple,
         type: TrackType.synth,
+        midiFXRack: [
+          MidiFXInsert(
+            id: 'arp_fx',
+            name: 'Arp FX',
+            luaScriptCode: 'arpeggiate',
+            luaParams: {'rate': 0.25, 'octaves': 2.0, 'pattern': 0.0},
+          ),
+        ],
       );
 
       final ctx = TimeContext.fromBeat(beat: 0.0, bpm: 120.0);

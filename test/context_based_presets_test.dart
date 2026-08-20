@@ -93,7 +93,7 @@ void main() {
       expect(newTrack.clips.first.hasMidiScript, isFalse);
     });
 
-    test('applyPresetToClip with MIDI FX attaches script and evaluates notes', () {
+    test('applyPresetToClip with MIDI FX routes to track midiFXRack and evaluates notes', () {
       final track = state.activeTrack;
       final clip = track.clips.first;
       clip.barLength = 1;
@@ -105,7 +105,9 @@ void main() {
       final arpFx = LuaPresetLibrary.presets.firstWhere((p) => p.isMidiFx);
       state.applyPresetToClip(track, clip, arpFx);
 
-      expect(clip.luaScriptCode, equals(arpFx.code));
+      expect(track.midiFXRack, isNotEmpty);
+      expect(track.midiFXRack.first.name, equals(arpFx.name));
+      expect(clip.luaScriptCode, isEmpty);
       expect(clip.evaluatedNotesCache, isNotNull);
       expect(clip.evaluatedNotesCache!, isNotEmpty);
     });
@@ -139,16 +141,16 @@ void main() {
       expect(trackListAccepts(midiSeqPreset), isFalse);
 
       // 2. Track Header row target:
-      // Accepts: instrument, audioFx, SoundFont. Rejects: midiFx, midiSeq
+      // Accepts: instrument, audioFx, midiFx, SoundFont. Rejects: midiSeq
       bool trackHeaderAccepts(Object data) {
         if (data is SoundFontDragItem) return true;
-        if (data is LuaPreset) return data.isInstrument || data.isAudioFx;
+        if (data is LuaPreset) return data.isInstrument || data.isAudioFx || data.isMidiFx;
         return false;
       }
       expect(trackHeaderAccepts(instrumentPreset), isTrue);
       expect(trackHeaderAccepts(audioFxPreset), isTrue);
+      expect(trackHeaderAccepts(midiFxPreset), isTrue);
       expect(trackHeaderAccepts(soundFontItem), isTrue);
-      expect(trackHeaderAccepts(midiFxPreset), isFalse);
       expect(trackHeaderAccepts(midiSeqPreset), isFalse);
 
       // 3. Clip target:

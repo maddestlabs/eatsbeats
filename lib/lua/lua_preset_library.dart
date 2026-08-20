@@ -374,7 +374,103 @@ return PolyLeadSynth
 ''',
     ),
 
-    // 7. Lua Stereo Delay Effect
+    // 7. YM2612 Genesis 4-Op FM Synth
+    LuaPreset(
+      id: 'ym2612_synth',
+      name: 'YM2612 Genesis 4-Op FM',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic Yamaha YM2612 / OPN2 4-operator FM sound chip emulation (Sega Genesis sound) with 8 selectable routing algorithms, operator feedback, Total Level brightness, and direct register poke access.',
+      code: '''
+-- @name: YM2612 Genesis 4-Op FM
+-- @category: instrument
+local YM2612 = {}
+
+function YM2612.init()
+  Param.add("Algorithm", 0.0, 7.0, 4.0, 1.0)
+  Param.add("Feedback", 0.0, 7.0, 5.0, 1.0)
+  Param.add("Op1_Mult", 0.5, 12.0, 1.0, 0.5)
+  Param.add("Op1_TL", 0.0, 127.0, 8.0, 1.0)
+  Param.add("Op2_Mult", 0.5, 12.0, 2.0, 0.5)
+  Param.add("Op2_TL", 0.0, 127.0, 0.0, 1.0)
+  Param.add("Op3_Mult", 0.5, 12.0, 3.0, 0.5)
+  Param.add("Op3_TL", 0.0, 127.0, 16.0, 1.0)
+  Param.add("Op4_Mult", 0.5, 12.0, 1.0, 0.5)
+  Param.add("Op4_TL", 0.0, 127.0, 0.0, 1.0)
+end
+
+function YM2612.process(time, freq, note, params)
+  return 0.0
+end
+
+return YM2612
+''',
+    ),
+
+    // 8. Eats SFXR Generator
+    LuaPreset(
+      id: 'eats_sfxr',
+      name: 'Eats SFXR Generator',
+      category: LuaPresetCategory.instrument,
+      description: 'Procedural retro sound effect generator built on 4-Op FM hardware chips. Instant SFX macros (Laser, Explosion, Powerup, Coin, Jump, Hit, Mutate, Custom FM) with controllable PRNG Seed, Waveform shaping, ADSR envelope, and real-time live parameter overlays! Completely playable chromatically as musical instruments.',
+      code: '''
+-- @name: Eats SFXR Generator
+-- @category: instrument
+local SFXR = {}
+
+function SFXR.init()
+  Param.choice("SFXType", {"Laser", "Explosion", "Powerup", "Coin", "Jump", "Hit", "Mutate", "Custom FM"}, 0.0)
+  Param.add("Seed", 1.0, 9999.0, 42.0, 1.0)
+  Param.choice("Waveform", {"Sine", "Square", "Sawtooth", "Triangle", "HalfSine", "AbsSine"}, 0.0)
+  Param.add("Attack", 0.001, 0.5, 0.005)
+  Param.add("Decay", 0.02, 2.0, 0.25)
+  Param.add("Sustain", 0.0, 1.0, 0.1)
+  Param.add("Release", 0.01, 2.0, 0.2)
+  Param.add("PitchSweep", -2.0, 2.0, 0.0)
+  Param.add("SweepSpeed", 0.01, 1.0, 0.18)
+  Param.add("Algorithm", 0.0, 7.0, 4.0, 1.0)
+  Param.add("Feedback", 0.0, 7.0, 5.0, 1.0)
+  Param.add("ModDepth", 0.0, 127.0, 8.0, 1.0)
+  Param.add("Harmonic", 0.5, 15.0, 2.0, 0.5)
+  Param.add("NoiseMix", 0.0, 1.0, 0.0)
+end
+
+function SFXR.process(time, freq, note, params)
+  return 0.0
+end
+
+return SFXR
+''',
+    ),
+
+    // 9. OPL3 Retro Chiptune
+    LuaPreset(
+      id: 'opl3_retro',
+      name: 'OPL3 Retro Chiptune',
+      category: LuaPresetCategory.instrument,
+      description: 'Yamaha YMF262 / OPL3 2-Op & 4-Op FM synthesis modelled after Sound Blaster 16 and AdLib DOS sound cards.',
+      code: '''
+-- @name: OPL3 Retro Chiptune
+-- @category: instrument
+local OPL3 = {}
+
+function OPL3.init()
+  Param.add("Algorithm", 0.0, 7.0, 4.0, 1.0)
+  Param.add("Feedback", 0.0, 7.0, 4.0, 1.0)
+  Param.add("Op1_Mult", 0.5, 15.0, 1.0, 0.5)
+  Param.add("Op1_TL", 0.0, 127.0, 12.0, 1.0)
+  Param.add("Op2_Mult", 0.5, 15.0, 2.0, 0.5)
+  Param.add("Op2_TL", 0.0, 127.0, 0.0, 1.0)
+end
+
+function OPL3.process(time, freq, note, params)
+  return 0.0
+end
+
+return OPL3
+''',
+    ),
+
+    // 10. Lua Stereo Delay Effect
     LuaPreset(
       id: 'lua_delay',
       name: 'Lua Stereo Delay FX',

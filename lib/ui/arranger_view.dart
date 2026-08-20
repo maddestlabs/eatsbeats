@@ -36,7 +36,7 @@ class _ArrangerViewState extends State<ArrangerView> {
 
   bool _isSyncingScroll = false;
   bool _isMiddleMouseDragging = false;
-  bool _showInspector = true;
+  bool _showInspector = false;
   double _moveDragDxAccumulator = 0.0;
   double _resizeDragDxAccumulator = 0.0;
   double _chordMoveDragDxAccumulator = 0.0;
@@ -64,7 +64,7 @@ class _ArrangerViewState extends State<ArrangerView> {
     final double loopStartX = widget.dawState.loopStartBar * barWidth;
     final double loopWidth = (widget.dawState.loopEndBar - widget.dawState.loopStartBar) * barWidth;
     final bool isBrowserOpen = widget.dawState.isBrowserOpen;
-    final bool isInspectorVisible = _showInspector || isBrowserOpen;
+    final bool isInspectorVisible = _showInspector;
 
     return Stack(
       children: [
@@ -385,7 +385,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                   if (data is TrackChannel) return data.id != track.id;
                                   if (data is SoundFontDragItem) return true;
                                   if (data is LuaPreset) {
-                                    return data.isInstrument || data.isAudioFx;
+                                    return data.isInstrument || data.isAudioFx || data.isMidiFx;
                                   }
                                   return false;
                                 },
@@ -409,11 +409,17 @@ class _ArrangerViewState extends State<ArrangerView> {
                                   } else if (data is LuaPreset) {
                                     final preset = data;
                                     widget.dawState.applyPreset(preset, targetTrack: track);
+                                    String msg = 'Applied preset "${preset.name}" to ${track.name}';
+                                    if (preset.isInstrument) {
+                                      msg = 'Applied instrument "${preset.name}" to ${track.name}';
+                                    } else if (preset.isAudioFx) {
+                                      msg = 'Added audio FX "${preset.name}" to end of ${track.name} FX rack';
+                                    } else if (preset.isMidiFx) {
+                                      msg = 'Added MIDI FX "${preset.name}" to ${track.name}';
+                                    }
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text(preset.isInstrument
-                                            ? 'Applied instrument "${preset.name}" to ${track.name}'
-                                            : 'Added FX "${preset.name}" to end of ${track.name} FX chain'),
+                                        content: Text(msg),
                                         backgroundColor: EatsTheme.panelHeader,
                                         duration: const Duration(seconds: 2),
                                       ),
@@ -1094,31 +1100,45 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                top: 6,
                                                width: (clip.barLength * barWidth) - 4,
                                                height: trackRowHeight - 12,
-                                               child: DragTarget<Object>(
-                                                 onWillAcceptWithDetails: (details) {
-                                                   final data = details.data;
-                                                   if (data is LuaPreset) {
-                                                     return data.isMidiSeq || data.isMidiFx;
-                                                   }
-                                                   return false;
-                                                 },
-                                                 onAcceptWithDetails: (details) {
-                                                   final data = details.data;
-                                                   if (data is LuaPreset) {
-                                                     widget.dawState.activeTrackIndex = trackIdx;
-                                                     widget.dawState.selectClip(clip);
-                                                     widget.dawState.applyPresetToClip(track, clip, data);
-                                                     ScaffoldMessenger.of(context).showSnackBar(
-                                                       SnackBar(
-                                                         content: Text(data.isMidiSeq
-                                                             ? 'Applied sequence "${data.name}" to clip'
-                                                             : 'Applied MIDI FX "${data.name}" to clip'),
-                                                         backgroundColor: EatsTheme.panelHeader,
-                                                         duration: const Duration(seconds: 2),
-                                                       ),
-                                                     );
-                                                   }
-                                                 },
+                                                child: DragTarget<Object>(
+                                                  onWillAcceptWithDetails: (details) {
+                                                    final data = details.data;
+                                                    if (data is LuaPreset) {
+                                                      return data.isMidiSeq || data.isMidiFx;
+                                                    }
+                                                    return false;
+                                                  },
+                                                  onAcceptWithDetails: (details) {
+                                                    final data = details.data;
+                                                    if (data is LuaPreset) {
+                                                      if (data.isMidiSeq) {
+                                                        widget.dawState.activeTrackIndex = trackIdx;
+                                                        widget.dawState.selectClip(clip);
+                                                        widget.dawState.applyPresetToClip(track, clip, data);
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          SnackBar(
+                                                            content: Text('Applied sequence "${data.name}" to clip "${clip.name}"'),
+                                                            backgroundColor: EatsTheme.panelHeader,
+                                                            duration: const Duration(seconds: 2),
+                                                          ),
+                                                        );
+                                                      } else if (data.isMidiFx) {
+                                                        widget.dawState.activeTrackIndex = trackIdx;
+                                                        widget.dawState.addMidiFXInsert(
+                                                          track,
+                                                          name: data.name,
+                                                          luaScriptCode: data.code,
+                                                        );
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          SnackBar(
+                                                            content: Text('Added MIDI FX "${data.name}" to ${track.name}'),
+                                                            backgroundColor: EatsTheme.panelHeader,
+                                                            duration: const Duration(seconds: 2),
+                                                          ),
+                                                        );
+                                                      }
+                                                    }
+                                                  },
                                                  builder: (context, hoverData, _) {
                                                    final isPresetHover = hoverData.isNotEmpty;
 
@@ -1249,7 +1269,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                                           maxLines: 1,
                                                                         ),
                                                                       ),
-                                                                      if (track.midiFXRack.any((fx) => fx.enabled) || clip.hasMidiScript) ...[
+                                                                        if (track.midiFXRack.any((fx) => fx.enabled)) ...[
                                                                         const SizedBox(width: 4),
                                                                         Container(
                                                                           padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
@@ -1607,7 +1627,7 @@ class _ArrangerViewState extends State<ArrangerView> {
             ],
           ),
         ),
-        if (track.midiFXRack.any((f) => f.enabled) || clip.hasMidiScript)
+        if (track.midiFXRack.any((f) => f.enabled))
           PopupMenuItem(
             value: 'bake',
             child: Row(

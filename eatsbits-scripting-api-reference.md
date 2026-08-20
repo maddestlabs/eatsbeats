@@ -151,6 +151,29 @@ cutoff:exponentialRampToValueAtTime(8000.0, now + Scheduler.beatsToSeconds(8.0))
 
 ---
 
+### 2.5 Curve Easing & Automation Engine (`eatsbits.easing` & `eatsbits.automation`)
+
+Scripts have full access to continuous and discrete curve evaluation for parameter automation, LFOs, and YMFM hardware chip registers.
+
+#### Supported Easing Modes:
+- `"step"`: Immediate value jump/hold (vital for discrete chip registers, FM algorithms, waveforms)
+- `"linear"`: Linear interpolation
+- `"exponential"`: Perceptually uniform frequency/gain curves
+- `"sineInOut"`, `"sineIn"`, `"sineOut"`: Harmonic trigonometric curves
+- `"cubicInOut"`, `"cubicIn"`, `"cubicOut"`: Polynomial transitions with tension
+- `"smoothstep"`: $3t^2 - 2t^3$ polynomial curve
+- `"cubicBezier"`: Arbitrary 2D Cubic Bezier curve handles `(cx1, cy1, cx2, cy2)`
+
+```lua
+-- Example: Custom Lua Automation Lane
+function evaluate(step, timeCtx)
+  local sweep = eatsbits.easing.cubicInOut(0.0, 1.0, (step % 16) / 16)
+  return 200 + sweep * 4000
+end
+```
+
+---
+
 ### 2.5 Musical-Time Lookahead Scheduler
 
 Scripts schedule events using musical time (bars, beats, sub-ticks) relative to transport state. The engine translates musical time to audio clock timestamps:

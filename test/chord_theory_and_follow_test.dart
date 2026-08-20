@@ -330,14 +330,21 @@ void main() {
         trackId: 't1',
         startBar: 0,
         barLength: 1,
-        luaScriptCode: 'Chord.generate_voicing(notes, time_ctx)',
         notes: [
           Note(id: 'stab1', pitch: 60, startStep: 0.0, durationSteps: 2.0),
         ],
       );
 
       final pipeline = MidiPipelineEngine(luaEngine: LuaEngine());
-      final track = TrackChannel(id: 't1', name: 'Keys', type: TrackType.synth, color: const Color(0xFFFFCC00));
+      final track = TrackChannel(
+        id: 't1',
+        name: 'Keys',
+        type: TrackType.synth,
+        color: const Color(0xFFFFCC00),
+        midiFXRack: [
+          MidiFXInsert(id: 'mfx_stabs', name: 'Chord Voicing', luaScriptCode: 'Chord.generate_voicing(notes, time_ctx)'),
+        ],
+      );
       final voiced = pipeline.processClip(clip: clip, track: track, timeContext: ctx);
 
       // C major chord tones (C4=60, E4=64, G4=67)

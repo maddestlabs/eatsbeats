@@ -15,6 +15,58 @@ class EatsLuaParser {
     return {};
   }
 
+  /// Parses a snippet of Lua code (or JSON) representing a list of [Note] objects.
+  static List<Note> parseNotes(String code) {
+    final trimmed = code.trim();
+    if (trimmed.isEmpty) return [];
+
+    try {
+      final parser = _LuaValueParser(trimmed);
+      final raw = parser.parseTopLevel();
+      final List<dynamic> noteItems;
+      if (raw is List) {
+        noteItems = raw;
+      } else if (raw is Map && raw['notes'] is List) {
+        noteItems = raw['notes'] as List;
+      } else if (raw is Map && raw.containsKey('pitch')) {
+        noteItems = [raw];
+      } else {
+        return [];
+      }
+
+      final notes = <Note>[];
+      for (int i = 0; i < noteItems.length; i++) {
+        final item = noteItems[i];
+        if (item is Map) {
+          final m = Map<String, dynamic>.from(item);
+          final pitch = (m['pitch'] as num?)?.toInt() ?? 60;
+          final startStep = (m['startStep'] as num?)?.toDouble() ?? 0.0;
+          final durationSteps = (m['durationSteps'] as num?)?.toDouble() ?? 1.0;
+          final velocity = (m['velocity'] as num?)?.toDouble() ?? 0.85;
+          final column = (m['column'] as num?)?.toInt() ?? 0;
+          final effectCommand = (m['effectCommand'] as String?) ?? '00';
+          final isSlide = _parseBool(m['isSlide']);
+          final isAccent = _parseBool(m['isAccent']);
+
+          notes.add(Note(
+            id: (m['id'] as String?) ?? 'pasted_${DateTime.now().microsecondsSinceEpoch}_$i',
+            pitch: pitch.clamp(0, 127),
+            startStep: startStep.clamp(0.0, 64.0),
+            durationSteps: durationSteps.clamp(0.1, 64.0),
+            velocity: velocity.clamp(0.01, 1.0),
+            column: column.clamp(0, 16),
+            effectCommand: effectCommand,
+            isSlide: isSlide,
+            isAccent: isAccent,
+          ));
+        }
+      }
+      return notes;
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// Restores [DawState] from `.eats.lua` code. Returns project title.
   static String populateDawState(DawState dawState, String luaCode) {
     final map = parseLuaTableToMap(luaCode);

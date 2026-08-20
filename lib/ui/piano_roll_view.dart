@@ -1,7 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Easing;
 import 'package:flutter/services.dart';
+import '../audio/easing.dart';
+import '../models/automation_model.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../theme/eats_theme.dart';
@@ -63,6 +65,16 @@ class _PianoRollViewState extends State<PianoRollView> {
   DateTime? _lastNoteTapTime;
   String? _lastNoteTapId;
   DateTime? _lastNotePointerDownTime;
+
+  // Mouse instant drag-marquee tracking
+  Offset? _mouseDragOrigin;
+  bool _isMouseMarqueeCandidate = false;
+
+  // Automation Lane Drawer State
+  bool _isAutomationDrawerOpen = false;
+  String? _activeAutomationLaneId;
+  String? _draggedAutomationPointId;
+  EasingType _selectedPointEasing = EasingType.linear;
 
   void _handleKeyPointerDown(PointerDownEvent e, int pitch, double keyWidth) {
     final normX = (e.localPosition.dx / keyWidth).clamp(0.0, 1.0);
@@ -1130,6 +1142,24 @@ class _PianoRollViewState extends State<PianoRollView> {
                     runSpacing: 6,
                     children: [
                       _buildActionButton(
+                        icon: Icons.copy,
+                        label: 'Copy Lua',
+                        tooltip: 'Copy selected notes as Lua code (Ctrl+C)',
+                        onTap: () => _copyNotes(track),
+                      ),
+                      _buildActionButton(
+                        icon: Icons.cut,
+                        label: 'Cut',
+                        tooltip: 'Cut selected notes to clipboard (Ctrl+X)',
+                        onTap: () => _cutNotes(track),
+                      ),
+                      _buildActionButton(
+                        icon: Icons.paste,
+                        label: 'Paste',
+                        tooltip: 'Paste notes at playhead step (Ctrl+V)',
+                        onTap: () => _pasteNotes(track, snap),
+                      ),
+                      _buildActionButton(
                         icon: Icons.select_all,
                         label: 'Select All',
                         tooltip: 'Select all notes in clip (Ctrl+A)',
@@ -1169,6 +1199,56 @@ class _PianoRollViewState extends State<PianoRollView> {
     );
   }
 
+  Future<void> _copyNotes(TrackChannel track) async {
+    final lua = await widget.dawState.copyNotesToClipboard(track, _selectedNoteIds);
+    if (!mounted) return;
+    final count = _selectedNoteIds.isEmpty ? track.notes.length : _selectedNoteIds.length;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Copied $count note${count != 1 ? 's' : ''} as Lua to clipboard'),
+        backgroundColor: EatsTheme.panelHeader,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _cutNotes(TrackChannel track) async {
+    if (_selectedNoteIds.isEmpty) return;
+    final count = _selectedNoteIds.length;
+    await widget.dawState.cutNotesToClipboard(track, _selectedNoteIds);
+    if (!mounted) return;
+    setState(() => _selectedNoteIds.clear());
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Cut $count note${count != 1 ? 's' : ''} to clipboard'),
+        backgroundColor: EatsTheme.panelHeader,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _pasteNotes(TrackChannel track, double snap) async {
+    double targetStep = widget.dawState.currentStep.toDouble();
+    if (snap > 0) {
+      targetStep = (targetStep / snap).floor() * snap;
+    }
+    final pasted = await widget.dawState.pasteNotesFromClipboard(track, targetStep: targetStep);
+    if (!mounted) return;
+    if (pasted.isNotEmpty) {
+      setState(() {
+        _selectedNoteIds = pasted.map((n) => n.id).toSet();
+      });
+      _ensureNoteAndMenuVisible(pasted.first);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Pasted ${pasted.length} note${pasted.length != 1 ? 's' : ''} at Step ${targetStep.toStringAsFixed(1)}'),
+          backgroundColor: EatsTheme.panelHeader,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   Widget _buildSidebarSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -1184,15 +1264,36 @@ class _PianoRollViewState extends State<PianoRollView> {
     );
   }
 
-    KeyEventResult _handlePianoRollKeyEvent(FocusNode node, KeyEvent event) {
+  KeyEventResult _handlePianoRollKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final track = widget.dawState.activeTrack;
+    final snap = widget.dawState.quantizeSnap;
     final key = event.logicalKey;
     final isCtrlOrCmd = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
 
     // Ctrl+A / Cmd+A -> Select All Notes
     if (isCtrlOrCmd && key == LogicalKeyboardKey.keyA) {
       _selectAllNotes(track);
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+C / Cmd+C -> Copy Notes as Lua
+    if (isCtrlOrCmd && key == LogicalKeyboardKey.keyC) {
+      _copyNotes(track);
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+X / Cmd+X -> Cut Notes
+    if (isCtrlOrCmd && key == LogicalKeyboardKey.keyX) {
+      if (_selectedNoteIds.isNotEmpty) {
+        _cutNotes(track);
+        return KeyEventResult.handled;
+      }
+    }
+
+    // Ctrl+V / Cmd+V -> Paste Notes at playhead
+    if (isCtrlOrCmd && key == LogicalKeyboardKey.keyV) {
+      _pasteNotes(track, snap);
       return KeyEventResult.handled;
     }
 
@@ -1327,7 +1428,7 @@ class _PianoRollViewState extends State<PianoRollView> {
                   },
                 ),
 
-                if (track.midiFXRack.any((fx) => fx.enabled) || activeClip.hasMidiScript) ...[
+                if (track.midiFXRack.any((fx) => fx.enabled)) ...[
                   const SizedBox(width: 8),
                   TextButton.icon(
                     onPressed: () {
@@ -1350,6 +1451,73 @@ class _PianoRollViewState extends State<PianoRollView> {
                     label: const Text('BAKE MIDI FX', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
                 ],
+
+                const SizedBox(width: 8),
+
+                // Clipboard Actions (Copy / Cut / Paste)
+                IconButton(
+                  icon: const Icon(Icons.copy, size: 14),
+                  color: EatsTheme.primaryCyan,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  tooltip: _selectedNoteIds.isNotEmpty
+                      ? 'Copy ${_selectedNoteIds.length} Selected Note(s) as Lua (Ctrl+C)'
+                      : 'Copy All Clip Notes as Lua (Ctrl+C)',
+                  onPressed: () => _copyNotes(track),
+                ),
+                if (_selectedNoteIds.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.cut, size: 14),
+                    color: EatsTheme.accentGold,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                    tooltip: 'Cut ${_selectedNoteIds.length} Selected Note(s) (Ctrl+X)',
+                    onPressed: () => _cutNotes(track),
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.paste, size: 14),
+                  color: EatsTheme.accentGreen,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  tooltip: 'Paste Note(s) at Playhead Step (Ctrl+V)',
+                  onPressed: () => _pasteNotes(track, snap),
+                ),
+
+                const SizedBox(width: 8),
+
+                // Automation Drawer Toggle Button
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _isAutomationDrawerOpen = !_isAutomationDrawerOpen;
+                    });
+                  },
+                  style: TextButton.styleFrom(
+                    backgroundColor: _isAutomationDrawerOpen
+                        ? EatsTheme.primaryCyan.withOpacity(0.2)
+                        : EatsTheme.controlBackground,
+                    foregroundColor: _isAutomationDrawerOpen
+                        ? EatsTheme.primaryCyan
+                        : EatsTheme.textLight,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    side: BorderSide(
+                      color: _isAutomationDrawerOpen
+                          ? EatsTheme.primaryCyan
+                          : EatsTheme.textMuted.withOpacity(0.3),
+                    ),
+                  ),
+                  icon: Icon(
+                    Icons.show_chart,
+                    size: 13,
+                    color: _isAutomationDrawerOpen
+                        ? EatsTheme.primaryCyan
+                        : EatsTheme.textMuted,
+                  ),
+                  label: const Text(
+                    'AUTOMATION',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
 
                 const Spacer(),
 
@@ -1567,7 +1735,7 @@ class _PianoRollViewState extends State<PianoRollView> {
                           ),
                         ),
                       ),
-                      ),
+                    ),
 
                   // Note Grid Surface (Right, Synced Vertical Scroll)
                   Expanded(
@@ -1584,46 +1752,103 @@ class _PianoRollViewState extends State<PianoRollView> {
                           child: SingleChildScrollView(
                             controller: _gridScrollController,
                             scrollDirection: Axis.vertical,
-                            child: GestureDetector(
-                              onTap: () {
-                                _focusNode.requestFocus();
-                                // Only deselect active notes if tap was actually on empty canvas, not on a note
-                                if (_lastNotePointerDownTime != null &&
-                                    DateTime.now().difference(_lastNotePointerDownTime!) < const Duration(milliseconds: 350)) {
-                                  return;
+                            child: Listener(
+                              onPointerDown: (event) {
+                                if (event.kind == PointerDeviceKind.mouse && (event.buttons & kPrimaryMouseButton) != 0) {
+                                  _focusNode.requestFocus();
+                                  _mouseDragOrigin = event.localPosition;
+                                  _isMouseMarqueeCandidate = true;
                                 }
-                                // Single tap on grid deselects active notes
-                                if (_selectedNoteIds.isNotEmpty) {
+                              },
+                              onPointerMove: (event) {
+                                if (_isMouseMarqueeCandidate &&
+                                    _mouseDragOrigin != null &&
+                                    _activeMoveNoteId == null &&
+                                    _activeResizeNoteId == null &&
+                                    (event.buttons & kPrimaryMouseButton) != 0) {
+                                  final delta = (event.localPosition - _mouseDragOrigin!).distance;
+                                  if (!_isMarqueeSelecting && delta > 4.0) {
+                                    _isMarqueeSelecting = true;
+                                    _marqueeStart = _mouseDragOrigin;
+                                    _marqueeCurrent = event.localPosition;
+                                    setState(() {});
+                                  }
+                                  if (_isMarqueeSelecting) {
+                                    setState(() {
+                                      _marqueeCurrent = event.localPosition;
+                                    });
+                                    final marqueeRect = Rect.fromPoints(_marqueeStart!, _marqueeCurrent!);
+                                    _updateSelectionFromMarquee(track, marqueeRect);
+                                  }
+                                }
+                              },
+                              onPointerUp: (event) {
+                                if (_isMouseMarqueeCandidate) {
+                                  if (_isMarqueeSelecting) {
+                                    setState(() {
+                                      _isMarqueeSelecting = false;
+                                      _marqueeStart = null;
+                                      _marqueeCurrent = null;
+                                    });
+                                  }
+                                  _mouseDragOrigin = null;
+                                  _isMouseMarqueeCandidate = false;
+                                }
+                              },
+                              onPointerCancel: (event) {
+                                if (_isMouseMarqueeCandidate) {
+                                  if (_isMarqueeSelecting) {
+                                    setState(() {
+                                      _isMarqueeSelecting = false;
+                                      _marqueeStart = null;
+                                      _marqueeCurrent = null;
+                                    });
+                                  }
+                                  _mouseDragOrigin = null;
+                                  _isMouseMarqueeCandidate = false;
+                                }
+                              },
+                              child: GestureDetector(
+                                onTap: () {
+                                  _focusNode.requestFocus();
+                                  // Only deselect active notes if tap was actually on empty canvas, not on a note
+                                  if (_lastNotePointerDownTime != null &&
+                                      DateTime.now().difference(_lastNotePointerDownTime!) < const Duration(milliseconds: 350)) {
+                                    return;
+                                  }
+                                  // Single tap on grid deselects active notes
+                                  if (_selectedNoteIds.isNotEmpty) {
+                                    setState(() {
+                                      _selectedNoteIds.clear();
+                                    });
+                                  }
+                                },
+                                // Touch Long-Press Drag Marquee for Mobile/Tablet Touchscreens
+                                onLongPressStart: (details) {
+                                  _focusNode.requestFocus();
+                                  final pos = details.localPosition;
                                   setState(() {
-                                    _selectedNoteIds.clear();
+                                    _marqueeStart = pos;
+                                    _marqueeCurrent = pos;
+                                    _isMarqueeSelecting = true;
                                   });
-                                }
-                              },
-                              onLongPressStart: (details) {
-                                _focusNode.requestFocus();
-                                final pos = details.localPosition;
-                                setState(() {
-                                  _marqueeStart = pos;
-                                  _marqueeCurrent = pos;
-                                  _isMarqueeSelecting = true;
-                                });
-                              },
-                              onLongPressMoveUpdate: (details) {
-                                if (!_isMarqueeSelecting || _marqueeStart == null) return;
-                                final pos = details.localPosition;
-                                setState(() {
-                                  _marqueeCurrent = pos;
-                                });
-                                final marqueeRect = Rect.fromPoints(_marqueeStart!, _marqueeCurrent!);
-                                _updateSelectionFromMarquee(track, marqueeRect);
-                              },
-                              onLongPressEnd: (_) {
-                                setState(() {
-                                  _isMarqueeSelecting = false;
-                                  _marqueeStart = null;
-                                  _marqueeCurrent = null;
-                                });
-                              },
+                                },
+                                onLongPressMoveUpdate: (details) {
+                                  if (!_isMarqueeSelecting || _marqueeStart == null) return;
+                                  final pos = details.localPosition;
+                                  setState(() {
+                                    _marqueeCurrent = pos;
+                                  });
+                                  final marqueeRect = Rect.fromPoints(_marqueeStart!, _marqueeCurrent!);
+                                  _updateSelectionFromMarquee(track, marqueeRect);
+                                },
+                                onLongPressEnd: (_) {
+                                  setState(() {
+                                    _isMarqueeSelecting = false;
+                                    _marqueeStart = null;
+                                    _marqueeCurrent = null;
+                                  });
+                                },
                               onDoubleTapDown: (details) {
                                 final localPos = details.localPosition;
                                 final int stepIdx = (localPos.dx / _stepWidth).floor();
@@ -1728,7 +1953,7 @@ class _PianoRollViewState extends State<PianoRollView> {
                                 ),
 
                                 // Render Real-Time MIDI FX Ghost / Arpeggiator Notes Layer
-                                if (track.midiFXRack.any((fx) => fx.enabled) || activeClip.hasMidiScript)
+                                if (track.midiFXRack.any((fx) => fx.enabled))
                                   ...widget.dawState.getEvaluatedClipNotes(activeClip, track)
                                       .where((gn) => !track.notes.any((bn) => bn.id == gn.id))
                                       .map((ghostNote) {
@@ -1812,6 +2037,8 @@ class _PianoRollViewState extends State<PianoRollView> {
                                       child: Listener(
                                         behavior: HitTestBehavior.opaque,
                                         onPointerDown: (event) {
+                                          _isMouseMarqueeCandidate = false;
+                                          _mouseDragOrigin = null;
                                           _focusNode.requestFocus();
                                           if (event.buttons == kSecondaryMouseButton) return;
                                           _lastNotePointerDownTime = DateTime.now();
@@ -1995,61 +2222,70 @@ class _PianoRollViewState extends State<PianoRollView> {
                                         top: selectedNoteTop,
                                         width: 22,
                                         height: selectedNoteHeight,
-                                        child: GestureDetector(
+                                        child: Listener(
                                           behavior: HitTestBehavior.opaque,
-                                          onPanStart: (details) {
-                                            _activeResizeNoteId = primarySelectedNote.id;
-                                            _resizeStartDuration = primarySelectedNote.durationSteps;
-                                            _resizeStartPos = details.globalPosition;
-                                            widget.dawState.beginHistoryTransaction('Resize Note', icon: Icons.straighten);
+                                          onPointerDown: (event) {
+                                            _isMouseMarqueeCandidate = false;
+                                            _mouseDragOrigin = null;
                                           },
-                                          onPanUpdate: (details) {
-                                            if (_activeResizeNoteId != primarySelectedNote.id ||
-                                                _resizeStartDuration == null ||
-                                                _resizeStartPos == null) return;
+                                          child: GestureDetector(
+                                            behavior: HitTestBehavior.opaque,
+                                            onPanStart: (details) {
+                                              _isMouseMarqueeCandidate = false;
+                                              _mouseDragOrigin = null;
+                                              _activeResizeNoteId = primarySelectedNote.id;
+                                              _resizeStartDuration = primarySelectedNote.durationSteps;
+                                              _resizeStartPos = details.globalPosition;
+                                              widget.dawState.beginHistoryTransaction('Resize Note', icon: Icons.straighten);
+                                            },
+                                            onPanUpdate: (details) {
+                                              if (_activeResizeNoteId != primarySelectedNote.id ||
+                                                  _resizeStartDuration == null ||
+                                                  _resizeStartPos == null) return;
 
-                                            final dxSteps = (details.globalPosition.dx - _resizeStartPos!.dx) / _stepWidth;
-                                            final double minDur = snap > 0 ? snap : 0.25;
-                                            double candidateDur = (_resizeStartDuration! + dxSteps).clamp(minDur, totalSteps - primarySelectedNote.startStep);
+                                              final dxSteps = (details.globalPosition.dx - _resizeStartPos!.dx) / _stepWidth;
+                                              final double minDur = snap > 0 ? snap : 0.25;
+                                              double candidateDur = (_resizeStartDuration! + dxSteps).clamp(minDur, totalSteps - primarySelectedNote.startStep);
 
-                                            if (snap > 0) {
-                                              candidateDur = (candidateDur / snap).round() * snap;
-                                              if (candidateDur < snap) candidateDur = snap;
-                                            }
+                                              if (snap > 0) {
+                                                candidateDur = (candidateDur / snap).round() * snap;
+                                                if (candidateDur < snap) candidateDur = snap;
+                                              }
 
-                                            widget.dawState.updateNote(
-                                              track,
-                                              primarySelectedNote.copyWith(durationSteps: candidateDur),
-                                            );
-                                          },
-                                          onPanEnd: (_) {
-                                            _activeResizeNoteId = null;
-                                            widget.dawState.commitHistoryTransaction();
-                                          },
-                                          onPanCancel: () {
-                                            _activeResizeNoteId = null;
-                                            widget.dawState.commitHistoryTransaction();
-                                          },
-                                          child: Tooltip(
-                                            message: 'Drag to resize note',
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                color: EatsTheme.primaryCyan,
-                                                borderRadius: const BorderRadius.only(
-                                                  topRight: Radius.circular(4),
-                                                  bottomRight: Radius.circular(4),
+                                              widget.dawState.updateNote(
+                                                track,
+                                                primarySelectedNote.copyWith(durationSteps: candidateDur),
+                                              );
+                                            },
+                                            onPanEnd: (_) {
+                                              _activeResizeNoteId = null;
+                                              widget.dawState.commitHistoryTransaction();
+                                            },
+                                            onPanCancel: () {
+                                              _activeResizeNoteId = null;
+                                              widget.dawState.commitHistoryTransaction();
+                                            },
+                                            child: Tooltip(
+                                              message: 'Drag to resize note',
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  color: EatsTheme.primaryCyan,
+                                                  borderRadius: const BorderRadius.only(
+                                                    topRight: Radius.circular(4),
+                                                    bottomRight: Radius.circular(4),
+                                                  ),
+                                                  boxShadow: [
+                                                    BoxShadow(color: EatsTheme.primaryCyan.withOpacity(0.6), blurRadius: 4),
+                                                  ],
                                                 ),
-                                                boxShadow: [
-                                                  BoxShadow(color: EatsTheme.primaryCyan.withOpacity(0.6), blurRadius: 4),
-                                                ],
-                                              ),
-                                              child: Center(
-                                                child: Text(
-                                                  '<>',
-                                                  style: TextStyle(
-                                                    color: EatsTheme.isLight ? Colors.white : Colors.black,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w900,
+                                                child: Center(
+                                                  child: Text(
+                                                    '<>',
+                                                    style: TextStyle(
+                                                      color: EatsTheme.isLight ? Colors.white : Colors.black,
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.w900,
+                                                    ),
                                                   ),
                                                 ),
                                               ),
@@ -2087,14 +2323,16 @@ class _PianoRollViewState extends State<PianoRollView> {
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
       ),
-    ],
-  ),
+    ),
+    if (_isAutomationDrawerOpen) _buildAutomationDrawer(track),
+  ],
+),
 ),
 
           // Right-Hand Note Inspector Sidebar (Aligns to left of Project Browser if open)
@@ -2119,6 +2357,387 @@ class _PianoRollViewState extends State<PianoRollView> {
       ),
     );
   }
+
+  Widget _buildAutomationDrawer(TrackChannel track) {
+    if (track.automationLanes.isEmpty) {
+      track.automationLanes.add(AutomationLane(
+        id: 'auto_vol_${track.id}',
+        name: '${track.name} Volume',
+        target: AutomationTarget.volume,
+        points: [
+          AutomationPoint(id: 'p0', step: 0.0, value: track.volume, easing: EasingType.linear),
+          AutomationPoint(id: 'p1', step: 16.0, value: track.volume, easing: EasingType.linear),
+        ],
+      ));
+    }
+
+    final activeLane = track.automationLanes.firstWhere(
+      (l) => l.id == _activeAutomationLaneId,
+      orElse: () => track.automationLanes.first,
+    );
+    _activeAutomationLaneId = activeLane.id;
+
+    final target = activeLane.target;
+    final totalWidth = totalSteps * _stepWidth;
+    const drawerHeight = 130.0;
+
+    return Container(
+      height: drawerHeight,
+      decoration: BoxDecoration(
+        color: EatsTheme.panelBackground,
+        border: Border(
+          top: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.4), width: 1.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Left Controls (70px wide)
+          Container(
+            width: 70,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            decoration: BoxDecoration(
+              color: EatsTheme.panelHeader,
+              border: Border(
+                right: BorderSide(color: EatsTheme.panelBackground, width: 1.5),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Lane Target Selector
+                PopupMenuButton<AutomationTarget>(
+                  tooltip: 'Select or Add Parameter Lane',
+                  color: EatsTheme.panelBackground,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
+                    decoration: BoxDecoration(
+                      color: EatsTheme.controlBackground,
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(color: EatsTheme.textMuted.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          target.name.toUpperCase(),
+                          style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 8, fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '${target.min.toInt()}..${target.max.toInt()}${target.unit}',
+                          style: TextStyle(color: EatsTheme.textMuted, fontSize: 7),
+                        ),
+                      ],
+                    ),
+                  ),
+                  itemBuilder: (ctx) {
+                    final items = <PopupMenuEntry<AutomationTarget>>[];
+                    for (final lane in track.automationLanes) {
+                      items.add(PopupMenuItem(
+                        value: lane.target,
+                        child: Text(lane.name, style: TextStyle(color: lane.id == activeLane.id ? EatsTheme.primaryCyan : EatsTheme.textLight, fontSize: 11)),
+                      ));
+                    }
+                    items.add(const PopupMenuDivider());
+                    items.add(PopupMenuItem(
+                      value: AutomationTarget.cutoff,
+                      child: Text('+ Filter Cutoff', style: TextStyle(color: EatsTheme.accentGold, fontSize: 11)),
+                    ));
+                    items.add(PopupMenuItem(
+                      value: AutomationTarget.pan,
+                      child: Text('+ Pan', style: TextStyle(color: EatsTheme.accentGold, fontSize: 11)),
+                    ));
+                    items.add(PopupMenuItem(
+                      value: AutomationTarget.custom(id: 'ym2612.algorithm', name: 'YM2612 Alg (0..7)', min: 0.0, max: 7.0, defaultValue: 4.0, isDiscrete: true),
+                      child: Text('+ YM2612 Algorithm', style: TextStyle(color: EatsTheme.accentGold, fontSize: 11)),
+                    ));
+                    items.add(PopupMenuItem(
+                      value: AutomationTarget.custom(id: 'ym2612.feedback', name: 'YM2612 Feedback', min: 0.0, max: 7.0, defaultValue: 5.0, isDiscrete: true),
+                      child: Text('+ YM2612 Feedback', style: TextStyle(color: EatsTheme.accentGold, fontSize: 11)),
+                    ));
+                    return items;
+                  },
+                  onSelected: (selectedTarget) {
+                    final existing = track.automationLanes.where((l) => l.target.id == selectedTarget.id);
+                    if (existing.isNotEmpty) {
+                      setState(() => _activeAutomationLaneId = existing.first.id);
+                    } else {
+                      widget.dawState.addTrackAutomationLane(track, selectedTarget);
+                      setState(() => _activeAutomationLaneId = track.automationLanes.last.id);
+                    }
+                  },
+                ),
+                const SizedBox(height: 3),
+
+                // Easing dropdown
+                DropdownButton<EasingType>(
+                  value: _selectedPointEasing,
+                  dropdownColor: EatsTheme.panelBackground,
+                  underline: const SizedBox(),
+                  isDense: true,
+                  style: TextStyle(color: EatsTheme.accentGold, fontSize: 8, fontWeight: FontWeight.bold),
+                  items: EasingType.values.map((e) {
+                    return DropdownMenuItem(
+                      value: e,
+                      child: Text(e.displayName, style: const TextStyle(fontSize: 10)),
+                    );
+                  }).toList(),
+                  onChanged: (e) {
+                    if (e != null) {
+                      setState(() => _selectedPointEasing = e);
+                    }
+                  },
+                ),
+                const Spacer(),
+
+                // Lua Script Button
+                InkWell(
+                  onTap: () => _showLuaAutomationScriptModal(activeLane),
+                  borderRadius: BorderRadius.circular(3),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    decoration: BoxDecoration(
+                      color: activeLane.isCustomLua ? EatsTheme.accentGreen.withOpacity(0.25) : EatsTheme.controlBackground,
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                        color: activeLane.isCustomLua ? EatsTheme.accentGreen : EatsTheme.textMuted.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.code, size: 9, color: activeLane.isCustomLua ? EatsTheme.accentGreen : EatsTheme.textLight),
+                        const SizedBox(width: 2),
+                        Text(
+                          activeLane.isCustomLua ? 'LUA FX' : 'LUA',
+                          style: TextStyle(
+                            color: activeLane.isCustomLua ? EatsTheme.accentGreen : EatsTheme.textLight,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Main Graph Canvas (Horizontally scrollable with _horizontalScroll)
+          Expanded(
+            child: SingleChildScrollView(
+              controller: _horizontalScroll,
+              scrollDirection: Axis.horizontal,
+              physics: const ClampingScrollPhysics(),
+              child: GestureDetector(
+                onTapDown: (details) {
+                  final step = (details.localPosition.dx / _stepWidth).clamp(0.0, totalSteps.toDouble());
+                  final normY = (1.0 - (details.localPosition.dy / (drawerHeight - 16)).clamp(0.0, 1.0));
+                  final val = target.min + (target.max - target.min) * normY;
+                  final snappedStep = widget.dawState.quantizeSnap > 0
+                      ? (step / widget.dawState.quantizeSnap).round() * widget.dawState.quantizeSnap
+                      : (step * 2).round() / 2.0;
+
+                  widget.dawState.setAutomationPoint(
+                    activeLane,
+                    snappedStep,
+                    target.isDiscrete ? val.roundToDouble() : val,
+                    easing: target.isDiscrete ? EasingType.step : _selectedPointEasing,
+                  );
+                },
+                child: SizedBox(
+                  width: totalWidth,
+                  height: drawerHeight,
+                  child: CustomPaint(
+                    painter: _AutomationLanePainter(
+                      lane: activeLane,
+                      stepWidth: _stepWidth,
+                      totalSteps: totalSteps,
+                      currentStep: widget.dawState.currentStep.toDouble(),
+                      color: track.color,
+                      isLight: EatsTheme.isLight,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLuaAutomationScriptModal(AutomationLane lane) {
+    final controller = TextEditingController(
+      text: lane.luaScriptCode.isNotEmpty ? lane.luaScriptCode : lane.generateLuaScript(),
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: EatsTheme.panelBackground,
+        title: Row(
+          children: [
+            Icon(Icons.code, color: EatsTheme.primaryCyan, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              'Lua Automation: ${lane.name}',
+              style: TextStyle(color: EatsTheme.textLight, fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 500,
+          height: 320,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Edit the Lua script to define custom mathematical LFOs, procedural sweeps, or envelope expressions.',
+                style: TextStyle(color: EatsTheme.textMuted, fontSize: 11),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: EatsTheme.backgroundDark,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: EatsTheme.panelHeader),
+                  ),
+                  child: TextField(
+                    controller: controller,
+                    maxLines: null,
+                    expands: true,
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.white),
+                    decoration: const InputDecoration(border: InputBorder.none),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              controller.text = lane.generateLuaScript();
+            },
+            child: Text('Regenerate from Points', style: TextStyle(color: EatsTheme.accentGold)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: EatsTheme.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              widget.dawState.setAutomationScript(lane, controller.text);
+              Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: EatsTheme.primaryCyan),
+            child: const Text('Apply Script', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AutomationLanePainter extends CustomPainter {
+  final AutomationLane lane;
+  final double stepWidth;
+  final int totalSteps;
+  final double currentStep;
+  final Color color;
+  final bool isLight;
+
+  _AutomationLanePainter({
+    required this.lane,
+    required this.stepWidth,
+    required this.totalSteps,
+    required this.currentStep,
+    required this.color,
+    required this.isLight,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = isLight ? Colors.black.withOpacity(0.08) : Colors.white.withOpacity(0.04)
+      ..strokeWidth = 1.0;
+
+    final barPaint = Paint()
+      ..color = isLight ? Colors.black.withOpacity(0.18) : EatsTheme.primaryCyan.withOpacity(0.3)
+      ..strokeWidth = 1.5;
+
+    // 1. Draw Grid Lines
+    for (int s = 0; s <= totalSteps; s++) {
+      final x = s * stepWidth;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), s % 4 == 0 ? barPaint : gridPaint);
+    }
+
+    // 2. Sample curve path across width
+    final path = Path();
+    final fillPath = Path();
+    final target = lane.target;
+    final minVal = target.min;
+    final maxVal = target.max;
+    final valRange = math.max(0.0001, maxVal - minVal);
+
+    bool isFirst = true;
+    for (double x = 0; x <= size.width; x += 4.0) {
+      final step = x / stepWidth;
+      final val = lane.evaluateAtStep(step);
+      final normY = ((val - minVal) / valRange).clamp(0.0, 1.0);
+      final y = size.height - (normY * (size.height - 16.0)) - 8.0;
+
+      if (isFirst) {
+        path.moveTo(x, y);
+        fillPath.moveTo(x, size.height);
+        fillPath.lineTo(x, y);
+        isFirst = false;
+      } else {
+        path.lineTo(x, y);
+        fillPath.lineTo(x, y);
+      }
+    }
+    fillPath.lineTo(size.width, size.height);
+    fillPath.close();
+
+    // Draw curve fill & line
+    final fillPaint = Paint()
+      ..color = color.withOpacity(0.15)
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(fillPath, fillPaint);
+
+    final linePaint = Paint()
+      ..color = color
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+    canvas.drawPath(path, linePaint);
+
+    // 3. Draw Breakpoint Handles
+    final pointPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    final pointBorderPaint = Paint()
+      ..color = color
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    for (final pt in lane.points) {
+      final x = pt.step * stepWidth;
+      final normY = ((pt.value - minVal) / valRange).clamp(0.0, 1.0);
+      final y = size.height - (normY * (size.height - 16.0)) - 8.0;
+
+      canvas.drawCircle(Offset(x, y), 5.0, pointPaint);
+      canvas.drawCircle(Offset(x, y), 5.0, pointBorderPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AutomationLanePainter old) => true;
 }
 
 class _PianoRollGridPainter extends CustomPainter {

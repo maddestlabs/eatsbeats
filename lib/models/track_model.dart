@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'automation_model.dart';
 
 enum MusicViewType { pianoRoll, tracker, script, score }
 enum TrackType { sampler, synth, luaScript, bass;
@@ -259,7 +260,6 @@ class FXInsert {
   );
 }
 
-
 class MidiFXInsert {
   String id;
   String name;
@@ -318,6 +318,7 @@ class TrackClip {
   String luaScriptCode;
   Map<String, double> luaParams;
   List<Note>? evaluatedNotesCache;
+  List<AutomationLane> automationLanes;
 
   bool get hasMidiScript {
     if (luaScriptCode.trim().isEmpty) return false;
@@ -344,8 +345,10 @@ class TrackClip {
     this.luaScriptCode = '',
     Map<String, double>? luaParams,
     this.evaluatedNotesCache,
+    List<AutomationLane>? automationLanes,
   })  : notes = notes ?? [],
-        luaParams = luaParams ?? {};
+        luaParams = luaParams ?? {},
+        automationLanes = automationLanes ?? [];
 
   TrackClip copyWith({
     String? id,
@@ -357,6 +360,7 @@ class TrackClip {
     String? luaScriptCode,
     Map<String, double>? luaParams,
     List<Note>? evaluatedNotesCache,
+    List<AutomationLane>? automationLanes,
   }) {
     return TrackClip(
       id: id ?? this.id,
@@ -368,6 +372,7 @@ class TrackClip {
       luaScriptCode: luaScriptCode ?? this.luaScriptCode,
       luaParams: luaParams ?? Map.from(this.luaParams),
       evaluatedNotesCache: evaluatedNotesCache ?? (this.evaluatedNotesCache != null ? this.evaluatedNotesCache!.map((n) => n.copyWith()).toList() : null),
+      automationLanes: automationLanes ?? this.automationLanes.map((a) => a.copyWith()).toList(),
     );
   }
 
@@ -380,6 +385,7 @@ class TrackClip {
     'notes': notes.map((n) => n.toJson()).toList(),
     'luaScriptCode': luaScriptCode,
     'luaParams': luaParams,
+    'automationLanes': automationLanes.map((a) => a.toJson()).toList(),
   };
 
   factory TrackClip.fromJson(Map<String, dynamic> json) => TrackClip(
@@ -391,6 +397,10 @@ class TrackClip {
     notes: (json['notes'] as List?)?.map((n) => Note.fromJson(n)).toList() ?? [],
     luaScriptCode: json['luaScriptCode'] ?? '',
     luaParams: Map<String, double>.from(json['luaParams'] ?? {}),
+    automationLanes: (json['automationLanes'] as List?)
+            ?.map((a) => AutomationLane.fromJson(a))
+            .toList() ??
+        [],
   );
 }
 
@@ -426,6 +436,9 @@ class TrackChannel {
   List<StepEvent> steps; // 16 or 32 step grid
   List<Note> notes; // Active clip notes
   List<TrackClip> clips; // Per-track arrangement clips
+
+  // Automation Lanes for continuous & discrete parameters
+  List<AutomationLane> automationLanes;
 
   // FX Racks
   List<FXInsert> fxRack; // Audio FX Rack
@@ -511,6 +524,7 @@ class TrackChannel {
     List<StepEvent>? steps,
     List<Note>? notes,
     List<TrackClip>? clips,
+    List<AutomationLane>? automationLanes,
     List<FXInsert>? fxRack,
     List<MidiFXInsert>? midiFXRack,
   })  : iconName = iconName ?? _defaultIconForType(type),
@@ -519,6 +533,7 @@ class TrackChannel {
         steps = steps ?? List.generate(32, (_) => StepEvent()),
         notes = notes ?? [],
         clips = clips ?? [],
+        automationLanes = automationLanes ?? [],
         fxRack = fxRack ?? [],
         midiFXRack = midiFXRack ?? [];
 
@@ -562,6 +577,7 @@ class TrackChannel {
     List<StepEvent>? steps,
     List<Note>? notes,
     List<TrackClip>? clips,
+    List<AutomationLane>? automationLanes,
     List<FXInsert>? fxRack,
     List<MidiFXInsert>? midiFXRack,
   }) {
@@ -590,6 +606,7 @@ class TrackChannel {
       steps: steps ?? this.steps.map((s) => s.copyWith()).toList(),
       notes: notes ?? this.notes.map((n) => n.copyWith()).toList(),
       clips: clips ?? this.clips.map((c) => c.copyWith()).toList(),
+      automationLanes: automationLanes ?? this.automationLanes.map((a) => a.copyWith()).toList(),
       fxRack: fxRack ?? List.from(this.fxRack),
       midiFXRack: midiFXRack ?? List.from(this.midiFXRack),
     );
@@ -621,9 +638,39 @@ class TrackChannel {
     'wrenParams': luaParams,
     'steps': steps.map((s) => s.toJson()).toList(),
     'notes': notes.map((n) => n.toJson()).toList(),
+    'automationLanes': automationLanes.map((a) => a.toJson()).toList(),
     'fxRack': fxRack.map((f) => f.toJson()).toList(),
     'midiFXRack': midiFXRack.map((f) => f.toJson()).toList(),
   };
+
+  factory TrackChannel.fromJson(Map<String, dynamic> json) => TrackChannel(
+    id: json['id'] ?? '',
+    name: json['name'] ?? '',
+    color: Color(json['color'] ?? 0xFF4A90E2),
+    type: TrackType.values.firstWhere((e) => e.name == json['type'], orElse: () => TrackType.synth),
+    iconName: json['iconName'],
+    volume: (json['volume'] as num?)?.toDouble() ?? 0.8,
+    pan: (json['pan'] as num?)?.toDouble() ?? 0.0,
+    isMuted: json['isMuted'] ?? false,
+    isSoloed: json['isSoloed'] ?? false,
+    sampleName: json['sampleName'] ?? 'kick',
+    synthWaveform: json['synthWaveform'] ?? 'sawtooth',
+    cutoff: (json['cutoff'] as num?)?.toDouble() ?? 3000.0,
+    resonance: (json['resonance'] as num?)?.toDouble() ?? 1.0,
+    attack: (json['attack'] as num?)?.toDouble() ?? 0.01,
+    release: (json['release'] as num?)?.toDouble() ?? 0.3,
+    luaScriptCode: json['luaScriptCode'] ?? json['wrenScriptCode'] ?? '',
+    trackerColumns: json['trackerColumns'] ?? 4,
+    activeView: MusicViewType.values.firstWhere((e) => e.name == json['activeView'], orElse: () => MusicViewType.pianoRoll),
+    isMonophonic: json['isMonophonic'] ?? false,
+    chordFollowMode: ChordFollowMode.values.firstWhere((e) => e.name == json['chordFollowMode'], orElse: () => ChordFollowMode.off),
+    luaParams: Map<String, double>.from(json['luaParams'] ?? json['wrenParams'] ?? {}),
+    steps: (json['steps'] as List?)?.map((s) => StepEvent.fromJson(s)).toList() ?? List.generate(32, (_) => StepEvent()),
+    notes: (json['notes'] as List?)?.map((n) => Note.fromJson(n)).toList() ?? [],
+    automationLanes: (json['automationLanes'] as List?)?.map((a) => AutomationLane.fromJson(a)).toList() ?? [],
+    fxRack: (json['fxRack'] as List?)?.map((f) => FXInsert.fromJson(f)).toList() ?? [],
+    midiFXRack: (json['midiFXRack'] as List?)?.map((f) => MidiFXInsert.fromJson(f)).toList() ?? [],
+  );
 }
 
 class Pattern {

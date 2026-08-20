@@ -12,7 +12,7 @@ class MidiPipelineEngine {
 
   MidiPipelineEngine({required this.luaEngine});
 
-  /// Processes a [TrackClip] through its base notes, optional clip script, and the track's [MidiFXInsert] chain.
+  /// Processes a [TrackClip] through its base notes and the track's [MidiFXInsert] chain.
   List<Note> processClip({
     required TrackClip clip,
     required TrackChannel track,
@@ -21,12 +21,7 @@ class MidiPipelineEngine {
     // 1. Initial Note Set: Use clip.notes or cached notes
     List<Note> activeNotes = clip.notes.map((n) => n.copyWith()).toList();
 
-    // 2. Evaluate Clip Script (if present and valid MIDI script)
-    if (clip.luaScriptCode.trim().isNotEmpty && _isMidiTransformScript(clip.luaScriptCode)) {
-      activeNotes = _evaluateClipScript(clip, activeNotes, timeContext);
-    }
-
-    // 3. Process MIDI FX Rack sequentially
+    // 2. Process Track MIDI FX Rack sequentially
     for (final midiFX in track.midiFXRack) {
       if (!midiFX.enabled || midiFX.luaScriptCode.trim().isEmpty) continue;
       activeNotes = _evaluateMidiFX(midiFX, activeNotes, timeContext);
@@ -195,6 +190,11 @@ class MidiPipelineEngine {
           velocity: newVel,
         );
       }).toList();
+    }
+
+    // 6. Chord Voicing / Stabs MIDI FX
+    if (code.contains('chord_stabs') || code.contains('Chord.generate_voicing') || nameLower.contains('voicing') || nameLower.contains('stabs')) {
+      return generateChordVoicings(notes, timeContext);
     }
 
     return notes;

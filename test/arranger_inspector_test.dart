@@ -308,7 +308,7 @@ void main() {
       dawState.dispose();
     });
 
-    testWidgets('ArrangerView keeps Track Properties visible when Project Browser is open', (WidgetTester tester) async {
+    testWidgets('ArrangerView allows Track Properties to be toggled independently when Project Browser is open', (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1400, 1000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -328,11 +328,30 @@ void main() {
       // Open project browser
       dawState.toggleBrowser();
       await tester.pumpAndSettle();
-
       expect(dawState.isBrowserOpen, isTrue);
-      // Inspector should be visible and aligned
+
+      // Inspector should NOT be forced open simply because browser is open
+      expect(find.byType(ArrangerContextInspector), findsNothing);
+
+      // Toggle INFO inspector button on
+      final infoBtn = find.text('INFO');
+      expect(infoBtn, findsOneWidget);
+      await tester.tap(infoBtn);
+      await tester.pumpAndSettle();
+
+      // Now inspector is open alongside the open browser
       expect(find.byType(ArrangerContextInspector), findsOneWidget);
       expect(find.text('TRACK PROPERTIES'), findsOneWidget);
+
+      // Close inspector via close button on ArrangerContextInspector
+      final closeBtn = find.byTooltip('Close Inspector');
+      expect(closeBtn, findsOneWidget);
+      await tester.tap(closeBtn);
+      await tester.pumpAndSettle();
+
+      // Inspector closes while browser remains open
+      expect(find.byType(ArrangerContextInspector), findsNothing);
+      expect(dawState.isBrowserOpen, isTrue);
 
       dawState.dispose();
     });

@@ -39,19 +39,6 @@ flutter run -d chrome
 ### Building Web Release
 ```bash
 flutter build web --release --base-href "/" --pwa-strategy=none
-```
-
-## GitHub Pages Build Stability
-
-GitHub Pages deploys this app with Flutter web, and the Pages runner is less forgiving than local hot reload. The most recent breakages came from reintroducing `google_fonts`, which currently fails `dart2js` under the Flutter version used in CI.
-
-Avoid these regressions with these rules:
-
-- Prefer bundled fonts or generic `sans-serif` and `monospace` families for web builds instead of runtime font packages.
-- Keep the Pages workflow on a pinned Flutter SDK version so upstream `stable` changes do not silently change the compiler/toolchain.
-- Before pushing UI, dependency, or web bootstrap changes, run `flutter pub get`, `flutter analyze`, and `flutter build web --release --base-href "/"` locally.
-- Treat `pubspec.yaml`, `pubspec.lock`, and `.github/workflows/deploy.yml` as one deployment surface. If one changes, verify the web release build before merging.
-- If remote fonts are required later, bundle them as project assets and declare them in Flutter rather than depending on `google_fonts` for the Pages build path.
 
 ---
 

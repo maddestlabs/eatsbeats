@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../utils/platform_env_helper.dart';
 import '../utils/eats_storage_helper.dart';
@@ -24,6 +25,8 @@ import 'track_model.dart';
 import 'chord_model.dart';
 import 'history_manager.dart';
 import 'script_target_model.dart';
+import 'automation_model.dart';
+import '../audio/easing.dart';
 
 class DawState extends ChangeNotifier {
   final AudioEngine audioEngine = AudioEngine();
@@ -374,18 +377,12 @@ class DawState extends ChangeNotifier {
       audioEngine.invalidateLuaCache(track.id);
       recordHistory('Add FX "${preset.name}" to end of ${track.name} FX rack', icon: Icons.tune);
     } else if (preset.isMidiFx) {
-      if (activeClip != null && activeClip!.trackId == track.id) {
-        applyPresetToClip(track, activeClip!, preset);
-      } else if (track.clips.isNotEmpty) {
-        applyPresetToClip(track, track.clips.first, preset);
-      } else {
-        addMidiFXInsert(
-          track,
-          name: preset.name,
-          luaScriptCode: preset.code,
-        );
-        recordHistory('Add MIDI FX "${preset.name}" to ${track.name}', icon: Icons.music_note);
-      }
+      addMidiFXInsert(
+        track,
+        name: preset.name,
+        luaScriptCode: preset.code,
+      );
+      recordHistory('Add MIDI FX "${preset.name}" to ${track.name}', icon: Icons.music_note);
     } else if (preset.isMidiSeq) {
       if (activeClip != null && activeClip!.trackId == track.id) {
         applyPresetToClip(track, activeClip!, preset);
@@ -496,6 +493,76 @@ class DawState extends ChangeNotifier {
     activePattern.tracks.add(newTrack);
     activeTrackIndex = activePattern.tracks.length - 1;
     compileLuaCode(sfPreset.code);
+    notifyListeners();
+  }
+
+  // ── Automation Lane Management ─────────────────────────────────────────────
+
+  void addTrackAutomationLane(TrackChannel track, AutomationTarget target) {
+    final lane = AutomationLane(
+      id: 'auto_${DateTime.now().millisecondsSinceEpoch}_${target.id.replaceAll('.', '_')}',
+      name: '${track.name} ${target.name}',
+      target: target,
+      points: [
+        AutomationPoint(
+          id: 'pt_0',
+          step: 0.0,
+          value: target.defaultValue,
+          easing: target.isDiscrete ? EasingType.step : EasingType.linear,
+        ),
+      ],
+    );
+    track.automationLanes.add(lane);
+    recordHistory('Added Automation: ${target.name}', icon: Icons.tune);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void removeTrackAutomationLane(TrackChannel track, String laneId) {
+    track.automationLanes.removeWhere((l) => l.id == laneId);
+    recordHistory('Removed Automation Lane', icon: Icons.delete_outline);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void setAutomationPoint(
+    AutomationLane lane,
+    double step,
+    double value, {
+    EasingType easing = EasingType.linear,
+    double tension = 0.0,
+  }) {
+    final existingIdx = lane.points.indexWhere((p) => (p.step - step).abs() < 0.05);
+    if (existingIdx != -1) {
+      lane.points[existingIdx] = lane.points[existingIdx].copyWith(
+        value: value,
+        easing: easing,
+        tension: tension,
+      );
+    } else {
+      lane.points.add(AutomationPoint(
+        id: 'pt_${DateTime.now().millisecondsSinceEpoch}',
+        step: step,
+        value: value,
+        easing: easing,
+        tension: tension,
+      ));
+    }
+    lane.points.sort((a, b) => a.step.compareTo(b.step));
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void removeAutomationPoint(AutomationLane lane, String pointId) {
+    lane.points.removeWhere((p) => p.id == pointId);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void setAutomationScript(AutomationLane lane, String luaCode) {
+    lane.luaScriptCode = luaCode;
+    lane.isCustomLua = luaCode.trim().isNotEmpty;
+    triggerAutoSave();
     notifyListeners();
   }
 
@@ -1003,8 +1070,19 @@ class DawState extends ChangeNotifier {
   }
 
   void applyPresetToClip(TrackChannel track, TrackClip clip, LuaPreset preset) {
+    if (preset.isMidiFx) {
+      addMidiFXInsert(
+        track,
+        name: preset.name,
+        luaScriptCode: preset.code,
+      );
+      recordHistory('Add MIDI FX "${preset.name}" to ${track.name}', icon: Icons.music_note);
+      notifyListeners();
+      return;
+    }
+
     clip.name = preset.name;
-    clip.luaScriptCode = preset.code;
+    clip.luaScriptCode = '';
 
     // Parse notes from sequence script if present
     final parsedNotes = MidiPipelineEngine.parseNotesFromLuaTable(preset.code);
@@ -1040,7 +1118,7 @@ class DawState extends ChangeNotifier {
       timeContext: timeContext,
     );
 
-    recordHistory('Apply Preset "${preset.name}" to Clip', icon: Icons.tune);
+    recordHistory('Apply Sequence "${preset.name}" to Clip', icon: Icons.tune);
     notifyListeners();
   }
 
@@ -1068,7 +1146,7 @@ class DawState extends ChangeNotifier {
       startBar: startBar,
       barLength: barLength,
       notes: initialNotes,
-      luaScriptCode: preset.code,
+      luaScriptCode: '',
       luaParams: {},
     );
 
@@ -1277,6 +1355,13 @@ class DawState extends ChangeNotifier {
         return pitch;
       }
 
+      // Evaluate Track Automation Lanes
+      for (final lane in track.automationLanes) {
+        if (!lane.enabled) continue;
+        final val = LuaEngine.evaluateAutomation(lane: lane, step: stepIdx.toDouble(), timeCtx: timeContext);
+        audioEngine.setTrackParam(track.id, lane.target.id, val);
+      }
+
       // Arranger Clip Position Playback Logic
       for (final clip in track.clips) {
         final int clipStartStep = clip.startBar * 16;
@@ -1284,9 +1369,16 @@ class DawState extends ChangeNotifier {
 
         if (stepIdx >= clipStartStep && stepIdx < clipEndStep) {
           final int localStep = stepIdx - clipStartStep;
+
+          // Evaluate Clip Automation Lanes
+          for (final lane in clip.automationLanes) {
+            if (!lane.enabled) continue;
+            final val = LuaEngine.evaluateAutomation(lane: lane, step: localStep.toDouble(), timeCtx: timeContext);
+            audioEngine.setTrackParam(track.id, lane.target.id, val);
+          }
           
           final List<Note> effectiveNotes = clip.evaluatedNotesCache ??
-              ((track.midiFXRack.any((f) => f.enabled) || clip.hasMidiScript)
+              (track.midiFXRack.any((f) => f.enabled)
                   ? pipeline.processClip(clip: clip, track: track, timeContext: timeContext)
                   : clip.notes);
 
@@ -1526,6 +1618,121 @@ class DawState extends ChangeNotifier {
     _syncClipNotes(track);
     recordHistory('Change Duration of ${idSet.length} Notes (${track.name})', icon: Icons.straighten, force: true);
     notifyListeners();
+  }
+
+  // Note Clipboard State & Operations (Universal Cross-Platform Lua Clipboard)
+  List<Note> noteClipboard = [];
+
+  Future<String> copyNotesToClipboard(TrackChannel track, Iterable<String> noteIds) async {
+    final idSet = noteIds.toSet();
+    final notesToCopy = idSet.isEmpty
+        ? track.notes.map((n) => n.copyWith()).toList()
+        : track.notes.where((n) => idSet.contains(n.id)).map((n) => n.copyWith()).toList();
+
+    if (notesToCopy.isEmpty) return '';
+
+    final luaCode = EatsLuaSerializer.serializeNotes(notesToCopy, relativeSteps: true);
+    noteClipboard = notesToCopy;
+
+    try {
+      await Clipboard.setData(ClipboardData(text: luaCode));
+    } catch (_) {}
+
+    return luaCode;
+  }
+
+  Future<void> cutNotesToClipboard(TrackChannel track, Iterable<String> noteIds) async {
+    final idSet = noteIds.toSet();
+    if (idSet.isEmpty) return;
+    await copyNotesToClipboard(track, noteIds);
+    removeNotes(track, noteIds);
+  }
+
+  Future<String> copyTrackerBlockToClipboard({
+    required int startStep,
+    required int endStep,
+    required int startCol,
+    required int endCol,
+  }) async {
+    final minS = math.min(startStep, endStep);
+    final maxS = math.max(startStep, endStep);
+    final minC = math.min(startCol, endCol);
+    final maxC = math.max(startCol, endCol);
+
+    final notesInBlock = activeTrack.notes.where((n) {
+      final s = n.startStep.toInt();
+      return s >= minS && s <= maxS && n.column >= minC && n.column <= maxC;
+    }).map((n) => n.copyWith()).toList();
+
+    if (notesInBlock.isEmpty) return '';
+
+    final luaCode = EatsLuaSerializer.serializeNotes(notesInBlock, relativeSteps: true);
+    noteClipboard = notesInBlock;
+
+    try {
+      await Clipboard.setData(ClipboardData(text: luaCode));
+    } catch (_) {}
+
+    return luaCode;
+  }
+
+  Future<List<Note>> pasteNotesFromClipboard(
+    TrackChannel track, {
+    double? targetStep,
+    int? targetCol,
+  }) async {
+    List<Note> sourceNotes = [];
+
+    try {
+      final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
+      if (clipboardData?.text != null && clipboardData!.text!.trim().isNotEmpty) {
+        sourceNotes = EatsLuaParser.parseNotes(clipboardData.text!);
+      }
+    } catch (_) {}
+
+    if (sourceNotes.isEmpty) {
+      sourceNotes = noteClipboard.map((n) => n.copyWith()).toList();
+    }
+
+    if (sourceNotes.isEmpty) return [];
+
+    final insertStep = targetStep ?? currentStep.toDouble();
+    final insertCol = targetCol ?? trackerSelectedColumn;
+
+    final double minStep = sourceNotes.map((n) => n.startStep).reduce((a, b) => a < b ? a : b);
+    final int minCol = sourceNotes.map((n) => n.column).reduce((a, b) => a < b ? a : b);
+
+    final pastedNotes = <Note>[];
+    final now = DateTime.now().microsecondsSinceEpoch;
+
+    beginHistoryTransaction('Paste ${sourceNotes.length} Notes', icon: Icons.paste);
+
+    for (int i = 0; i < sourceNotes.length; i++) {
+      final src = sourceNotes[i];
+      final newStep = (insertStep + (src.startStep - minStep)).clamp(0.0, 64.0);
+      final newCol = (insertCol + (src.column - minCol)).clamp(0, 16);
+
+      final newNote = Note(
+        id: 'p_${now}_$i',
+        pitch: src.pitch.clamp(0, 127),
+        startStep: newStep,
+        durationSteps: src.durationSteps.clamp(0.1, 64.0),
+        velocity: src.velocity.clamp(0.01, 1.0),
+        column: newCol,
+        effectCommand: src.effectCommand,
+        isSlide: src.isSlide,
+        isAccent: src.isAccent,
+      );
+
+      track.notes.add(newNote);
+      pastedNotes.add(newNote);
+    }
+
+    _syncClipNotes(track);
+    commitHistoryTransaction();
+    notifyListeners();
+
+    return pastedNotes;
   }
 
   void setTrackClipBarLength(TrackClip clip, int newBarLength) {

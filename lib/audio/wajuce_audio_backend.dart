@@ -56,6 +56,27 @@ class TrackChannelStrip {
     }
   }
 
+  void setTargetParam(String targetId, double value) {
+    final lower = targetId.toLowerCase();
+    if (lower.contains('volume')) {
+      volumeNode.gain.value = value.clamp(0.0, 1.5);
+    } else if (lower.contains('pan')) {
+      pannerNode.pan.value = value.clamp(-1.0, 1.0);
+    } else if (lower.contains('cutoff')) {
+      for (final node in _fxNodes) {
+        if (node is WABiquadFilterNode) {
+          node.frequency.value = value.clamp(20.0, 20000.0);
+        }
+      }
+    } else if (lower.contains('resonance')) {
+      for (final node in _fxNodes) {
+        if (node is WABiquadFilterNode) {
+          node.Q.value = value.clamp(0.1, 20.0);
+        }
+      }
+    }
+  }
+
   void _rebuildFxChain(
     List<FXInsert> fxRack,
     Map<String, WABuffer?> irCache,
@@ -325,6 +346,13 @@ class WajuceAudioBackend {
 
   void setMasterVolume(double volume) {
     _masterGain?.gain.value = volume.clamp(0.0, 1.5);
+  }
+
+  void setTrackParam(String trackId, String targetId, double value) {
+    final strip = _channelStrips[trackId];
+    if (strip != null) {
+      strip.setTargetParam(targetId, value);
+    }
   }
 
   void dispose() {

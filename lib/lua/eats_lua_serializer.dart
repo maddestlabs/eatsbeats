@@ -68,6 +68,29 @@ class EatsLuaSerializer {
     return buffer.toString();
   }
 
+  /// Serializes a list of [Note] objects into a self-contained `.lua` snippet
+  /// suitable for clipboard export and external Lua scripting.
+  static String serializeNotes(List<Note> notes, {bool relativeSteps = true}) {
+    if (notes.isEmpty) return 'return {}';
+    final double minStep = relativeSteps
+        ? notes.map((n) => n.startStep).reduce((a, b) => a < b ? a : b)
+        : 0.0;
+    final int minCol = relativeSteps
+        ? notes.map((n) => n.column).reduce((a, b) => a < b ? a : b)
+        : 0;
+
+    final buffer = StringBuffer();
+    buffer.writeln('-- Eatsbits Notes (${notes.length} note${notes.length > 1 ? 's' : ''})');
+    buffer.writeln('return {');
+    for (final n in notes) {
+      final relStep = (n.startStep - minStep).clamp(0.0, double.infinity);
+      final relCol = (n.column - minCol).clamp(0, 16);
+      buffer.writeln('  { pitch = ${n.pitch}, startStep = ${relStep.toStringAsFixed(2)}, durationSteps = ${n.durationSteps.toStringAsFixed(2)}, velocity = ${n.velocity.toStringAsFixed(2)}, column = $relCol, effectCommand = "${_escapeString(n.effectCommand)}", isSlide = ${n.isSlide}, isAccent = ${n.isAccent} },');
+    }
+    buffer.writeln('}');
+    return buffer.toString();
+  }
+
   static void _serializeTrack(StringBuffer buffer, TrackChannel track, {required String indent}) {
     buffer.writeln('$indent{');
     final childIndent = '$indent  ';

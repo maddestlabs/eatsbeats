@@ -52,6 +52,11 @@ class AudioEngine {
     _backend.setMasterVolume(volume);
   }
 
+  /// Updates or modulates an automated parameter on a track's audio graph strip.
+  void setTrackParam(String trackId, String targetId, double value) {
+    _backend.setTrackParam(trackId, targetId, value);
+  }
+
   /// Clears cached PCM audio buffers for a track whose parameters or script changed.
   void invalidateLuaCache(String trackId) {
     _pcmCache.removeWhere((key, _) => key.startsWith('${trackId}_'));

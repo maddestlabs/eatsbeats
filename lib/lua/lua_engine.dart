@@ -1,6 +1,11 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import '../audio/easing.dart';
+import '../audio/fm_chip_engine.dart';
+import '../audio/time_context.dart';
+import '../models/automation_model.dart';
+
 class LuaParamDef {
   final String name;
   final double min;
@@ -139,7 +144,7 @@ class LuaEngine {
     }
 
     try {
-      final params = <LuaParamDef>[];
+      final positionedParams = <MapEntry<int, LuaParamDef>>[];
 
       // 1. Parse Param.add("Name", min, max, default, [step])
       final matches = _paramRegExp.allMatches(code);
@@ -150,12 +155,15 @@ class LuaEngine {
         final defVal = double.tryParse(m.group(4)!) ?? minVal;
         final stepVal = (m.groupCount >= 5 && m.group(5) != null) ? (double.tryParse(m.group(5)!) ?? 0.0) : 0.0;
 
-        params.add(LuaParamDef(
-          name: name,
-          min: minVal,
-          max: maxVal,
-          defaultValue: defVal,
-          step: stepVal,
+        positionedParams.add(MapEntry(
+          m.start,
+          LuaParamDef(
+            name: name,
+            min: minVal,
+            max: maxVal,
+            defaultValue: defVal,
+            step: stepVal,
+          ),
         ));
       }
 
@@ -174,14 +182,17 @@ class LuaEngine {
 
         final maxVal = math.max(0, optsList.length - 1).toDouble();
 
-        if (!params.any((p) => p.name == name)) {
-          params.add(LuaParamDef(
-            name: name,
-            min: 0.0,
-            max: maxVal,
-            defaultValue: defIdx.clamp(0.0, maxVal),
-            step: 1.0,
-            options: optsList,
+        if (!positionedParams.any((e) => e.value.name == name)) {
+          positionedParams.add(MapEntry(
+            m.start,
+            LuaParamDef(
+              name: name,
+              min: 0.0,
+              max: maxVal,
+              defaultValue: defIdx.clamp(0.0, maxVal),
+              step: 1.0,
+              options: optsList,
+            ),
           ));
         }
       }
@@ -193,15 +204,22 @@ class LuaEngine {
         final minVal = double.tryParse(m.group(2)!) ?? 0.0;
         final maxVal = double.tryParse(m.group(3)!) ?? 1.0;
         final defVal = double.tryParse(m.group(4)!) ?? minVal;
-        if (!params.any((p) => p.name == name)) {
-          params.add(LuaParamDef(
-            name: name,
-            min: minVal,
-            max: maxVal,
-            defaultValue: defVal,
+        if (!positionedParams.any((e) => e.value.name == name)) {
+          positionedParams.add(MapEntry(
+            m.start,
+            LuaParamDef(
+              name: name,
+              min: minVal,
+              max: maxVal,
+              defaultValue: defVal,
+            ),
           ));
         }
       }
+
+      // Sort in source order
+      positionedParams.sort((a, b) => a.key.compareTo(b.key));
+      final params = positionedParams.map((e) => e.value).toList();
 
       // Check for eatsbits.v1 / eatbits.v1 Param handles in Lua scripts
       final v1Matches = _v1ParamRegExp.allMatches(code);
@@ -256,6 +274,7 @@ class LuaEngine {
   static final Map<String, _AcidVoiceState> _acidVoiceStates = {};
   static final Map<String, _HiHatVoiceState> _hihatVoiceStates = {};
   static final Map<String, _SnareVoiceState> _snareVoiceStates = {};
+  static final Map<String, FMChipVoice> _fmChipVoices = {};
 
   // Fast synthesis of complete buffer avoiding redundant per-sample parsing
   static Float32List synthesizeBuffer({
@@ -365,7 +384,7 @@ class LuaEngine {
     }
 
     // 1. JC-303 Acid Bass Engine (Modelled after midilab/jc303)
-    if (code.contains('Acid303') || code.contains('TB303') || code.contains('Waveform') || code.contains('Overdrive')) {
+    if (code.contains('Acid303') || code.contains('TB303') || (code.contains('Overdrive') && code.contains('Resonance') && code.contains('Slide'))) {
       final waveType = params['Waveform'] ?? 0.0;
       final cutoff = params['Cutoff'] ?? 1600.0;
       final res = params['Resonance'] ?? 8.0;
@@ -575,6 +594,125 @@ class LuaEngine {
       return (carrier * env * 0.8).clamp(-1.0, 1.0);
     }
 
+    // 5. YM2612 / OPN2 / OPL3 Hardware FM Chip & SFXR Engine
+    else if (code.contains('YM2612') || code.contains('OPN2') || code.contains('OPL3') || code.contains('FMChip') || code.contains('SFXR')) {
+      final voiceKey = trackId ?? 'default_fm';
+      final voice = _fmChipVoices.putIfAbsent(voiceKey, () => FMChipVoice());
+
+      if (sampleIndex == 0) {
+        final seed = (params['Seed'] ?? 42.0).toInt();
+
+        // 1. Configure baseline sound effect template if SFXType is set
+        if (params.containsKey('SFXType')) {
+          final sfxIdx = params['SFXType']!.toInt().clamp(0, 7);
+          SFXRGenerator.configureFromType(voice, sfxIdx, seed: seed);
+        } else if (code.contains('Laser')) {
+          SFXRGenerator.configureLaser(voice, DeterministicPRNG(seed));
+        } else if (code.contains('Explosion')) {
+          SFXRGenerator.configureExplosion(voice, DeterministicPRNG(seed));
+        } else if (code.contains('Powerup')) {
+          SFXRGenerator.configurePowerup(voice, DeterministicPRNG(seed));
+        } else if (code.contains('Coin')) {
+          SFXRGenerator.configureCoin(voice, DeterministicPRNG(seed));
+        } else if (code.contains('Jump')) {
+          SFXRGenerator.configureJump(voice, DeterministicPRNG(seed));
+        } else if (code.contains('Hit')) {
+          SFXRGenerator.configureHit(voice, DeterministicPRNG(seed));
+        }
+
+        // 2. Apply live parameter overlays so sliders/automations directly modulate the sound
+        if (params.containsKey('Algorithm')) {
+          voice.algorithm = params['Algorithm']!.toInt().clamp(0, 7);
+        }
+        if (params.containsKey('Feedback')) {
+          voice.feedback = params['Feedback']!.toInt().clamp(0, 7);
+        }
+        if (params.containsKey('PitchSweep')) {
+          final sweep = params['PitchSweep']!;
+          if (sweep >= 0) {
+            voice.startFreqMult = 1.0;
+            voice.endFreqMult = 1.0 + sweep;
+          } else {
+            voice.startFreqMult = 1.0 - sweep;
+            voice.endFreqMult = 1.0;
+          }
+        }
+        if (params.containsKey('SweepSpeed')) {
+          voice.sweepDuration = params['SweepSpeed']!.clamp(0.005, 2.0);
+        }
+        if (params.containsKey('Waveform')) {
+          final wIdx = params['Waveform']!.toInt().clamp(0, FMWaveform.values.length - 1);
+          final w = FMWaveform.values[wIdx];
+          for (final op in voice.operators) {
+            op.waveform = w;
+          }
+        }
+        if (params.containsKey('Attack')) {
+          final att = params['Attack']!.clamp(0.0005, 2.0);
+          for (final op in voice.operators) {
+            op.attack = att;
+          }
+        }
+        if (params.containsKey('Decay')) {
+          final dec = params['Decay']!.clamp(0.01, 3.0);
+          for (final op in voice.operators) {
+            op.decay = dec;
+          }
+        }
+        if (params.containsKey('Sustain')) {
+          final sus = params['Sustain']!.clamp(0.0, 1.0);
+          for (final op in voice.operators) {
+            op.sustain = sus;
+          }
+        }
+        if (params.containsKey('Release')) {
+          final rel = params['Release']!.clamp(0.005, 3.0);
+          for (final op in voice.operators) {
+            op.release = rel;
+          }
+        }
+        if (params.containsKey('NoiseMix')) {
+          final nm = params['NoiseMix']!.clamp(0.0, 1.0);
+          voice.noiseMix = nm;
+          voice.noiseMode = nm > 0.001;
+        }
+        if (params.containsKey('ModDepth')) {
+          voice.operators[0].totalLevel = params['ModDepth']!.clamp(0.0, 127.0);
+        }
+        if (params.containsKey('Harmonic')) {
+          voice.operators[0].multiplier = params['Harmonic']!.clamp(0.5, 15.0);
+        }
+
+        // Granular operator overrides
+        if (params.containsKey('Op1_Mult')) voice.operators[0].multiplier = params['Op1_Mult']!;
+        if (params.containsKey('Op1_TL')) voice.operators[0].totalLevel = params['Op1_TL']!;
+        if (params.containsKey('Op2_Mult')) voice.operators[1].multiplier = params['Op2_Mult']!;
+        if (params.containsKey('Op2_TL')) voice.operators[1].totalLevel = params['Op2_TL']!;
+        if (params.containsKey('Op3_Mult')) voice.operators[2].multiplier = params['Op3_Mult']!;
+        if (params.containsKey('Op3_TL')) voice.operators[2].totalLevel = params['Op3_TL']!;
+        if (params.containsKey('Op4_Mult')) voice.operators[3].multiplier = params['Op4_Mult']!;
+        if (params.containsKey('Op4_TL')) voice.operators[3].totalLevel = params['Op4_TL']!;
+
+        // Direct register poke overrides
+        for (final entry in params.entries) {
+          if (entry.key.startsWith('reg_0x') || entry.key.startsWith('0x')) {
+            final regHex = entry.key.replaceFirst('reg_', '');
+            final regAddr = int.tryParse(regHex);
+            if (regAddr != null) {
+              voice.writeRegister(0, regAddr, entry.value.toInt());
+            }
+          }
+        }
+      }
+
+      return voice.evaluateSample(
+        time: time,
+        baseFreq: freq,
+        duration: 0.4,
+        sampleIndex: sampleIndex,
+      );
+    }
+
     // Default Fallback Synth: Sawtooth + Sub Octave
     else {
       if (freq <= 0) return 0.0;
@@ -640,6 +778,72 @@ class LuaEngine {
     } else {
       return (inputSample * 1.2).clamp(-1.0, 1.0);
     }
+  }
+
+  /// Evaluates an automation lane at a specific step and time context.
+  /// If the lane has custom Lua code, parses and executes procedural generators
+  /// (e.g. LFOs, custom envelopes, mathematical formulas), otherwise evaluates
+  /// breakpoint keyframes with easing interpolation.
+  static double evaluateAutomation({
+    required AutomationLane lane,
+    required double step,
+    TimeContext? timeCtx,
+  }) {
+    if (!lane.enabled) return lane.target.defaultValue;
+
+    if (!lane.isCustomLua || lane.luaScriptCode.trim().isEmpty) {
+      return lane.evaluateAtStep(step, timeCtx);
+    }
+
+    final code = lane.luaScriptCode;
+    final lower = code.toLowerCase();
+
+    // 1. Procedural LFO generator: lfo(rate, depth, [center])
+    if (lower.contains('lfo') || lower.contains('sine')) {
+      final rate = _extractParam(code, 'rate') ?? 1.0;
+      final depth = _extractParam(code, 'depth') ?? (lane.target.max - lane.target.min) * 0.5;
+      final center = _extractParam(code, 'center') ?? lane.target.defaultValue;
+      final beat = timeCtx?.currentBeat ?? (step / 4.0);
+      final val = center + math.sin(2.0 * math.pi * rate * (beat / 4.0)) * depth;
+      return lane.target.isDiscrete
+          ? val.roundToDouble().clamp(lane.target.min, lane.target.max)
+          : val.clamp(lane.target.min, lane.target.max);
+    }
+
+    // 2. Procedural Ramp / Saw LFO: ramp(rate, min, max)
+    if (lower.contains('ramp') || lower.contains('saw')) {
+      final rate = _extractParam(code, 'rate') ?? 1.0;
+      final beat = timeCtx?.currentBeat ?? (step / 4.0);
+      final phase = (beat * rate) % 1.0;
+      final val = lane.target.min + (lane.target.max - lane.target.min) * phase;
+      return lane.target.isDiscrete
+          ? val.roundToDouble().clamp(lane.target.min, lane.target.max)
+          : val.clamp(lane.target.min, lane.target.max);
+    }
+
+    // 3. Procedural ADSR / Envelope in Lua
+    if (lower.contains('adsr') || lower.contains('env')) {
+      final attack = _extractParam(code, 'attack') ?? 0.1;
+      final decay = _extractParam(code, 'decay') ?? 0.3;
+      final sustain = _extractParam(code, 'sustain') ?? 0.5;
+      final release = _extractParam(code, 'release') ?? 0.4;
+      final time = timeCtx?.audioTimeSeconds ?? (step * 0.125);
+      final env = evaluateAdsr(time, attack, decay, sustain, release);
+      final val = lane.target.min + (lane.target.max - lane.target.min) * env;
+      return val.clamp(lane.target.min, lane.target.max);
+    }
+
+    // Default: fallback to breakpoint interpolation
+    return lane.evaluateAtStep(step, timeCtx);
+  }
+
+  static double? _extractParam(String code, String name) {
+    final reg = RegExp('$name\\s*=\\s*([\\d\\.-]+)', caseSensitive: false);
+    final match = reg.firstMatch(code);
+    if (match != null && match.group(1) != null) {
+      return double.tryParse(match.group(1)!);
+    }
+    return null;
   }
 }
 

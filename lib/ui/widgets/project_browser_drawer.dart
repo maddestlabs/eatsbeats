@@ -746,26 +746,14 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                                 ),
                               );
                             } else if (preset.isMidiFx) {
-                              final clip = widget.dawState.activeClip ??
-                                  (widget.dawState.activeTrack.clips.isNotEmpty ? widget.dawState.activeTrack.clips.first : null);
-                              if (clip != null) {
-                                widget.dawState.applyPresetToClip(widget.dawState.activeTrack, clip, preset);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Applied MIDI FX "${preset.name}" to clip "${clip.name}"'),
-                                    backgroundColor: EatsTheme.panelHeader,
-                                    duration: const Duration(seconds: 2),
-                                  ),
-                                );
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: const Text('Select or create a clip first to apply MIDI FX'),
-                                    backgroundColor: EatsTheme.panelHeader,
-                                    duration: const Duration(seconds: 2),
-                                  ),
-                                );
-                              }
+                              widget.dawState.applyPreset(preset, targetTrack: widget.dawState.activeTrack);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Added MIDI FX "${preset.name}" to ${widget.dawState.activeTrack.name}'),
+                                  backgroundColor: EatsTheme.panelHeader,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
                             } else if (preset.isMidiSeq) {
                               widget.dawState.addClipWithPresetToTrack(
                                 widget.dawState.activeTrack,
@@ -783,7 +771,16 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                           },
                         ),
                         onTap: () {
-                          if (preset.isMidiSeq || preset.isMidiFx) {
+                          if (preset.isMidiFx) {
+                            widget.dawState.applyPreset(preset, targetTrack: widget.dawState.activeTrack);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Added MIDI FX "${preset.name}" to ${widget.dawState.activeTrack.name}'),
+                                backgroundColor: EatsTheme.panelHeader,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          } else if (preset.isMidiSeq) {
                             final clip = widget.dawState.activeClip ??
                                 (widget.dawState.activeTrack.clips.isNotEmpty ? widget.dawState.activeTrack.clips.first : null);
                             if (clip != null) {
@@ -794,14 +791,12 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                               );
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(preset.isMidiSeq
-                                      ? 'Applied sequence "${preset.name}" to clip "${clip.name}"'
-                                      : 'Applied MIDI FX "${preset.name}" to clip "${clip.name}"'),
+                                  content: Text('Applied sequence "${preset.name}" to clip "${clip.name}"'),
                                   backgroundColor: EatsTheme.panelHeader,
                                   duration: const Duration(seconds: 2),
                                 ),
                               );
-                            } else if (preset.isMidiSeq) {
+                            } else {
                               widget.dawState.addClipWithPresetToTrack(
                                 widget.dawState.activeTrack,
                                 widget.dawState.currentBar,
@@ -810,14 +805,6 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text('Added sequence "${preset.name}" as clip at Bar ${widget.dawState.currentBar + 1}'),
-                                  backgroundColor: EatsTheme.panelHeader,
-                                  duration: const Duration(seconds: 2),
-                                ),
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: const Text('Select a clip first to apply MIDI FX'),
                                   backgroundColor: EatsTheme.panelHeader,
                                   duration: const Duration(seconds: 2),
                                 ),

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/daw_state.dart';
@@ -32,6 +33,7 @@ class _TrackerViewState extends State<TrackerView> {
   int? _selectionCurrentStep;
   int? _selectionCurrentCol;
   Offset? _longPressStartGlobalPos;
+  bool _isMouseDown = false;
 
   bool get _hasBlockSelection =>
       _selectionAnchorStep != null &&
@@ -149,6 +151,82 @@ class _TrackerViewState extends State<TrackerView> {
     }
   }
 
+  Future<void> _copyTrackerBlock() async {
+    final track = widget.dawState.activeTrack;
+    String lua = '';
+    int count = 0;
+    if (_hasBlockSelection) {
+      final minS = _selectionMinStep;
+      final maxS = _selectionMaxStep;
+      final minC = _selectionMinCol;
+      final maxC = _selectionMaxCol;
+      lua = await widget.dawState.copyTrackerBlockToClipboard(
+        startStep: minS,
+        endStep: maxS,
+        startCol: minC,
+        endCol: maxC,
+      );
+      count = track.notes.where((n) {
+        final s = n.startStep.toInt();
+        return s >= minS && s <= maxS && n.column >= minC && n.column <= maxC;
+      }).length;
+    } else {
+      final s = widget.dawState.trackerSelectedStep;
+      final c = widget.dawState.trackerSelectedColumn;
+      final noteMatch = track.notes.where((n) => n.startStep.toInt() == s && n.column == c).toList();
+      if (noteMatch.isNotEmpty) {
+        lua = await widget.dawState.copyNotesToClipboard(track, [noteMatch.first.id]);
+        count = 1;
+      }
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(count > 0 ? 'Copied $count note${count != 1 ? 's' : ''} as Lua to clipboard' : 'No notes in selection to copy'),
+        backgroundColor: EatsTheme.panelHeader,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _cutTrackerBlock() async {
+    await _copyTrackerBlock();
+    if (_hasBlockSelection) {
+      widget.dawState.deleteTrackerNotesInBlock(
+        startStep: _selectionMinStep,
+        endStep: _selectionMaxStep,
+        startCol: _selectionMinCol,
+        endCol: _selectionMaxCol,
+      );
+      _clearBlockSelection();
+    } else {
+      widget.dawState.deleteTrackerNoteAtSelectedCell();
+    }
+  }
+
+  Future<void> _pasteTrackerNotes() async {
+    final track = widget.dawState.activeTrack;
+    final targetStep = widget.dawState.trackerSelectedStep.toDouble();
+    final targetCol = widget.dawState.trackerSelectedColumn;
+    final pasted = await widget.dawState.pasteNotesFromClipboard(
+      track,
+      targetStep: targetStep,
+      targetCol: targetCol,
+    );
+
+    if (!mounted) return;
+    if (pasted.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Pasted ${pasted.length} note${pasted.length != 1 ? 's' : ''} at Step ${targetStep.toInt()}, Col ${targetCol + 1}'),
+          backgroundColor: EatsTheme.panelHeader,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
@@ -166,6 +244,24 @@ class _TrackerViewState extends State<TrackerView> {
         _selectionCurrentStep = totalSteps - 1;
         _selectionCurrentCol = totalColumns - 1;
       });
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+C / Cmd+C -> Copy Block Notes as Lua
+    if (isCtrlOrCmd && key == LogicalKeyboardKey.keyC) {
+      _copyTrackerBlock();
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+X / Cmd+X -> Cut Block Notes
+    if (isCtrlOrCmd && key == LogicalKeyboardKey.keyX) {
+      _cutTrackerBlock();
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+V / Cmd+V -> Paste Notes at selected cell
+    if (isCtrlOrCmd && key == LogicalKeyboardKey.keyV) {
+      _pasteTrackerNotes();
       return KeyEventResult.handled;
     }
 
@@ -388,7 +484,21 @@ class _TrackerViewState extends State<TrackerView> {
                         ),
                       )),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, color: EatsTheme.accentGold, size: 15),
+                    icon: Icon(Icons.copy, color: EatsTheme.primaryCyan, size: 14),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                    tooltip: 'Copy Block as Lua (Ctrl+C)',
+                    onPressed: _copyTrackerBlock,
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.cut, color: EatsTheme.accentGold, size: 14),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                    tooltip: 'Cut Block (Ctrl+X)',
+                    onPressed: _cutTrackerBlock,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 15),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
                     tooltip: 'Delete Block Notes (Del)',
@@ -412,6 +522,23 @@ class _TrackerViewState extends State<TrackerView> {
                 ],
 
                 const Spacer(),
+
+                // Global Clipboard Buttons
+                IconButton(
+                  icon: Icon(Icons.copy, color: EatsTheme.primaryCyan, size: 15),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  tooltip: _hasBlockSelection ? 'Copy Block as Lua (Ctrl+C)' : 'Copy Selected Note as Lua (Ctrl+C)',
+                  onPressed: _copyTrackerBlock,
+                ),
+                IconButton(
+                  icon: Icon(Icons.paste, color: EatsTheme.accentGreen, size: 15),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  tooltip: 'Paste Notes at Cursor Cell (Ctrl+V)',
+                  onPressed: _pasteTrackerNotes,
+                ),
+                const SizedBox(width: 6),
 
                 // Tracker Column Controls
                 Text('COLS: ', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
@@ -614,78 +741,121 @@ class _TrackerViewState extends State<TrackerView> {
                                     final volStr = hasNote ? 'V${(noteMatch.velocity * 99).toInt().toString().padLeft(2, '0')}' : '..';
                                     final fxStr = hasNote ? noteMatch.effectCommand : '00';
 
-                                    return GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onTapDown: (_) {
-                                        _handleCellTap(stepIdx, colIdx, track, noteMatch);
-                                      },
-                                      onLongPressStart: (details) {
-                                        _focusNode.requestFocus();
-                                        _longPressStartGlobalPos = details.globalPosition;
-                                        setState(() {
-                                          _selectionAnchorStep = stepIdx;
-                                          _selectionAnchorCol = colIdx;
-                                          _selectionCurrentStep = stepIdx;
-                                          _selectionCurrentCol = colIdx;
-                                          widget.dawState.selectTrackerCell(stepIdx, colIdx);
-                                        });
-                                      },
-                                      onLongPressMoveUpdate: (details) {
-                                        if (_longPressStartGlobalPos != null) {
-                                          final deltaY = details.globalPosition.dy - _longPressStartGlobalPos!.dy;
-                                          final deltaX = details.globalPosition.dx - _longPressStartGlobalPos!.dx;
-                                          final targetStep = (stepIdx + (deltaY / 32.0).round()).clamp(0, totalSteps - 1);
-                                          final targetCol = (colIdx + (deltaX / (columnWidth + 4.0)).round()).clamp(0, totalColumns - 1);
-                                          if (_selectionCurrentStep != targetStep || _selectionCurrentCol != targetCol) {
+                                    return MouseRegion(
+                                      onEnter: (_) {
+                                        if (_isMouseDown) {
+                                          if (_selectionCurrentStep != stepIdx || _selectionCurrentCol != colIdx) {
                                             setState(() {
-                                              _selectionCurrentStep = targetStep;
-                                              _selectionCurrentCol = targetCol;
+                                              _selectionCurrentStep = stepIdx;
+                                              _selectionCurrentCol = colIdx;
                                             });
                                           }
                                         }
                                       },
-                                      onLongPressEnd: (_) {
-                                        _longPressStartGlobalPos = null;
-                                      },
-                                      child: Container(
-                                        width: columnWidth,
-                                        margin: const EdgeInsets.symmetric(horizontal: 2),
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: isInBlock
-                                              ? EatsTheme.primaryCyan.withOpacity(0.35)
-                                              : (isSelectedCell
-                                                  ? EatsTheme.highlightColor.withOpacity(0.40)
-                                                  : (hasNote
-                                                      ? track.color.withOpacity(0.25)
-                                                      : EatsTheme.controlBackground.withOpacity(0.3))),
-                                          borderRadius: BorderRadius.circular(4),
-                                          border: Border.all(
-                                            color: isInBlock
-                                                ? EatsTheme.primaryCyan
-                                                : (isSelectedCell
-                                                    ? EatsTheme.highlightColor
-                                                    : (hasNote ? track.color.withOpacity(0.6) : Colors.transparent)),
-                                            width: (isInBlock || isSelectedCell) ? 2.0 : 1.0,
-                                          ),
-                                          boxShadow: (isInBlock || isSelectedCell)
-                                              ? [
-                                                  BoxShadow(
-                                                    color: (isInBlock ? EatsTheme.primaryCyan : EatsTheme.highlightColor).withOpacity(0.4),
-                                                    blurRadius: 4,
-                                                    spreadRadius: 1,
-                                                  )
-                                                ]
-                                              : null,
-                                        ),
-                                        child: Text(
-                                          '$noteStr  $volStr  $fxStr',
-                                          style: EatsTheme.getDisplayFontStyle(
-                                            color: (isInBlock || isSelectedCell)
-                                                ? Colors.white
-                                                : (hasNote ? EatsTheme.textPrimary : EatsTheme.textMuted),
-                                            fontSize: 11,
-                                            fontWeight: (hasNote || isSelectedCell || isInBlock) ? FontWeight.bold : FontWeight.normal,
+                                      child: Listener(
+                                        onPointerDown: (event) {
+                                          if (event.kind == PointerDeviceKind.mouse && (event.buttons & kPrimaryMouseButton) != 0) {
+                                            _isMouseDown = true;
+                                            _focusNode.requestFocus();
+                                            if (HardwareKeyboard.instance.isShiftPressed) {
+                                              setState(() {
+                                                _selectionAnchorStep ??= widget.dawState.trackerSelectedStep;
+                                                _selectionAnchorCol ??= widget.dawState.trackerSelectedColumn;
+                                                _selectionCurrentStep = stepIdx;
+                                                _selectionCurrentCol = colIdx;
+                                              });
+                                            } else {
+                                              setState(() {
+                                                _selectionAnchorStep = stepIdx;
+                                                _selectionAnchorCol = colIdx;
+                                                _selectionCurrentStep = stepIdx;
+                                                _selectionCurrentCol = colIdx;
+                                              });
+                                            }
+                                          }
+                                        },
+                                        onPointerUp: (event) {
+                                          if (_isMouseDown) {
+                                            _isMouseDown = false;
+                                          }
+                                        },
+                                        onPointerCancel: (event) {
+                                          _isMouseDown = false;
+                                        },
+                                        child: GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTapDown: (_) {
+                                            _handleCellTap(stepIdx, colIdx, track, noteMatch);
+                                          },
+                                          onLongPressStart: (details) {
+                                            _focusNode.requestFocus();
+                                            _longPressStartGlobalPos = details.globalPosition;
+                                            setState(() {
+                                              _selectionAnchorStep = stepIdx;
+                                              _selectionAnchorCol = colIdx;
+                                              _selectionCurrentStep = stepIdx;
+                                              _selectionCurrentCol = colIdx;
+                                              widget.dawState.selectTrackerCell(stepIdx, colIdx);
+                                            });
+                                          },
+                                          onLongPressMoveUpdate: (details) {
+                                            if (_longPressStartGlobalPos != null) {
+                                              final deltaY = details.globalPosition.dy - _longPressStartGlobalPos!.dy;
+                                              final deltaX = details.globalPosition.dx - _longPressStartGlobalPos!.dx;
+                                              final targetStep = (stepIdx + (deltaY / 32.0).round()).clamp(0, totalSteps - 1);
+                                              final targetCol = (colIdx + (deltaX / (columnWidth + 4.0)).round()).clamp(0, totalColumns - 1);
+                                              if (_selectionCurrentStep != targetStep || _selectionCurrentCol != targetCol) {
+                                                setState(() {
+                                                  _selectionCurrentStep = targetStep;
+                                                  _selectionCurrentCol = targetCol;
+                                                });
+                                              }
+                                            }
+                                          },
+                                          onLongPressEnd: (_) {
+                                            _longPressStartGlobalPos = null;
+                                          },
+                                          child: Container(
+                                            width: columnWidth,
+                                            margin: const EdgeInsets.symmetric(horizontal: 2),
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: isInBlock
+                                                  ? EatsTheme.primaryCyan.withOpacity(0.35)
+                                                  : (isSelectedCell
+                                                      ? EatsTheme.highlightColor.withOpacity(0.40)
+                                                      : (hasNote
+                                                          ? track.color.withOpacity(0.25)
+                                                          : EatsTheme.controlBackground.withOpacity(0.3))),
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(
+                                                color: isInBlock
+                                                    ? EatsTheme.primaryCyan
+                                                    : (isSelectedCell
+                                                        ? EatsTheme.highlightColor
+                                                        : (hasNote ? track.color.withOpacity(0.6) : Colors.transparent)),
+                                                width: (isInBlock || isSelectedCell) ? 2.0 : 1.0,
+                                              ),
+                                              boxShadow: (isInBlock || isSelectedCell)
+                                                  ? [
+                                                      BoxShadow(
+                                                        color: (isInBlock ? EatsTheme.primaryCyan : EatsTheme.highlightColor).withOpacity(0.4),
+                                                        blurRadius: 4,
+                                                        spreadRadius: 1,
+                                                      )
+                                                    ]
+                                                  : null,
+                                            ),
+                                            child: Text(
+                                              '$noteStr  $volStr  $fxStr',
+                                              style: EatsTheme.getDisplayFontStyle(
+                                                color: (isInBlock || isSelectedCell)
+                                                    ? Colors.white
+                                                    : (hasNote ? EatsTheme.textPrimary : EatsTheme.textMuted),
+                                                fontSize: 11,
+                                                fontWeight: (hasNote || isSelectedCell || isInBlock) ? FontWeight.bold : FontWeight.normal,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
