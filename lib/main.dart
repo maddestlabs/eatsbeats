@@ -15,6 +15,7 @@ import 'ui/transport_header.dart';
 import 'ui/widgets/skeuomorphic_hardware_button.dart';
 import 'ui/widgets/command_palette_dialog.dart';
 import 'ui/widgets/project_browser_drawer.dart';
+import 'ui/widgets/floating_instrument_window.dart';
 import 'ui/virtual_piano_keyboard.dart';
 import 'utils/eats_file_helper.dart';
 
@@ -277,6 +278,11 @@ class _DawMainShellState extends State<DawMainShell> {
             widget.dawState.duplicateClip(track, activeClip);
           }
         },
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (widget.dawState.isFloatingWindowVisible) {
+            widget.dawState.closeFloatingInstrumentWindow();
+          }
+        },
         const SingleActivator(LogicalKeyboardKey.keyD, meta: true): () {
           final primaryFocus = FocusManager.instance.primaryFocus;
           if (primaryFocus != null && primaryFocus.context != null) {
@@ -300,7 +306,7 @@ class _DawMainShellState extends State<DawMainShell> {
               // Top Transport Header (Always Visible)
               TransportHeader(dawState: widget.dawState),
 
-              // Main Studio Workbench Body & Optional Project Browser Drawer
+              // Main Studio Workbench Body, Floating VSTi Window & Optional Project Browser Drawer
               Expanded(
                 child: Container(
                   color: EatsTheme.backgroundDark,
@@ -318,6 +324,16 @@ class _DawMainShellState extends State<DawMainShell> {
                           ],
                         ),
                       ),
+
+                      // Scalable, Movable, Resizable Floating In-App VSTi Window
+                      if (widget.dawState.isFloatingWindowVisible)
+                        Positioned(
+                          left: widget.dawState.floatingWindowPosition.dx,
+                          top: widget.dawState.floatingWindowPosition.dy,
+                          width: widget.dawState.floatingWindowSize.width,
+                          height: widget.dawState.floatingWindowSize.height,
+                          child: FloatingInstrumentWindow(dawState: widget.dawState),
+                        ),
 
                       // Fast 150ms Animated Slide-In / Slide-Out Project Browser Drawer
                       AnimatedPositioned(

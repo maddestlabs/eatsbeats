@@ -62,7 +62,7 @@ class HistoryEntry {
 }
 
 class HistoryManager extends ChangeNotifier {
-  static const int defaultMaxDepth = 50;
+  static const int defaultMaxDepth = 20;
   final int maxDepth;
 
   final List<HistoryEntry> _past = [];

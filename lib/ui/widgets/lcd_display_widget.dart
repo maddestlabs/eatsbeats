@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/eats_theme.dart';
 
 /// A realistic backlit LCD matrix display screen showing track index, pan, and volume level status.
 class LcdDisplayWidget extends StatelessWidget {
@@ -19,14 +20,20 @@ class LcdDisplayWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bgColor = EatsTheme.lcdBackground;
+    final borderColor = EatsTheme.lcdBorder;
+    final textColor = EatsTheme.lcdTextColor;
+    final dotColor = EatsTheme.lcdDotColor;
+    final glowColor = EatsTheme.lcdGlowColor;
+
     return Container(
       width: width,
       height: height,
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F1510), // Retro olive dark LCD background
+        color: bgColor,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: const Color(0xFF2A3628), width: 1.5),
+        border: Border.all(color: borderColor, width: 1.5),
         boxShadow: const [
           BoxShadow(color: Color(0xB3000000), offset: Offset(0, 1), blurRadius: 3),
         ],
@@ -34,9 +41,9 @@ class LcdDisplayWidget extends StatelessWidget {
       child: Stack(
         children: [
           // Subtle Dot Matrix Pattern Paint
-          const Positioned.fill(
+          Positioned.fill(
             child: CustomPaint(
-              painter: _LcdGridPainter(),
+              painter: _LcdGridPainter(dotColor: dotColor),
             ),
           ),
 
@@ -50,14 +57,14 @@ class LcdDisplayWidget extends StatelessWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'monospace',
-                    color: Color(0xFF98B890), // Vintage LCD pixel green/grey
+                    color: textColor,
                     fontWeight: FontWeight.w900,
                     fontSize: 11,
                     letterSpacing: 1.0,
                     shadows: [
-                      Shadow(color: Color(0x99486840), offset: Offset(0, 0), blurRadius: 2.0),
+                      Shadow(color: glowColor, offset: const Offset(0, 0), blurRadius: 2.0),
                     ],
                   ),
                 ),
@@ -72,9 +79,9 @@ class LcdDisplayWidget extends StatelessWidget {
                       leftText,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'monospace',
-                        color: Color(0xFF88A880),
+                        color: textColor.withOpacity(0.85),
                         fontWeight: FontWeight.bold,
                         fontSize: 9,
                       ),
@@ -82,9 +89,9 @@ class LcdDisplayWidget extends StatelessWidget {
                   ),
                   Text(
                     rightText,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'monospace',
-                      color: Color(0xFF88A880),
+                      color: textColor.withOpacity(0.85),
                       fontWeight: FontWeight.bold,
                       fontSize: 9,
                     ),
@@ -107,11 +114,13 @@ class LcdDisplayWidget extends StatelessWidget {
 }
 
 class _LcdGridPainter extends CustomPainter {
-  const _LcdGridPainter();
+  final Color dotColor;
+
+  const _LcdGridPainter({required this.dotColor});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final dotPaint = Paint()..color = const Color(0xFF141F16);
+    final dotPaint = Paint()..color = dotColor;
     const spacing = 3.0;
 
     for (double y = 1; y < size.height; y += spacing) {
@@ -122,7 +131,7 @@ class _LcdGridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _LcdGridPainter oldDelegate) => oldDelegate.dotColor != dotColor;
 }
 
 class _LcdGlassReflectionPainter extends CustomPainter {

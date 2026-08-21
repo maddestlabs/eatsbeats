@@ -125,7 +125,7 @@ class TrackChannelStrip {
     final drive = rawDrive <= 1.0 ? rawDrive : rawDrive / 20.0;
     final shaper = ctx.createWaveShaper();
     shaper.curve = _buildDriveCurve(drive);
-    shaper.oversample = WAOverSampleType.x4;
+    shaper.oversample = kIsWeb ? WAOverSampleType.x4 : WAOverSampleType.x2;
     _fxNodes.add(shaper);
 
     if (mix >= 0.98) {
@@ -318,6 +318,9 @@ class WajuceAudioBackend {
       return;
     }
     try {
+      // Optimal configuration: Standardize 44.1 kHz sample rate across all platforms
+      // to match internal synth/soundfont/sampler/Lua buffer generation and eliminate real-time
+      // resampling overhead in iPlug2. Use 512 buffer size for crisp, low-latency audio response.
       final ctx = WAContext(sampleRate: 44100, bufferSize: 512);
       final masterGain = ctx.createGain();
       masterGain.gain.value = 1.0;

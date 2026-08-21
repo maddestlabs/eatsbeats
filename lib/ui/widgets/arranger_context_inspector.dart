@@ -59,6 +59,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
   @override
   void initState() {
     super.initState();
+    widget.dawState.addListener(_onDawStateChanged);
     final track = widget.dawState.activeTrack;
     _trackNameController.text = track.name;
     _lastTrackId = track.id;
@@ -70,9 +71,17 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
     }
   }
 
+  void _onDawStateChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void didUpdateWidget(covariant ArrangerContextInspector oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.dawState != widget.dawState) {
+      oldWidget.dawState.removeListener(_onDawStateChanged);
+      widget.dawState.addListener(_onDawStateChanged);
+    }
     final track = widget.dawState.activeTrack;
     if (track.id != _lastTrackId) {
       _trackNameController.text = track.name;
@@ -93,6 +102,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
 
   @override
   void dispose() {
+    widget.dawState.removeListener(_onDawStateChanged);
     _trackNameController.dispose();
     _clipNameController.dispose();
     super.dispose();
@@ -118,32 +128,70 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
       ),
       child: Column(
         children: [
-          // Unified Sidebar Header
+          // Context-Sensitive Sidebar Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             decoration: BoxDecoration(
               color: EatsTheme.panelHeader,
               border: const Border(bottom: BorderSide(color: Color(0xFF2B3245), width: 1)),
             ),
             child: Row(
               children: [
-                Icon(Icons.tune, size: 15, color: EatsTheme.primaryCyan),
-                const SizedBox(width: 6),
-                Text(
-                  'PROPERTIES',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 11,
-                    letterSpacing: 0.8,
+                Icon(
+                  clip != null ? Icons.view_timeline : Icons.tune,
+                  size: 14,
+                  color: clip != null ? EatsTheme.accentGold : EatsTheme.primaryCyan,
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    'PROPERTIES',
+                    style: TextStyle(
+                      color: EatsTheme.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10.5,
+                      letterSpacing: 0.8,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
+                if (clip != null) ...[
+                  InkWell(
+                    onTap: () => widget.dawState.selectClip(null),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 85),
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: EatsTheme.controlBackground,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: track.color.withOpacity(0.5), width: 0.8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.arrow_back, size: 9, color: track.color),
+                          const SizedBox(width: 2),
+                          Flexible(
+                            child: Text(
+                              track.name,
+                              style: TextStyle(color: track.color, fontSize: 8, fontWeight: FontWeight.bold),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 IconButton(
-                  icon: const Icon(Icons.chevron_right, size: 20),
+                  icon: const Icon(Icons.chevron_right, size: 18),
                   color: EatsTheme.textMuted,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                  constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
                   tooltip: 'Close Inspector',
                   onPressed: widget.onClose,
                 ),
@@ -151,20 +199,15 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
             ),
           ),
 
-          // United Inspector Body (Track + Clip Properties)
+          // Context-Sensitive Inspector Body (Track OR Clip)
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(12),
               children: [
-                // 1. TRACK SECTION
-                _buildTrackSection(context, track),
-
-                const SizedBox(height: 14),
-                const Divider(color: Color(0xFF2B3245), height: 1, thickness: 1),
-                const SizedBox(height: 14),
-
-                // 2. CLIP SECTION (Below Track Properties)
-                _buildClipSection(context, track, clip),
+                if (clip != null)
+                  _buildClipSection(context, track, clip)
+                else
+                  _buildTrackSection(context, track),
               ],
             ),
           ),
@@ -264,6 +307,10 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                         setState(() => _isEditingTrackName = false);
                       } else {
                         _trackNameController.text = track.name;
+                        _trackNameController.selection = TextSelection(
+                          baseOffset: 0,
+                          extentOffset: _trackNameController.text.length,
+                        );
                         setState(() => _isEditingTrackName = true);
                       }
                     },
@@ -275,7 +322,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                 TextField(
                   controller: _trackNameController,
                   autofocus: true,
-                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: EatsTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
                   decoration: InputDecoration(
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -334,6 +381,10 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                 InkWell(
                   onTap: () {
                     _trackNameController.text = track.name;
+                    _trackNameController.selection = TextSelection(
+                      baseOffset: 0,
+                      extentOffset: _trackNameController.text.length,
+                    );
                     setState(() => _isEditingTrackName = true);
                   },
                   child: Row(
@@ -341,7 +392,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                       Expanded(
                         child: Text(
                           track.name,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          style: TextStyle(color: EatsTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -642,6 +693,10 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                         setState(() => _isEditingClipName = false);
                       } else {
                         _clipNameController.text = clip.name;
+                        _clipNameController.selection = TextSelection(
+                          baseOffset: 0,
+                          extentOffset: _clipNameController.text.length,
+                        );
                         setState(() => _isEditingClipName = true);
                       }
                     },
@@ -653,7 +708,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                 TextField(
                   controller: _clipNameController,
                   autofocus: true,
-                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: EatsTheme.clipTextColor, fontSize: 13, fontWeight: FontWeight.bold),
                   decoration: InputDecoration(
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -673,13 +728,17 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                 InkWell(
                   onTap: () {
                     _clipNameController.text = clip.name;
+                    _clipNameController.selection = TextSelection(
+                      baseOffset: 0,
+                      extentOffset: _clipNameController.text.length,
+                    );
                     setState(() => _isEditingClipName = true);
                   },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     child: Text(
                       clip.name,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+                      style: TextStyle(color: EatsTheme.clipTextColor, fontWeight: FontWeight.bold, fontSize: 13.5),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),

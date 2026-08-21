@@ -237,6 +237,71 @@ class CommandPaletteRegistry {
         onExecute: (state, ctx) => state.tapTempo(),
       ),
       QuickCommand(
+        id: 'action_toggle_floating_vsti_window',
+        title: 'Toggle Floating Instrument Window (VSTi)',
+        subtitle: 'Show/hide resizable floating instrument GUI over the active workspace',
+        category: CommandCategory.action,
+        icon: Icons.picture_in_picture_alt,
+        onExecute: (state, ctx) {
+          state.toggleFloatingInstrumentWindow();
+        },
+      ),
+      QuickCommand(
+        id: 'action_upgrade_active_track_preset',
+        title: 'Upgrade Active Track to Latest Preset Code',
+        subtitle: 'Update active channel instrument script with latest GUI while keeping settings',
+        category: CommandCategory.action,
+        icon: Icons.upgrade,
+        onExecute: (state, ctx) {
+          if (state.isPresetUpgradeAvailable(state.activeTrack)) {
+            state.upgradeTrackPreset(state.activeTrack);
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: Text('Upgraded "${state.activeTrack.name}" to latest preset!'),
+                duration: const Duration(seconds: 2),
+                backgroundColor: EatsTheme.panelHeader,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: const Text('Active track is already up to date!'),
+                duration: const Duration(seconds: 2),
+                backgroundColor: EatsTheme.panelHeader,
+              ),
+            );
+          }
+        },
+      ),
+      QuickCommand(
+        id: 'action_upgrade_all_track_presets',
+        title: 'Upgrade All Tracks to Latest Preset Codes',
+        subtitle: 'Batch update all project instruments with latest factory GUIs',
+        category: CommandCategory.action,
+        icon: Icons.auto_awesome,
+        onExecute: (state, ctx) {
+          final count = state.availablePresetUpgradeCount;
+          if (count > 0) {
+            state.upgradeAllTrackPresets();
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: Text('Upgraded $count tracks to latest preset versions!'),
+                duration: const Duration(seconds: 2),
+                backgroundColor: EatsTheme.panelHeader,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: const Text('All project tracks are already up to date!'),
+                duration: const Duration(seconds: 2),
+                backgroundColor: EatsTheme.panelHeader,
+              ),
+            );
+          }
+        },
+      ),
+      QuickCommand(
         id: 'action_add_synth_track',
         title: 'Add Track: Synth / Instrument',
         subtitle: 'Create a new synthesizer channel',

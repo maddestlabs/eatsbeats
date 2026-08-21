@@ -22,7 +22,7 @@ class GlowingNixieDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
-    final amberGlow = glowColor ?? (isGrungy ? const Color(0xFFFF8C00) : EatsTheme.primaryCyan);
+    final amberGlow = glowColor ?? EatsTheme.tempoGlowColor;
 
     final hasLabel = label.trim().isNotEmpty;
     final displayBox = Container(
@@ -72,7 +72,7 @@ class GlowingNixieDisplay extends StatelessWidget {
             style: EatsTheme.getDisplayFontStyle(
               fontSize: fontSize,
               fontWeight: FontWeight.bold,
-              color: isGrungy ? const Color(0xFFFFF2D6) : Colors.white,
+              color: EatsTheme.tempoTextColor,
             ),
           ),
         ],

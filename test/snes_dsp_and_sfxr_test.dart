@@ -125,9 +125,9 @@ void main() {
       SNESSFXRGenerator.configureLose(dsp);
       expect(dsp.voices[0].arpeggioNotes.first, greaterThan(dsp.voices[0].arpeggioNotes.last));
 
-      // Button has fast micro-transient decay (< 30ms)
+      // Button has 2-shot blip arpeggio notes [0, 7]
       SNESSFXRGenerator.configureButton(dsp);
-      expect(dsp.voices[0].decay, lessThan(0.03));
+      expect(dsp.voices[0].arpeggioNotes, equals([0, 7]));
     });
 
     test('Changing seed produces deterministic variation of sound effect', () {
@@ -181,7 +181,7 @@ void main() {
         durationSec: 0.15,
         freq: 440.0,
         note: 69,
-        params: {'SFXType': 0.0, 'Seed': 42.0, 'Waveform': 1.0}, // Square
+        params: {'SFXType': 0.0, 'Seed': 42.0, 'PitchSweep': 0.0},
       );
 
       final buf2 = LuaEngine.synthesizeBuffer(
@@ -189,7 +189,7 @@ void main() {
         durationSec: 0.15,
         freq: 440.0,
         note: 69,
-        params: {'SFXType': 0.0, 'Seed': 42.0, 'Waveform': 5.0}, // Triangle
+        params: {'SFXType': 0.0, 'Seed': 42.0, 'PitchSweep': 1.5},
       );
 
       bool diff = false;

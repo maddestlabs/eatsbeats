@@ -64,7 +64,7 @@ class SoundFontPackManager extends ChangeNotifier {
   bool _isRestored = false;
 
   /// Checks persistent storage (IndexedDB on Web, AppData on Windows) for cached SoundFonts
-  /// and registers them immediately.
+  /// and registers them as available without eagerly decoding into RAM until requested.
   Future<void> restoreCachedPacks({bool force = false}) async {
     if (_isRestored && !force) return;
     _isRestored = true;
@@ -74,24 +74,34 @@ class SoundFontPackManager extends ChangeNotifier {
         try {
           final cachedBytes = await EatsStorageHelper.loadSoundFont(pack.fileName);
           if (cachedBytes != null && cachedBytes.isNotEmpty) {
-            final loaded = SoundFontEngine.instance.registerSoundFont(pack.fileName, cachedBytes);
-            if (loaded) {
-              if (pack.id == 'generaluser_gs') {
-                SoundFontEngine.instance.registerSoundFont('GeneralUser GS', cachedBytes);
-                SoundFontEngine.instance.registerSoundFont('GeneralUser', cachedBytes);
-              }
-              pack.isDownloaded = true;
-              pack.downloadProgress = 1.0;
-              pack.statusMessage = 'Installed (Cached)';
-              debugPrint('SoundFontPackManager: Restored "${pack.title}" from persistent storage cache.');
-            }
+            pack.isDownloaded = true;
+            pack.downloadProgress = 1.0;
+            pack.statusMessage = 'Installed';
+            final displayName = pack.id == 'generaluser_gs' ? 'GeneralUser GS' : pack.title;
+            SoundFontEngine.instance.registerAvailablePack(pack.fileName, displayName);
+            debugPrint('SoundFontPackManager: Discovered cached "${pack.title}" (ready for on-demand loading).');
           }
         } catch (e) {
-          debugPrint('SoundFontPackManager: Error restoring cached pack ${pack.id}: $e');
+          debugPrint('SoundFontPackManager: Error checking cached pack ${pack.id}: $e');
         }
       }
     }
     notifyListeners();
+  }
+
+  /// Loads a downloaded SoundFont pack into SoundFontEngine memory on demand.
+  Future<bool> ensurePackLoaded(String packFileName) async {
+    if (SoundFontEngine.instance.getSoundFont(packFileName) != null) return true;
+    final cachedBytes = await EatsStorageHelper.loadSoundFont(packFileName);
+    if (cachedBytes != null && cachedBytes.isNotEmpty) {
+      final loaded = SoundFontEngine.instance.registerSoundFont(packFileName, cachedBytes);
+      if (loaded && packFileName.contains('GeneralUser')) {
+        SoundFontEngine.instance.registerSoundFont('GeneralUser GS', cachedBytes);
+        SoundFontEngine.instance.registerSoundFont('GeneralUser', cachedBytes);
+      }
+      return loaded;
+    }
+    return false;
   }
 
   Future<bool> downloadAndInstallPack(SoundFontPackInfo pack) async {

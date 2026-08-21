@@ -132,7 +132,7 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
                   Text(
                     'CHORD SELECTOR & CIRCLE OF FIFTHS',
                     style: EatsTheme.getDisplayFontStyle(
-                      color: Colors.white,
+                      color: EatsTheme.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                     ),

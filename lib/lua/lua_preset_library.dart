@@ -108,6 +108,86 @@ class LuaPresetLibrary {
     return preset;
   }
 
+  static LuaPreset? getPresetById(String id) {
+    try {
+      return presets.firstWhere((p) => p.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static LuaPreset? findMatchingPreset(String luaCode, {String? fallbackName}) {
+    if (luaCode.trim().isEmpty && (fallbackName == null || fallbackName.isEmpty)) {
+      return null;
+    }
+
+    // 1. Check for explicit @id: or @name:
+    final lines = luaCode.split('\n');
+    String? explicitId;
+    String? explicitName;
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('-- @id:')) {
+        explicitId = trimmed.substring(7).trim();
+      } else if (trimmed.startsWith('-- @name:')) {
+        explicitName = trimmed.substring(9).trim();
+      }
+    }
+
+    if (explicitId != null) {
+      final match = getPresetById(explicitId);
+      if (match != null) return match;
+    }
+
+    if (explicitName != null) {
+      try {
+        return presets.firstWhere((p) => p.name.toLowerCase() == explicitName!.toLowerCase());
+      } catch (_) {}
+    }
+
+    // 2. Try matching by fallback track name
+    if (fallbackName != null && fallbackName.trim().isNotEmpty) {
+      final cleanName = fallbackName.trim().toLowerCase();
+      try {
+        return presets.firstWhere((p) => p.name.toLowerCase() == cleanName);
+      } catch (_) {}
+      try {
+        return presets.firstWhere((p) => cleanName.contains(p.name.toLowerCase()) || p.name.toLowerCase().contains(cleanName));
+      } catch (_) {}
+    }
+
+    // 3. Match by code signature
+    if (luaCode.contains('Acid303') || luaCode.contains('TB303')) {
+      return getPresetById('acid_303');
+    }
+    if (luaCode.contains('ProceduralKick')) {
+      return getPresetById('procedural_kick');
+    }
+    if (luaCode.contains('ProceduralSnare')) {
+      return getPresetById('procedural_snare');
+    }
+    if (luaCode.contains('ProceduralHiHat')) {
+      return getPresetById('procedural_hihat');
+    }
+    if (luaCode.contains('YM2612')) {
+      return getPresetById('ym2612_synth');
+    }
+    if (luaCode.contains('SNESSFX') || luaCode.contains('SFXR')) {
+      return getPresetById('eats_sfxr');
+    }
+    if (luaCode.contains('PolyLeadSynth')) {
+      return getPresetById('poly_lead');
+    }
+
+    return null;
+  }
+
+  static bool isUpgradeAvailable(String currentCode, {String? trackName}) {
+    final preset = findMatchingPreset(currentCode, fallbackName: trackName);
+    if (preset == null) return false;
+    return preset.code.trim() != currentCode.trim();
+  }
+
   static const List<LuaPreset> _builtinPresets = [
     // 1. Eats 303 Acid Bass Synth (JC-303 based)
     LuaPreset(
@@ -175,6 +255,44 @@ function Acid303.process(time, freq, note, params, targetNote, isSlide, isAccent
   return output
 end
 
+function Acid303.gui()
+  return {
+    panel = {
+      title = "EATS-303 ACID BASS UNIT",
+      subtitle = "Analog Skeuomorphic 24dB Diode Ladder Rack Unit",
+      accent = "#FF8C00",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Cutoff", label = "CUTOFF FREQ", unit = "Hz" },
+            { type = "nixie", param = "Resonance", label = "RESONANCE" },
+            { type = "nixie", param = "Overdrive", label = "OVERDRIVE", unit = "x" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Cutoff", label = "CUTOFF", size = 60 },
+            { type = "knob", param = "Resonance", label = "RES", size = 60 },
+            { type = "knob", param = "EnvMod", label = "ENV MOD", size = 52 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 52 },
+            { type = "knob", param = "Accent", label = "ACCENT", size = 52 },
+            { type = "knob", param = "Overdrive", label = "DRIVE", size = 52 },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "switch", param = "Waveform", label = "WAVE", options = {"SAW", "SQR"} },
+            { type = "slider", param = "Slide", label = "PORTAMENTO GLIDE", orientation = "horizontal", size = 160 },
+          }
+        }
+      }
+    }
+  }
+end
+
 return Acid303
 ''',
     ),
@@ -222,6 +340,35 @@ function ProceduralKick.process(time, freq, note, params)
   end
   if time >= maxDur then edgeFade = 0.0 end
   return math.tanh(rawOutput * edgeFade * 1.3)
+end
+
+function ProceduralKick.gui()
+  return {
+    panel = {
+      title = "EATS 808 KICK GENERATOR",
+      subtitle = "Deep Sub-Bass Exponential Pitch Sweeper",
+      accent = "#00E5FF",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "StartFreq", label = "PUNCH FREQ", unit = "Hz" },
+            { type = "nixie", param = "EndFreq", label = "SUB FREQ", unit = "Hz" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "StartFreq", label = "START", size = 56 },
+            { type = "knob", param = "EndFreq", label = "SUB END", size = 56 },
+            { type = "knob", param = "PitchDecay", label = "PITCH DEC", size = 52 },
+            { type = "knob", param = "AmpDecay", label = "AMP DEC", size = 52 },
+            { type = "knob", param = "Click", label = "TRANSIENT", size = 52 },
+          }
+        }
+      }
+    }
+  }
 end
 
 return ProceduralKick
@@ -272,6 +419,34 @@ function ProceduralSnare.process(time, freq, note, params)
   return math.tanh(output * 1.3)
 end
 
+function ProceduralSnare.gui()
+  return {
+    panel = {
+      title = "EATS 808 SNARE PROCESSOR",
+      subtitle = "Swept Dual-Body Core with Filtered Noise Wires",
+      accent = "#00E676",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "ToneFreq", label = "TONE FREQ", unit = "Hz" },
+            { type = "nixie", param = "Snappy", label = "SNAPPY WIRE" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "ToneFreq", label = "BODY TONE", size = 56 },
+            { type = "knob", param = "Snappy", label = "SNAPPY", size = 56 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 52 },
+            { type = "knob", param = "Variation", label = "VARIATION", size = 52 },
+          }
+        }
+      }
+    }
+  }
+end
+
 return ProceduralSnare
 ''',
     ),
@@ -318,6 +493,34 @@ function ProceduralHiHat.process(time, freq, note, params)
   local filtered = DSP.highpass(rawSignal, cutoff, 1.4)
 
   return math.tanh(filtered * env * 1.1)
+end
+
+function ProceduralHiHat.gui()
+  return {
+    panel = {
+      title = "EATS 808 CLOSED & OPEN HI-HAT",
+      subtitle = "Cascaded Metallic Ring Modulation & High-Pass Noise",
+      accent = "#FFD700",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Cutoff", label = "HPF CUTOFF", unit = "Hz" },
+            { type = "nixie", param = "Decay", label = "DECAY TIME", unit = "s" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Cutoff", label = "HPF CUTOFF", size = 56 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 56 },
+            { type = "knob", param = "Metallic", label = "METALLIC", size = 52 },
+            { type = "knob", param = "Variation", label = "VARIATION", size = 52 },
+          }
+        }
+      }
+    }
+  }
 end
 
 return ProceduralHiHat
@@ -402,6 +605,38 @@ function YM2612.process(time, freq, note, params)
   return 0.0
 end
 
+function YM2612.gui()
+  return {
+    panel = {
+      title = "YAMAHA YM2612 FM SOUND PROCESSOR",
+      subtitle = "Sega Genesis 4-Operator FM Hardware Synthesis",
+      accent = "#00E5FF",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Algorithm", label = "ALGORITHM" },
+            { type = "nixie", param = "Feedback", label = "FEEDBACK" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Op1_Mult", label = "OP1 MULT", size = 48 },
+            { type = "knob", param = "Op1_TL", label = "OP1 TL", size = 48 },
+            { type = "knob", param = "Op2_Mult", label = "OP2 MULT", size = 48 },
+            { type = "knob", param = "Op2_TL", label = "OP2 TL", size = 48 },
+            { type = "knob", param = "Op3_Mult", label = "OP3 MULT", size = 48 },
+            { type = "knob", param = "Op3_TL", label = "OP3 TL", size = 48 },
+            { type = "knob", param = "Op4_Mult", label = "OP4 MULT", size = 48 },
+            { type = "knob", param = "Op4_TL", label = "OP4 TL", size = 48 },
+          }
+        }
+      }
+    }
+  }
+end
+
 return YM2612
 ''',
     ),
@@ -438,6 +673,44 @@ end
 
 function SNESSFX.process(time, freq, note, params)
   return 0.0
+end
+
+function SNESSFX.gui()
+  return {
+    panel = {
+      title = "SONY S-DSP SFXR CONSOLE UNIT",
+      subtitle = "16-Bit Super Nintendo Procedural Sound Engine",
+      accent = "#E040FB",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "listbox", param = "SFXType", label = "SFX ARCHETYPE", width = 160, height = 90 },
+            { type = "listbox", param = "Waveform", label = "BRR WAVETABLE", width = 160, height = 90 },
+            {
+              type = "column",
+              children = {
+                { type = "lcd", label = "SNES S-DSP", leftText = "16-BIT", rightText = "32kHz" },
+                { type = "nixie", param = "Seed", label = "RNG SEED" }
+              }
+            }
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Attack", label = "ATTACK", size = 48 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 48 },
+            { type = "knob", param = "Sustain", label = "SUSTAIN", size = 48 },
+            { type = "knob", param = "Release", label = "RELEASE", size = 48 },
+            { type = "knob", param = "PitchSweep", label = "SWEEP", size = 48 },
+            { type = "knob", param = "EchoDelay", label = "ECHO MS", size = 48 },
+            { type = "knob", param = "EchoVolume", label = "ECHO VOL", size = 48 },
+          }
+        }
+      }
+    }
+  }
 end
 
 return SNESSFX

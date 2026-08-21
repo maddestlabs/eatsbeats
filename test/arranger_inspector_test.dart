@@ -33,7 +33,7 @@ void main() {
       dawState.dispose();
     });
 
-    testWidgets('Renders unified Track and streamlined Clip properties without tabs or timing/note sections', (WidgetTester tester) async {
+    testWidgets('Renders context-sensitive Track properties when no clip is selected, and Clip properties when clip is selected', (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1200, 1000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -42,7 +42,9 @@ void main() {
       final dawState = DawState(enableMeterTimer: false);
       final track = dawState.activeTrack;
       final clip = track.clips.first;
-      dawState.selectClip(clip);
+
+      // 1. When no clip is selected -> Shows ONLY Track properties
+      dawState.selectClip(null);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -58,9 +60,7 @@ void main() {
           ),
         ),
       );
-
-      // Verify unified header title
-      expect(find.text('PROPERTIES'), findsOneWidget);
+      await tester.pumpAndSettle();
 
       // Verify track properties are rendered
       expect(find.text('TRACK PROPERTIES'), findsOneWidget);
@@ -68,19 +68,27 @@ void main() {
       expect(find.text('TRACK COLOR'), findsOneWidget);
       expect(find.text(track.name), findsOneWidget);
 
-      // Verify clip properties are rendered below track properties
+      // Verify clip properties are NOT rendered
+      expect(find.text('SELECTED CLIP'), findsNothing);
+      expect(find.text('CLIP TITLE'), findsNothing);
+
+      // 2. When a clip IS selected -> Shows ONLY Clip properties
+      dawState.selectClip(clip);
+      await tester.pumpAndSettle();
+
+      // Verify clip properties are rendered
       expect(find.text('SELECTED CLIP'), findsOneWidget);
       expect(find.text('CLIP TITLE'), findsOneWidget);
       expect(find.text(clip.name), findsOneWidget);
 
-      // Verify TIMING & POSITION and NOTE CONTENT sections have been removed
-      expect(find.text('TIMING & POSITION'), findsNothing);
-      expect(find.text('NOTE CONTENT'), findsNothing);
+      // Verify track properties are NOT rendered in clip mode
+      expect(find.text('TRACK NAME'), findsNothing);
+      expect(find.text('TRACK COLOR'), findsNothing);
 
       dawState.dispose();
     });
 
-    testWidgets('Renames track and clip through editable title fields', (WidgetTester tester) async {
+    testWidgets('Renames track and clip through editable title fields and selects all text on edit', (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1200, 1000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -89,7 +97,9 @@ void main() {
       final dawState = DawState(enableMeterTimer: false);
       final track = dawState.activeTrack;
       final clip = track.clips.first;
-      dawState.selectClip(clip);
+
+      // 1. Rename Track (with clip = null)
+      dawState.selectClip(null);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -105,11 +115,12 @@ void main() {
           ),
         ),
       );
+      await tester.pumpAndSettle();
 
-      // Tap Rename track button (first edit icon)
-      final editIcons = find.byIcon(Icons.edit);
-      expect(editIcons, findsNWidgets(2)); // Track edit and Clip edit
-      await tester.tap(editIcons.first);
+      // Tap Rename track button
+      final trackEditIcon = find.byTooltip('Rename Track');
+      expect(trackEditIcon, findsOneWidget);
+      await tester.tap(trackEditIcon);
       await tester.pumpAndSettle();
 
       // Enter new track name
@@ -120,8 +131,12 @@ void main() {
 
       expect(track.name, equals('Lead Arp 80s'));
 
-      // Tap Rename clip button
+      // 2. Rename Clip (with clip selected)
+      dawState.selectClip(clip);
+      await tester.pumpAndSettle();
+
       final clipEditIcon = find.byTooltip('Rename Clip');
+      expect(clipEditIcon, findsOneWidget);
       await tester.tap(clipEditIcon);
       await tester.pumpAndSettle();
 
@@ -333,15 +348,15 @@ void main() {
       // Inspector should NOT be forced open simply because browser is open
       expect(find.byType(ArrangerContextInspector), findsNothing);
 
-      // Toggle INFO inspector button on
-      final infoBtn = find.text('INFO');
-      expect(infoBtn, findsOneWidget);
-      await tester.tap(infoBtn);
+      // Toggle right sidebar Properties tab on
+      final propertiesBtn = find.byTooltip('Open Properties Panel');
+      expect(propertiesBtn, findsOneWidget);
+      await tester.tap(propertiesBtn);
       await tester.pumpAndSettle();
 
       // Now inspector is open alongside the open browser
       expect(find.byType(ArrangerContextInspector), findsOneWidget);
-      expect(find.text('TRACK PROPERTIES'), findsOneWidget);
+      expect(find.text('PROPERTIES'), findsOneWidget);
 
       // Close inspector via close button on ArrangerContextInspector
       final closeBtn = find.byTooltip('Close Inspector');

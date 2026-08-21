@@ -58,6 +58,7 @@ class _PianoRollViewState extends State<PianoRollView> {
   String? _activeResizeNoteId;
   double? _resizeStartDuration;
   Offset? _resizeStartPos;
+  final Map<String, double> _batchStartDurations = {};
 
   // Active keyboard pressed keys map (pitch -> velocity) for visual feedback
   final Map<int, double> _activeKeyboardPitches = {};
@@ -1365,25 +1366,6 @@ class _PianoRollViewState extends State<PianoRollView> {
                     ),
                 const SizedBox(width: 8),
 
-                // Note Stepper Buttons
-                Text('NOTES:', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
-                const SizedBox(width: 2),
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_ios, size: 12),
-                  color: EatsTheme.primaryCyan,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  tooltip: 'Select Previous Note',
-                  onPressed: () => _selectPreviousNote(track),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.arrow_forward_ios, size: 12),
-                  color: EatsTheme.primaryCyan,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  tooltip: 'Select Next Note',
-                  onPressed: () => _selectNextNote(track),
-                ),
                 IconButton(
                   icon: const Icon(Icons.center_focus_strong, size: 14),
                   color: EatsTheme.primaryCyan,
@@ -1391,41 +1373,6 @@ class _PianoRollViewState extends State<PianoRollView> {
                   constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                   tooltip: 'Center View vertically on Clip Notes (or C4)',
                   onPressed: () => _centerViewOnNotesOrDefault(animate: true),
-                ),
-                const SizedBox(width: 8),
-
-                // Clip Length Stepper
-                Text('CLIP:', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
-                const SizedBox(width: 2),
-                IconButton(
-                  icon: const Icon(Icons.remove_circle_outline, size: 14),
-                  color: EatsTheme.accentGold,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                  tooltip: 'Shorten Clip Loop Length',
-                  onPressed: () {
-                    final activeClip = widget.dawState.activeTrackClip;
-                    if (activeClip.barLength > 1) {
-                      widget.dawState.setTrackClipBarLength(activeClip, activeClip.barLength - 1);
-                    }
-                  },
-                ),
-                Text(
-                  '${widget.dawState.activeTrackClip.barLength} BAR${widget.dawState.activeTrackClip.barLength > 1 ? 'S' : ''}',
-                  style: TextStyle(color: EatsTheme.accentGold, fontSize: 10, fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline, size: 14),
-                  color: EatsTheme.accentGold,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                  tooltip: 'Extend Clip Loop Length',
-                  onPressed: () {
-                    final activeClip = widget.dawState.activeTrackClip;
-                    if (activeClip.barLength < 16) {
-                      widget.dawState.setTrackClipBarLength(activeClip, activeClip.barLength + 1);
-                    }
-                  },
                 ),
 
                 if (track.midiFXRack.any((fx) => fx.enabled)) ...[
@@ -2210,18 +2157,20 @@ class _PianoRollViewState extends State<PianoRollView> {
                                     );
                                     }),
 
-                                    // Draw Dynamic "<>" Resize Handle directly after a single selected note
-                                    if (selectedNotes.length == 1 &&
-                                        primarySelectedNote != null &&
-                                        selectedNoteLeft != null &&
-                                        selectedNoteTop != null &&
-                                        selectedNoteWidth != null &&
-                                        selectedNoteHeight != null)
-                                      Positioned(
-                                        left: selectedNoteLeft + selectedNoteWidth + 1,
-                                        top: selectedNoteTop,
+                                    // Draw Dynamic "<>" Resize Handles for selected notes (supporting single and multi-selection)
+                                    ...selectedNotes.map((sNote) {
+                                      final keyIdx = maxPitch - sNote.pitch;
+                                      if (keyIdx < 0 || keyIdx >= totalKeys) return const SizedBox();
+                                      final sLeft = sNote.startStep * _stepWidth + 1;
+                                      final sTop = keyIdx * _keyHeight + 1;
+                                      final sWidth = ((sNote.durationSteps * _stepWidth) - 2).clamp(8.0, double.infinity);
+                                      final sHeight = _keyHeight - 2;
+
+                                      return Positioned(
+                                        left: sLeft + sWidth + 1,
+                                        top: sTop,
                                         width: 22,
-                                        height: selectedNoteHeight,
+                                        height: sHeight,
                                         child: Listener(
                                           behavior: HitTestBehavior.opaque,
                                           onPointerDown: (event) {
@@ -2233,40 +2182,56 @@ class _PianoRollViewState extends State<PianoRollView> {
                                             onPanStart: (details) {
                                               _isMouseMarqueeCandidate = false;
                                               _mouseDragOrigin = null;
-                                              _activeResizeNoteId = primarySelectedNote.id;
-                                              _resizeStartDuration = primarySelectedNote.durationSteps;
+                                              _activeResizeNoteId = sNote.id;
+                                              _resizeStartDuration = sNote.durationSteps;
                                               _resizeStartPos = details.globalPosition;
-                                              widget.dawState.beginHistoryTransaction('Resize Note', icon: Icons.straighten);
+                                              _batchStartDurations.clear();
+                                              for (final n in selectedNotes) {
+                                                _batchStartDurations[n.id] = n.durationSteps;
+                                              }
+                                              widget.dawState.beginHistoryTransaction(
+                                                selectedNotes.length > 1
+                                                    ? 'Resize ${selectedNotes.length} Notes'
+                                                    : 'Resize Note',
+                                                icon: Icons.straighten,
+                                              );
                                             },
                                             onPanUpdate: (details) {
-                                              if (_activeResizeNoteId != primarySelectedNote.id ||
-                                                  _resizeStartDuration == null ||
-                                                  _resizeStartPos == null) return;
+                                              if (_activeResizeNoteId == null ||
+                                                  _resizeStartPos == null ||
+                                                  _batchStartDurations.isEmpty) return;
 
                                               final dxSteps = (details.globalPosition.dx - _resizeStartPos!.dx) / _stepWidth;
                                               final double minDur = snap > 0 ? snap : 0.25;
-                                              double candidateDur = (_resizeStartDuration! + dxSteps).clamp(minDur, totalSteps - primarySelectedNote.startStep);
 
-                                              if (snap > 0) {
-                                                candidateDur = (candidateDur / snap).round() * snap;
-                                                if (candidateDur < snap) candidateDur = snap;
+                                              for (final n in track.notes) {
+                                                if (_batchStartDurations.containsKey(n.id)) {
+                                                  final baseDur = _batchStartDurations[n.id]!;
+                                                  double candidateDur = (baseDur + dxSteps).clamp(minDur, totalSteps - n.startStep);
+                                                  if (snap > 0) {
+                                                    candidateDur = (candidateDur / snap).round() * snap;
+                                                    if (candidateDur < snap) candidateDur = snap;
+                                                  }
+                                                  n.durationSteps = candidateDur;
+                                                }
                                               }
-
-                                              widget.dawState.updateNote(
-                                                track,
-                                                primarySelectedNote.copyWith(durationSteps: candidateDur),
-                                              );
+                                              widget.dawState.notifyListeners();
+                                              setState(() {});
                                             },
                                             onPanEnd: (_) {
                                               _activeResizeNoteId = null;
+                                              _batchStartDurations.clear();
                                               widget.dawState.commitHistoryTransaction();
                                             },
                                             onPanCancel: () {
                                               _activeResizeNoteId = null;
+                                              _batchStartDurations.clear();
                                               widget.dawState.commitHistoryTransaction();
                                             },
                                             child: Tooltip(
-                                              message: 'Drag to resize note',
+                                              message: selectedNotes.length > 1
+                                                  ? 'Drag to resize ${selectedNotes.length} selected notes'
+                                                  : 'Drag to resize note',
                                               child: Container(
                                                 decoration: BoxDecoration(
                                                   color: EatsTheme.primaryCyan,
@@ -2292,7 +2257,8 @@ class _PianoRollViewState extends State<PianoRollView> {
                                             ),
                                           ),
                                         ),
-                                      ),
+                                      );
+                                    }),
 
                                     // Marquee Box Selection Overlay
                                     if (_isMarqueeSelecting && _marqueeStart != null && _marqueeCurrent != null)

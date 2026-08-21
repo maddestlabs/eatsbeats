@@ -22,6 +22,10 @@ class AudioEngine {
   double get leftPeak => _leftPeak;
   double get rightPeak => _rightPeak;
 
+  double _cpuLoad = 0.02;
+  double get cpuLoad => _cpuLoad;
+  double get cpuPercentage => (_cpuLoad * 100.0).clamp(0.0, 100.0);
+
   final Map<String, double> _trackLeftPeaks = {};
   final Map<String, double> _trackRightPeaks = {};
 
@@ -57,6 +61,13 @@ class AudioEngine {
     _backend.setTrackParam(trackId, targetId, value);
   }
 
+  /// Records DSP execution time in microseconds against audio duration.
+  void recordDspExecution(int microsecs, double durationSec) {
+    if (durationSec <= 0) return;
+    final instantLoad = (microsecs / (durationSec * 1000000.0)).clamp(0.01, 1.0);
+    _cpuLoad = (_cpuLoad * 0.75) + (instantLoad * 0.25);
+  }
+
   /// Clears cached PCM audio buffers for a track whose parameters or script changed.
   void invalidateLuaCache(String trackId) {
     _pcmCache.removeWhere((key, _) => key.startsWith('${trackId}_'));
@@ -69,6 +80,8 @@ class AudioEngine {
       'rightPeak': _rightPeak,
       'rms': (_leftPeak + _rightPeak) / 2.0,
       'currentTime': currentTime,
+      'cpuLoad': _cpuLoad,
+      'cpuPercentage': cpuPercentage,
     };
   }
 
@@ -80,6 +93,11 @@ class AudioEngine {
     });
     for (int i = 0; i < _timeData.length && i < u8.length; i++) {
       _timeData[i] = u8[i];
+    }
+
+    // Smoothly decay CPU meter towards baseline when audio load drops
+    if (_leftPeak < 0.001 && _rightPeak < 0.001) {
+      _cpuLoad = (_cpuLoad * 0.90) + (0.015 * 0.10);
     }
 
     for (final id in _trackLeftPeaks.keys.toList()) {
@@ -205,6 +223,7 @@ class AudioEngine {
       return (cached, cacheKey);
     }
 
+    final sw = Stopwatch()..start();
     final buffer = _synthesizeTrackBuffer(
       track: track,
       midiNote: midiNote,
@@ -214,6 +233,8 @@ class AudioEngine {
       isSlide: isSlide,
       isAccent: isAccent,
     );
+    sw.stop();
+    recordDspExecution(sw.elapsedMicroseconds, durationSec);
 
     _pcmCache[cacheKey] = buffer;
     return (buffer, cacheKey);
@@ -327,7 +348,10 @@ class AudioEngine {
 
   /// Pre-warms the PCM cache and IR samples so playback has 0 latency.
   void prewarmPatternCache(List<TrackChannel> tracks, double stepDurationSec) {
-    _backend.preloadIrSamples();
+    final hasConvReverb = tracks.any((t) => !t.isMuted && t.fxRack.any((fx) => fx.enabled && fx.type == FXType.convolutionReverb));
+    if (hasConvReverb) {
+      _backend.preloadIrSamples();
+    }
     for (final track in tracks) {
       if (track.isMuted) continue;
       for (final clip in track.clips) {

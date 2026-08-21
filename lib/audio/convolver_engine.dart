@@ -3,21 +3,18 @@ import 'package:flutter/foundation.dart';
 
 class ConvolverEngine {
   static final ConvolverEngine instance = ConvolverEngine._internal();
-  ConvolverEngine._internal() {
-    _initBuiltInImpulses();
-  }
+  ConvolverEngine._internal();
+
+  static const List<String> builtInIrNames = [
+    'Great Hall',
+    'Plate Reverb',
+    'Warm Room',
+    'Spring Tank',
+  ];
 
   final Map<String, List<double>> _irSamples = {};
 
   Map<String, List<double>> get irSamples => Map.unmodifiable(_irSamples);
-
-  void _initBuiltInImpulses() {
-    // Generate high-quality synthetic Impulse Responses so convolution works out-of-the-box
-    _irSamples['Great Hall'] = _generateSyntheticIr(decaySec: 2.2, damping: 0.15);
-    _irSamples['Plate Reverb'] = _generateSyntheticIr(decaySec: 1.4, damping: 0.05);
-    _irSamples['Warm Room'] = _generateSyntheticIr(decaySec: 0.6, damping: 0.35);
-    _irSamples['Spring Tank'] = _generateSyntheticIr(decaySec: 1.0, damping: 0.25);
-  }
 
   /// Registers a newly decoded IR PCM audio buffer.
   bool registerIrSample(String name, List<double> pcm) {
@@ -29,17 +26,58 @@ class ConvolverEngine {
     return true;
   }
 
-  /// Returns list of all available Impulse Response names.
-  List<String> getAvailableIrNames() {
-    final names = _irSamples.keys.where((k) => !k.contains('/')).toList();
-    names.sort();
-    return names;
+  /// Unloads a specific IR sample from memory.
+  void unloadIr(String name) {
+    final cleanName = name.replaceAll('\\', '/').split('/').last;
+    _irSamples.remove(name);
+    _irSamples.remove(cleanName);
   }
 
-  /// Retrieves an IR sample buffer by name.
+  /// Clears all loaded IR samples to free memory.
+  void clearAllIrSamples() {
+    _irSamples.clear();
+  }
+
+  /// Returns list of all available Impulse Response names.
+  List<String> getAvailableIrNames() {
+    final names = <String>{...builtInIrNames};
+    for (final k in _irSamples.keys) {
+      if (!k.contains('/')) names.add(k);
+    }
+    final list = names.toList();
+    list.sort();
+    return list;
+  }
+
+  /// Retrieves an IR sample buffer by name, generating built-in synthetic IRs lazily on-demand.
   List<double>? getIrSample(String name) {
     final cleanName = name.replaceAll('\\', '/').split('/').last;
-    return _irSamples[name] ?? _irSamples[cleanName] ?? _irSamples['Great Hall'];
+    if (_irSamples.containsKey(name)) return _irSamples[name];
+    if (_irSamples.containsKey(cleanName)) return _irSamples[cleanName];
+
+    // Lazy generation on demand
+    final lazy = _generateLazyBuiltIn(cleanName);
+    if (lazy != null) {
+      _irSamples[cleanName] = lazy;
+      _irSamples[name] = lazy;
+      return lazy;
+    }
+    return getIrSample('Great Hall');
+  }
+
+  static List<double>? _generateLazyBuiltIn(String name) {
+    switch (name.toLowerCase()) {
+      case 'great hall':
+        return _generateSyntheticIr(decaySec: 2.2, damping: 0.15);
+      case 'plate reverb':
+        return _generateSyntheticIr(decaySec: 1.4, damping: 0.05);
+      case 'warm room':
+        return _generateSyntheticIr(decaySec: 0.6, damping: 0.35);
+      case 'spring tank':
+        return _generateSyntheticIr(decaySec: 1.0, damping: 0.25);
+      default:
+        return null;
+    }
   }
 
   /// Real-time convolution / impulse reverb processing on PCM input buffer.

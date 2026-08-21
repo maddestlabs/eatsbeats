@@ -256,6 +256,88 @@ class DawState extends ChangeNotifier {
     commitUiScale(1.0);
   }
 
+  // Floating In-App VSTi Window State
+  String? _floatingInstrumentTrackId;
+  String? get floatingInstrumentTrackId => _floatingInstrumentTrackId;
+
+  bool _isFloatingWindowVisible = false;
+  bool get isFloatingWindowVisible => _isFloatingWindowVisible;
+
+  Offset _floatingWindowPosition = const Offset(120, 60);
+  Offset get floatingWindowPosition => _floatingWindowPosition;
+
+  Size _floatingWindowSize = const Size(560, 420);
+  Size get floatingWindowSize => _floatingWindowSize;
+
+  double _floatingWindowScale = 1.0;
+  double get floatingWindowScale => _floatingWindowScale;
+
+  TrackChannel? get floatingInstrumentTrack {
+    if (_floatingInstrumentTrackId == null) return activeTrack;
+    return activePattern.tracks.firstWhere(
+      (t) => t.id == _floatingInstrumentTrackId,
+      orElse: () => activeTrack,
+    );
+  }
+
+  void openFloatingInstrumentWindow(TrackChannel track) {
+    _floatingInstrumentTrackId = track.id;
+    _isFloatingWindowVisible = true;
+    final trackIdx = activePattern.tracks.indexOf(track);
+    if (trackIdx != -1) {
+      activeTrackIndex = trackIdx;
+    }
+    notifyListeners();
+  }
+
+  void closeFloatingInstrumentWindow() {
+    _isFloatingWindowVisible = false;
+    notifyListeners();
+  }
+
+  void toggleFloatingInstrumentWindow([TrackChannel? track]) {
+    final target = track ?? activeTrack;
+    if (_isFloatingWindowVisible && _floatingInstrumentTrackId == target.id) {
+      closeFloatingInstrumentWindow();
+    } else {
+      openFloatingInstrumentWindow(target);
+    }
+  }
+
+  void updateFloatingWindowPosition(Offset delta, {Size? parentBounds}) {
+    double newX = _floatingWindowPosition.dx + delta.dx;
+    double newY = _floatingWindowPosition.dy + delta.dy;
+    if (parentBounds != null) {
+      newX = newX.clamp(0.0, math.max(0.0, parentBounds.width - 100));
+      newY = newY.clamp(0.0, math.max(0.0, parentBounds.height - 60));
+    } else {
+      newX = math.max(0.0, newX);
+      newY = math.max(0.0, newY);
+    }
+    _floatingWindowPosition = Offset(newX, newY);
+    notifyListeners();
+  }
+
+  void updateFloatingWindowSize(Offset delta) {
+    final newW = (_floatingWindowSize.width + delta.dx).clamp(320.0, 1200.0);
+    final newH = (_floatingWindowSize.height + delta.dy).clamp(240.0, 900.0);
+    _floatingWindowSize = Size(newW, newH);
+    notifyListeners();
+  }
+
+  void setFloatingWindowScale(double scale) {
+    _floatingWindowScale = scale.clamp(0.6, 1.6);
+    notifyListeners();
+  }
+
+  // Header Master Meter / CPU Meter Display State
+  bool _showCpuMeter = false;
+  bool get showCpuMeter => _showCpuMeter;
+  void toggleCpuMeter() {
+    _showCpuMeter = !_showCpuMeter;
+    notifyListeners();
+  }
+
   // Session Persistence & Auto-Restore Settings
   bool _autoRestoreSession = true;
   bool get autoRestoreSession => _autoRestoreSession;
@@ -402,6 +484,84 @@ class DawState extends ChangeNotifier {
       track.luaScriptCode = preset.code;
       compileLuaCode(preset.code);
     }
+    notifyListeners();
+  }
+
+  bool isPresetUpgradeAvailable(TrackChannel track) {
+    if (track.type != TrackType.luaScript && track.luaScriptCode.trim().isEmpty) {
+      return false;
+    }
+    return LuaPresetLibrary.isUpgradeAvailable(track.luaScriptCode, trackName: track.name);
+  }
+
+  List<TrackChannel> get tracks => activePattern.tracks;
+
+  int get availablePresetUpgradeCount {
+    int count = 0;
+    for (final track in tracks) {
+      if (isPresetUpgradeAvailable(track)) count++;
+    }
+    return count;
+  }
+
+  void upgradeTrackPreset(TrackChannel track) {
+    final preset = LuaPresetLibrary.findMatchingPreset(track.luaScriptCode, fallbackName: track.name);
+    if (preset == null) return;
+
+    beginHistoryTransaction('Upgrade ${track.name} to latest preset', icon: Icons.upgrade);
+
+    final oldParams = Map<String, double>.from(track.luaParams);
+    track.luaScriptCode = preset.code;
+    track.type = TrackType.luaScript;
+    final compiled = LuaEngine.compile(preset.code);
+
+    final newParams = <String, double>{};
+    for (final p in compiled.params) {
+      newParams[p.name] = oldParams[p.name] ?? p.defaultValue;
+    }
+    track.luaParams = newParams;
+
+    if (track.id == activeTrack.id) {
+      luaCode = preset.code;
+      compilationResult = compiled;
+    }
+
+    audioEngine.invalidateLuaCache(track.id);
+    commitHistoryTransaction();
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void upgradeAllTrackPresets() {
+    final upgradableTracks = tracks.where(isPresetUpgradeAvailable).toList();
+    if (upgradableTracks.isEmpty) return;
+
+    beginHistoryTransaction('Upgrade ${upgradableTracks.length} tracks to latest presets', icon: Icons.auto_awesome);
+
+    for (final track in upgradableTracks) {
+      final preset = LuaPresetLibrary.findMatchingPreset(track.luaScriptCode, fallbackName: track.name);
+      if (preset != null) {
+        final oldParams = Map<String, double>.from(track.luaParams);
+        track.luaScriptCode = preset.code;
+        track.type = TrackType.luaScript;
+        final compiled = LuaEngine.compile(preset.code);
+
+        final newParams = <String, double>{};
+        for (final p in compiled.params) {
+          newParams[p.name] = oldParams[p.name] ?? p.defaultValue;
+        }
+        track.luaParams = newParams;
+
+        if (track.id == activeTrack.id) {
+          luaCode = preset.code;
+          compilationResult = compiled;
+        }
+        audioEngine.invalidateLuaCache(track.id);
+      }
+    }
+
+    commitHistoryTransaction();
+    triggerAutoSave();
     notifyListeners();
   }
 
@@ -1185,7 +1345,7 @@ class DawState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void selectClip(TrackClip clip) {
+  void selectClip(TrackClip? clip) {
     activeClip = clip;
     notifyListeners();
   }
@@ -1270,9 +1430,8 @@ class DawState extends ChangeNotifier {
   }
 
   double _nextNoteTime = 0.0;
-  // 100ms lookahead ensures the audio thread is always supplied with
-  // timestamped notes ahead of time, preventing OS timer jitter from causing stutter.
-  double get _scheduleAheadTime => 0.100;
+  // Lookahead window: 80ms unified lookahead for tight, responsive audio scheduling.
+  double get _scheduleAheadTime => 0.080;
 
   void togglePlay() {
     audioEngine.ensureContextRunning();
@@ -1330,13 +1489,15 @@ class DawState extends ChangeNotifier {
     const int maxSteps = 32 * 16;
 
     int loopGuard = 0;
+    bool stepsScheduled = false;
     while (_nextNoteTime < audioEngine.currentTime + _scheduleAheadTime) {
-      if (++loopGuard > 16) {
+      if (++loopGuard > 32) {
         _nextNoteTime = audioEngine.currentTime + 0.02;
         break;
       }
       _scheduleStep(_currentStep, _nextNoteTime, stepDurationSec);
       _nextNoteTime += stepDurationSec;
+      stepsScheduled = true;
 
       _currentStep++;
       if (_isLooping && _currentStep >= _loopEndBar * 16) {
@@ -1349,11 +1510,13 @@ class DawState extends ChangeNotifier {
       _currentBar = _currentStep ~/ 16;
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_isDisposed) {
-        notifyListeners();
-      }
-    });
+    if (stepsScheduled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_isDisposed) {
+          notifyListeners();
+        }
+      });
+    }
   }
 
   void _scheduleStep(int stepIdx, double hardwareTime, double stepDurationSec) {

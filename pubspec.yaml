@@ -65,7 +65,6 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/textures/
     - assets/soundfonts/
 
   # An image asset can refer to one or more resolution-specific "variants", see

@@ -153,7 +153,7 @@ class _MixerViewState extends State<MixerView> {
 
         dawState.activeTrackIndex = trackIdx;
         if (isDoubleTap) {
-          dawState.activeTabIndex = 2; // Switch to TRACK section
+          dawState.openFloatingInstrumentWindow(track);
         }
       },
       child: Container(

@@ -711,7 +711,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
                     style: TextStyle(
                       fontSize: 10.5,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected ? Colors.white : EatsTheme.textLight,
+                      color: isSelected ? (EatsTheme.isLight ? badgeColor : EatsTheme.textPrimary) : EatsTheme.textSecondary,
                     ),
                   ),
                 ),

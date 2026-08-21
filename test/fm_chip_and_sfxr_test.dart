@@ -137,16 +137,16 @@ void main() {
         durationSec: 0.15,
         freq: 440.0,
         note: 69,
-        params: {'SFXType': 0.0, 'Seed': 42.0, 'Algorithm': 4.0, 'Feedback': 2.0},
+        params: {'SFXType': 0.0, 'Seed': 42.0, 'PitchSweep': 0.0},
       );
 
-      // Same Laser but modified Algorithm, Feedback, and Waveform
+      // Same Laser but modified PitchSweep
       final buf2 = LuaEngine.synthesizeBuffer(
         code: sfxr.code,
         durationSec: 0.15,
         freq: 440.0,
         note: 69,
-        params: {'SFXType': 0.0, 'Seed': 42.0, 'Algorithm': 7.0, 'Feedback': 7.0, 'Waveform': 1.0}, // Square
+        params: {'SFXType': 0.0, 'Seed': 42.0, 'PitchSweep': 1.5},
       );
 
       expect(buf1.length, equals(buf2.length));
@@ -158,7 +158,7 @@ void main() {
           break;
         }
       }
-      expect(isDifferent, isTrue, reason: 'Live parameter changes (Algorithm, Feedback, Waveform) must alter the sound output');
+      expect(isDifferent, isTrue, reason: 'Live parameter changes (PitchSweep) must alter the sound output');
     });
 
     test('Changing seed produces deterministic variation of sound effect', () {

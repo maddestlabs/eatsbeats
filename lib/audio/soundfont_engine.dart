@@ -9,12 +9,19 @@ class SoundFontEngine extends ChangeNotifier {
   SoundFontEngine._internal();
 
   final Map<String, SoundFontData> _loadedFonts = {};
+  final Map<String, String> _availablePacks = {};
 
   Map<String, SoundFontData> get loadedFonts => Map.unmodifiable(_loadedFonts);
 
+  /// Registers an available (cached or discovered) pack so it shows up in UI menus without eagerly decoding.
+  void registerAvailablePack(String fontId, String displayName) {
+    _availablePacks[fontId] = displayName;
+    notifyListeners();
+  }
+
   /// Returns a clean map of primary Font IDs to human-friendly display names.
   Map<String, String> get loadedDisplayFonts {
-    final result = <String, String>{};
+    final result = <String, String>{..._availablePacks};
     for (final entry in _loadedFonts.entries) {
       final key = entry.key;
       // Skip alias keys like 'default.sf2', or non-.sf2 keys to avoid duplicates
@@ -61,6 +68,32 @@ class SoundFontEngine extends ChangeNotifier {
       debugPrint('SoundFontEngine error decoding $fontId: $e');
     }
     return false;
+  }
+
+  /// Unloads a specific SoundFont from memory to free RAM.
+  void unloadSoundFont(String fontId) {
+    final cleanId = fontId.replaceAll('\\', '/').split('/').last;
+    _loadedFonts.remove(fontId);
+    _loadedFonts.remove(cleanId);
+    if (fontId.toLowerCase().contains('generaluser') || cleanId.toLowerCase().contains('generaluser')) {
+      _loadedFonts.remove('GeneralUser GS');
+      _loadedFonts.remove('GeneralUser');
+      _loadedFonts.remove('GeneralUser_GS.sf2');
+    }
+    debugPrint('SoundFontEngine: Unloaded SoundFont "$fontId" from memory.');
+    notifyListeners();
+  }
+
+  /// Clears all loaded SoundFonts (except bundled fallback) from memory.
+  void clearLoadedSoundFonts() {
+    final fallback = _loadedFonts['default.sf2'];
+    _loadedFonts.clear();
+    if (fallback != null) {
+      _loadedFonts['default.sf2'] = fallback;
+      _loadedFonts['super_small_font.sf2'] = fallback;
+      _loadedFonts['Super Small Font'] = fallback;
+    }
+    notifyListeners();
   }
 
   /// Asynchronously loads the core bundled fallback SoundFont from Flutter assets ('assets/soundfonts/super_small_font.sf2').

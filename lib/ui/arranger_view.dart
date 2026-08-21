@@ -120,42 +120,6 @@ class _ArrangerViewState extends State<ArrangerView> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 5),
-                          InkWell(
-                            onTap: () => setState(() => _showInspector = !_showInspector),
-                            child: Tooltip(
-                              message: isInspectorVisible ? 'Hide Context Inspector' : 'Show Context Inspector',
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
-                                decoration: BoxDecoration(
-                                  color: isInspectorVisible ? EatsTheme.primaryCyan.withOpacity(0.2) : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(3),
-                                  border: Border.all(
-                                    color: isInspectorVisible ? EatsTheme.primaryCyan : EatsTheme.textMuted.withOpacity(0.4),
-                                    width: 0.8,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.view_sidebar_outlined,
-                                      size: 11,
-                                      color: isInspectorVisible ? EatsTheme.primaryCyan : EatsTheme.textMuted,
-                                    ),
-                                    const SizedBox(width: 2),
-                                    Text(
-                                      'INFO',
-                                      style: TextStyle(
-                                        color: isInspectorVisible ? EatsTheme.primaryCyan : EatsTheme.textMuted,
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -434,10 +398,12 @@ class _ArrangerViewState extends State<ArrangerView> {
                                     onLongPress: () {
                                       setState(() => _showInspector = true);
                                       widget.dawState.activeTrackIndex = trackIdx;
+                                      widget.dawState.selectClip(null);
                                     },
                                     onSecondaryTap: () {
                                       setState(() => _showInspector = true);
                                       widget.dawState.activeTrackIndex = trackIdx;
+                                      widget.dawState.selectClip(null);
                                     },
                                     onTapDown: (_) {
                                       final now = DateTime.now();
@@ -448,9 +414,10 @@ class _ArrangerViewState extends State<ArrangerView> {
                                       _lastHeaderTapTrackIdx = trackIdx;
 
                                       widget.dawState.activeTrackIndex = trackIdx;
+                                      widget.dawState.selectClip(null);
                                       if (isDoubleTap) {
-                                        // DOUBLE-TAP TRACK HEADER: Navigate to Track Inspector tab
-                                        widget.dawState.activeTabIndex = 2; // Track section
+                                        // DOUBLE-TAP TRACK HEADER: Open Floating In-App VSTi GUI Window
+                                        widget.dawState.openFloatingInstrumentWindow(track);
                                       }
                                     },
                                     child: Container(
@@ -922,7 +889,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                       maxLines: 1,
                                                       overflow: TextOverflow.ellipsis,
                                                       style: EatsTheme.getDisplayFontStyle(
-                                                        color: Colors.white,
+                                                        color: EatsTheme.chordTrackTextColor,
                                                         fontSize: 10,
                                                         fontWeight: FontWeight.bold,
                                                       ),
@@ -1159,8 +1126,16 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                          widget.dawState.openClipInEditor(clip);
                                                        }
                                                      },
-                                                     onSecondaryTapDown: (details) => _showClipContextMenu(context, details.globalPosition, track, clip),
-                                                     onLongPressStart: (details) => _showClipContextMenu(context, details.globalPosition, track, clip),
+                                                     onSecondaryTap: () {
+                                                       setState(() => _showInspector = true);
+                                                       widget.dawState.activeTrackIndex = trackIdx;
+                                                       widget.dawState.selectClip(clip);
+                                                     },
+                                                     onLongPress: () {
+                                                       setState(() => _showInspector = true);
+                                                       widget.dawState.activeTrackIndex = trackIdx;
+                                                       widget.dawState.selectClip(clip);
+                                                     },
                                                      onHorizontalDragStart: (_) {
                                                        _moveDragDxAccumulator = 0.0;
                                                        widget.dawState.beginHistoryTransaction('Move Clip "${clip.name}"', icon: Icons.open_with);
@@ -1261,7 +1236,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                                         child: Text(
                                                                           clip.name,
                                                                           style: TextStyle(
-                                                                            color: isClipSelected ? EatsTheme.highlightColor : Colors.white,
+                                                                            color: isClipSelected ? EatsTheme.highlightColor : EatsTheme.clipTextColor,
                                                                             fontWeight: FontWeight.bold,
                                                                             fontSize: 9,
                                                                           ),
@@ -1410,6 +1385,65 @@ class _ArrangerViewState extends State<ArrangerView> {
   ],
 ),
 ),
+
+  // Right-Sidebar Properties Icon Tab (Always visible when inspector is closed so user can tap/click to open)
+  if (!isInspectorVisible)
+    Positioned(
+      top: 36,
+      right: isBrowserOpen ? 320.0 : 0.0,
+      child: Tooltip(
+        message: 'Open Properties Panel',
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => setState(() => _showInspector = true),
+            borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 8),
+              decoration: BoxDecoration(
+                color: EatsTheme.panelHeader,
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)),
+                border: Border(
+                  left: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6), width: 1.2),
+                  top: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6), width: 1.2),
+                  bottom: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6), width: 1.2),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.4),
+                    blurRadius: 4,
+                    offset: const Offset(-2, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.tune,
+                    size: 15,
+                    color: EatsTheme.primaryCyan,
+                  ),
+                  const SizedBox(height: 6),
+                  RotatedBox(
+                    quarterTurns: 3,
+                    child: Text(
+                      'PROPERTIES',
+                      style: TextStyle(
+                        color: EatsTheme.textSecondary,
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
 
   // Right-Hand Context Inspector (Aligns to left of Project Browser when open, or right screen edge when closed)
   AnimatedPositioned(
@@ -1604,81 +1638,7 @@ class _ArrangerViewState extends State<ArrangerView> {
     );
   }
 
-  void _showClipContextMenu(BuildContext context, Offset position, TrackChannel track, TrackClip clip) {
-    widget.dawState.selectClip(clip);
-    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final RelativeRect rect = RelativeRect.fromRect(
-      Rect.fromLTWH(position.dx, position.dy, 1, 1),
-      Offset.zero & overlay.size,
-    );
 
-    showMenu<String>(
-      context: context,
-      position: rect,
-      color: EatsTheme.panelHeader,
-      items: [
-        PopupMenuItem(
-          value: 'edit',
-          child: Row(
-            children: [
-              Icon(Icons.piano, size: 16, color: EatsTheme.primaryCyan),
-              const SizedBox(width: 8),
-              const Text('Open in Piano Roll', style: TextStyle(color: Colors.white, fontSize: 12)),
-            ],
-          ),
-        ),
-        if (track.midiFXRack.any((f) => f.enabled))
-          PopupMenuItem(
-            value: 'bake',
-            child: Row(
-              children: [
-                const Icon(Icons.auto_fix_high, size: 16, color: EatsTheme.accentGold),
-                const SizedBox(width: 8),
-                const Text('Bake MIDI FX to Clip', style: TextStyle(color: Colors.white, fontSize: 12)),
-              ],
-            ),
-          ),
-        PopupMenuItem(
-          value: 'duplicate',
-          child: Row(
-            children: [
-              Icon(Icons.copy, size: 16, color: EatsTheme.textSecondary),
-              const SizedBox(width: 8),
-              const Text('Duplicate Clip', style: TextStyle(color: Colors.white, fontSize: 12)),
-            ],
-          ),
-        ),
-        const PopupMenuDivider(),
-        const PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete_outline, size: 16, color: Color(0xFFFF4D6D)),
-              SizedBox(width: 8),
-              Text('Delete Clip', style: TextStyle(color: Color(0xFFFF4D6D), fontSize: 12, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-      ],
-    ).then((choice) {
-      if (choice == 'edit') {
-        widget.dawState.openClipInEditor(clip);
-      } else if (choice == 'bake') {
-        widget.dawState.bakeMidiFXToClip(track, clip);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Baked MIDI FX into Clip "${clip.name}"'),
-            backgroundColor: EatsTheme.panelHeader,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      } else if (choice == 'duplicate') {
-        widget.dawState.duplicateClip(track, clip);
-      } else if (choice == 'delete') {
-        widget.dawState.deleteClip(track, clip);
-      }
-    });
-  }
 
   void _showChordContextMenu(BuildContext context, Offset position, ChordEvent chord) {
     final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;

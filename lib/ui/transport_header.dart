@@ -695,46 +695,104 @@ class TransportHeader extends StatelessWidget {
   }
 
   Widget _buildGlassLrMasterMeter(DawState dawState) {
-    return Container(
-      width: 60,
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-      decoration: BoxDecoration(
-        color: const Color(0xFF090A0D),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: EatsTheme.isLight ? Colors.black26 : const Color(0xFF2E3445),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.4),
-            blurRadius: 3,
-            offset: const Offset(0, 1),
+    final showCpu = dawState.showCpuMeter;
+    final cpuLoad = dawState.audioEngine.cpuLoad;
+    final cpuPct = dawState.audioEngine.cpuPercentage;
+
+    return Tooltip(
+      message: showCpu
+          ? 'DSP CPU Load (${cpuPct.toStringAsFixed(1)}%) - Double-tap for L/R Audio Meter'
+          : 'L/R Master Peak Meter - Double-tap for DSP CPU Meter',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onDoubleTap: () => dawState.toggleCpuMeter(),
+        child: Container(
+          width: 64,
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFF090A0D),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: EatsTheme.isLight ? Colors.black26 : (showCpu ? const Color(0xFF384358) : const Color(0xFF2E3445)),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.4),
+                blurRadius: 3,
+                offset: const Offset(0, 1),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(2),
-        child: Stack(
-          children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: Stack(
               children: [
-                _buildMeterBar('L', dawState.audioEngine.leftPeak),
-                const SizedBox(height: 3),
-                _buildMeterBar('R', dawState.audioEngine.rightPeak),
+                if (!showCpu) ...[
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildMeterBar('L', dawState.audioEngine.leftPeak),
+                      const SizedBox(height: 3),
+                      _buildMeterBar('R', dawState.audioEngine.rightPeak),
+                    ],
+                  ),
+                ] else ...[
+                  // Real-time DSP CPU Meter
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'CPU',
+                            style: EatsTheme.getPrimaryFontStyle(
+                              color: const Color(0xFF00E5FF),
+                              fontSize: 7.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            '${cpuPct.round()}%',
+                            style: EatsTheme.getDisplayFontStyle(
+                              color: cpuPct > 80
+                                  ? EatsTheme.muteColor
+                                  : (cpuPct > 50 ? EatsTheme.accentGold : const Color(0xFF00E5FF)),
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: LinearProgressIndicator(
+                          value: cpuLoad.clamp(0.0, 1.0),
+                          backgroundColor: EatsTheme.controlBackground,
+                          color: cpuLoad > 0.8
+                              ? EatsTheme.muteColor
+                              : (cpuLoad > 0.5 ? EatsTheme.accentGold : const Color(0xFF00E5FF)),
+                          minHeight: 5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                // Diagonal Glass Reflection Overlay
+                const Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _HeaderMeterGlassReflectionPainter(),
+                    ),
+                  ),
+                ),
               ],
             ),
-            // Diagonal Glass Reflection Overlay
-            const Positioned.fill(
-              child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _HeaderMeterGlassReflectionPainter(),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

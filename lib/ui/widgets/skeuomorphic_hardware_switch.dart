@@ -256,8 +256,8 @@ class _HardwareSwitchPainter extends CustomPainter {
     // ----------------------------------------------------
     // 2. Status Jewel LED Indicator
     // ----------------------------------------------------
-    final ledRadius = h * 0.18;
-    final ledCenter = Offset(w - h * 0.5, h * 0.5);
+    final ledRadius = h * 0.16;
+    final ledCenter = Offset(w - h * 0.44, h * 0.5);
 
     if (showLed) {
       // Inset dark LED Bezel
@@ -322,10 +322,10 @@ class _HardwareSwitchPainter extends CustomPainter {
     // 3. Central Mounting Collar / Threaded Hex Nut Bushing
     // ----------------------------------------------------
     // Switch pivot fulcrum travels slightly or sits securely at center-left
-    final fulcrumX = showLed ? (h * 0.70) : (w * 0.5);
+    final fulcrumX = showLed ? (h * 0.56) : (w * 0.5);
     final fulcrumY = h * 0.5;
     final fulcrum = Offset(fulcrumX, fulcrumY);
-    final collarRadius = h * 0.38;
+    final collarRadius = h * 0.31;
 
     // Collar cast shadow
     final collarShadow = Paint()
@@ -371,27 +371,27 @@ class _HardwareSwitchPainter extends CustomPainter {
     // ----------------------------------------------------
     // 4. 3D Chrome Bat-Handle Lever & Dynamic Cast Shadow
     // ----------------------------------------------------
-    // Toggle angle: OFF tilts left (-32° = -0.56 rad), ON tilts right (+32° = +0.56 rad)
-    const maxAngle = 0.55; // ~31.5 degrees
+    // Toggle angle: OFF tilts left (-26° = -0.46 rad), ON tilts right (+26° = +0.46 rad)
+    const maxAngle = 0.46; // ~26.4 degrees
     final currentAngle = -maxAngle + (animationValue.clamp(-0.2, 1.2) * 2 * maxAngle);
-    final handleLength = h * 0.72;
+    final handleLength = h * 0.52;
 
     // Lever tip point
     final tip = fulcrum + Offset(math.sin(currentAngle) * handleLength, -math.cos(currentAngle) * (handleLength * 0.35));
 
     // Dynamic Cast Shadow of the Bat Handle onto the well
     final shadowTip = fulcrum + Offset(
-      math.sin(currentAngle) * (handleLength * 1.15) + (currentAngle > 0 ? 3.0 : -3.0),
-      (handleLength * 0.45) + 2.0,
+      math.sin(currentAngle) * (handleLength * 1.15) + (currentAngle > 0 ? 2.5 : -2.5),
+      (handleLength * 0.45) + 1.5,
     );
     final shadowPath = Path()
-      ..moveTo(fulcrum.dx - 3, fulcrum.dy + 1)
-      ..lineTo(shadowTip.dx - 4, shadowTip.dy)
+      ..moveTo(fulcrum.dx - 2.5, fulcrum.dy + 1)
+      ..lineTo(shadowTip.dx - 3, shadowTip.dy)
       ..arcToPoint(
-        Offset(shadowTip.dx + 4, shadowTip.dy),
-        radius: const Radius.circular(4),
+        Offset(shadowTip.dx + 3, shadowTip.dy),
+        radius: const Radius.circular(3),
       )
-      ..lineTo(fulcrum.dx + 3, fulcrum.dy + 1)
+      ..lineTo(fulcrum.dx + 2.5, fulcrum.dy + 1)
       ..close();
 
     final batShadowPaint = Paint()
@@ -400,8 +400,8 @@ class _HardwareSwitchPainter extends CustomPainter {
     canvas.drawPath(shadowPath, batShadowPaint);
 
     // 3D Tapered Bat Cylinder Shaft
-    final baseWidth = collarRadius * 0.75;
-    final tipRadius = h * 0.22;
+    final baseWidth = collarRadius * 0.70;
+    final tipRadius = h * 0.16;
 
     // Normal vector perpendicular to handle direction
     final dx = tip.dx - fulcrum.dx;

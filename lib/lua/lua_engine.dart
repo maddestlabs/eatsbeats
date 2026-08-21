@@ -1,11 +1,12 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import '../audio/easing.dart';
 import '../audio/fm_chip_engine.dart';
 import '../audio/snes_dsp_engine.dart';
 import '../audio/time_context.dart';
 import '../models/automation_model.dart';
+import 'lua_gui_model.dart';
+import 'lua_gui_parser.dart';
 
 class LuaParamDef {
   final String name;
@@ -50,6 +51,7 @@ class LuaCompilationResult {
   final int errorLine;
   final List<LuaParamDef> params;
   final String scriptType; // 'synth', 'drum', or 'effect'
+  final LuaGuiPanelDef? guiLayout;
 
   LuaCompilationResult({
     required this.isSuccess,
@@ -57,6 +59,7 @@ class LuaCompilationResult {
     this.errorLine = 0,
     required this.params,
     required this.scriptType,
+    this.guiLayout,
   });
 }
 
@@ -134,6 +137,13 @@ class LuaEngine {
     "registerParam\\(\\s*[\"']([^\"']+)[\"']\\s*,\\s*([\\d\\.-]+)\\s*,\\s*([\\d\\.-]+)\\s*,\\s*([\\d\\.-]+)\\s*\\)",
   );
 
+  static final Map<String, LuaCompilationResult> _compilationCache = {};
+
+  /// Clears the compilation cache if needed.
+  static void clearCompilationCache() {
+    _compilationCache.clear();
+  }
+
   static LuaCompilationResult compile(String code) {
     if (code.trim().isEmpty) {
       return LuaCompilationResult(
@@ -143,6 +153,9 @@ class LuaEngine {
         scriptType: 'synth',
       );
     }
+
+    final cached = _compilationCache[code];
+    if (cached != null) return cached;
 
     try {
       final positionedParams = <MapEntry<int, LuaParamDef>>[];
@@ -255,12 +268,20 @@ class LuaEngine {
         );
       }
 
-      return LuaCompilationResult(
+      final guiLayout = LuaGuiParser.parseFromCode(code);
+
+      final result = LuaCompilationResult(
         isSuccess: true,
-        errorMessage: 'Compiled successfully (Lua Live Scripting - eatsbits.v1 Target)! Active parameters: ${params.length}',
+        errorMessage: 'Compiled successfully (Lua Live Scripting - eatsbits.v1 Target)! Active parameters: ${params.length}${guiLayout != null ? " [Custom Hardware GUI Active]" : ""}',
         params: params,
         scriptType: scriptType,
+        guiLayout: guiLayout,
       );
+      if (_compilationCache.length > 256) {
+        _compilationCache.remove(_compilationCache.keys.first);
+      }
+      _compilationCache[code] = result;
+      return result;
     } catch (e) {
       return LuaCompilationResult(
         isSuccess: false,
@@ -631,44 +652,50 @@ class LuaEngine {
         }
 
         final v0 = dsp.voices[0];
+        final isCustom = (params['SFXType']?.toInt() ?? 10) == 10;
 
         // 2. Apply live parameter overlays so sliders/automations directly modulate the sound
-        if (params.containsKey('Waveform')) {
+        if (isCustom && params.containsKey('Waveform')) {
           final wIdx = params['Waveform']!.toInt().clamp(0, SNESWaveform.values.length - 1);
           v0.waveform = SNESWaveform.values[wIdx];
         }
-        if (params.containsKey('Attack')) {
+        if (isCustom && params.containsKey('Attack')) {
           v0.attack = params['Attack']!.clamp(0.0005, 2.0);
         }
-        if (params.containsKey('Decay')) {
+        if (isCustom && params.containsKey('Decay')) {
           v0.decay = params['Decay']!.clamp(0.005, 3.0);
         }
-        if (params.containsKey('Sustain')) {
+        if (isCustom && params.containsKey('Sustain')) {
           v0.sustain = params['Sustain']!.clamp(0.0, 1.0);
         }
-        if (params.containsKey('Release')) {
+        if (isCustom && params.containsKey('Release')) {
           v0.release = params['Release']!.clamp(0.005, 3.0);
         }
         if (params.containsKey('PitchSweep')) {
           final sweep = params['PitchSweep']!;
-          if (sweep >= 0) {
-            v0.startFreqMult = 1.0;
-            v0.endFreqMult = 1.0 + sweep;
-          } else {
-            v0.startFreqMult = 1.0 - sweep;
-            v0.endFreqMult = 1.0;
+          if (isCustom) {
+            if (sweep >= 0) {
+              v0.startFreqMult = 1.0;
+              v0.endFreqMult = 1.0 + sweep;
+            } else {
+              v0.startFreqMult = 1.0 - sweep;
+              v0.endFreqMult = 1.0;
+            }
+          } else if (sweep != 0.0) {
+            // Modulate archetype frequency end multiplier by user pitch sweep slider
+            v0.endFreqMult = (v0.endFreqMult + sweep).clamp(0.02, 10.0);
           }
         }
-        if (params.containsKey('SweepSpeed')) {
+        if (isCustom && params.containsKey('SweepSpeed')) {
           v0.sweepDuration = params['SweepSpeed']!.clamp(0.005, 2.0);
         }
-        if (params.containsKey('VibratoRate')) {
+        if (params.containsKey('VibratoRate') && (isCustom || params['VibratoRate']! > 0.0)) {
           v0.vibratoRate = params['VibratoRate']!.clamp(0.0, 30.0);
         }
-        if (params.containsKey('VibratoDepth')) {
+        if (params.containsKey('VibratoDepth') && (isCustom || params['VibratoDepth']! > 0.0)) {
           v0.vibratoDepth = params['VibratoDepth']!.clamp(0.0, 2.0);
         }
-        if (params.containsKey('ArpSpeed')) {
+        if (isCustom && params.containsKey('ArpSpeed')) {
           v0.arpeggioSpeed = params['ArpSpeed']!.clamp(0.01, 1.0);
         }
         if (params.containsKey('EchoDelay')) {
@@ -678,9 +705,11 @@ class LuaEngine {
           dsp.echo.feedback = params['EchoFeedback']!.clamp(0.0, 0.95);
         }
         if (params.containsKey('EchoVolume')) {
-          dsp.echo.volume = params['EchoVolume']!.clamp(0.0, 1.0);
+          final evol = params['EchoVolume']!.clamp(0.0, 1.0);
+          dsp.echo.volume = evol;
+          dsp.echo.enabled = evol > 0.01;
         }
-        if (params.containsKey('NoiseMix')) {
+        if (params.containsKey('NoiseMix') && (isCustom || params['NoiseMix']! > 0.0)) {
           final nm = params['NoiseMix']!.clamp(0.0, 1.0);
           v0.noiseMix = nm;
         }

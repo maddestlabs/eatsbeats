@@ -1,20 +1,16 @@
 import 'package:flutter/material.dart';
 import '../audio/soundfont_engine.dart';
 import '../audio/soundfont_decoder.dart';
-import '../lua/lua_engine.dart';
-import '../lua/lua_preset_library.dart';
-
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../models/script_target_model.dart';
+import '../lua/lua_preset_library.dart';
 import '../theme/eats_theme.dart';
 import 'widgets/eatsbits_slider.dart';
-import 'widgets/skeuomorphic_hardware_knob.dart';
-import 'widgets/grungy_rack_panel.dart';
-import 'widgets/glowing_nixie_display.dart';
 import 'widgets/project_browser_drawer.dart';
 import 'widgets/modular_fx_rack_widget.dart';
 import 'widgets/midi_fx_rack_widget.dart';
+import 'widgets/dynamic_instrument_gui_widget.dart';
 
 
 
@@ -268,6 +264,15 @@ class TrackInspectorView extends StatelessWidget {
                 Row(
                   children: [
                     IconButton(
+                      tooltip: 'Pop Out Floating VSTi GUI Window',
+                      icon: const Icon(Icons.picture_in_picture_alt, size: 18),
+                      color: EatsTheme.accentGold,
+                      onPressed: () {
+                        dawState.openFloatingInstrumentWindow(track);
+                        dawState.activeTabIndex = 0; // Switch to Arranger with floating GUI active
+                      },
+                    ),
+                    IconButton(
                       tooltip: 'Open Track Script in Scripts Editor',
                       icon: const Icon(Icons.code, size: 18),
                       color: EatsTheme.primaryCyan,
@@ -316,7 +321,7 @@ class TrackInspectorView extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // Mixer Controls Section
+          // 1. Mixer Controls Section
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -375,15 +380,15 @@ class TrackInspectorView extends StatelessWidget {
             ),
           ),
 
+          const SizedBox(height: 16),
+
+          // 2. GUI (if provided) / Instrument & SoundFont Bank Selector
+          _buildSoundFontPresetSelector(context, track),
+          DynamicInstrumentGuiWidget(dawState: dawState, track: track),
 
           const SizedBox(height: 16),
 
-          // Pre-Instrument MIDI FX Rack (Arpeggiator, Chord Arp, Scale Snap, Humanize)
-          MidiFxRackWidget(dawState: dawState, track: track),
-
-          const SizedBox(height: 16),
-
-          // Harmonic Chord Track Follow Card
+          // 3. Harmonic Chord Track Follow Settings
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -449,7 +454,9 @@ class TrackInspectorView extends StatelessWidget {
                       label: Text(
                         mode.displayName,
                         style: TextStyle(
-                          color: isSelected ? Colors.black : Colors.white,
+                          color: isSelected
+                              ? (EatsTheme.isLight ? Colors.white : EatsTheme.backgroundDark)
+                              : EatsTheme.textPrimary,
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                         ),
@@ -458,7 +465,7 @@ class TrackInspectorView extends StatelessWidget {
                       selectedColor: EatsTheme.primaryCyan,
                       backgroundColor: EatsTheme.controlBackground,
                       side: BorderSide(
-                        color: isSelected ? EatsTheme.primaryCyan : Colors.white.withOpacity(0.12),
+                        color: isSelected ? EatsTheme.primaryCyan : EatsTheme.textMuted.withOpacity(0.35),
                       ),
                       onSelected: (_) => dawState.setTrackChordFollowMode(track, mode),
                     );
@@ -479,254 +486,19 @@ class TrackInspectorView extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // SoundFont 2 Bank & Preset Selector Card (if SoundFont track)
-          _buildSoundFontPresetSelector(context, track),
-
-          // Dynamic Lua Script Parameters (Exposed by Code)
-          () {
-            final trackCompilation = track.luaScriptCode.isNotEmpty
-                ? LuaEngine.compile(track.luaScriptCode)
-                : dawState.compilationResult;
-
-            if ((track.type != TrackType.luaScript && track.luaParams.isEmpty) || trackCompilation.params.isEmpty) {
-              return const SizedBox.shrink();
-            }
-
-            return Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: EatsTheme.panelBackground,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: EatsTheme.accentGreen.withOpacity(0.5)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.code, color: EatsTheme.accentGreen, size: 18),
-                          const SizedBox(width: 8),
-                          Text(
-                            'DYNAMIC SCRIPT PARAMETERS (CODE DRIVEN)',
-                            style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.accentGreen, fontWeight: FontWeight.bold, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      ...trackCompilation.params.map((paramDef) {
-                        final rawVal = (track.luaParams[paramDef.name] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
-                        final currentVal = paramDef.isInteger ? rawVal.roundToDouble() : rawVal;
-                        final displayLabel = paramDef.getFormattedValue(currentVal);
-
-                        if (paramDef.options.isNotEmpty) {
-                          final selectedIdx = currentVal.toInt().clamp(0, paramDef.options.length - 1);
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10.0),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: 100,
-                                  child: Text(
-                                    paramDef.name,
-                                    style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 11),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Container(
-                                    height: 34,
-                                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                                    decoration: BoxDecoration(
-                                      color: EatsTheme.panelBackground,
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: EatsTheme.accentGreen.withOpacity(0.4)),
-                                    ),
-                                    child: DropdownButtonHideUnderline(
-                                      child: DropdownButton<double>(
-                                        value: selectedIdx.toDouble(),
-                                        isExpanded: true,
-                                        dropdownColor: EatsTheme.panelBackground,
-                                        icon: const Icon(Icons.arrow_drop_down, color: EatsTheme.accentGreen, size: 20),
-                                        items: List.generate(paramDef.options.length, (idx) {
-                                          return DropdownMenuItem<double>(
-                                            value: idx.toDouble(),
-                                            child: Text(
-                                              paramDef.options[idx],
-                                              style: EatsTheme.getDisplayFontStyle(color: EatsTheme.accentGreen, fontSize: 12, fontWeight: FontWeight.bold),
-                                            ),
-                                          );
-                                        }),
-                                        onChanged: (val) {
-                                          if (val != null) {
-                                            dawState.beginHistoryTransaction('Change ${paramDef.name} (${track.name})', icon: Icons.tune);
-                                            dawState.updateLuaParam(paramDef.name, val);
-                                            dawState.commitHistoryTransaction();
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 100,
-                                child: Text(
-                                  paramDef.name,
-                                  style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 11),
-                                ),
-                              ),
-                              Expanded(
-                                child: EatsBitsSlider(
-                                  value: currentVal,
-                                  min: paramDef.min,
-                                  max: paramDef.max,
-                                  defaultValue: paramDef.defaultValue,
-                                  label: paramDef.name,
-                                  activeColor: EatsTheme.accentGreen,
-                                  onChanged: (val) {
-                                    final snapped = paramDef.isInteger ? val.roundToDouble() : val;
-                                    dawState.updateLuaParam(paramDef.name, snapped);
-                                  },
-                                  onChangeStart: () => dawState.beginHistoryTransaction('${paramDef.name} (${track.name})', icon: Icons.tune),
-                                  onChangeEnd: () => dawState.commitHistoryTransaction(),
-                                ),
-                              ),
-                              SizedBox(
-                                width: 75,
-                                child: Text(
-                                  displayLabel,
-                                  style: EatsTheme.getDisplayFontStyle(color: EatsTheme.accentGreen, fontWeight: FontWeight.bold, fontSize: 11),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-            );
-          }(),
-
-          // Modular FX Insert Rack
-          ModularFxRackWidget(dawState: dawState, track: track),
-
-
+          // 4. MIDI FX Rack (Arpeggiator, Chord Arp, Scale Snap, Humanize)
+          MidiFxRackWidget(dawState: dawState, track: track),
 
           const SizedBox(height: 16),
 
-          // Vintage Skeuomorphic Hardware Rack Unit (SILT / PunchBOX Style)
-          GrungyRackPanel(
-            title: 'Analog Hardware DSP Unit - SILT 808',
-            subtitle: 'Real-Time Skeuomorphic Rotary Controls & Nixie Segment Readouts',
-            accentColor: EatsTheme.currentPreset == EatsThemePreset.ateTrack
-                ? const Color(0xFFFF8C00)
-                : track.color,
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    GlowingNixieDisplay(
-                      label: 'GAIN OUTPUT',
-                      valueText: '${(track.volume * 100).toInt()}',
-                      unit: '%',
-                      glowColor: EatsTheme.currentPreset == EatsThemePreset.ateTrack
-                          ? const Color(0xFFFF8C00)
-                          : track.color,
-                    ),
-                    GlowingNixieDisplay(
-                      label: 'STEREO POSITION',
-                      valueText: track.pan == 0
-                          ? 'CENTER'
-                          : (track.pan < 0 ? 'L${(track.pan.abs() * 100).toInt()}' : 'R${(track.pan * 100).toInt()}'),
-                      glowColor: EatsTheme.currentPreset == EatsThemePreset.ateTrack
-                          ? const Color(0xFFFF8C00)
-                          : track.color,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    SkeuomorphicHardwareKnob(
-                      label: 'VOL GAIN',
-                      value: track.volume,
-                      min: 0.0,
-                      max: 1.5,
-                      defaultValue: 1.0,
-                      accentColor: EatsTheme.currentPreset == EatsThemePreset.ateTrack
-                          ? const Color(0xFFFF8C00)
-                          : track.color,
-                      onChanged: (val) => dawState.setTrackVolume(track, val),
-                      onChangeStart: () => dawState.beginHistoryTransaction('Volume (${track.name})', icon: Icons.volume_up),
-                      onChangeEnd: () => dawState.commitHistoryTransaction(),
-                      formatValue: (v) => '${(v * 100).toInt()}%',
-                    ),
-                    SkeuomorphicHardwareKnob(
-                      label: 'PAN BALANCE',
-                      value: track.pan,
-                      min: -1.0,
-                      max: 1.0,
-                      defaultValue: 0.0,
-                      accentColor: EatsTheme.currentPreset == EatsThemePreset.ateTrack
-                          ? const Color(0xFFFF8C00)
-                          : track.color,
-                      onChanged: (val) => dawState.setTrackPan(track, val),
-                      onChangeStart: () => dawState.beginHistoryTransaction('Pan (${track.name})', icon: Icons.tune),
-                      onChangeEnd: () => dawState.commitHistoryTransaction(),
-                      formatValue: (v) => v == 0 ? 'CTR' : (v < 0 ? 'L${(v.abs() * 100).toInt()}' : 'R${(v * 100).toInt()}'),
-                    ),
-
-                    // Dynamic Script Parameters Card
-
-                    if (dawState.compilationResult.params.isNotEmpty) ...[
-                      SkeuomorphicHardwareKnob(
-                        label: dawState.compilationResult.params.first.name.toUpperCase(),
-                        value: (track.luaParams[dawState.compilationResult.params.first.name] ??
-                                dawState.compilationResult.params.first.defaultValue)
-                            .clamp(
-                              dawState.compilationResult.params.first.min,
-                              dawState.compilationResult.params.first.max,
-                            ),
-                        min: dawState.compilationResult.params.first.min,
-                        max: dawState.compilationResult.params.first.max,
-                        defaultValue: dawState.compilationResult.params.first.defaultValue,
-                        accentColor: EatsTheme.accentGreen,
-                        onChanged: (val) {
-                          dawState.updateLuaParam(dawState.compilationResult.params.first.name, val);
-                        },
-                        onChangeStart: () => dawState.beginHistoryTransaction(
-                          '${dawState.compilationResult.params.first.name} (${track.name})',
-                          icon: Icons.tune,
-                        ),
-                        onChangeEnd: () => dawState.commitHistoryTransaction(),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-          ),
+          // 5. Audio FX Insert Rack (Delay, Chorus, Bitcrusher, Reverb, Filters)
+          ModularFxRackWidget(dawState: dawState, track: track),
         ],
       ),
-          ),
-        );
-      },
-    );
-  }
+    ),
+  );
+},
+);
+}
 }
 

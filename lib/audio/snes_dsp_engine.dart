@@ -458,7 +458,10 @@ class SNESDSPEngine {
 
       if (voice.sweepDuration > 0.001 && time < voice.sweepDuration) {
         final prog = (time / voice.sweepDuration).clamp(0.0, 1.0);
-        final mult = voice.startFreqMult + (voice.endFreqMult - voice.startFreqMult) * prog;
+        final curve = voice.startFreqMult > voice.endFreqMult
+            ? math.pow(1.0 - prog, 2.2).toDouble() // Fast downward snappy zap
+            : math.pow(prog, 1.4).toDouble(); // Smooth upward scoop
+        final mult = voice.endFreqMult + (voice.startFreqMult - voice.endFreqMult) * curve;
         curFreq *= mult;
       }
 
@@ -604,13 +607,13 @@ class SNESSFXRGenerator {
     dsp.reset();
     final v = dsp.voices[0];
     v.waveform = SNESWaveform.sawtooth;
-    v.startFreqMult = prng != null ? prng.nextRange(2.2, 3.5) : 2.8;
-    v.endFreqMult = prng != null ? prng.nextRange(0.1, 0.25) : 0.15;
-    v.sweepDuration = prng != null ? prng.nextRange(0.12, 0.22) : 0.16;
+    v.startFreqMult = prng != null ? prng.nextRange(2.6, 3.6) : 3.0;
+    v.endFreqMult = prng != null ? prng.nextRange(0.1, 0.22) : 0.15;
+    v.sweepDuration = prng != null ? prng.nextRange(0.10, 0.16) : 0.13;
     v.attack = 0.001;
-    v.decay = prng != null ? prng.nextRange(0.12, 0.20) : 0.16;
+    v.decay = prng != null ? prng.nextRange(0.10, 0.16) : 0.13;
     v.sustain = 0.0;
-    v.release = 0.02;
+    v.release = 0.01;
     dsp.echo.enabled = false;
     dsp.echo.volume = 0.0;
   }
@@ -670,14 +673,15 @@ class SNESSFXRGenerator {
     dsp.reset();
     final v = dsp.voices[0];
     v.waveform = SNESWaveform.triangle;
-    v.startFreqMult = prng != null ? prng.nextRange(0.4, 0.6) : 0.5;
-    v.endFreqMult = prng != null ? prng.nextRange(1.4, 1.8) : 1.6;
-    v.sweepDuration = prng != null ? prng.nextRange(0.12, 0.20) : 0.15;
-    v.attack = 0.005;
+    v.startFreqMult = prng != null ? prng.nextRange(0.4, 0.55) : 0.45;
+    v.endFreqMult = prng != null ? prng.nextRange(1.5, 1.9) : 1.7;
+    v.sweepDuration = prng != null ? prng.nextRange(0.12, 0.20) : 0.16;
+    v.attack = 0.002;
     v.decay = 0.18;
     v.sustain = 0.0;
     v.release = 0.02;
     dsp.echo.enabled = false;
+    dsp.echo.volume = 0.0;
   }
 
   /// Hurt / Damage: Sharp downward crunch with noise modulation transient.
@@ -716,19 +720,23 @@ class SNESSFXRGenerator {
     dsp.echo.setFIRProfile('dark_hall');
   }
 
-  /// Button / Click / Beep: Ultra-fast micro transient (under 15ms).
+  /// Button / Click / Beep: Crisp 2-shot UI confirmation blip.
   static void configureButton(SNESDSPEngine dsp, [DeterministicPRNG? prng]) {
     dsp.reset();
     final v = dsp.voices[0];
-    v.waveform = SNESWaveform.pulse12;
+    v.waveform = SNESWaveform.pulse25;
+    final stepInterval = prng != null ? prng.nextRange(0.020, 0.026) : 0.024;
+    v.arpeggioNotes = [0, 7]; // 2-shot blip: Root tone -> Fifth up
+    v.arpeggioSpeed = stepInterval;
     v.startFreqMult = 1.0;
-    v.endFreqMult = 1.2;
-    v.sweepDuration = 0.015;
+    v.endFreqMult = 1.15;
+    v.sweepDuration = 0.05;
     v.attack = 0.0005;
-    v.decay = 0.02;
+    v.decay = 0.055;
     v.sustain = 0.0;
     v.release = 0.005;
     dsp.echo.enabled = false;
+    dsp.echo.volume = 0.0;
   }
 
   /// Warp / Teleport: Rapid alternating pitch wobble with S-DSP echo.

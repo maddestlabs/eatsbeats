@@ -81,19 +81,13 @@ class ModularFxRackWidget extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(color: EatsTheme.secondaryMagenta),
                   ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.add, color: EatsTheme.secondaryMagenta, size: 14),
-                      const SizedBox(width: 4),
-                      Text(
-                        '+ ADD FX',
-                        style: EatsTheme.getPrimaryFontStyle(
-                          color: EatsTheme.secondaryMagenta,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    '+ ADD FX',
+                    style: EatsTheme.getPrimaryFontStyle(
+                      color: EatsTheme.secondaryMagenta,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
                   ),
                 ),
                 itemBuilder: (ctx) => [
