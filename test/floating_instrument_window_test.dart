@@ -47,6 +47,45 @@ void main() {
       expect(state.isFloatingWindowVisible, isFalse);
     });
 
+    test('Accurate natural GUI height calculation for zero-padding fit', () {
+      final state = DawState();
+      final track = state.activeTrack;
+
+      final height = state.getTrackNaturalGuiHeight(track);
+      expect(height, greaterThanOrEqualTo(120.0));
+      expect(height, lessThanOrEqualTo(600.0));
+
+      // Auto-fit calculates exact aspect ratio without excess height
+      state.fitFloatingWindowToWorkspace(const Size(800, 600), track);
+      final winH = state.floatingWindowSize.height;
+      // Window height should equal (content natural height * scale) + 38 titlebar
+      expect(winH, lessThan(600));
+    });
+
+    test('Auto-fit and fullscreen maximization state logic', () {
+      final state = DawState();
+      final track = state.activeTrack;
+      state.openFloatingInstrumentWindow(track);
+
+      // Mobile screen fit: 380x720
+      state.fitFloatingWindowToWorkspace(const Size(380, 720));
+      expect(state.isFloatingWindowMaximized, isFalse);
+      expect(state.floatingWindowSize.width, lessThanOrEqualTo(380));
+      expect(state.floatingWindowSize.height, lessThanOrEqualTo(720));
+      expect(state.floatingWindowPosition.dx, greaterThanOrEqualTo(0));
+
+      // Toggle Fullscreen / Maximize
+      state.toggleMaximizeFloatingWindow(const Size(800, 600));
+      expect(state.isFloatingWindowMaximized, isTrue);
+      expect(state.floatingWindowSize.width, equals(792)); // 800 - (4*2)
+      expect(state.floatingWindowSize.height, equals(592)); // 600 - (4*2)
+      expect(state.floatingWindowPosition, equals(const Offset(4, 4)));
+
+      // Toggle back / Restore
+      state.toggleMaximizeFloatingWindow(const Size(800, 600));
+      expect(state.isFloatingWindowMaximized, isFalse);
+    });
+
     testWidgets('Renders FloatingInstrumentWindow when visible and handles user interactions', (tester) async {
       final state = DawState();
       final track = state.activeTrack;
@@ -56,18 +95,24 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: Stack(
-              children: [
-                Positioned.fill(child: Container(color: Colors.black)),
-                if (state.isFloatingWindowVisible)
-                  Positioned(
-                    left: state.floatingWindowPosition.dx,
-                    top: state.floatingWindowPosition.dy,
-                    width: state.floatingWindowSize.width,
-                    height: state.floatingWindowSize.height,
-                    child: FloatingInstrumentWindow(dawState: state),
-                  ),
-              ],
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (context, _) => Stack(
+                children: [
+                  Positioned.fill(child: Container(color: Colors.black)),
+                  if (state.isFloatingWindowVisible)
+                    Positioned(
+                      left: state.floatingWindowPosition.dx,
+                      top: state.floatingWindowPosition.dy,
+                      width: state.floatingWindowSize.width,
+                      height: state.floatingWindowSize.height,
+                      child: FloatingInstrumentWindow(
+                        dawState: state,
+                        workspaceBounds: const Size(800, 600),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -76,13 +121,26 @@ void main() {
 
       // Verify script-driven title bar and actions
       expect(find.text('ACID SYNTH 303'), findsOneWidget);
+      expect(find.byIcon(Icons.fit_screen), findsOneWidget);
+      expect(find.byIcon(Icons.fullscreen), findsOneWidget);
       expect(find.byIcon(Icons.open_in_new), findsOneWidget);
       expect(find.byTooltip('Unscrew Panel (Close VSTi - Esc)'), findsOneWidget);
 
       // Verify 1:1 FittedBox scaling container is rendered
       expect(find.byType(FittedBox), findsWidgets);
 
-      // Tap Tactile Screw to Unscrew / Close Panel
+      // Tap Fit to Screen button
+      await tester.tap(find.byIcon(Icons.fit_screen));
+      await tester.pumpAndSettle();
+      expect(state.isFloatingWindowMaximized, isFalse);
+
+      // Tap Fullscreen / Maximize button
+      await tester.tap(find.byIcon(Icons.fullscreen));
+      await tester.pumpAndSettle();
+      expect(state.isFloatingWindowMaximized, isTrue);
+      expect(find.byIcon(Icons.fullscreen_exit), findsOneWidget);
+
+      // Tap Unscrew Screw to Close Panel
       await tester.tap(find.byTooltip('Unscrew Panel (Close VSTi - Esc)'));
       await tester.pumpAndSettle();
       expect(state.isFloatingWindowVisible, isFalse);

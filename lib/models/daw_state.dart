@@ -15,6 +15,7 @@ import '../audio/soundfont_engine.dart';
 import '../audio/wav_exporter.dart';
 import '../theme/eats_theme.dart';
 import '../lua/lua_engine.dart';
+import '../lua/lua_gui_model.dart';
 import '../lua/eats_lua_serializer.dart';
 import '../lua/eats_lua_parser.dart';
 import '../audio/time_context.dart';
@@ -263,10 +264,16 @@ class DawState extends ChangeNotifier {
   bool _isFloatingWindowVisible = false;
   bool get isFloatingWindowVisible => _isFloatingWindowVisible;
 
+  bool _isFloatingWindowMaximized = false;
+  bool get isFloatingWindowMaximized => _isFloatingWindowMaximized;
+
+  Offset _preMaximizedPosition = const Offset(60, 40);
+  Size _preMaximizedSize = const Size(540, 340);
+
   Offset _floatingWindowPosition = const Offset(120, 60);
   Offset get floatingWindowPosition => _floatingWindowPosition;
 
-  Size _floatingWindowSize = const Size(560, 420);
+  Size _floatingWindowSize = const Size(540, 340);
   Size get floatingWindowSize => _floatingWindowSize;
 
   double _floatingWindowScale = 1.0;
@@ -280,31 +287,131 @@ class DawState extends ChangeNotifier {
     );
   }
 
-  void openFloatingInstrumentWindow(TrackChannel track) {
+  void openFloatingInstrumentWindow(TrackChannel track, {Size? workspaceSize}) {
     _floatingInstrumentTrackId = track.id;
     _isFloatingWindowVisible = true;
     final trackIdx = activePattern.tracks.indexOf(track);
     if (trackIdx != -1) {
       activeTrackIndex = trackIdx;
     }
-    notifyListeners();
+    if (workspaceSize != null) {
+      fitFloatingWindowToWorkspace(workspaceSize, track);
+    } else {
+      final naturalH = getTrackNaturalGuiHeight(track);
+      _floatingWindowSize = Size(520, naturalH + 38.0);
+      notifyListeners();
+    }
   }
 
   void closeFloatingInstrumentWindow() {
     _isFloatingWindowVisible = false;
+    _isFloatingWindowMaximized = false;
     notifyListeners();
   }
 
-  void toggleFloatingInstrumentWindow([TrackChannel? track]) {
+  void toggleFloatingInstrumentWindow([TrackChannel? track, Size? workspaceSize]) {
     final target = track ?? activeTrack;
     if (_isFloatingWindowVisible && _floatingInstrumentTrackId == target.id) {
       closeFloatingInstrumentWindow();
     } else {
-      openFloatingInstrumentWindow(target);
+      openFloatingInstrumentWindow(target, workspaceSize: workspaceSize);
     }
   }
 
+  /// Calculates the exact natural content height of a track's GUI
+  /// to eliminate any letterboxing or empty padding in floating windows.
+  double getTrackNaturalGuiHeight(TrackChannel track) {
+    final compilation = track.luaScriptCode.isNotEmpty
+        ? LuaEngine.compile(track.luaScriptCode)
+        : compilationResult;
+    final gui = compilation.guiLayout;
+
+    if (gui != null && gui.children.isNotEmpty) {
+      double totalHeight = 16.0; // container top/bottom padding
+      for (final node in gui.children) {
+        double nodeH = 70.0;
+        if (node.type == LuaGuiNodeType.row || node.type == LuaGuiNodeType.column) {
+          final hasListBox = node.children.any((c) => c.type == LuaGuiNodeType.listBox);
+          final hasKnobOrSlider = node.children.any((c) => c.type == LuaGuiNodeType.knob || c.type == LuaGuiNodeType.slider || c.type == LuaGuiNodeType.fader);
+          final onlyDisplays = node.children.every((c) => c.type == LuaGuiNodeType.nixie || c.type == LuaGuiNodeType.lcd || c.type == LuaGuiNodeType.label || c.type == LuaGuiNodeType.button);
+
+          if (hasListBox) {
+            nodeH = 76.0;
+          } else if (hasKnobOrSlider) {
+            nodeH = 70.0;
+          } else if (onlyDisplays) {
+            nodeH = 42.0;
+          }
+        } else if (node.type == LuaGuiNodeType.group) {
+          nodeH = 88.0;
+        } else if (node.type == LuaGuiNodeType.nixie || node.type == LuaGuiNodeType.lcd) {
+          nodeH = 42.0;
+        } else if (node.type == LuaGuiNodeType.listBox) {
+          nodeH = 76.0;
+        }
+        totalHeight += nodeH + 8.0;
+      }
+      return totalHeight.clamp(120.0, 600.0);
+    }
+
+    if (compilation.params.isNotEmpty) {
+      final rows = (compilation.params.length / 4.0).ceil();
+      return (rows * 72.0 + 20.0).clamp(120.0, 600.0);
+    }
+
+    return 160.0;
+  }
+
+  /// Automatically calculates the optimal proportional window dimensions
+  /// matching the instrument layout with zero vertical or horizontal padding.
+  void fitFloatingWindowToWorkspace(Size workspaceSize, [TrackChannel? track]) {
+    _isFloatingWindowMaximized = false;
+    final targetTrack = track ?? floatingInstrumentTrack ?? activeTrack;
+    final naturalContentHeight = getTrackNaturalGuiHeight(targetTrack);
+
+    final availW = math.max(280.0, workspaceSize.width - 16.0);
+    final availH = math.max(160.0, workspaceSize.height - 16.0);
+
+    const contentW = 520.0;
+    final contentH = naturalContentHeight;
+    const titlebarH = 38.0;
+
+    final scaleW = availW / contentW;
+    final scaleH = (availH - titlebarH) / contentH;
+    final scale = math.min(scaleW, scaleH).clamp(0.4, 1.4);
+
+    final targetW = (contentW * scale).clamp(260.0, availW);
+    final targetH = (contentH * scale + titlebarH).clamp(140.0, availH);
+
+    _floatingWindowSize = Size(targetW, targetH);
+    final posX = ((workspaceSize.width - targetW) / 2.0).clamp(0.0, math.max(0.0, workspaceSize.width - targetW)).toDouble();
+    final posY = ((workspaceSize.height - targetH) / 2.0).clamp(0.0, math.max(0.0, workspaceSize.height - targetH)).toDouble();
+    _floatingWindowPosition = Offset(posX, posY);
+    notifyListeners();
+  }
+
+  /// Toggles maximizing the floating window across the full workspace area.
+  void toggleMaximizeFloatingWindow(Size workspaceSize) {
+    if (_isFloatingWindowMaximized) {
+      _isFloatingWindowMaximized = false;
+      _floatingWindowPosition = _preMaximizedPosition;
+      _floatingWindowSize = _preMaximizedSize;
+    } else {
+      _preMaximizedPosition = _floatingWindowPosition;
+      _preMaximizedSize = _floatingWindowSize;
+      _isFloatingWindowMaximized = true;
+
+      const pad = 4.0;
+      final maxW = math.max(300.0, workspaceSize.width - (pad * 2));
+      final maxH = math.max(220.0, workspaceSize.height - (pad * 2));
+      _floatingWindowPosition = const Offset(pad, pad);
+      _floatingWindowSize = Size(maxW, maxH);
+    }
+    notifyListeners();
+  }
+
   void updateFloatingWindowPosition(Offset delta, {Size? parentBounds}) {
+    _isFloatingWindowMaximized = false;
     double newX = _floatingWindowPosition.dx + delta.dx;
     double newY = _floatingWindowPosition.dy + delta.dy;
     if (parentBounds != null) {
@@ -319,8 +426,9 @@ class DawState extends ChangeNotifier {
   }
 
   void updateFloatingWindowSize(Offset delta) {
-    final newW = (_floatingWindowSize.width + delta.dx).clamp(320.0, 1200.0);
-    final newH = (_floatingWindowSize.height + delta.dy).clamp(240.0, 900.0);
+    _isFloatingWindowMaximized = false;
+    final newW = (_floatingWindowSize.width + delta.dx).clamp(280.0, 1400.0);
+    final newH = (_floatingWindowSize.height + delta.dy).clamp(180.0, 1000.0);
     _floatingWindowSize = Size(newW, newH);
     notifyListeners();
   }

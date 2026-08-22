@@ -60,7 +60,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     if (hideHeader) {
       return RepaintBoundary(
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: isGrungy ? const Color(0xFF26221D) : EatsTheme.panelBackground,
             borderRadius: BorderRadius.circular(8),
@@ -73,7 +73,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: layout.children.map((node) {
               return Padding(
-                padding: const EdgeInsets.only(bottom: 12.0),
+                padding: const EdgeInsets.only(bottom: 8.0),
                 child: _buildNode(context, node, compilation, baseAccent),
               );
             }).toList(),
@@ -495,7 +495,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         if (hasUpgrade && !hideHeader) _buildUpgradeBanner(context),
         Container(
           margin: hideHeader ? EdgeInsets.zero : const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.all(16),
+          padding: hideHeader ? const EdgeInsets.all(10) : const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: EatsTheme.panelBackground,
             borderRadius: BorderRadius.circular(10),

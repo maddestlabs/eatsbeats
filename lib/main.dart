@@ -310,48 +310,57 @@ class _DawMainShellState extends State<DawMainShell> {
               Expanded(
                 child: Container(
                   color: EatsTheme.backgroundDark,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: IndexedStack(
-                          index: widget.dawState.activeTabIndex,
-                          children: [
-                            ArrangerView(dawState: widget.dawState),
-                            EditView(dawState: widget.dawState),
-                            TrackInspectorView(dawState: widget.dawState),
-                            MixerView(dawState: widget.dawState),
-                            LuaWorkbenchView(dawState: widget.dawState),
-                          ],
-                        ),
-                      ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final wsBounds = Size(constraints.maxWidth, constraints.maxHeight);
 
-                      // Scalable, Movable, Resizable Floating In-App VSTi Window
-                      if (widget.dawState.isFloatingWindowVisible)
-                        Positioned(
-                          left: widget.dawState.floatingWindowPosition.dx,
-                          top: widget.dawState.floatingWindowPosition.dy,
-                          width: widget.dawState.floatingWindowSize.width,
-                          height: widget.dawState.floatingWindowSize.height,
-                          child: FloatingInstrumentWindow(dawState: widget.dawState),
-                        ),
-
-                      // Fast 150ms Animated Slide-In / Slide-Out Project Browser Drawer
-                      AnimatedPositioned(
-                        duration: const Duration(milliseconds: 150),
-                        curve: Curves.fastOutSlowIn,
-                        top: 0,
-                        bottom: 0,
-                        right: widget.dawState.isBrowserOpen ? 0 : -330,
-                        width: 320,
-                        child: IgnorePointer(
-                          ignoring: !widget.dawState.isBrowserOpen,
-                          child: ProjectBrowserDrawer(
-                            dawState: widget.dawState,
-                            onClose: widget.dawState.toggleBrowser,
+                      return Stack(
+                        children: [
+                          Positioned.fill(
+                            child: IndexedStack(
+                              index: widget.dawState.activeTabIndex,
+                              children: [
+                                ArrangerView(dawState: widget.dawState),
+                                EditView(dawState: widget.dawState),
+                                TrackInspectorView(dawState: widget.dawState),
+                                MixerView(dawState: widget.dawState),
+                                LuaWorkbenchView(dawState: widget.dawState),
+                              ],
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
+
+                          // Scalable, Movable, Resizable Floating In-App VSTi Window
+                          if (widget.dawState.isFloatingWindowVisible)
+                            Positioned(
+                              left: widget.dawState.floatingWindowPosition.dx,
+                              top: widget.dawState.floatingWindowPosition.dy,
+                              width: widget.dawState.floatingWindowSize.width,
+                              height: widget.dawState.floatingWindowSize.height,
+                              child: FloatingInstrumentWindow(
+                                dawState: widget.dawState,
+                                workspaceBounds: wsBounds,
+                              ),
+                            ),
+
+                          // Fast 150ms Animated Slide-In / Slide-Out Project Browser Drawer
+                          AnimatedPositioned(
+                            duration: const Duration(milliseconds: 150),
+                            curve: Curves.fastOutSlowIn,
+                            top: 0,
+                            bottom: 0,
+                            right: widget.dawState.isBrowserOpen ? 0 : -330,
+                            width: 320,
+                            child: IgnorePointer(
+                              ignoring: !widget.dawState.isBrowserOpen,
+                              child: ProjectBrowserDrawer(
+                                dawState: widget.dawState,
+                                onClose: widget.dawState.toggleBrowser,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),

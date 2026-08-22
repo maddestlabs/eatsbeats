@@ -10,8 +10,13 @@ import 'dynamic_instrument_gui_widget.dart';
 /// Content automatically scales 1:1 proportionally to fit the window dimensions.
 class FloatingInstrumentWindow extends StatelessWidget {
   final DawState dawState;
+  final Size? workspaceBounds;
 
-  const FloatingInstrumentWindow({super.key, required this.dawState});
+  const FloatingInstrumentWindow({
+    super.key,
+    required this.dawState,
+    this.workspaceBounds,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +37,8 @@ class FloatingInstrumentWindow extends StatelessWidget {
     final titleText = (guiLayout?.title ?? track.name).toUpperCase();
     final subtitleText = guiLayout?.subtitle ?? (track.type == TrackType.luaScript ? 'LUA VSTi' : track.type.name.toUpperCase());
     final hasUpgrade = dawState.isPresetUpgradeAvailable(track);
+    final isMaximized = dawState.isFloatingWindowMaximized;
+    final wsBounds = workspaceBounds ?? MediaQuery.of(context).size;
 
     return RepaintBoundary(
       child: Container(
@@ -59,7 +66,7 @@ class FloatingInstrumentWindow extends StatelessWidget {
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onPanUpdate: (details) {
-                dawState.updateFloatingWindowPosition(details.delta);
+                dawState.updateFloatingWindowPosition(details.delta, parentBounds: wsBounds);
               },
               child: Container(
                 height: 38,
@@ -117,7 +124,7 @@ class FloatingInstrumentWindow extends StatelessWidget {
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          margin: const EdgeInsets.only(right: 8),
+                          margin: const EdgeInsets.only(right: 6),
                           decoration: BoxDecoration(
                             color: EatsTheme.accentGold.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(4),
@@ -142,6 +149,46 @@ class FloatingInstrumentWindow extends StatelessWidget {
                       ),
                     ],
 
+                    // Fit to Screen (Minimal Padding Proportional Sizing)
+                    Tooltip(
+                      message: 'Fit to Screen (Auto-scale Proportions)',
+                      child: InkWell(
+                        onTap: () => dawState.fitFloatingWindowToWorkspace(wsBounds),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          margin: const EdgeInsets.only(right: 5),
+                          decoration: BoxDecoration(
+                            color: EatsTheme.controlBackground.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Icon(Icons.fit_screen, size: 14, color: EatsTheme.textSecondary),
+                        ),
+                      ),
+                    ),
+
+                    // Fill Workspace / Fullscreen Mode Toggle
+                    Tooltip(
+                      message: isMaximized ? 'Restore Window Size' : 'Fill Workspace (Fullscreen)',
+                      child: InkWell(
+                        onTap: () => dawState.toggleMaximizeFloatingWindow(wsBounds),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          margin: const EdgeInsets.only(right: 5),
+                          decoration: BoxDecoration(
+                            color: isMaximized
+                                ? accentColor.withOpacity(0.25)
+                                : EatsTheme.controlBackground.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Icon(
+                            isMaximized ? Icons.fullscreen_exit : Icons.fullscreen,
+                            size: 14,
+                            color: isMaximized ? accentColor : EatsTheme.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+
                     // Pop In / Switch to Full Track Inspector Tab
                     Tooltip(
                       message: 'Open in Track Inspector Tab',
@@ -154,6 +201,7 @@ class FloatingInstrumentWindow extends StatelessWidget {
                         },
                         child: Container(
                           padding: const EdgeInsets.all(4),
+                          margin: const EdgeInsets.only(right: 8),
                           decoration: BoxDecoration(
                             color: EatsTheme.controlBackground.withOpacity(0.5),
                             borderRadius: BorderRadius.circular(4),
@@ -162,8 +210,6 @@ class FloatingInstrumentWindow extends StatelessWidget {
                         ),
                       ),
                     ),
-
-                    const SizedBox(width: 10),
 
                     // Tactical Chassis Screw (Tap to Unscrew / Close Panel)
                     _InteractiveScrewButton(
@@ -175,14 +221,14 @@ class FloatingInstrumentWindow extends StatelessWidget {
               ),
             ),
 
-            // --- WINDOW BODY (PROPORTIONALLY SCALED 1:1 TO FIT FLUSH) ---
+            // --- WINDOW BODY (PROPORTIONALLY SCALED 1:1 TO FIT FLUSH WITH 0 PADDING) ---
             Expanded(
               child: Stack(
                 children: [
                   Positioned.fill(
                     child: Container(
                       color: isGrungy ? const Color(0xFF221E19) : EatsTheme.panelBackground,
-                      padding: const EdgeInsets.all(6),
+                      padding: EdgeInsets.zero,
                       child: FittedBox(
                         fit: BoxFit.contain,
                         alignment: Alignment.center,
