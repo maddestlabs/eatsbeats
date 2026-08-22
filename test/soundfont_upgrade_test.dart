@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_wren_daw/audio/soundfont_decoder.dart';
 
@@ -47,7 +48,7 @@ void main() {
         sampleType: 1,
       );
 
-      final pcmData = List<double>.generate(100, (i) => (i % 10) / 10.0);
+      final pcmData = Float32List.fromList(List<double>.generate(100, (i) => (i % 10) / 10.0));
 
       final zone = Sf2Zone(
         sampleHeaderIdx: 0,
@@ -124,7 +125,7 @@ void main() {
 
       final sfData = SoundFontData(
         fontName: 'Concert Grand Bank',
-        pcmData: [0.0],
+        pcmData: Float32List(1),
         sampleHeaders: [],
         presets: [pianoPreset],
       );

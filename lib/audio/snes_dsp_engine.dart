@@ -271,10 +271,14 @@ class SNESEchoUnit {
     }
   }
 
+  final Float32List _echoResult = Float32List(2);
+
   /// Processes stereo sample through 8-tap FIR echo buffer and returns [leftWet, rightWet].
-  List<double> processStereo(double leftDry, double rightDry) {
+  Float32List processStereo(double leftDry, double rightDry) {
     if (!enabled || volume <= 0.001) {
-      return [leftDry, rightDry];
+      _echoResult[0] = leftDry;
+      _echoResult[1] = rightDry;
+      return _echoResult;
     }
 
     final delaySamples = ((delayMs / 1000.0) * 44100.0).toInt().clamp(64, maxEchoDelaySamples - 16);
@@ -298,7 +302,9 @@ class SNESEchoUnit {
     final outL = (leftDry * (1.0 - volume * 0.5)) + (leftFir * volume);
     final outR = (rightDry * (1.0 - volume * 0.5)) + (rightFir * volume);
 
-    return [outL.clamp(-1.0, 1.0), outR.clamp(-1.0, 1.0)];
+    _echoResult[0] = outL.clamp(-1.0, 1.0);
+    _echoResult[1] = outR.clamp(-1.0, 1.0);
+    return _echoResult;
   }
 }
 
@@ -433,14 +439,20 @@ class SNESDSPEngine {
     return (_noiseLfsr / 16384.0) - 1.0;
   }
 
+  final Float32List _stereoResult = Float32List(2);
+
   /// Evaluates stereo sample for all active S-DSP voices at [time] seconds.
-  List<double> evaluateStereoSample({
+  Float32List evaluateStereoSample({
     required double time,
     required double baseFreq,
     double duration = 0.4,
     int sampleIndex = 0,
   }) {
-    if (baseFreq <= 0) return [0.0, 0.0];
+    if (baseFreq <= 0) {
+      _stereoResult[0] = 0.0;
+      _stereoResult[1] = 0.0;
+      return _stereoResult;
+    }
 
     double dryLeft = 0.0;
     double dryRight = 0.0;
@@ -525,7 +537,9 @@ class SNESDSPEngine {
     final finalLeft = (dryLeft * 0.7 + wetEcho[0] * 0.3) * masterVolume;
     final finalRight = (dryRight * 0.7 + wetEcho[1] * 0.3) * masterVolume;
 
-    return [finalLeft.clamp(-1.0, 1.0), finalRight.clamp(-1.0, 1.0)];
+    _stereoResult[0] = finalLeft.clamp(-1.0, 1.0);
+    _stereoResult[1] = finalRight.clamp(-1.0, 1.0);
+    return _stereoResult;
   }
 
   /// Synthesizes complete Float32List mono audio buffer for a note.

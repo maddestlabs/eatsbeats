@@ -236,20 +236,24 @@ class DawState extends ChangeNotifier {
   // UI Scale Settings (0.70x to 1.30x)
   double _uiScale = 1.0;
   double get uiScale => _uiScale;
+  final ValueNotifier<double> uiScaleNotifier = ValueNotifier<double>(1.0);
 
   void setUiScalePreview(double scale) {
     _uiScale = (scale * 100).roundToDouble() / 100;
+    uiScaleNotifier.value = _uiScale;
     notifyListeners();
   }
 
   void commitUiScale(double scale) {
     _uiScale = (scale * 100).roundToDouble() / 100;
+    uiScaleNotifier.value = _uiScale;
     EatsStorageHelper.setDouble(EatsStorageHelper.keyUiScale, _uiScale);
     notifyListeners();
   }
 
   void revertUiScale(double originalScale) {
     _uiScale = (originalScale * 100).roundToDouble() / 100;
+    uiScaleNotifier.value = _uiScale;
     notifyListeners();
   }
 
@@ -495,6 +499,7 @@ class DawState extends ChangeNotifier {
       final scale = await EatsStorageHelper.getDouble(EatsStorageHelper.keyUiScale);
       if (scale != null && scale >= 0.70 && scale <= 1.30) {
         _uiScale = (scale * 100).roundToDouble() / 100;
+        uiScaleNotifier.value = _uiScale;
       }
 
       final autoRestore = await EatsStorageHelper.getBool(EatsStorageHelper.keyAutoRestoreSession);

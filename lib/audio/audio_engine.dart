@@ -264,7 +264,7 @@ class AudioEngine {
         fallbackDefault: true,
       );
       if (sfBuffer.isNotEmpty) {
-        return Float32List.fromList(sfBuffer);
+        return sfBuffer;
       }
     }
 
@@ -274,7 +274,7 @@ class AudioEngine {
       if (customBuffer.isNotEmpty) {
         return Float32List.fromList(customBuffer);
       } else {
-        return Float32List.fromList(_generateDrumBuffer(track.sampleName));
+        return _generateDrumBuffer(track.sampleName);
       }
     } else if (track.type == TrackType.luaScript) {
       final double freq = PolySynth.midiToFreq(midiNote);
@@ -290,20 +290,18 @@ class AudioEngine {
         trackId: track.id,
       );
     } else {
-      return Float32List.fromList(
-        PolySynth.generateSynthToneBuffer(
-          midiNote: midiNote,
-          waveform: track.synthWaveform,
-          cutoff: track.cutoff,
-          attack: track.attack,
-          release: track.release,
-          lengthSec: durationSec,
-        ),
+      return PolySynth.generateSynthToneBuffer(
+        midiNote: midiNote,
+        waveform: track.synthWaveform,
+        cutoff: track.cutoff,
+        attack: track.attack,
+        release: track.release,
+        lengthSec: durationSec,
       );
     }
   }
 
-  static List<double> _generateDrumBuffer(String sampleName) {
+  static Float32List _generateDrumBuffer(String sampleName) {
     switch (sampleName.toLowerCase()) {
       case 'snare':
         return PolySynth.generateSnareBuffer();

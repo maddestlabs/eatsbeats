@@ -62,15 +62,14 @@ class _WrenDawAppState extends State<WrenDawApp> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _dawState,
-      builder: (context, _) {
+    return ValueListenableBuilder<double>(
+      valueListenable: _dawState.uiScaleNotifier,
+      builder: (context, scale, _) {
         return MaterialApp(
           title: 'Eatsbits',
           debugShowCheckedModeBanner: false,
           theme: EatsTheme.themeData,
           builder: (context, child) {
-            final scale = _dawState.uiScale;
             if (scale == 1.0) {
               return child ?? const SizedBox.shrink();
             }
@@ -162,9 +161,12 @@ class _DawMainShellState extends State<DawMainShell> {
   }
   @override
   Widget build(BuildContext context) {
-    final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
+    return ListenableBuilder(
+      listenable: widget.dawState,
+      builder: (context, _) {
+        final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
 
-    return CallbackShortcuts(
+        return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.space): () {
           final primaryFocus = FocusManager.instance.primaryFocus;
@@ -403,7 +405,9 @@ class _DawMainShellState extends State<DawMainShell> {
         ),
       ),
     );
-  }
+  },
+);
+}
 
   Widget _buildNavButton(BuildContext context, int index, String label, IconData icon) {
     final isSelected = widget.dawState.activeTabIndex == index;

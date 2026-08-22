@@ -50,7 +50,15 @@ class DeterministicPRNG {
 /// Represents one operator in a 4-operator FM sound chip (YM2612 / OPN2 / OPL3).
 class FMOperator {
   double multiplier = 1.0; // Frequency multiplier (0.5, 1.0..15.0)
-  double totalLevel = 0.0; // 0.0 (loudest) to 127.0 (silent) -> normalized gain
+  double _totalLevel = 0.0;
+  double _tlAtten = 1.0; // Cached linear attenuation
+
+  double get totalLevel => _totalLevel;
+  set totalLevel(double value) {
+    _totalLevel = value;
+    _tlAtten = math.pow(10.0, -(value.clamp(0.0, 127.0) * 0.75) / 20.0).toDouble();
+  }
+
   double attack = 0.005; // Attack time in seconds
   double decay = 0.3; // Decay time in seconds
   double sustain = 0.6; // Sustain gain level (0.0 to 1.0)
@@ -65,20 +73,19 @@ class FMOperator {
 
   FMOperator({
     this.multiplier = 1.0,
-    this.totalLevel = 0.0,
+    double totalLevel = 0.0,
     this.attack = 0.005,
     this.decay = 0.3,
     this.sustain = 0.6,
     this.release = 0.4,
     this.detune = 0.0,
     this.waveform = FMWaveform.sine,
-  });
+  }) {
+    this.totalLevel = totalLevel;
+  }
 
   /// Evaluates operator envelope gain (0.0 to 1.0) taking Total Level into account.
   double evaluateEnvelope(double time, double duration) {
-    // Convert Total Level (0..127) to linear amplitude attenuation (0.75dB per step)
-    final tlAtten = math.pow(10.0, -(totalLevel.clamp(0.0, 127.0) * 0.75) / 20.0);
-
     final a = math.max(0.0001, attack);
     final d = math.max(0.001, decay);
     final s = sustain.clamp(0.0, 1.0);
@@ -98,7 +105,7 @@ class FMOperator {
       env = (s * math.max(0.0, 1.0 - releaseProgress)).clamp(0.0, 1.0);
     }
 
-    return (env * tlAtten).toDouble();
+    return (env * _tlAtten).toDouble();
   }
 
   /// Evaluates the oscillator output waveform for the given phase.

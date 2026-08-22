@@ -342,21 +342,386 @@ class LuaEngine {
       return buffer;
     }
 
-    // Default: sample-by-sample evaluation
+    // 1. JC-303 Acid Bass Fast Synthesis
+    if (code.contains('Acid303') || code.contains('TB303') || (code.contains('Overdrive') && code.contains('Resonance') && code.contains('Slide'))) {
+      if (freq <= 0) return buffer;
+      final waveType = params['Waveform'] ?? 0.0;
+      final cutoff = params['Cutoff'] ?? 1600.0;
+      final res = params['Resonance'] ?? 8.0;
+      final envMod = params['EnvMod'] ?? 0.75;
+      final decay = params['Decay'] ?? 0.28;
+      final accentParam = params['Accent'] ?? 0.6;
+      final drive = params['Overdrive'] ?? 0.3;
+      final slideParam = params['Slide'] ?? 0.0;
+
+      final voiceKey = trackId ?? 'default_303';
+      final vState = _acidVoiceStates.putIfAbsent(voiceKey, () => _AcidVoiceState());
+
+      if (!isSlide) {
+        vState.lastEnv = 1.0;
+        vState.startFreq = freq;
+        vState.phase = 0.0;
+        vState.stage1 = 0.0;
+        vState.stage2 = 0.0;
+        vState.stage3 = 0.0;
+        vState.stage4 = 0.0;
+        vState.hpfX1 = 0.0;
+        vState.hpfY1 = 0.0;
+      } else {
+        vState.startFreq = vState.lastFreq > 0 ? vState.lastFreq : freq;
+      }
+
+      final bool hasAccent = isAccent || (accentParam > 0.7 && !isSlide);
+      final envBoost = hasAccent ? (1.0 + accentParam * 1.1) : 1.0;
+      final envDecay = (decay / (hasAccent ? (1.0 + accentParam * 0.9) : 1.0)).clamp(0.02, 2.0);
+      final kRes = (res / 16.0 * 3.85).clamp(0.0, 3.95);
+      final gain = drive > 0.05 ? (1.0 + (drive * 4.0)) : 1.0;
+      final fadeSamples = (44100 * 0.04).toInt().clamp(64, math.max(1, numSamples ~/ 4));
+
+      double targetFreq = freq;
+      if (targetMidiNote != null && targetMidiNote > 0) {
+        targetFreq = 440.0 * math.pow(2.0, (targetMidiNote - 69) / 12.0);
+      } else if (isSlide || slideParam > 0.5) {
+        targetFreq = targetMidiNote != null ? (440.0 * math.pow(2.0, (targetMidiNote - 69) / 12.0)) : freq;
+      }
+
+      for (int i = 0; i < numSamples; i++) {
+        final time = i / 44100.0;
+        double currentFreq = freq;
+        if (targetFreq != freq || isSlide || slideParam > 0.5) {
+          currentFreq = targetFreq + (vState.startFreq - targetFreq) * math.exp(-time / 0.060);
+        }
+        vState.lastFreq = currentFreq;
+
+        vState.phase = (vState.phase + (currentFreq / 44100.0)) % 1.0;
+        final normPhase = vState.phase;
+        final sawRaw = 2.0 * normPhase - 1.0;
+        final sawHP = sawRaw - 0.85 * math.exp(-time * 12.0);
+        final sqrRaw = normPhase < 0.46 ? 0.75 : -0.75;
+        final osc = waveType < 0.5 ? sawHP : sqrRaw;
+
+        final env = isSlide ? (vState.lastEnv * math.exp(-time / envDecay)) : math.exp(-time / envDecay);
+        vState.lastEnv = env;
+        final accentPulse = hasAccent ? (accentParam * 0.4 * math.exp(-time / 0.035)) : 0.0;
+
+        final modCutoff = (cutoff + (envMod * (env + accentPulse) * 6500.0 * envBoost)).clamp(40.0, 16000.0);
+        final fNorm = (modCutoff / 44100.0 * math.pi * 2.0).clamp(0.005, 0.85);
+
+        final feedback = kRes * _tanh(vState.stage4 * 0.45);
+        final inputWithRes = _tanh(osc - feedback);
+
+        vState.stage1 += fNorm * (inputWithRes - vState.stage1);
+        vState.stage2 += fNorm * (vState.stage1 - vState.stage2);
+        vState.stage3 += fNorm * (vState.stage2 - vState.stage3);
+        vState.stage4 += fNorm * (vState.stage3 - vState.stage4);
+        final filtered = vState.stage4 * (1.0 + kRes * 0.22);
+
+        final hpfOut = 0.978 * (vState.hpfY1 + filtered - vState.hpfX1);
+        vState.hpfX1 = filtered;
+        vState.hpfY1 = hpfOut;
+
+        double output = hpfOut * (hasAccent ? 1.35 : 1.0);
+        if (drive > 0.05) {
+          output = _tanh(output * gain);
+        }
+
+        final samplesRemaining = numSamples - 1 - i;
+        double boundaryFade = 1.0;
+        if (samplesRemaining < fadeSamples && fadeSamples > 0) {
+          final norm = (samplesRemaining / fadeSamples).clamp(0.0, 1.0);
+          boundaryFade = 0.5 * (1.0 - math.cos(math.pi * norm));
+        }
+
+        buffer[i] = (output * boundaryFade).clamp(-1.0, 1.0);
+      }
+      return buffer;
+    }
+
+    // 2. Procedural Snare Fast Synthesis
+    if (code.contains('ProceduralSnare') || code.contains('Snappy')) {
+      double toneFreq = params['ToneFreq'] ?? 185.0;
+      double snappy = params['Snappy'] ?? 0.65;
+      double decay = params['Decay'] ?? 0.18;
+      final variation = params['Variation'] ?? 0.0;
+
+      if (variation > 0.001) {
+        final vOffset = (math.sin(note * 12.9898) * 0.5 + 0.5) * variation;
+        toneFreq = toneFreq * (1.0 + (vOffset - 0.5 * variation) * 0.08);
+        decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.15);
+      }
+
+      final voiceKey = '${trackId ?? "default"}_snare';
+      final vState = _snareVoiceStates.putIfAbsent(voiceKey, () => _SnareVoiceState());
+      vState.x1 = 0.0;
+      vState.y1 = 0.0;
+
+      final alpha = 1.0 / (1.0 + (2.0 * math.pi * 1800.0 / 44100.0));
+      final decaySafe = math.max(0.01, decay);
+
+      for (int i = 0; i < numSamples; i++) {
+        final time = i / 44100.0;
+        final sweepFreq = toneFreq * (1.0 + 1.2 * math.exp(-time * 60.0));
+        final body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 22.0);
+        final overtone = math.sin(2.0 * math.pi * (toneFreq * 1.75) * time) * math.exp(-time * 30.0) * 0.35;
+        final tonalCore = body + overtone;
+
+        final noise = _fastRnd(i * 1664525 + 1013904223);
+        final noiseEnv = math.exp(-time / decaySafe);
+
+        vState.y1 = alpha * (vState.y1 + noise - vState.x1);
+        vState.x1 = noise;
+        final filteredNoise = vState.y1 * noiseEnv;
+
+        final click = _fastRnd(i * 1103515245 + 12345) * math.exp(-time * 250.0) * 0.25;
+        final output = (tonalCore * (1.0 - snappy * 0.6) + filteredNoise * (snappy * 1.2) + click);
+        buffer[i] = _tanh(output * 1.3);
+      }
+      return buffer;
+    }
+
+    // 3. Procedural Hi-Hat Fast Synthesis
+    if (code.contains('ProceduralHiHat') || code.contains('Metallic')) {
+      double cutoff = params['Cutoff'] ?? 7500.0;
+      double decay = params['Decay'] ?? 0.06;
+      final metallic = params['Metallic'] ?? 0.15;
+      final variation = params['Variation'] ?? 0.0;
+
+      if (variation > 0.001) {
+        final vOffset = (math.sin(note * 78.233) * 0.5 + 0.5) * variation;
+        cutoff = (cutoff * (1.0 + (vOffset - 0.5 * variation) * 0.12)).clamp(1000.0, 18000.0);
+        decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.18);
+      }
+
+      final voiceKey = '${trackId ?? "default"}_hihat';
+      final vState = _hihatVoiceStates.putIfAbsent(voiceKey, () => _HiHatVoiceState());
+      vState.x1 = 0.0;
+      vState.y1 = 0.0;
+      vState.x2 = 0.0;
+      vState.y2 = 0.0;
+
+      final alpha = 1.0 / (1.0 + (2.0 * math.pi * cutoff.clamp(1000.0, 18000.0) / 44100.0));
+      final decaySafe = math.max(0.005, decay);
+
+      for (int i = 0; i < numSamples; i++) {
+        final time = i / 44100.0;
+        final env = math.exp(-time / decaySafe);
+        final noise = _fastRnd(i * 1664525 + 1013904223);
+
+        final ring1 = math.sin(2.0 * math.pi * 320.0 * time);
+        final ring2 = math.sin(2.0 * math.pi * 540.0 * time);
+        final ring3 = math.sin(2.0 * math.pi * 890.0 * time);
+        final metallicRing = (ring1 + ring2 + ring3) * 0.333;
+
+        final rawSignal = noise * (1.0 - metallic * 0.3) + metallicRing * (metallic * 0.3);
+
+        vState.y1 = alpha * (vState.y1 + rawSignal - vState.x1);
+        vState.x1 = rawSignal;
+
+        vState.y2 = alpha * (vState.y2 + vState.y1 - vState.x2);
+        vState.x2 = vState.y1;
+
+        final output = _tanh(vState.y2 * env * 1.1);
+        buffer[i] = output.clamp(-1.0, 1.0);
+      }
+      return buffer;
+    }
+
+    // 4. Dual-Op FM Synth Fast Synthesis
+    if (code.contains('FMSynth') || code.contains('ModRatio')) {
+      if (freq <= 0) return buffer;
+      final ratio = params['ModRatio'] ?? 2.0;
+      final index = params['ModIndex'] ?? 3.5;
+      final attack = params['Attack'] ?? 0.005;
+      final release = params['Release'] ?? 0.4;
+      final modFreq = freq * ratio;
+
+      for (int i = 0; i < numSamples; i++) {
+        final time = i / 44100.0;
+        double env = 1.0;
+        if (time < attack) {
+          env = time / attack;
+        } else {
+          env = math.exp(-(time - attack) / release);
+        }
+
+        final modulator = math.sin(2.0 * math.pi * modFreq * time) * (index * env);
+        final carrier = math.sin(2.0 * math.pi * freq * time + modulator);
+        buffer[i] = (carrier * env * 0.8).clamp(-1.0, 1.0);
+      }
+      return buffer;
+    }
+
+    // 5. SNES S-DSP / SFXR Engine
+    if (code.contains('SNES') || code.contains('S-DSP') || code.contains('SPC700') || code.contains('SNESSFX') || code.contains('SFXR')) {
+      final voiceKey = trackId ?? 'default_snes';
+      final dsp = _snesDspEngines.putIfAbsent(voiceKey, () => SNESDSPEngine());
+
+      final seed = (params['Seed'] ?? 42.0).toInt();
+      if (params.containsKey('SFXType')) {
+        final sfxIdx = params['SFXType']!.toInt().clamp(0, 10);
+        SNESSFXRGenerator.configureFromType(dsp, sfxIdx, seed: seed);
+      } else if (code.contains('Laser')) {
+        SNESSFXRGenerator.configureLaser(dsp, DeterministicPRNG(seed));
+      } else if (code.contains('Explosion')) {
+        SNESSFXRGenerator.configureExplosion(dsp, DeterministicPRNG(seed));
+      } else if (code.contains('Powerup')) {
+        SNESSFXRGenerator.configurePowerup(dsp, DeterministicPRNG(seed));
+      } else if (code.contains('Coin')) {
+        SNESSFXRGenerator.configureCoin(dsp, DeterministicPRNG(seed));
+      } else if (code.contains('Jump')) {
+        SNESSFXRGenerator.configureJump(dsp, DeterministicPRNG(seed));
+      } else if (code.contains('Hurt')) {
+        SNESSFXRGenerator.configureHurt(dsp, DeterministicPRNG(seed));
+      } else if (code.contains('Lose')) {
+        SNESSFXRGenerator.configureLose(dsp, DeterministicPRNG(seed));
+      } else if (code.contains('Button')) {
+        SNESSFXRGenerator.configureButton(dsp, DeterministicPRNG(seed));
+      } else if (code.contains('Warp')) {
+        SNESSFXRGenerator.configureWarp(dsp, DeterministicPRNG(seed));
+      } else {
+        SNESSFXRGenerator.configureLaser(dsp, DeterministicPRNG(seed));
+      }
+
+      final v0 = dsp.voices[0];
+      final isCustom = (params['SFXType']?.toInt() ?? 10) == 10;
+
+      if (isCustom && params.containsKey('Waveform')) {
+        final wIdx = params['Waveform']!.toInt().clamp(0, SNESWaveform.values.length - 1);
+        v0.waveform = SNESWaveform.values[wIdx];
+      }
+      if (isCustom && params.containsKey('Attack')) {
+        v0.attack = params['Attack']!.clamp(0.0005, 2.0);
+      }
+      if (isCustom && params.containsKey('Decay')) {
+        v0.decay = params['Decay']!.clamp(0.005, 3.0);
+      }
+      if (isCustom && params.containsKey('Sustain')) {
+        v0.sustain = params['Sustain']!.clamp(0.0, 1.0);
+      }
+      if (isCustom && params.containsKey('Release')) {
+        v0.release = params['Release']!.clamp(0.005, 3.0);
+      }
+      if (params.containsKey('PitchSweep')) {
+        final sweep = params['PitchSweep']!;
+        if (isCustom) {
+          if (sweep >= 0) {
+            v0.startFreqMult = 1.0;
+            v0.endFreqMult = 1.0 + sweep;
+          } else {
+            v0.startFreqMult = 1.0 - sweep;
+            v0.endFreqMult = 1.0;
+          }
+        } else if (sweep != 0.0) {
+          v0.endFreqMult = (v0.endFreqMult + sweep).clamp(0.02, 10.0);
+        }
+      }
+      if (isCustom && params.containsKey('SweepSpeed')) {
+        v0.sweepDuration = params['SweepSpeed']!.clamp(0.005, 2.0);
+      }
+      if (params.containsKey('VibratoRate') && (isCustom || params['VibratoRate']! > 0.0)) {
+        v0.vibratoRate = params['VibratoRate']!.clamp(0.0, 30.0);
+      }
+      if (params.containsKey('VibratoDepth') && (isCustom || params['VibratoDepth']! > 0.0)) {
+        v0.vibratoDepth = params['VibratoDepth']!.clamp(0.0, 2.0);
+      }
+      if (isCustom && params.containsKey('ArpSpeed')) {
+        v0.arpeggioSpeed = params['ArpSpeed']!.clamp(0.01, 1.0);
+      }
+      if (params.containsKey('EchoDelay')) {
+        dsp.echo.delayMs = params['EchoDelay']!.toInt().clamp(16, 480);
+      }
+      if (params.containsKey('EchoFeedback')) {
+        dsp.echo.feedback = params['EchoFeedback']!.clamp(0.0, 0.95);
+      }
+      if (params.containsKey('EchoVolume')) {
+        final evol = params['EchoVolume']!.clamp(0.0, 1.0);
+        dsp.echo.volume = evol;
+        dsp.echo.enabled = evol > 0.01;
+      }
+      if (params.containsKey('NoiseMix') && (isCustom || params['NoiseMix']! > 0.0)) {
+        v0.noiseMix = params['NoiseMix']!.clamp(0.0, 1.0);
+      }
+
+      for (final entry in params.entries) {
+        if (entry.key.startsWith('reg_0x') || entry.key.startsWith('0x')) {
+          final regHex = entry.key.replaceFirst('reg_', '');
+          final regAddr = int.tryParse(regHex);
+          if (regAddr != null) {
+            dsp.writeRegister(regAddr, entry.value.toInt());
+          }
+        }
+      }
+
+      for (int i = 0; i < numSamples; i++) {
+        final stereo = dsp.evaluateStereoSample(
+          time: i / 44100.0,
+          baseFreq: freq,
+          duration: durationSec,
+          sampleIndex: i,
+        );
+        buffer[i] = ((stereo[0] + stereo[1]) * 0.5).clamp(-1.0, 1.0);
+      }
+      return buffer;
+    }
+
+    // 6. Yamaha YM2612 / OPN2 / OPL3 FM Chip Engine
+    if (code.contains('YM2612') || code.contains('OPN2') || code.contains('OPL3') || code.contains('FMChip')) {
+      final voiceKey = trackId ?? 'default_fm';
+      final voice = _fmChipVoices.putIfAbsent(voiceKey, () => FMChipVoice());
+
+      voice.algorithm = (params['Algorithm'] ?? 4.0).toInt().clamp(0, 7);
+      voice.feedback = (params['Feedback'] ?? 4.0).toInt().clamp(0, 7);
+
+      voice.operators[0].multiplier = params['Op1_Mult'] ?? 1.0;
+      voice.operators[0].totalLevel = params['Op1_TL'] ?? 10.0;
+      voice.operators[0].attack = params['Op1_Attack'] ?? 0.005;
+      voice.operators[0].decay = params['Op1_Decay'] ?? 0.3;
+
+      voice.operators[1].multiplier = params['Op2_Mult'] ?? 2.0;
+      voice.operators[1].totalLevel = params['Op2_TL'] ?? 0.0;
+      voice.operators[1].attack = params['Op2_Attack'] ?? 0.005;
+      voice.operators[1].decay = params['Op2_Decay'] ?? 0.35;
+
+      voice.operators[2].multiplier = params['Op3_Mult'] ?? 3.0;
+      voice.operators[2].totalLevel = params['Op3_TL'] ?? 20.0;
+
+      voice.operators[3].multiplier = params['Op4_Mult'] ?? 1.0;
+      voice.operators[3].totalLevel = params['Op4_TL'] ?? 0.0;
+
+      for (final entry in params.entries) {
+        if (entry.key.startsWith('reg_0x') || entry.key.startsWith('0x')) {
+          final regHex = entry.key.replaceFirst('reg_', '');
+          final regAddr = int.tryParse(regHex);
+          if (regAddr != null) {
+            voice.writeRegister(0, regAddr, entry.value.toInt());
+          }
+        }
+      }
+
+      for (int i = 0; i < numSamples; i++) {
+        buffer[i] = voice.evaluateSample(
+          time: i / 44100.0,
+          baseFreq: freq,
+          duration: durationSec,
+          sampleIndex: i,
+        );
+      }
+      return buffer;
+    }
+
+    // Default Fallback Synth: Sawtooth + Sub Octave
+    if (freq <= 0) return buffer;
+    final cutoff = params['Cutoff'] ?? 3000.0;
+    final cutoffNorm = cutoff / 5000.0;
+
     for (int i = 0; i < numSamples; i++) {
-      buffer[i] = evaluateSynth(
-        code: code,
-        time: i / 44100.0,
-        freq: freq,
-        note: note,
-        params: params,
-        targetMidiNote: targetMidiNote,
-        isSlide: isSlide,
-        isAccent: isAccent,
-        trackId: trackId,
-        sampleIndex: i,
-        totalSamples: numSamples,
-      );
+      final time = i / 44100.0;
+      final phase = time * freq;
+      final saw = 2.0 * (phase - (phase + 0.5).floorToDouble());
+      final sub = math.sin(2.0 * math.pi * (freq * 0.5) * time);
+      final env = math.exp(-time / 0.3);
+      final raw = (saw * 0.7 + sub * 0.3) * env;
+      buffer[i] = (raw * cutoffNorm).clamp(-1.0, 1.0);
     }
     return buffer;
   }

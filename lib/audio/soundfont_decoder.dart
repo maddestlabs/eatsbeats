@@ -149,7 +149,7 @@ class GeneralMidiNames {
 
 class SoundFontData {
   final String fontName;
-  final List<double> pcmData;
+  final Float32List pcmData;
   final List<Sf2SampleHeader> sampleHeaders;
   final List<Sf2Preset> presets;
 
@@ -201,7 +201,7 @@ class SoundFontDecoder {
     }
 
     String fontName = 'SoundFont Bank';
-    List<double> pcmData = [];
+    Float32List pcmData = Float32List(0);
     List<Sf2SampleHeader> sampleHeaders = [];
     List<Sf2Preset> presets = [];
 
@@ -238,7 +238,7 @@ class SoundFontDecoder {
         if (subId == 'smpl') {
           final sampleDataStart = smplPos + 8;
           final int16Count = subSize ~/ 2;
-          pcmData = List<double>.filled(int16Count, 0.0);
+          pcmData = Float32List(int16Count);
 
           for (int i = 0; i < int16Count; i++) {
             final p = sampleDataStart + i * 2;

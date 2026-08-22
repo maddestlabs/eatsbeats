@@ -86,6 +86,24 @@ class _GlassMeterPainter extends CustomPainter {
     '-60',
   ];
 
+  static final List<TextPainter> _cachedDbPainters = dbLabels.map((label) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontFamily: 'monospace',
+          color: Color(0xFF7A849B),
+          fontSize: 7.5,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    );
+    tp.layout();
+    return tp;
+  }).toList();
+
   @override
   void paint(Canvas canvas, Size size) {
     const totalSegments = 22;
@@ -133,30 +151,15 @@ class _GlassMeterPainter extends CustomPainter {
       segmentGap: segmentGap,
     );
 
-    // Draw Centered dB Scale Labels
-    final textPainter = TextPainter(
-      textDirection: TextDirection.ltr,
-      textAlign: TextAlign.center,
-    );
-
-    for (int i = 0; i < dbLabels.length; i++) {
-      final fraction = i / (dbLabels.length - 1);
+    // Draw Centered dB Scale Labels using pre-cached painters
+    for (int i = 0; i < _cachedDbPainters.length; i++) {
+      final fraction = i / (_cachedDbPainters.length - 1);
       final yPos = fraction * (totalHeight - 12.0) + 6.0;
+      final tp = _cachedDbPainters[i];
 
-      textPainter.text = TextSpan(
-        text: dbLabels[i],
-        style: const TextStyle(
-          fontFamily: 'monospace',
-          color: Color(0xFF7A849B),
-          fontSize: 7.5,
-          fontWeight: FontWeight.bold,
-        ),
-      );
-      textPainter.layout();
-
-      final textX = (size.width - textPainter.width) / 2.0;
-      final textY = yPos - (textPainter.height / 2.0);
-      textPainter.paint(canvas, Offset(textX, textY));
+      final textX = (size.width - tp.width) / 2.0;
+      final textY = yPos - (tp.height / 2.0);
+      tp.paint(canvas, Offset(textX, textY));
     }
   }
 

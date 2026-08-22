@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 class PolySynth {
   static const int sampleRate = 44100;
@@ -9,9 +10,9 @@ class PolySynth {
   }
 
   // Synthesize Drum & Sampler PCM Audio Buffers (Float32List)
-  static List<double> generateKickBuffer({double lengthSec = 0.3}) {
+  static Float32List generateKickBuffer({double lengthSec = 0.3}) {
     final int numSamples = (sampleRate * lengthSec).toInt();
-    final buffer = List<double>.filled(numSamples, 0.0);
+    final buffer = Float32List(numSamples);
     final fadeSamples = (sampleRate * 0.04).toInt().clamp(64, numSamples ~/ 4);
 
     for (int i = 0; i < numSamples; i++) {
@@ -36,9 +37,9 @@ class PolySynth {
     return buffer;
   }
 
-  static List<double> generateSnareBuffer({double lengthSec = 0.25}) {
+  static Float32List generateSnareBuffer({double lengthSec = 0.25}) {
     final int numSamples = (sampleRate * lengthSec).toInt();
-    final buffer = List<double>.filled(numSamples, 0.0);
+    final buffer = Float32List(numSamples);
     final random = math.Random(42);
 
     for (int i = 0; i < numSamples; i++) {
@@ -52,10 +53,10 @@ class PolySynth {
     return buffer;
   }
 
-  static List<double> generateHiHatBuffer({bool open = false, double lengthSec = 0.15}) {
+  static Float32List generateHiHatBuffer({bool open = false, double lengthSec = 0.15}) {
     final dur = open ? 0.3 : 0.08;
     final int numSamples = (sampleRate * dur).toInt();
-    final buffer = List<double>.filled(numSamples, 0.0);
+    final buffer = Float32List(numSamples);
     final random = math.Random(1234);
 
     double x1 = 0.0, y1 = 0.0, x2 = 0.0, y2 = 0.0;
@@ -78,9 +79,9 @@ class PolySynth {
     return buffer;
   }
 
-  static List<double> generateClapBuffer({double lengthSec = 0.22}) {
+  static Float32List generateClapBuffer({double lengthSec = 0.22}) {
     final int numSamples = (sampleRate * lengthSec).toInt();
-    final buffer = List<double>.filled(numSamples, 0.0);
+    final buffer = Float32List(numSamples);
     final random = math.Random(999);
 
     for (int i = 0; i < numSamples; i++) {
@@ -99,7 +100,7 @@ class PolySynth {
   }
 
   // Synthesize Instrumental Synth Tone Buffer
-  static List<double> generateSynthToneBuffer({
+  static Float32List generateSynthToneBuffer({
     required int midiNote,
     required String waveform,
     double cutoff = 3000.0,
@@ -109,7 +110,7 @@ class PolySynth {
   }) {
     final double freq = midiToFreq(midiNote);
     final int numSamples = (sampleRate * lengthSec).toInt();
-    final buffer = List<double>.filled(numSamples, 0.0);
+    final buffer = Float32List(numSamples);
 
     for (int i = 0; i < numSamples; i++) {
       final t = i / sampleRate;

@@ -133,7 +133,7 @@ class SoundFontEngine extends ChangeNotifier {
 
   /// Resamples and pitch-shifts matching SoundFont key-zone for a given MIDI note & preset.
   /// Features TinySoundFont-inspired continuous sample looping, coarse/fine tuning, and ADSR volume envelopes.
-  List<double> getPitchShiftedBuffer({
+  Float32List getPitchShiftedBuffer({
     required String fontId,
     required int presetNum,
     int bankNum = 0,
@@ -144,24 +144,24 @@ class SoundFontEngine extends ChangeNotifier {
   }) {
     final font = getSoundFont(fontId, fallbackDefault: fallbackDefault);
     if (font == null || font.pcmData.isEmpty || font.presets.isEmpty) {
-      return const [];
+      return Float32List(0);
     }
 
     final preset = font.findPreset(presetNum, bankNum);
-    if (preset == null) return const [];
+    if (preset == null) return Float32List(0);
 
     final zone = font.findZone(preset, midiNote, (velocity * 127).round());
-    if (zone == null) return const [];
+    if (zone == null) return Float32List(0);
 
     if (zone.sampleHeaderIdx < 0 || zone.sampleHeaderIdx >= font.sampleHeaders.length) {
-      return const [];
+      return Float32List(0);
     }
 
     final sampleHeader = font.sampleHeaders[zone.sampleHeaderIdx];
     final startIdx = sampleHeader.startSample.clamp(0, font.pcmData.length - 1);
     final endIdx = sampleHeader.endSample.clamp(startIdx, font.pcmData.length);
 
-    if (startIdx >= endIdx) return const [];
+    if (startIdx >= endIdx) return Float32List(0);
 
     final rootKey = zone.rootKeyOverride ?? (sampleHeader.originalPitch > 0 ? sampleHeader.originalPitch : 60);
     final totalCents = (midiNote - rootKey) * 100.0 + (zone.coarseTune * 100.0) + zone.fineTune + sampleHeader.pitchCorrection;
@@ -181,7 +181,7 @@ class SoundFontEngine extends ChangeNotifier {
         ? (44100 * totalSec).round().clamp(500, 44100 * 5)
         : ((endIdx - startIdx) / playbackRate).round().clamp(100, 44100 * 5);
 
-    final result = List<double>.filled(targetSampleCount, 0.0);
+    final result = Float32List(targetSampleCount);
     double srcIndex = startIdx.toDouble();
 
     for (int i = 0; i < targetSampleCount; i++) {
@@ -226,7 +226,7 @@ class SoundFontEngine extends ChangeNotifier {
         envGain = (zone.volEnvSustain * (1.0 - releaseProgress)).clamp(0.0, 1.0);
       }
 
-      result[i] = sampleVal * envGain;
+      result[i] = (sampleVal * envGain).toDouble();
       srcIndex += playbackRate;
     }
 
