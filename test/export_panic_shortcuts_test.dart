@@ -78,7 +78,7 @@ return eatsbits.song {
       state.dispose();
     });
 
-    testWidgets('Stop button has correct hover tooltip and double-tap panic trigger', (WidgetTester tester) async {
+    testWidgets('Stop button has correct hover tooltip and single-tap panic trigger', (WidgetTester tester) async {
       final state = DawState(enableMeterTimer: false);
       state.togglePlay();
       expect(state.isPlaying, isTrue);
@@ -95,7 +95,7 @@ return eatsbits.song {
 
       // Verify Tooltip message
       final stopTooltipFinder = find.byWidgetPredicate(
-        (widget) => widget is Tooltip && widget.message == 'Stop (Double-tap to stop all audio)',
+        (widget) => widget is Tooltip && widget.message == 'Stop / Panic (Stops all audio & effects)',
       );
       expect(stopTooltipFinder, findsOneWidget);
 
@@ -106,11 +106,9 @@ return eatsbits.song {
       );
       expect(stopButtonFinder, findsOneWidget);
 
-      // Double-tap the Stop button
+      // Single-tap the Stop button
       await tester.tap(stopButtonFinder);
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.tap(stopButtonFinder);
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 100));
 
       expect(state.isPlaying, isFalse);
 

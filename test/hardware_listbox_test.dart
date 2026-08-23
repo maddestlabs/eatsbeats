@@ -125,9 +125,9 @@ return Synth
       );
       await tester.pumpAndSettle();
 
-      // Verify listboxes are rendered for SFX Archetype and BRR Wavetable
-      expect(find.text('SFX ARCHETYPE'), findsOneWidget);
-      expect(find.text('BRR WAVETABLE'), findsOneWidget);
+      // Verify listboxes are rendered for SFX Type and Wavetable
+      expect(find.text('SFX TYPE'), findsOneWidget);
+      expect(find.text('WAVETABLE'), findsOneWidget);
       expect(find.text('Laser'), findsOneWidget);
       expect(find.text('Square'), findsOneWidget);
       expect(find.byType(HardwareListBoxWidget), findsNWidgets(2));

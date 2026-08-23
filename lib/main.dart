@@ -399,7 +399,7 @@ class _DawMainShellState extends State<DawMainShell> {
               _buildNavButton(context, 1, 'EDIT', Icons.edit_note),
               _buildNavButton(context, 2, 'TRACK', Icons.settings_input_component),
               _buildNavButton(context, 3, 'MIXER', Icons.equalizer),
-              _buildNavButton(context, 4, 'SCRIPTS', Icons.code),
+              _buildNavButton(context, 4, 'DESIGN', Icons.developer_board),
             ],
           ),
         ),

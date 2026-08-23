@@ -83,9 +83,9 @@ class TransportHeader extends StatelessWidget {
                 ),
               ),
 
-              // 2. Stop Button (⏹ - resets position to start / Panic on double-tap)
+              // 2. Stop Button (⏹ - Stop / Panic: stops all audio, voices, effects & resets position)
               Tooltip(
-                message: 'Stop (Double-tap to stop all audio)',
+                message: 'Stop / Panic (Stops all audio & effects)',
                 child: SkeuomorphicHardwareButton(
                   customChild: TransportSymbolWidget(
                     symbol: TransportSymbol.stop,
@@ -95,7 +95,6 @@ class TransportHeader extends StatelessWidget {
                   isActive: false,
                   activeColor: EatsTheme.primaryCyan,
                   onTap: dawState.stop,
-                  onDoubleTap: dawState.panic,
                   height: 34,
                   width: 34,
                   padding: EdgeInsets.zero,
@@ -130,13 +129,15 @@ class TransportHeader extends StatelessWidget {
 
           const SizedBox(width: 10),
 
-          // BPM Glowing Nixie Display with Direct Tap Tempo & LongPress Edit
+          // BPM Glowing Nixie Display with Direct Tap Tempo & LongPress/Right-Click Edit
           Tooltip(
-            message: 'Tap tempo | Long press to edit BPM',
+            message: 'Tap tempo | Right-click or long press to edit BPM',
             child: GestureDetector(
               onTap: dawState.tapTempo,
               onLongPress: () => _showBpmEditDialog(context),
               onDoubleTap: () => _showBpmEditDialog(context),
+              onSecondaryTap: () => _showBpmEditDialog(context),
+              onSecondaryTapDown: (_) => _showBpmEditDialog(context),
               child: GlowingNixieDisplay(
                 label: '',
                 valueText: dawState.bpm.toStringAsFixed(0),
@@ -701,11 +702,11 @@ class TransportHeader extends StatelessWidget {
 
     return Tooltip(
       message: showCpu
-          ? 'DSP CPU Load (${cpuPct.toStringAsFixed(1)}%) - Double-tap for L/R Audio Meter'
-          : 'L/R Master Peak Meter - Double-tap for DSP CPU Meter',
+          ? 'DSP CPU Load (${cpuPct.toStringAsFixed(1)}%) - Click for L/R Audio Meter'
+          : 'L/R Master Peak Meter - Click for DSP CPU Meter',
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onDoubleTap: () => dawState.toggleCpuMeter(),
+        onTap: () => dawState.toggleCpuMeter(),
         child: Container(
           width: 64,
           height: 36,

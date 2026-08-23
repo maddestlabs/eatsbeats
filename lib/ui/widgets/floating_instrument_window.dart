@@ -4,11 +4,12 @@ import '../../lua/lua_engine.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
+import '../modular/modular_rack_canvas.dart';
 import 'dynamic_instrument_gui_widget.dart';
 
 /// A sleek, movable, resizable floating in-app VSTi Instrument window.
-/// Content automatically scales 1:1 proportionally to fit the window dimensions.
-class FloatingInstrumentWindow extends StatelessWidget {
+/// Supports both Skeuomorphic Hardware Panel mode and Eurorack Multi-Row Modular Rack mode.
+class FloatingInstrumentWindow extends StatefulWidget {
   final DawState dawState;
   final Size? workspaceBounds;
 
@@ -19,26 +20,33 @@ class FloatingInstrumentWindow extends StatelessWidget {
   });
 
   @override
+  State<FloatingInstrumentWindow> createState() => _FloatingInstrumentWindowState();
+}
+
+class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
+  bool _isModularRackMode = false;
+
+  @override
   Widget build(BuildContext context) {
-    if (!dawState.isFloatingWindowVisible) {
+    if (!widget.dawState.isFloatingWindowVisible) {
       return const SizedBox.shrink();
     }
 
-    final track = dawState.floatingInstrumentTrack;
+    final track = widget.dawState.floatingInstrumentTrack;
     if (track == null) return const SizedBox.shrink();
 
     final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
     final trackCompilation = track.luaScriptCode.isNotEmpty
         ? LuaEngine.compile(track.luaScriptCode)
-        : dawState.compilationResult;
+        : widget.dawState.compilationResult;
     final guiLayout = trackCompilation.guiLayout;
 
     final accentColor = guiLayout?.accentColor ?? (isGrungy ? const Color(0xFFFF8C00) : track.color);
     final titleText = (guiLayout?.title ?? track.name).toUpperCase();
     final subtitleText = guiLayout?.subtitle ?? (track.type == TrackType.luaScript ? 'LUA VSTi' : track.type.name.toUpperCase());
-    final hasUpgrade = dawState.isPresetUpgradeAvailable(track);
-    final isMaximized = dawState.isFloatingWindowMaximized;
-    final wsBounds = workspaceBounds ?? MediaQuery.of(context).size;
+    final hasUpgrade = widget.dawState.isPresetUpgradeAvailable(track);
+    final isMaximized = widget.dawState.isFloatingWindowMaximized;
+    final wsBounds = widget.workspaceBounds ?? MediaQuery.of(context).size;
 
     return RepaintBoundary(
       child: Container(
@@ -66,7 +74,7 @@ class FloatingInstrumentWindow extends StatelessWidget {
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onPanUpdate: (details) {
-                dawState.updateFloatingWindowPosition(details.delta, parentBounds: wsBounds);
+                widget.dawState.updateFloatingWindowPosition(details.delta, parentBounds: wsBounds);
               },
               child: Container(
                 height: 38,
@@ -113,7 +121,7 @@ class FloatingInstrumentWindow extends StatelessWidget {
                     if (hasUpgrade) ...[
                       GestureDetector(
                         onTap: () {
-                          dawState.upgradeTrackPreset(track);
+                          widget.dawState.upgradeTrackPreset(track);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Upgraded "$titleText" to latest preset! (Settings preserved)'),
@@ -153,7 +161,7 @@ class FloatingInstrumentWindow extends StatelessWidget {
                     Tooltip(
                       message: 'Fit to Screen (Auto-scale Proportions)',
                       child: InkWell(
-                        onTap: () => dawState.fitFloatingWindowToWorkspace(wsBounds),
+                        onTap: () => widget.dawState.fitFloatingWindowToWorkspace(wsBounds),
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           margin: const EdgeInsets.only(right: 5),
@@ -170,7 +178,7 @@ class FloatingInstrumentWindow extends StatelessWidget {
                     Tooltip(
                       message: isMaximized ? 'Restore Window Size' : 'Fill Workspace (Fullscreen)',
                       child: InkWell(
-                        onTap: () => dawState.toggleMaximizeFloatingWindow(wsBounds),
+                        onTap: () => widget.dawState.toggleMaximizeFloatingWindow(wsBounds),
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           margin: const EdgeInsets.only(right: 5),
@@ -182,22 +190,22 @@ class FloatingInstrumentWindow extends StatelessWidget {
                           ),
                           child: Icon(
                             isMaximized ? Icons.fullscreen_exit : Icons.fullscreen,
-                            size: 14,
+                            size: 15,
                             color: isMaximized ? accentColor : EatsTheme.textSecondary,
                           ),
                         ),
                       ),
                     ),
 
-                    // Pop In / Switch to Full Track Inspector Tab
+                    // Open Code Editor Button
                     Tooltip(
-                      message: 'Open in Track Inspector Tab',
+                      message: 'Open in Script Editor (Tab 5)',
                       child: InkWell(
                         onTap: () {
-                          final idx = dawState.activePattern.tracks.indexOf(track);
-                          if (idx != -1) dawState.activeTrackIndex = idx;
-                          dawState.activeTabIndex = 2; // Track Inspector tab
-                          dawState.closeFloatingInstrumentWindow();
+                          final idx = widget.dawState.activePattern.tracks.indexOf(track);
+                          if (idx != -1) widget.dawState.activeTrackIndex = idx;
+                          widget.dawState.activeTabIndex = 4;
+                          widget.dawState.closeFloatingInstrumentWindow();
                         },
                         child: Container(
                           padding: const EdgeInsets.all(4),
@@ -214,7 +222,7 @@ class FloatingInstrumentWindow extends StatelessWidget {
                     // Tactical Chassis Screw (Tap to Unscrew / Close Panel)
                     _InteractiveScrewButton(
                       accentColor: accentColor,
-                      onTap: dawState.closeFloatingInstrumentWindow,
+                      onTap: widget.dawState.closeFloatingInstrumentWindow,
                     ),
                   ],
                 ),
@@ -235,7 +243,7 @@ class FloatingInstrumentWindow extends StatelessWidget {
                         child: SizedBox(
                           width: 520,
                           child: DynamicInstrumentGuiWidget(
-                            dawState: dawState,
+                            dawState: widget.dawState,
                             track: track,
                             hideHeader: true,
                           ),
@@ -251,7 +259,7 @@ class FloatingInstrumentWindow extends StatelessWidget {
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onPanUpdate: (details) {
-                        dawState.updateFloatingWindowSize(details.delta);
+                        widget.dawState.updateFloatingWindowSize(details.delta);
                       },
                       child: Container(
                         width: 24,

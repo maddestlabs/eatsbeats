@@ -999,7 +999,16 @@ class DawState extends ChangeNotifier {
   bool _isDisposed = false;
   bool get isDisposed => _isDisposed;
 
+  late final TrackChannel masterTrack;
+
   DawState({bool? enableMeterTimer}) {
+    masterTrack = TrackChannel(
+      id: 'master_bus',
+      name: 'Master',
+      type: TrackType.synth,
+      color: EatsTheme.primaryCyan,
+      volume: _masterVolume,
+    );
     SoundFontEngine.instance.loadDefaultBundledFont();
     _initDemoTracks();
     history.init(this, initialDescription: 'Project Started');
@@ -1500,6 +1509,7 @@ class DawState extends ChangeNotifier {
 
   void setMasterVolume(double vol) {
     _masterVolume = vol.clamp(0.0, 1.5);
+    masterTrack.volume = _masterVolume;
     audioEngine.setMasterVolume(_masterVolume);
     notifyListeners();
   }
@@ -1565,12 +1575,16 @@ class DawState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Stop & Panic: Halts playback, stops all active audio/echo nodes,
+  /// clears synthesized note audio caches, and resets playback position.
   void stop() {
     _isPlaying = false;
     _playbackTimer?.cancel();
     _currentStep = _isLooping ? _loopStartBar * 16 : 0;
     _arrangerStep = _currentStep;
     _currentBar = _currentStep ~/ 16;
+    audioEngine.stopAllSound();
+    audioEngine.clearPcmCache();
     notifyListeners();
   }
 
@@ -1578,9 +1592,6 @@ class DawState extends ChangeNotifier {
   /// clears PCM note audio cache and calculations, and resets meters.
   void panic() {
     stop();
-    audioEngine.stopAllSound();
-    audioEngine.clearPcmCache();
-    notifyListeners();
   }
 
   void _startSchedulerTimer() {
@@ -1684,13 +1695,28 @@ class DawState extends ChangeNotifier {
 
             if (matchingNotes.isNotEmpty) {
               if (track.isMonophonicTrack) {
-                for (int mIdx = 0; mIdx < matchingNotes.length; mIdx++) {
-                  final note = matchingNotes[mIdx];
+                final sortedNotes = matchingNotes.toList()..sort((a, b) => a.startStep.compareTo(b.startStep));
+                final hasSlideParam = (track.luaParams['Slide'] ?? 0.0) > 0.01 ||
+                    (track.luaParams['Portamento'] ?? 0.0) > 0.01 ||
+                    (track.luaParams['Glide'] ?? 0.0) > 0.01;
+
+                for (int mIdx = 0; mIdx < sortedNotes.length; mIdx++) {
+                  final note = sortedNotes[mIdx];
                   final double subOffset = (note.startStep - localStep).clamp(0.0, 0.99);
                   final double noteHardwareTime = hardwareTime + (subOffset * stepDurationSec);
 
-                  final nextNotes = effectiveNotes.where((n) => n.startStep > note.startStep && n.startStep <= (note.startStep + 1.5)).toList();
-                  final int? rawTargetPitch = nextNotes.isNotEmpty ? nextNotes.first.pitch : null;
+                  final otherMatching = sortedNotes.where((n) => n != note).toList();
+                  final nextNotes = effectiveNotes.where((n) => n.startStep > note.startStep && n.startStep <= (note.startStep + math.max(1.5, note.durationSteps + 0.5))).toList();
+
+                  int? rawTargetPitch;
+                  if (otherMatching.isNotEmpty && (mIdx < sortedNotes.length - 1 || sortedNotes.length > 1)) {
+                    // Simultaneous notes in clip: slide towards the concurrent note
+                    final targetSimNote = sortedNotes.last != note ? sortedNotes.last : sortedNotes.first;
+                    rawTargetPitch = targetSimNote.pitch;
+                  } else if (nextNotes.isNotEmpty) {
+                    rawTargetPitch = nextNotes.first.pitch;
+                  }
+
                   final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
 
                   final bool hasPrevOverlap = effectiveNotes.any(
@@ -1699,8 +1725,10 @@ class DawState extends ChangeNotifier {
 
                   final bool isSlideNote = note.isSlide ||
                       hasPrevOverlap ||
+                      otherMatching.isNotEmpty ||
+                      hasSlideParam ||
                       (note.durationSteps > 1.0) ||
-                      (nextNotes.isNotEmpty && (note.isSlide || note.durationSteps >= 1.0));
+                      (nextNotes.isNotEmpty && (note.isSlide || hasSlideParam || note.durationSteps >= 1.0));
                   final bool isAccentNote = note.isAccent || note.velocity > 0.75;
                   final effectiveMidi = remapPitch(note.pitch);
 
@@ -2168,15 +2196,23 @@ class DawState extends ChangeNotifier {
   }
 
   // Modular FX Insert Management
+  void _syncFxAudio(TrackChannel track) {
+    if (track.id == masterTrack.id || track == masterTrack) {
+      audioEngine.updateMasterFx(masterTrack.fxRack);
+    } else {
+      audioEngine.invalidateLuaCache(track.id);
+    }
+  }
+
   void addFXInsert(TrackChannel track, FXType type) {
     track.fxRack.add(FXInsert.create(type));
-    audioEngine.invalidateLuaCache(track.id);
+    _syncFxAudio(track);
     notifyListeners();
   }
 
   void removeFXInsert(TrackChannel track, String fxId) {
     track.fxRack.removeWhere((f) => f.id == fxId);
-    audioEngine.invalidateLuaCache(track.id);
+    _syncFxAudio(track);
     notifyListeners();
   }
 
@@ -2187,7 +2223,7 @@ class DawState extends ChangeNotifier {
     if (oldIndex >= 0 && oldIndex < track.fxRack.length && newIndex >= 0 && newIndex <= track.fxRack.length) {
       final item = track.fxRack.removeAt(oldIndex);
       track.fxRack.insert(newIndex, item);
-      audioEngine.invalidateLuaCache(track.id);
+      _syncFxAudio(track);
       notifyListeners();
     }
   }
@@ -2196,7 +2232,7 @@ class DawState extends ChangeNotifier {
     if (index > 0 && index < track.fxRack.length) {
       final fx = track.fxRack.removeAt(index);
       track.fxRack.insert(index - 1, fx);
-      audioEngine.invalidateLuaCache(track.id);
+      _syncFxAudio(track);
       recordHistory('Move FX Up (${fx.name})', icon: Icons.arrow_upward);
       notifyListeners();
     }
@@ -2206,7 +2242,7 @@ class DawState extends ChangeNotifier {
     if (index >= 0 && index < track.fxRack.length - 1) {
       final fx = track.fxRack.removeAt(index);
       track.fxRack.insert(index + 1, fx);
-      audioEngine.invalidateLuaCache(track.id);
+      _syncFxAudio(track);
       recordHistory('Move FX Down (${fx.name})', icon: Icons.arrow_downward);
       notifyListeners();
     }
@@ -2216,7 +2252,7 @@ class DawState extends ChangeNotifier {
     for (final f in track.fxRack) {
       if (f.id == fxId) {
         f.enabled = enabled;
-        audioEngine.invalidateLuaCache(track.id);
+        _syncFxAudio(track);
         notifyListeners();
         break;
       }
@@ -2227,7 +2263,7 @@ class DawState extends ChangeNotifier {
     for (final f in track.fxRack) {
       if (f.id == fxId) {
         f.mix = mix.clamp(0.0, 1.0);
-        audioEngine.invalidateLuaCache(track.id);
+        _syncFxAudio(track);
         notifyListeners();
         break;
       }
@@ -2238,7 +2274,7 @@ class DawState extends ChangeNotifier {
     for (final f in track.fxRack) {
       if (f.id == fxId) {
         f.params[paramName] = val;
-        audioEngine.invalidateLuaCache(track.id);
+        _syncFxAudio(track);
         notifyListeners();
         break;
       }
@@ -2249,7 +2285,7 @@ class DawState extends ChangeNotifier {
     for (final f in track.fxRack) {
       if (f.id == fxId) {
         f.irSampleName = irName;
-        audioEngine.invalidateLuaCache(track.id);
+        _syncFxAudio(track);
         notifyListeners();
         break;
       }

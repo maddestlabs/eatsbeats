@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../theme/eats_theme.dart';
 
@@ -9,6 +10,14 @@ class GlowingNixieDisplay extends StatelessWidget {
   final String? unit;
   final Color? glowColor;
   final double fontSize;
+  final double? width;
+  final double? height;
+  final bool centerLabel;
+  final String? tooltip;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onSecondaryTap;
+  final void Function(PointerSignalEvent)? onPointerSignal;
 
   const GlowingNixieDisplay({
     super.key,
@@ -17,6 +26,14 @@ class GlowingNixieDisplay extends StatelessWidget {
     this.unit,
     this.glowColor,
     this.fontSize = 18.0,
+    this.width,
+    this.height,
+    this.centerLabel = false,
+    this.tooltip,
+    this.onTap,
+    this.onLongPress,
+    this.onSecondaryTap,
+    this.onPointerSignal,
   });
 
   @override
@@ -26,6 +43,8 @@ class GlowingNixieDisplay extends StatelessWidget {
 
     final hasLabel = label.trim().isNotEmpty;
     final displayBox = Container(
+      width: width,
+      height: height,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: const Color(0xFF0C0B0A), // Deep glass well
@@ -48,7 +67,8 @@ class GlowingNixieDisplay extends StatelessWidget {
         children: [
           // Optical Bloom Glow Backdrop
           Text(
-            valueText + (unit != null ? ' $unit' : ''),
+            valueText + (unit != null && unit!.isNotEmpty ? ' $unit' : ''),
+            textAlign: TextAlign.center,
             style: EatsTheme.getDisplayFontStyle(
               fontSize: fontSize,
               fontWeight: FontWeight.bold,
@@ -68,7 +88,8 @@ class GlowingNixieDisplay extends StatelessWidget {
           ),
           // Crisp Sharp Text Foreground
           Text(
-            valueText + (unit != null ? ' $unit' : ''),
+            valueText + (unit != null && unit!.isNotEmpty ? ' $unit' : ''),
+            textAlign: TextAlign.center,
             style: EatsTheme.getDisplayFontStyle(
               fontSize: fontSize,
               fontWeight: FontWeight.bold,
@@ -79,30 +100,59 @@ class GlowingNixieDisplay extends StatelessWidget {
       ),
     );
 
-    final content = CustomPaint(
+    Widget content = CustomPaint(
       foregroundPainter: _LcdGlassReflectionPainter(),
       child: displayBox,
     );
+
+    if (onPointerSignal != null) {
+      content = Listener(
+        onPointerSignal: onPointerSignal,
+        child: content,
+      );
+    }
+
+    if (onTap != null || onLongPress != null || onSecondaryTap != null) {
+      content = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        onLongPress: onLongPress,
+        onSecondaryTap: onSecondaryTap,
+        onSecondaryTapDown: onSecondaryTap != null ? (_) => onSecondaryTap!() : null,
+        child: content,
+      );
+    }
+
+    if (tooltip != null && tooltip!.isNotEmpty) {
+      content = Tooltip(
+        message: tooltip!,
+        child: content,
+      );
+    }
 
     if (!hasLabel) {
       return content;
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: EatsTheme.getDisplayFontStyle(
-            fontSize: 9,
-            fontWeight: FontWeight.bold,
-            color: isGrungy ? const Color(0xFF9E9284) : EatsTheme.textMuted,
+    return SizedBox(
+      width: width,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: centerLabel ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            textAlign: centerLabel ? TextAlign.center : TextAlign.start,
+            style: EatsTheme.getDisplayFontStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+              color: isGrungy ? const Color(0xFF9E9284) : EatsTheme.textMuted,
+            ),
           ),
-        ),
-        const SizedBox(height: 3),
-        content,
-      ],
+          const SizedBox(height: 3),
+          content,
+        ],
+      ),
     );
   }
 }

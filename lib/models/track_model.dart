@@ -169,7 +169,7 @@ class StepEvent {
   }
 }
 
-enum FXType { biquadFilter, delay, distortion, bitcrusher, convolutionReverb, luaFX }
+enum FXType { biquadFilter, delay, distortion, bitcrusher, convolutionReverb, compressor, limiter, luaFX }
 
 class FXInsert {
   String id;
@@ -226,6 +226,32 @@ class FXInsert {
           type: FXType.delay,
           mix: 0.3,
           params: {'TimeMs': 250.0, 'Feedback': 0.4},
+        );
+      case FXType.compressor:
+        return FXInsert(
+          id: id,
+          name: 'Dynamics Compressor',
+          type: FXType.compressor,
+          mix: 1.0,
+          params: {
+            'Threshold': -18.0,
+            'Ratio': 4.0,
+            'Attack': 0.02,
+            'Release': 0.25,
+            'Knee': 12.0,
+          },
+        );
+      case FXType.limiter:
+        return FXInsert(
+          id: id,
+          name: 'Master Limiter',
+          type: FXType.limiter,
+          mix: 1.0,
+          params: {
+            'Threshold': -1.0,
+            'Release': 0.05,
+            'Ceiling': -0.1,
+          },
         );
       case FXType.biquadFilter:
       default:
@@ -453,6 +479,10 @@ class TrackChannel {
   bool get isMonophonicTrack =>
       isMonophonic ||
       type == TrackType.bass ||
+      name.toLowerCase().contains('303') ||
+      name.toLowerCase().contains('bass') ||
+      luaScriptCode.contains('JC303') ||
+      luaScriptCode.contains('JC-303') ||
       luaScriptCode.contains('Acid303') ||
       luaScriptCode.contains('TB303') ||
       luaScriptCode.contains('polyphony = 1') ||

@@ -6,8 +6,8 @@ import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
 
 void main() {
   group('Lua GUI Parser Tests', () {
-    test('Parses Eats 303 custom GUI layout correctly', () {
-      final preset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'acid_303');
+    test('Parses JC-303 custom GUI layout correctly', () {
+      final preset = LuaPresetLibrary.getPresetById('jc_303')!;
       final result = LuaEngine.compile(preset.code);
 
       expect(result.isSuccess, isTrue);
@@ -15,27 +15,25 @@ void main() {
 
       final layout = result.guiLayout!;
       expect(layout.title, contains('303'));
+      expect(layout.backgroundStyle, equals(PanelBackgroundStyle.silver));
+      expect(layout.defaultKnobStyle, equals(KnobStyle.chrome));
       expect(layout.children.length, greaterThanOrEqualTo(2));
 
-      // First row should contain nixie displays
+      // First row should contain Waveform switch, divider, and Cutoff/Resonance knobs
       final row1 = layout.children[0];
       expect(row1.type, equals(LuaGuiNodeType.row));
-      expect(row1.children.any((c) => c.type == LuaGuiNodeType.nixie && c.param == 'Cutoff'), isTrue);
-
-      // Second row should contain knobs
-      final row2 = layout.children[1];
-      expect(row2.type, equals(LuaGuiNodeType.row));
-      expect(row2.children.any((c) => c.type == LuaGuiNodeType.knob && c.param == 'Cutoff'), isTrue);
-      expect(row2.children.any((c) => c.type == LuaGuiNodeType.knob && c.param == 'Resonance'), isTrue);
+      expect(row1.children.any((c) => c.type == LuaGuiNodeType.switchToggle && c.param == 'Waveform'), isTrue);
+      expect(row1.children.any((c) => c.type == LuaGuiNodeType.knob && c.param == 'Cutoff'), isTrue);
+      expect(row1.children.any((c) => c.type == LuaGuiNodeType.knob && c.param == 'Resonance'), isTrue);
     });
 
     test('Parses procedural drum GUI layouts correctly', () {
-      final kickPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'procedural_kick');
+      final kickPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'fm_acoustic_kick');
       final kickResult = LuaEngine.compile(kickPreset.code);
       expect(kickResult.guiLayout, isNotNull);
       expect(kickResult.guiLayout!.title, contains('KICK'));
 
-      final snarePreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'procedural_snare');
+      final snarePreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'fm_acoustic_snare');
       final snareResult = LuaEngine.compile(snarePreset.code);
       expect(snareResult.guiLayout, isNotNull);
       expect(snareResult.guiLayout!.title, contains('SNARE'));

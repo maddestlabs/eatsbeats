@@ -9,6 +9,7 @@ import '../../models/history_manager.dart';
 import '../../models/track_model.dart';
 import '../../models/script_target_model.dart';
 import 'command_palette_dialog.dart';
+import 'fx_rack_dialog.dart';
 
 class SoundFontDragItem {
   final String fontId;
@@ -462,6 +463,12 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
 
   List<Widget> _buildAudioFxInsertsList(DawState state) {
     final fxEntries = <Map<String, dynamic>>[];
+    for (final fx in state.masterTrack.fxRack) {
+      fxEntries.add({
+        'fx': fx,
+        'track': state.masterTrack,
+      });
+    }
     for (final track in state.activePattern.tracks) {
       for (final fx in track.fxRack) {
         fxEntries.add({
@@ -520,9 +527,13 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
               ),
             ),
             onTap: () {
-              final tIdx = state.activePattern.tracks.indexOf(track);
-              if (tIdx != -1) state.activeTrackIndex = tIdx;
-              state.activeTabIndex = 2; // Jump to Track Inspector
+              if (track.id == state.masterTrack.id) {
+                showFxRackDialog(context, state, state.masterTrack);
+              } else {
+                final tIdx = state.activePattern.tracks.indexOf(track);
+                if (tIdx != -1) state.activeTrackIndex = tIdx;
+                state.activeTabIndex = 2; // Jump to Track Inspector
+              }
             },
           ),
         ),

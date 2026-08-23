@@ -110,7 +110,7 @@ class LuaPresetLibrary {
 
   static LuaPreset? getPresetById(String id) {
     try {
-      return presets.firstWhere((p) => p.id == id);
+      return presets.firstWhere((p) => p.id == id || (id == 'acid_303' && p.id == 'jc_303') || (id == 'jc_303' && p.id == 'acid_303'));
     } catch (_) {
       return null;
     }
@@ -157,17 +157,35 @@ class LuaPresetLibrary {
     }
 
     // 3. Match by code signature
-    if (luaCode.contains('Acid303') || luaCode.contains('TB303')) {
-      return getPresetById('acid_303');
+    if (luaCode.contains('FmAcousticKick') || luaCode.contains('Dual-Mic FM Acoustic Kick') || luaCode.contains('NearPitchStart') || luaCode.contains('fm_acoustic_kick')) {
+      return getPresetById('fm_acoustic_kick');
     }
-    if (luaCode.contains('ProceduralKick')) {
-      return getPresetById('procedural_kick');
+    if (luaCode.contains('FmAcousticSnare') || luaCode.contains('Dual-Mic FM Acoustic Snare') || luaCode.contains('WireCutoff') || luaCode.contains('fm_acoustic_snare')) {
+      return getPresetById('fm_acoustic_snare');
     }
-    if (luaCode.contains('ProceduralSnare')) {
-      return getPresetById('procedural_snare');
+    if (luaCode.contains('FmAcousticTom') || luaCode.contains('FM Acoustic Tom') || luaCode.contains('fm_acoustic_tom') || luaCode.contains('TomPitchStart')) {
+      return getPresetById('fm_acoustic_tom');
     }
-    if (luaCode.contains('ProceduralHiHat')) {
-      return getPresetById('procedural_hihat');
+    if (luaCode.contains('FmAcousticHiHat') || luaCode.contains('FM Acoustic Hi-Hat') || luaCode.contains('fm_acoustic_hihat')) {
+      return getPresetById('fm_acoustic_hihat');
+    }
+    if (luaCode.contains('Analog808Kick') || luaCode.contains('Analog 808 Kick') || luaCode.contains('analog_808_kick')) {
+      return getPresetById('analog_808_kick');
+    }
+    if (luaCode.contains('Analog808Snare') || luaCode.contains('Analog 808 Snare') || luaCode.contains('analog_808_snare')) {
+      return getPresetById('analog_808_snare');
+    }
+    if (luaCode.contains('Analog808HiHat') || luaCode.contains('Analog 808 Hi-Hat') || luaCode.contains('analog_808_hihat')) {
+      return getPresetById('analog_808_hihat');
+    }
+    if (luaCode.contains('Analog808Cowbell') || luaCode.contains('Analog 808 Cowbell') || luaCode.contains('analog_808_cowbell')) {
+      return getPresetById('analog_808_cowbell');
+    }
+    if (luaCode.contains('Analog808Tom') || luaCode.contains('Analog 808 Tom') || luaCode.contains('analog_808_tom')) {
+      return getPresetById('analog_808_tom');
+    }
+    if (luaCode.contains('JC303') || luaCode.contains('JC-303') || luaCode.contains('Acid303') || luaCode.contains('TB303') || luaCode.contains('jc_303') || luaCode.contains('acid_303')) {
+      return getPresetById('jc_303');
     }
     if (luaCode.contains('YM2612')) {
       return getPresetById('ym2612_synth');
@@ -189,103 +207,69 @@ class LuaPresetLibrary {
   }
 
   static const List<LuaPreset> _builtinPresets = [
-    // 1. Eats 303 Acid Bass Synth (JC-303 based)
+    // 0. Dual-Mic FM Acoustic Kick (Physical Excitation Model)
     LuaPreset(
-      id: 'acid_303',
-      name: 'Eats 303',
+      id: 'fm_acoustic_kick',
+      name: 'FM Acoustic Kick',
       category: LuaPresetCategory.instrument,
-      description: 'Roland TB-303 emulation modelled after midilab/jc303 (Eats 303 custom implementation) with 24dB 4-Pole Diode Ladder filter, leaky integrator saw/square oscillators, Accent, Slide portamento, and Overdrive.',
+      description: 'Physical dual-mic acoustic kick with noise FM excitation, sub-resonance boost, mid-scoop, beater click shelf, and farfield room mic delay.',
       code: '''
--- @name: Eats 303
+-- @name: FM Acoustic Kick
 -- @category: instrument
-local Acid303 = {}
+local FmAcousticKick = {}
 
-function Acid303.init()
-  Param.add("Waveform", 0.0, 1.0, 0.0)
-  Param.add("Cutoff", 100.0, 6500.0, 1600.0)
-  Param.add("Resonance", 0.5, 16.0, 8.0)
-  Param.add("EnvMod", 0.0, 1.0, 0.75)
-  Param.add("Decay", 0.05, 1.2, 0.28)
-  Param.add("Accent", 0.0, 1.0, 0.6)
-  Param.add("Slide", 0.0, 1.0, 0.4)
-  Param.add("Overdrive", 0.0, 1.0, 0.3)
+function FmAcousticKick.init()
+  Param.add("NearPitchStart", 100.0, 300.0, 180.0)
+  Param.add("NearPitchEnd", 30.0, 80.0, 52.0)
+  Param.add("NearPitchDecay", 0.01, 0.2, 0.07)
+  Param.add("NearFmDepth", 0.0, 1200.0, 600.0)
+  Param.add("NearFmDecay", 0.002, 0.03, 0.008)
+  Param.add("NearAmpDecay", 0.05, 0.8, 0.28)
+  Param.add("SubResoGain", 0.0, 12.0, 4.0)
+  Param.add("FarPitchStart", 80.0, 200.0, 130.0)
+  Param.add("FarPitchEnd", 60.0, 120.0, 95.0)
+  Param.add("FarPitchDecay", 0.05, 0.3, 0.15)
+  Param.add("FarFmDepth", 0.0, 600.0, 250.0)
+  Param.add("FarFmDecay", 0.01, 0.1, 0.045)
+  Param.add("FarAmpDecay", 0.05, 0.6, 0.22)
+  Param.add("FarLevel", 0.0, 1.0, 0.35)
+  Param.add("RoomDelaySec", 0.002, 0.02, 0.008)
 end
 
-function Acid303.process(time, freq, note, params, targetNote, isSlide, isAccent)
-  local waveType = params["Waveform"] or 0.0
-  local cutoff = params["Cutoff"] or 1600.0
-  local res = params["Resonance"] or 8.0
-  local envMod = params["EnvMod"] or 0.75
-  local decay = params["Decay"] or 0.28
-  local accent = params["Accent"] or 0.6
-  local drive = params["Overdrive"] or 0.3
-  local slideParam = params["Slide"] or 0.4
-
-  local currentFreq = freq
-  if targetNote and targetNote > 0 then
-    local targetFreq = 440.0 * (2.0 ^ ((targetNote - 69) / 12.0))
-    currentFreq = targetFreq + (freq - targetFreq) * math.exp(-time / 0.060)
-  elseif isSlide or slideParam > 0.5 then
-    local targetFreq = targetNote and (440.0 * (2.0 ^ ((targetNote - 69) / 12.0))) or freq
-    currentFreq = targetFreq + (freq - targetFreq) * math.exp(-time / 0.060)
-  end
-
-  local phase = time * currentFreq
-  local normPhase = phase - math.floor(phase)
-  local sawRaw = 2.0 * normPhase - 1.0
-  local sawHP = sawRaw - 0.85 * math.exp(-time * 12.0)
-  local sqrRaw = normPhase < 0.46 and 0.75 or -0.75
-  local osc = waveType < 0.5 and sawHP or sqrRaw
-
-  local hasAccent = isAccent or (accent > 0.7 and not isSlide)
-  local envBoost = hasAccent and (1.0 + accent * 1.1) or 1.0
-  local envDecay = decay / (hasAccent and (1.0 + accent * 0.9) or 1.0)
-  local env = math.exp(-time / envDecay)
-  local accentPulse = hasAccent and (accent * 0.4 * math.exp(-time / 0.035)) or 0.0
-
-  local modCutoff = cutoff + (envMod * (env + accentPulse) * 6500.0 * envBoost)
-  local filtered = DSP.lowpass(osc, modCutoff, res)
-
-  local highpassed = filtered * 0.98
-  local output = highpassed * (hasAccent and 1.35 or 1.0)
-  if drive > 0.05 then
-    output = math.tanh(output * (1.0 + drive * 4.0))
-  end
-
-  return output
-end
-
-function Acid303.gui()
+function FmAcousticKick.gui()
   return {
     panel = {
-      title = "EATS-303 ACID BASS UNIT",
-      subtitle = "Analog Skeuomorphic 24dB Diode Ladder Rack Unit",
-      accent = "#FF8C00",
+      title = "DUAL-MIC FM ACOUSTIC KICK",
+      subtitle = "Physical Nearfield/Farfield Excitation Processor",
+      accent = "track",
       layout = {
         {
           type = "row",
           children = {
-            { type = "nixie", param = "Cutoff", label = "CUTOFF FREQ", unit = "Hz" },
-            { type = "nixie", param = "Resonance", label = "RESONANCE" },
-            { type = "nixie", param = "Overdrive", label = "OVERDRIVE", unit = "x" },
+            { type = "nixie", param = "NearPitchStart", label = "PUNCH FREQ", unit = "Hz" },
+            { type = "nixie", param = "NearPitchEnd", label = "SUB FREQ", unit = "Hz" },
+            { type = "nixie", param = "NearFmDepth", label = "FM NOISE", unit = "Hz" },
           }
         },
         {
           type = "row",
           children = {
-            { type = "knob", param = "Cutoff", label = "CUTOFF", size = 60 },
-            { type = "knob", param = "Resonance", label = "RES", size = 60 },
-            { type = "knob", param = "EnvMod", label = "ENV MOD", size = 52 },
-            { type = "knob", param = "Decay", label = "DECAY", size = 52 },
-            { type = "knob", param = "Accent", label = "ACCENT", size = 52 },
-            { type = "knob", param = "Overdrive", label = "DRIVE", size = 52 },
+            { type = "knob", param = "NearPitchStart", label = "PUNCH", size = 56 },
+            { type = "knob", param = "NearPitchEnd", label = "SUB", size = 56 },
+            { type = "knob", param = "NearPitchDecay", label = "SWEEP", size = 52 },
+            { type = "knob", param = "NearFmDepth", label = "FM DEPTH", size = 52 },
+            { type = "knob", param = "NearFmDecay", label = "FM DECAY", size = 52 },
+            { type = "knob", param = "NearAmpDecay", label = "DECAY", size = 52 },
+            { type = "knob", param = "SubResoGain", label = "SUB GAIN", size = 52 },
           }
         },
         {
           type = "row",
           children = {
-            { type = "switch", param = "Waveform", label = "WAVE", options = {"SAW", "SQR"} },
-            { type = "slider", param = "Slide", label = "PORTAMENTO GLIDE", orientation = "horizontal", size = 160 },
+            { type = "knob", param = "FarLevel", label = "ROOM MIC", size = 52 },
+            { type = "knob", param = "RoomDelaySec", label = "DISTANCE", size = 52 },
+            { type = "knob", param = "FarFmDepth", label = "ROOM FM", size = 52 },
+            { type = "knob", param = "FarAmpDecay", label = "ROOM AIR", size = 52 },
           }
         }
       }
@@ -293,153 +277,53 @@ function Acid303.gui()
   }
 end
 
-return Acid303
+return FmAcousticKick
 ''',
     ),
 
-    // 2. Eats Kick Preset
+    // 0b. Dual-Mic FM Acoustic Snare
     LuaPreset(
-      id: 'procedural_kick',
-      name: 'Eats Kick',
+      id: 'fm_acoustic_snare',
+      name: 'FM Acoustic Snare',
       category: LuaPresetCategory.instrument,
-      description: 'Synthesized punchy sub kick drum with exponential pitch sweep, extended sub-bass decay, and smooth edge fade.',
+      description: 'Physical acoustic snare with dual-body swept oscillator, noise-modulated snare wires, and acoustic room reflections.',
       code: '''
--- @name: Eats Kick
+-- @name: FM Acoustic Snare
 -- @category: instrument
-local ProceduralKick = {}
+local FmAcousticSnare = {}
 
-function ProceduralKick.init()
-  Param.add("StartFreq", 100.0, 300.0, 160.0)
-  Param.add("EndFreq", 30.0, 60.0, 42.0)
-  Param.add("PitchDecay", 0.01, 0.2, 0.035)
-  Param.add("AmpDecay", 0.05, 4.0, 0.35)
-  Param.add("Click", 0.0, 1.0, 0.0)
-end
-
-function ProceduralKick.process(time, freq, note, params)
-  local startF = params["StartFreq"] or 160.0
-  local endF = params["EndFreq"] or 42.0
-  local pDecay = params["PitchDecay"] or 0.035
-  local aDecay = params["AmpDecay"] or 0.35
-  local click = params["Click"] or 0.0
-
-  local curFreq = endF + (startF - endF) * math.exp(-time / math.max(0.005, pDecay))
-  local phase = 2.0 * math.pi * curFreq * time
-  local subSine = math.sin(phase)
-
-  local clickTransient = (math.random() * 2.0 - 1.0) * math.exp(-time * 150.0) * click
-  local env = math.exp(-time * 4.0 / math.max(0.01, aDecay))
-  local rawOutput = (subSine * 0.85 + clickTransient * 0.15) * env
-
-  local maxDur = math.max(0.1, aDecay)
-  local fadeStart = maxDur - 0.04
-  local edgeFade = 1.0
-  if time > fadeStart then
-    local norm = math.max(0.0, math.min(1.0, (maxDur - time) / 0.04))
-    edgeFade = 0.5 * (1.0 - math.cos(math.pi * norm))
-  end
-  if time >= maxDur then edgeFade = 0.0 end
-  return math.tanh(rawOutput * edgeFade * 1.3)
-end
-
-function ProceduralKick.gui()
-  return {
-    panel = {
-      title = "EATS 808 KICK GENERATOR",
-      subtitle = "Deep Sub-Bass Exponential Pitch Sweeper",
-      accent = "#00E5FF",
-      layout = {
-        {
-          type = "row",
-          children = {
-            { type = "nixie", param = "StartFreq", label = "PUNCH FREQ", unit = "Hz" },
-            { type = "nixie", param = "EndFreq", label = "SUB FREQ", unit = "Hz" },
-          }
-        },
-        {
-          type = "row",
-          children = {
-            { type = "knob", param = "StartFreq", label = "START", size = 56 },
-            { type = "knob", param = "EndFreq", label = "SUB END", size = 56 },
-            { type = "knob", param = "PitchDecay", label = "PITCH DEC", size = 52 },
-            { type = "knob", param = "AmpDecay", label = "AMP DEC", size = 52 },
-            { type = "knob", param = "Click", label = "TRANSIENT", size = 52 },
-          }
-        }
-      }
-    }
-  }
-end
-
-return ProceduralKick
-''',
-    ),
-
-    // 3. Eats Snare Preset
-    LuaPreset(
-      id: 'procedural_snare',
-      name: 'Eats Snare',
-      category: LuaPresetCategory.instrument,
-      description: 'Synthesized snare drum combining swept fundamental dual-body oscillator, filtered noise wires, and subtle variation.',
-      code: '''
--- @name: Eats Snare
--- @category: instrument
-local ProceduralSnare = {}
-
-function ProceduralSnare.init()
+function FmAcousticSnare.init()
   Param.add("ToneFreq", 100.0, 320.0, 185.0)
+  Param.add("ToneDecay", 0.05, 0.5, 0.16)
   Param.add("Snappy", 0.0, 1.0, 0.65)
-  Param.add("Decay", 0.05, 0.8, 0.18)
+  Param.add("Decay", 0.05, 0.8, 0.22)
+  Param.add("WireCutoff", 1000.0, 6000.0, 1800.0)
   Param.add("Variation", 0.0, 1.0, 0.0)
 end
 
-function ProceduralSnare.process(time, freq, note, params)
-  local toneFreq = params["ToneFreq"] or 185.0
-  local snappy = params["Snappy"] or 0.65
-  local decay = params["Decay"] or 0.18
-  local variation = params["Variation"] or 0.0
-
-  if variation > 0.001 then
-    local vOffset = (math.sin(note * 12.9898) * 0.5 + 0.5) * variation
-    toneFreq = toneFreq * (1.0 + (vOffset - 0.5 * variation) * 0.08)
-    decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.15)
-  end
-
-  local sweepFreq = toneFreq * (1.0 + 1.2 * math.exp(-time * 60.0))
-  local body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 22.0)
-  local overtone = math.sin(2.0 * math.pi * (toneFreq * 1.75) * time) * math.exp(-time * 30.0) * 0.35
-  local tonalCore = body + overtone
-
-  local noise = (math.random() * 2.0 - 1.0) * math.exp(-time / math.max(0.01, decay))
-  local filteredNoise = DSP.highpass(noise, 1800.0, 1.2)
-
-  local click = (math.random() * 2.0 - 1.0) * math.exp(-time * 250.0) * 0.25
-
-  local output = (tonalCore * (1.0 - snappy * 0.6) + filteredNoise * (snappy * 1.2) + click)
-  return math.tanh(output * 1.3)
-end
-
-function ProceduralSnare.gui()
+function FmAcousticSnare.gui()
   return {
     panel = {
-      title = "EATS 808 SNARE PROCESSOR",
-      subtitle = "Swept Dual-Body Core with Filtered Noise Wires",
-      accent = "#00E676",
+      title = "DUAL-MIC FM ACOUSTIC SNARE",
+      subtitle = "Physical Shell Resonance & Snare Wire Modulator",
+      accent = "track",
       layout = {
         {
           type = "row",
           children = {
-            { type = "nixie", param = "ToneFreq", label = "TONE FREQ", unit = "Hz" },
-            { type = "nixie", param = "Snappy", label = "SNAPPY WIRE" },
+            { type = "nixie", param = "ToneFreq", label = "BODY FREQ", unit = "Hz" },
+            { type = "nixie", param = "Snappy", label = "WIRE SNAPPY" },
+            { type = "nixie", param = "WireCutoff", label = "WIRE HPF", unit = "Hz" },
           }
         },
         {
           type = "row",
           children = {
             { type = "knob", param = "ToneFreq", label = "BODY TONE", size = 56 },
+            { type = "knob", param = "ToneDecay", label = "BODY DEC", size = 52 },
             { type = "knob", param = "Snappy", label = "SNAPPY", size = 56 },
-            { type = "knob", param = "Decay", label = "DECAY", size = 52 },
-            { type = "knob", param = "Variation", label = "VARIATION", size = 52 },
+            { type = "knob", param = "Decay", label = "WIRE DEC", size = 52 },
+            { type = "knob", param = "WireCutoff", label = "WIRE HPF", size = 52 },
           }
         }
       }
@@ -447,60 +331,91 @@ function ProceduralSnare.gui()
   }
 end
 
-return ProceduralSnare
+return FmAcousticSnare
 ''',
     ),
 
-    // 4. Eats Hats Preset
+    // 0c. Dual-Mic FM Acoustic Tom (Floor, Mid, Rack)
     LuaPreset(
-      id: 'procedural_hihat',
-      name: 'Eats Hats',
+      id: 'fm_acoustic_tom',
+      name: 'FM Acoustic Tom',
       category: LuaPresetCategory.instrument,
-      description: 'Synthesized hi-hat dominated by high-pass filtered white noise with adjustable metallic sheen, decay, and variation.',
+      description: 'Physical acoustic tom with dual-membrane resonance, noise-FM stick strike excitation, shell tuning, and room reflections.',
       code: '''
--- @name: Eats Hats
+-- @name: FM Acoustic Tom
 -- @category: instrument
-local ProceduralHiHat = {}
+local FmAcousticTom = {}
 
-function ProceduralHiHat.init()
-  Param.add("Cutoff", 3000.0, 14000.0, 7500.0)
-  Param.add("Decay", 0.01, 0.6, 0.06)
-  Param.add("Metallic", 0.0, 1.0, 0.15)
-  Param.add("Variation", 0.0, 1.0, 0.0)
+function FmAcousticTom.init()
+  Param.add("ToneFreq", 60.0, 220.0, 90.0)
+  Param.add("TomPitchStart", 80.0, 300.0, 160.0)
+  Param.add("PitchDecay", 0.02, 0.3, 0.12)
+  Param.add("Decay", 0.1, 1.2, 0.45)
+  Param.add("StickFmDepth", 0.0, 800.0, 350.0)
+  Param.add("StickDecay", 0.002, 0.05, 0.012)
+  Param.add("ShellFreq", 80.0, 260.0, 140.0)
+  Param.add("RoomDelaySec", 0.002, 0.03, 0.010)
 end
 
-function ProceduralHiHat.process(time, freq, note, params)
-  local cutoff = params["Cutoff"] or 7500.0
-  local decay = params["Decay"] or 0.06
-  local metallic = params["Metallic"] or 0.15
-  local variation = params["Variation"] or 0.0
-
-  if variation > 0.001 then
-    local vOffset = (math.sin(note * 78.233) * 0.5 + 0.5) * variation
-    cutoff = cutoff * (1.0 + (vOffset - 0.5 * variation) * 0.12)
-    decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.18)
-  end
-
-  local env = math.exp(-time / math.max(0.005, decay))
-
-  local ring1 = math.sin(2.0 * math.pi * 320.0 * time)
-  local ring2 = math.sin(2.0 * math.pi * 540.0 * time)
-  local ring3 = math.sin(2.0 * math.pi * 890.0 * time)
-  local metallicRing = (ring1 + ring2 + ring3) * 0.333
-
-  local noise = (math.random() * 2.0 - 1.0)
-  local rawSignal = noise * (1.0 - metallic * 0.3) + metallicRing * (metallic * 0.3)
-  local filtered = DSP.highpass(rawSignal, cutoff, 1.4)
-
-  return math.tanh(filtered * env * 1.1)
-end
-
-function ProceduralHiHat.gui()
+function FmAcousticTom.gui()
   return {
     panel = {
-      title = "EATS 808 CLOSED & OPEN HI-HAT",
-      subtitle = "Cascaded Metallic Ring Modulation & High-Pass Noise",
-      accent = "#FFD700",
+      title = "DUAL-MIC FM ACOUSTIC TOM",
+      subtitle = "Dual-Membrane Physical Shell & Stick Modulator",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "ToneFreq", label = "TOM TONE", unit = "Hz" },
+            { type = "nixie", param = "TomPitchStart", label = "IMPACT PITCH", unit = "Hz" },
+            { type = "nixie", param = "StickFmDepth", label = "STICK FM", unit = "Hz" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "ToneFreq", label = "FUNDAMENTAL", size = 56 },
+            { type = "knob", param = "TomPitchStart", label = "START PITCH", size = 52 },
+            { type = "knob", param = "PitchDecay", label = "PITCH DEC", size = 52 },
+            { type = "knob", param = "Decay", label = "RING DECAY", size = 56 },
+            { type = "knob", param = "StickFmDepth", label = "STICK FM", size = 52 },
+            { type = "knob", param = "ShellFreq", label = "SHELL RESO", size = 52 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return FmAcousticTom
+''',
+    ),
+
+    // 0d. Dual-Mic FM Acoustic Hi-Hat
+    LuaPreset(
+      id: 'fm_acoustic_hihat',
+      name: 'FM Acoustic Hi-Hat',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical acoustic hi-hat combining inharmonic metallic oscillator cluster, stick ping click, and high-pass sizzle EQ.',
+      code: '''
+-- @name: FM Acoustic Hi-Hat
+-- @category: instrument
+local FmAcousticHiHat = {}
+
+function FmAcousticHiHat.init()
+  Param.add("Cutoff", 4000.0, 14000.0, 7000.0)
+  Param.add("Decay", 0.02, 0.6, 0.08)
+  Param.add("Sizzle", 0.0, 1.0, 0.65)
+  Param.add("Tone", 0.5, 2.0, 1.0)
+end
+
+function FmAcousticHiHat.gui()
+  return {
+    panel = {
+      title = "PHYSICAL METALLIC HI-HAT",
+      subtitle = "6-Osc Inharmonic Cluster with Stick Transient",
+      accent = "track",
       layout = {
         {
           type = "row",
@@ -512,10 +427,10 @@ function ProceduralHiHat.gui()
         {
           type = "row",
           children = {
-            { type = "knob", param = "Cutoff", label = "HPF CUTOFF", size = 56 },
+            { type = "knob", param = "Cutoff", label = "CUTOFF", size = 56 },
             { type = "knob", param = "Decay", label = "DECAY", size = 56 },
-            { type = "knob", param = "Metallic", label = "METALLIC", size = 52 },
-            { type = "knob", param = "Variation", label = "VARIATION", size = 52 },
+            { type = "knob", param = "Sizzle", label = "SIZZLE", size = 52 },
+            { type = "knob", param = "Tone", label = "CLUSTER TONE", size = 52 },
           }
         }
       }
@@ -523,7 +438,392 @@ function ProceduralHiHat.gui()
   }
 end
 
-return ProceduralHiHat
+return FmAcousticHiHat
+''',
+    ),
+
+    // 0f. Authentic Analog 808 Bass Drum
+    LuaPreset(
+      id: 'analog_808_kick',
+      name: 'Analog 808 Kick',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic Roland TR-808 Bridged-T analog bass drum circuit with exponential pitch sweep, adjustable tone, click transient, and extended sub decay.',
+      code: '''
+-- @name: Analog 808 Kick
+-- @category: instrument
+local Analog808Kick = {}
+
+function Analog808Kick.init()
+  Param.add("Tune", 35.0, 75.0, 46.0)
+  Param.add("StartFreq", 80.0, 220.0, 140.0)
+  Param.add("PitchDecay", 0.01, 0.15, 0.045)
+  Param.add("Decay", 0.1, 4.0, 0.85)
+  Param.add("Tone", 100.0, 800.0, 220.0)
+  Param.add("Click", 0.0, 1.0, 0.15)
+  Param.add("Overdrive", 0.8, 3.0, 1.25)
+end
+
+function Analog808Kick.gui()
+  return {
+    panel = {
+      title = "ROLAND TR-808 ANALOG BASS DRUM",
+      subtitle = "Authentic Bridged-T Resonant Sine Circuit",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Tune", label = "SUB TUNE", unit = "Hz" },
+            { type = "nixie", param = "Decay", label = "DECAY", unit = "s" },
+            { type = "nixie", param = "Tone", label = "LPF TONE", unit = "Hz" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Tune", label = "TUNE", size = 56 },
+            { type = "knob", param = "StartFreq", label = "PUNCH", size = 52 },
+            { type = "knob", param = "PitchDecay", label = "SWEEP", size = 52 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 56 },
+            { type = "knob", param = "Tone", label = "TONE", size = 52 },
+            { type = "knob", param = "Click", label = "CLICK", size = 52 },
+            { type = "knob", param = "Overdrive", label = "DRIVE", size = 52 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Analog808Kick
+''',
+    ),
+
+    // 0g. Authentic Analog 808 Snare Drum
+    LuaPreset(
+      id: 'analog_808_snare',
+      name: 'Analog 808 Snare',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic Roland TR-808 dual bridged-T resonant body (180Hz & 330Hz) and snappy high-pass noise wires.',
+      code: '''
+-- @name: Analog 808 Snare
+-- @category: instrument
+local Analog808Snare = {}
+
+function Analog808Snare.init()
+  Param.add("ToneDecay", 0.04, 0.3, 0.12)
+  Param.add("Snappy", 0.0, 1.0, 0.70)
+  Param.add("Decay", 0.05, 0.6, 0.20)
+  Param.add("Tune", 0.7, 1.4, 1.0)
+end
+
+function Analog808Snare.gui()
+  return {
+    panel = {
+      title = "ROLAND TR-808 ANALOG SNARE DRUM",
+      subtitle = "Dual Bridged-T Body with Snappy Noise Wires",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Snappy", label = "SNAPPY WIRE" },
+            { type = "nixie", param = "Decay", label = "WIRE DECAY", unit = "s" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Snappy", label = "SNAPPY", size = 56 },
+            { type = "knob", param = "ToneDecay", label = "TONE DEC", size = 52 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 56 },
+            { type = "knob", param = "Tune", label = "TUNE", size = 52 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Analog808Snare
+''',
+    ),
+
+    // 0h. Authentic Analog 808 Hi-Hat
+    LuaPreset(
+      id: 'analog_808_hihat',
+      name: 'Analog 808 Hi-Hat',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic Roland TR-808 6-Schmitt-trigger square oscillator metallic cluster with 7.5kHz resonant bandpass filter.',
+      code: '''
+-- @name: Analog 808 Hi-Hat
+-- @category: instrument
+local Analog808HiHat = {}
+
+function Analog808HiHat.init()
+  Param.add("Cutoff", 4000.0, 11000.0, 7500.0)
+  Param.add("Decay", 0.02, 0.6, 0.08)
+  Param.add("Tune", 0.5, 2.0, 1.0)
+end
+
+function Analog808HiHat.gui()
+  return {
+    panel = {
+      title = "ROLAND TR-808 ANALOG HI-HAT",
+      subtitle = "6-Osc Inharmonic Schmitt-Trigger Cluster",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Cutoff", label = "BPF CUTOFF", unit = "Hz" },
+            { type = "nixie", param = "Decay", label = "DECAY", unit = "s" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Cutoff", label = "BPF CUTOFF", size = 56 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 56 },
+            { type = "knob", param = "Tune", label = "CLUSTER TUNE", size = 52 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Analog808HiHat
+''',
+    ),
+
+    // 0i. Authentic Analog 808 Cowbell
+    LuaPreset(
+      id: 'analog_808_cowbell',
+      name: 'Analog 808 Cowbell',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic Roland TR-808 dual detuned square wave oscillator (540Hz & 800Hz) with 800Hz bandpass filter.',
+      code: '''
+-- @name: Analog 808 Cowbell
+-- @category: instrument
+local Analog808Cowbell = {}
+
+function Analog808Cowbell.init()
+  Param.add("Tune", 500.0, 1200.0, 800.0)
+  Param.add("Decay", 0.05, 0.8, 0.32)
+end
+
+function Analog808Cowbell.gui()
+  return {
+    panel = {
+      title = "ROLAND TR-808 ANALOG COWBELL",
+      subtitle = "Dual Square-Wave 540Hz/800Hz Bandpass Circuit",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Tune", label = "BPF TUNE", unit = "Hz" },
+            { type = "nixie", param = "Decay", label = "DECAY", unit = "s" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Tune", label = "BPF TUNE", size = 56 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 56 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Analog808Cowbell
+''',
+    ),
+
+    // 0j. Authentic Analog 808 Tom
+    LuaPreset(
+      id: 'analog_808_tom',
+      name: 'Analog 808 Tom',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic Roland TR-808 resonant bridged-T tank circuit tom/conga with pitch envelope decay.',
+      code: '''
+-- @name: Analog 808 Tom
+-- @category: instrument
+local Analog808Tom = {}
+
+function Analog808Tom.init()
+  Param.add("Tune", 60.0, 220.0, 100.0)
+  Param.add("StartFreq", 100.0, 300.0, 160.0)
+  Param.add("PitchDecay", 0.02, 0.2, 0.08)
+  Param.add("Decay", 0.1, 1.2, 0.40)
+end
+
+function Analog808Tom.gui()
+  return {
+    panel = {
+      title = "ROLAND TR-808 ANALOG TOM / CONGA",
+      subtitle = "Resonant Bridged-T Tank Circuit",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Tune", label = "TOM TUNE", unit = "Hz" },
+            { type = "nixie", param = "Decay", label = "DECAY", unit = "s" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Tune", label = "TUNE", size = 56 },
+            { type = "knob", param = "StartFreq", label = "START PITCH", size = 52 },
+            { type = "knob", param = "PitchDecay", label = "PITCH DEC", size = 52 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 56 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Analog808Tom
+''',
+    ),
+
+    // 1. JC-303 Acid Bass Synth (midilab/jc303 & Open303 based)
+    LuaPreset(
+      id: 'jc_303',
+      name: 'JC-303',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic Roland TB-303 emulation based on midilab/jc303 and Robin Schmidt (Open303) with 24dB 4-Pole Diode Ladder filter, 150Hz feedback highpass loop, leaky integrator saw/square oscillators, accent decay override, 60ms slide portamento, and overdrive.',
+      code: '''
+-- @name: JC-303
+-- @category: instrument
+local JC303 = {}
+
+function JC303.init()
+  Param.add("Waveform", 0.0, 1.0, 0.0, 1.0)       -- 0 = Saw, 1 = Square
+  Param.add("Pitch", -12.0, 12.0, 0.0, 1.0)       -- Tuning semitones
+  Param.add("Cutoff", 200.0, 4500.0, 1400.0)      -- Base VCF Cutoff
+  Param.add("Resonance", 0.5, 16.0, 9.2)          -- Diode Ladder Q with 150Hz Feedback HPF
+  Param.add("EnvMod", 0.0, 1.0, 0.75)             -- Exponential VCF Envelope Sweep
+  Param.add("Decay", 0.05, 1.2, 0.28)             -- Non-accented Decay (forced 200ms on Accent)
+  Param.add("Accent", 0.0, 1.0, 0.78)             -- Accent Cutoff Pulse & Gain Boost
+  Param.add("Octave", -2.0, 0.0, 0.0, 1.0)        -- Octave Transpose (-2, -1, 0)
+  Param.add("SubWaveform", 0.0, 1.0, 0.0, 1.0)    -- Sub-Oscillator Waveform
+  Param.add("SubVolume", 0.0, 1.0, 0.0)           -- Sub-Oscillator Level
+  Param.add("Drive", 0.0, 1.0, 0.25)              -- Analog Overdrive Saturation
+  Param.add("Slide", 0.0, 1.0, 0.0)               -- 60ms Portamento Legato Slide
+end
+
+function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
+  local waveType = params["Waveform"] or 0.0
+  local pitch = params["Pitch"] or 0.0
+  local cutoff = params["Cutoff"] or 1400.0
+  local res = params["Resonance"] or 9.2
+  local envMod = params["EnvMod"] or 0.75
+  local decay = params["Decay"] or 0.28
+  local accent = params["Accent"] or 0.78
+  local drive = params["Drive"] or params["Overdrive"] or 0.25
+  local octave = math.floor((params["Octave"] or 0.0) + 0.5)
+  local subWave = params["SubWaveform"] or 0.0
+  local subVol = params["SubVolume"] or 0.0
+  local slideParam = params["Slide"] or params["Portamento"] or 0.0
+  local glideTime = slideParam > 0.01 and (0.010 + slideParam * 0.200) or 0.060
+
+  -- Pitch glide / Portamento logic for JC-303 continuous monophonic voice
+  local baseFreq = freq * (2.0 ^ (octave + pitch / 12.0))
+  local currentFreq = baseFreq
+  if targetNote and targetNote > 0 then
+    local targetFreq = 440.0 * (2.0 ^ ((targetNote + octave * 12 + pitch - 69) / 12.0))
+    currentFreq = targetFreq + (baseFreq - targetFreq) * math.exp(-time / glideTime)
+  elseif isSlide or slideParam > 0.01 then
+    local targetFreq = targetNote and (440.0 * (2.0 ^ ((targetNote + octave * 12 + pitch - 69) / 12.0))) or baseFreq
+    currentFreq = targetFreq + (baseFreq - targetFreq) * math.exp(-time / glideTime)
+  end
+
+  -- JC-303 Oscillators: Leaky Integrator Sawtooth & Differentiated Square
+  local phase = time * currentFreq
+  local normPhase = phase - math.floor(phase)
+  local sawRaw = 2.0 * normPhase - 1.0
+  local sawHP = sawRaw - 0.85 * math.exp(-time * 12.0)
+  local sqrRaw = normPhase < 0.48 and 0.78 or -0.78
+  local osc = (1.0 - waveType) * sawHP + waveType * sqrRaw
+
+  if subVol > 0.01 then
+    local subPhase = time * (currentFreq * 0.5)
+    local subNorm = subPhase - math.floor(subPhase)
+    local subOsc = subWave > 0.5 and (subNorm < 0.5 and 0.7 or -0.7) or math.sin(6.283185 * subNorm)
+    osc = osc * (1.0 - subVol * 0.4) + subOsc * (subVol * 0.6)
+  end
+
+  -- Dynamic Accent & VCF Envelope Decay Dynamics (TB-303 / Open303 Model)
+  local hasAccent = isAccent or (accent > 0.7 and not isSlide)
+  local envBoost = hasAccent and (1.0 + accent * 1.25) or 1.0
+  local activeDecay = hasAccent and 0.200 or (decay <= 1.0 and (0.200 + decay * 1.800) or decay)
+  local softAttack = 1.0 - math.exp(-time / 0.003)
+  local env = softAttack * math.exp(-time / activeDecay)
+  local accentPulse = hasAccent and (accent * 0.55 * math.exp(-time / 0.035)) or 0.0
+
+  -- 24dB 4-Pole Diode Ladder Filter with non-linear diode saturation
+  local modCutoff = (cutoff * (2.0 ^ ((env + accentPulse) * envMod * 5.2 * envBoost)))
+  local filtered = DSP.lowpass(osc, math.min(18000.0, math.max(30.0, modCutoff)), res)
+
+  -- Post-VCF 150Hz 1-Pole High-Pass filter & overdrive saturation
+  local highpassed = filtered * 0.985
+  local output = highpassed * (hasAccent and (1.35 + accent * 0.45) or 1.0)
+  if drive > 0.02 then
+    output = math.tanh(output * (1.0 + drive * 3.5))
+  end
+
+  return output
+end
+
+function JC303.gui()
+  return {
+    panel = {
+      title = "JC-303 ACID BASSLINE",
+      subtitle = "midilab/jc303 & Open303 Transistor Bass",
+      background = "silver",
+      accent = "track",
+      knobStyle = "chrome",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "switch", param = "Waveform", label = "WAVEFORM", options = {"SAW", "SQR"} },
+            { type = "divider", orientation = "vertical", height = 62 },
+            { type = "knob", param = "Pitch", label = "PITCH", size = 52, knobStyle = "chrome" },
+            { type = "knob", param = "Cutoff", label = "CUTOFF", size = 58, knobStyle = "chrome" },
+            { type = "knob", param = "Resonance", label = "RESONANCE", size = 58, knobStyle = "chrome" },
+            { type = "knob", param = "EnvMod", label = "ENV MOD", size = 54, knobStyle = "chrome" },
+            { type = "knob", param = "Decay", label = "DECAY", size = 54, knobStyle = "chrome" },
+            { type = "knob", param = "Accent", label = "ACCENT", size = 54, knobStyle = "chrome" },
+          }
+        },
+        { type = "divider", orientation = "horizontal" },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Octave", label = "OCTAVE", size = 50, knobStyle = "chrome" },
+            { type = "divider", orientation = "vertical", height = 56 },
+            { type = "switch", param = "SubWaveform", label = "SUB OSC", options = {"SIN", "SQR"} },
+            { type = "knob", param = "SubVolume", label = "SUB VOL", size = 52, knobStyle = "chrome" },
+            { type = "divider", orientation = "vertical", height = 56 },
+            { type = "slider", param = "Slide", label = "PORTAMENTO SLIDE", orientation = "horizontal", size = 140 },
+            { type = "divider", orientation = "vertical", height = 56 },
+            { type = "knob", param = "Drive", label = "DRIVE", size = 54, knobStyle = "chrome" },
+          }
+        }
+      }
+    }
+  }
+end
+
+return JC303
 ''',
     ),
 
@@ -610,13 +910,13 @@ function YM2612.gui()
     panel = {
       title = "YAMAHA YM2612 FM SOUND PROCESSOR",
       subtitle = "Sega Genesis 4-Operator FM Hardware Synthesis",
-      accent = "#00E5FF",
+      accent = "track",
       layout = {
         {
           type = "row",
           children = {
-            { type = "nixie", param = "Algorithm", label = "ALGORITHM" },
-            { type = "nixie", param = "Feedback", label = "FEEDBACK" },
+            { type = "nixie", param = "Algorithm", label = "ALGORITHM", width = 110 },
+            { type = "nixie", param = "Feedback", label = "FEEDBACK", width = 110 },
           }
         },
         {
@@ -641,14 +941,14 @@ return YM2612
 ''',
     ),
 
-    // 8. SNES SFXR Generator (Sony S-DSP / SPC700)
+    // 8. SNES Sfxr (Sony S-DSP / SPC700)
     LuaPreset(
       id: 'eats_sfxr',
-      name: 'SNES SFXR Generator',
+      name: 'SNES Sfxr',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Super Nintendo (Sony S-DSP / SPC700) 16-bit procedural sound effect engine with BRR wavetables, 4-point Gaussian filtering, 8-tap FIR echo reverb, and controllable PRNG seed. Instant archetypes: Laser, Explosion, Powerup, Coin, Jump, Hurt, Lose, Button, Warp, Mutate, Custom. Completely playable chromatically across keys!',
+      description: 'Authentic Super Nintendo (Sony S-DSP / SPC700) 16-bit procedural sound effect engine with BRR wavetables, 4-point Gaussian filtering, 8-tap FIR echo reverb, and intelligent PRNG seed randomization. Instant archetypes: Laser, Explosion, Powerup, Coin, Jump, Hurt, Lose, Button, Warp, Mutate, Custom. Completely playable chromatically across keys!',
       code: '''
--- @name: SNES SFXR Generator
+-- @name: SNES Sfxr
 -- @category: instrument
 local SNESSFX = {}
 
@@ -678,20 +978,22 @@ end
 function SNESSFX.gui()
   return {
     panel = {
-      title = "SONY S-DSP SFXR CONSOLE UNIT",
+      title = "SNES Sfxr",
       subtitle = "16-Bit Super Nintendo Procedural Sound Engine",
-      accent = "#E040FB",
+      background = "snes",
+      accent = "#7B52AB",
+      knobStyle = "snes",
       layout = {
         {
           type = "row",
           children = {
-            { type = "listbox", param = "SFXType", label = "SFX ARCHETYPE", width = 160, height = 90 },
-            { type = "listbox", param = "Waveform", label = "BRR WAVETABLE", width = 160, height = 90 },
+            { type = "listbox", param = "SFXType", label = "SFX Type", width = 160, height = 90 },
+            { type = "listbox", param = "Waveform", label = "Wavetable", width = 160, height = 90 },
             {
               type = "column",
               children = {
-                { type = "lcd", label = "SNES S-DSP", leftText = "16-BIT", rightText = "32kHz" },
-                { type = "nixie", param = "Seed", label = "RNG SEED" }
+                { type = "nixie", param = "Seed", label = "RNG SEED", width = 100 },
+                { type = "button", action = "randomize", label = "RANDOMIZE", width = 100, height = 32 }
               }
             }
           }
@@ -704,6 +1006,8 @@ function SNESSFX.gui()
             { type = "knob", param = "Sustain", label = "SUSTAIN", size = 48 },
             { type = "knob", param = "Release", label = "RELEASE", size = 48 },
             { type = "knob", param = "PitchSweep", label = "SWEEP", size = 48 },
+            { type = "knob", param = "VibratoRate", label = "VIB RATE", size = 48 },
+            { type = "knob", param = "VibratoDepth", label = "VIB DEPTH", size = 48 },
             { type = "knob", param = "EchoDelay", label = "ECHO MS", size = 48 },
             { type = "knob", param = "EchoVolume", label = "ECHO VOL", size = 48 },
           }
@@ -717,14 +1021,14 @@ return SNESSFX
 ''',
     ),
 
-    // 9. SNES S-DSP Console Synth
+    // 9. SNES Synth
     LuaPreset(
       id: 'snes_console_synth',
-      name: 'SNES S-DSP Console Synth',
+      name: 'SNES Synth',
       category: LuaPresetCategory.instrument,
       description: 'Polyphonic 16-bit Super Nintendo sound processor emulation with Gaussian BRR wavetables, pitch modulation (PMOD), and 8-tap FIR echo reverb.',
       code: '''
--- @name: SNES S-DSP Console Synth
+-- @name: SNES Synth
 -- @category: instrument
 local SNESConsole = {}
 
@@ -745,11 +1049,45 @@ function SNESConsole.process(time, freq, note, params)
   return 0.0
 end
 
+function SNESConsole.gui()
+  return {
+    panel = {
+      title = "SNES Synth",
+      subtitle = "16-Bit Polyphonic S-DSP Console Synthesizer",
+      background = "snes",
+      accent = "#7B52AB",
+      knobStyle = "snes",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "listbox", param = "Waveform", label = "Wavetable", width = 180, height = 90 },
+            { type = "knob", param = "Attack", label = "ATTACK", size = 48 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 48 },
+            { type = "knob", param = "Sustain", label = "SUSTAIN", size = 48 },
+            { type = "knob", param = "Release", label = "RELEASE", size = 48 },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "VibratoRate", label = "VIB RATE", size = 48 },
+            { type = "knob", param = "VibratoDepth", label = "VIB DEPTH", size = 48 },
+            { type = "knob", param = "EchoDelay", label = "ECHO MS", size = 48 },
+            { type = "knob", param = "EchoFeedback", label = "ECHO FDBK", size = 48 },
+            { type = "knob", param = "EchoVolume", label = "ECHO VOL", size = 48 },
+          }
+        }
+      }
+    }
+  }
+end
+
 return SNESConsole
 ''',
     ),
 
-    // 9. OPL3 Retro Chiptune
+    // 10. OPL3 Retro Chiptune
     LuaPreset(
       id: 'opl3_retro',
       name: 'OPL3 Retro Chiptune',
@@ -771,6 +1109,34 @@ end
 
 function OPL3.process(time, freq, note, params)
   return 0.0
+end
+
+function OPL3.gui()
+  return {
+    panel = {
+      title = "YAMAHA YMF262 / OPL3 FM SYNTH",
+      subtitle = "Sound Blaster 16 / AdLib DOS Chiptune Hardware",
+      accent = "#39FF14",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Algorithm", label = "ALGORITHM", width = 110 },
+            { type = "nixie", param = "Feedback", label = "FEEDBACK", width = 110 },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Op1_Mult", label = "OP1 MULT", size = 48 },
+            { type = "knob", param = "Op1_TL", label = "OP1 TL", size = 48 },
+            { type = "knob", param = "Op2_Mult", label = "OP2 MULT", size = 48 },
+            { type = "knob", param = "Op2_TL", label = "OP2 TL", size = 48 },
+          }
+        }
+      }
+    }
+  }
 end
 
 return OPL3
@@ -1004,19 +1370,53 @@ return DrumKitSampler
 local SoundFontSampler = {}
 
 function SoundFontSampler.init()
+  Param.choice("SoundFontBank", {"Super Small Font", "GeneralUser GS"}, 0.0)
+  Param.choice("Preset", {"000: Acoustic Grand Piano", "024: Acoustic Guitar", "040: Violin", "056: Trumpet", "073: Flute"}, 0.0)
   Param.add("PresetNum", 0, 127, 0, 1)
   Param.add("BankNum", 0, 128, 0, 1)
   Param.add("AttackSec", 0.0, 1.0, 0.0)
+  Param.add("DecaySec", 0.01, 2.0, 0.3)
+  Param.add("Sustain", 0.0, 1.0, 0.8)
   Param.add("ReleaseSec", 0.01, 2.0, 0.4)
+  Param.add("Gain", 0.0, 2.0, 1.0)
 end
 
 function SoundFontSampler.process(time, freq, note, params)
   local rawSample = SoundFont.readZone(note, time)
   local attack = params["AttackSec"] or 0.0
+  local decay = params["DecaySec"] or 0.3
+  local sustain = params["Sustain"] or 0.8
   local release = params["ReleaseSec"] or 0.4
+  local gain = params["Gain"] or 1.0
 
-  local env = DSP.env(time, attack, release)
-  return rawSample * env
+  local env = DSP.adsr(time, attack, decay, sustain, release)
+  return rawSample * env * gain
+end
+
+function SoundFontSampler.gui()
+  return {
+    panel = {
+      title = "SoundFont 2 Player",
+      subtitle = "Multi-Sample SF2 Bank & Instrument Engine",
+      background = "snes",
+      accent = "#21F4E8",
+      knobStyle = "snes",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "listbox", param = "SoundFontBank", label = "SoundFont Bank", width = 160, height = 90 },
+            { type = "listbox", param = "Preset", label = "Program Preset", width = 200, height = 90 },
+            { type = "knob", param = "AttackSec", label = "ATTACK", size = 48 },
+            { type = "knob", param = "DecaySec", label = "DECAY", size = 48 },
+            { type = "knob", param = "Sustain", label = "SUSTAIN", size = 48 },
+            { type = "knob", param = "ReleaseSec", label = "RELEASE", size = 48 },
+            { type = "knob", param = "Gain", label = "GAIN", size = 48 },
+          }
+        }
+      }
+    }
+  }
 end
 
 return SoundFontSampler

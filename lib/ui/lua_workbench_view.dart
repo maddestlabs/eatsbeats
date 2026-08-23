@@ -4,9 +4,21 @@ import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../models/script_target_model.dart';
 import '../theme/eats_theme.dart';
+import '../lua/lua_engine.dart';
 import '../lua/lua_preset_library.dart';
+import 'modular/eurorack_theme.dart';
+import 'modular/modular_rack_canvas.dart';
+import 'widgets/dynamic_instrument_gui_widget.dart';
 import 'widgets/eatsbits_slider.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
+import 'widgets/waveform_painter.dart';
+
+enum DesignStudioViewMode {
+  code,
+  modularRack,
+  split,
+  guiPreview,
+}
 
 class LuaWorkbenchView extends StatefulWidget {
   final DawState dawState;
@@ -24,6 +36,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
   late String _lastTargetId;
   bool _isExplorerOpen = true;
   String _scriptFilterQuery = '';
+  DesignStudioViewMode _viewMode = DesignStudioViewMode.code;
 
   @override
   void initState() {
@@ -101,6 +114,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
   Widget build(BuildContext context) {
     final activeTarget = widget.dawState.activeScriptTarget;
     final allTargets = widget.dawState.getAllScriptTargets();
+    final activeTrack = widget.dawState.activeTrack;
     final result = widget.dawState.compilationResult;
     final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
     final isMobile = MediaQuery.of(context).size.width < 750;
@@ -130,7 +144,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
         autofocus: true,
         child: Column(
           children: [
-            // Top Toolbar: Explorer Toggle, Target Selector, Compile Button
+            // Top Toolbar: Explorer Toggle, Target Selector, Mode Switcher, Compile Button
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               color: EatsTheme.panelHeader,
@@ -234,6 +248,47 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
 
                   const SizedBox(width: 8),
 
+                  // View Mode Switcher Buttons: [CODE] [MODULAR] [SPLIT] [GUI]
+                  SkeuomorphicHardwareButton(
+                    label: isMobile ? null : 'CODE',
+                    icon: Icons.code,
+                    isActive: _viewMode == DesignStudioViewMode.code,
+                    activeColor: EatsTheme.primaryCyan,
+                    onTap: () => setState(() => _viewMode = DesignStudioViewMode.code),
+                    height: 32,
+                  ),
+                  const SizedBox(width: 4),
+                  SkeuomorphicHardwareButton(
+                    label: isMobile ? null : 'MODULAR',
+                    icon: Icons.cable,
+                    isActive: _viewMode == DesignStudioViewMode.modularRack,
+                    activeColor: EurorackTheme.cableAudio,
+                    onTap: () => setState(() => _viewMode = DesignStudioViewMode.modularRack),
+                    height: 32,
+                  ),
+                  const SizedBox(width: 4),
+                  if (!isMobile) ...[
+                    SkeuomorphicHardwareButton(
+                      label: 'SPLIT',
+                      icon: Icons.vertical_split,
+                      isActive: _viewMode == DesignStudioViewMode.split,
+                      activeColor: EatsTheme.accentGold,
+                      onTap: () => setState(() => _viewMode = DesignStudioViewMode.split),
+                      height: 32,
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  SkeuomorphicHardwareButton(
+                    label: isMobile ? null : 'GUI',
+                    icon: Icons.dashboard,
+                    isActive: _viewMode == DesignStudioViewMode.guiPreview,
+                    activeColor: EatsTheme.secondaryMagenta,
+                    onTap: () => setState(() => _viewMode = DesignStudioViewMode.guiPreview),
+                    height: 32,
+                  ),
+
+                  const SizedBox(width: 8),
+
                   // Compile & Run Button
                   SkeuomorphicHardwareButton(
                     label: isMobile ? 'COMPILE' : 'COMPILE & RUN',
@@ -247,308 +302,403 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
               ),
             ),
 
-            // Main Studio Body: Optional Script Explorer + Editor Canvas
+            // Main Studio Body: Depending on _viewMode
             Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: _buildStudioBody(
+                allTargets: allTargets,
+                activeTarget: activeTarget,
+                activeTrack: activeTrack,
+                currentTargetParams: currentTargetParams,
+                lines: lines,
+                result: result,
+                isGrungy: isGrungy,
+                targetBadgeBg: targetBadgeBg,
+                isMobile: isMobile,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStudioBody({
+    required List<ScriptTarget> allTargets,
+    required ScriptTarget activeTarget,
+    required TrackChannel activeTrack,
+    required Map<String, double> currentTargetParams,
+    required List<String> lines,
+    required LuaCompilationResult result,
+    required bool isGrungy,
+    required Color targetBadgeBg,
+    required bool isMobile,
+  }) {
+    switch (_viewMode) {
+      case DesignStudioViewMode.modularRack:
+        return ModularRackCanvas(
+          dawState: widget.dawState,
+          track: activeTrack,
+        );
+
+      case DesignStudioViewMode.guiPreview:
+        return Container(
+          color: EatsTheme.panelBackground,
+          padding: const EdgeInsets.all(16),
+          alignment: Alignment.center,
+          child: SingleChildScrollView(
+            child: DynamicInstrumentGuiWidget(
+              dawState: widget.dawState,
+              track: activeTrack,
+            ),
+          ),
+        );
+
+      case DesignStudioViewMode.split:
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_isExplorerOpen)
+              Container(
+                width: 210,
+                decoration: BoxDecoration(
+                  color: EatsTheme.panelBackground,
+                  border: const Border(right: BorderSide(color: Color(0xFF2B3245), width: 1.2)),
+                ),
+                child: _buildScriptExplorer(allTargets, activeTarget),
+              ),
+            Expanded(
+              flex: 5,
+              child: _buildCodeEditorCanvas(
+                activeTarget: activeTarget,
+                currentTargetParams: currentTargetParams,
+                lines: lines,
+                result: result,
+                isGrungy: isGrungy,
+                targetBadgeBg: targetBadgeBg,
+              ),
+            ),
+            Container(width: 2, color: const Color(0xFF2B3245)),
+            Expanded(
+              flex: 6,
+              child: ModularRackCanvas(
+                dawState: widget.dawState,
+                track: activeTrack,
+              ),
+            ),
+          ],
+        );
+
+      case DesignStudioViewMode.code:
+      default:
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_isExplorerOpen)
+              Container(
+                width: isMobile ? 220 : 250,
+                decoration: BoxDecoration(
+                  color: EatsTheme.panelBackground,
+                  border: const Border(right: BorderSide(color: Color(0xFF2B3245), width: 1.2)),
+                ),
+                child: _buildScriptExplorer(allTargets, activeTarget),
+              ),
+            Expanded(
+              child: _buildCodeEditorCanvas(
+                activeTarget: activeTarget,
+                currentTargetParams: currentTargetParams,
+                lines: lines,
+                result: result,
+                isGrungy: isGrungy,
+                targetBadgeBg: targetBadgeBg,
+              ),
+            ),
+          ],
+        );
+    }
+  }
+
+  Widget _buildCodeEditorCanvas({
+    required ScriptTarget activeTarget,
+    required Map<String, double> currentTargetParams,
+    required List<String> lines,
+    required LuaCompilationResult result,
+    required bool isGrungy,
+    required Color targetBadgeBg,
+  }) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Real-time Audio Oscilloscope LCD Display
+          Container(
+            height: 64,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D130E),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFF2A3628), width: 1.5),
+              boxShadow: const [
+                BoxShadow(color: Color(0xB3000000), offset: Offset(0, 2), blurRadius: 4),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(5),
+              child: Stack(
                 children: [
-                  // Left Script Explorer Panel (Collapsible)
-                  if (_isExplorerOpen)
-                    Container(
-                      width: isMobile ? 220 : 250,
-                      decoration: BoxDecoration(
-                        color: EatsTheme.panelBackground,
-                        border: Border(
-                          right: BorderSide(color: const Color(0xFF2B3245), width: 1.2),
-                        ),
-                      ),
-                      child: _buildScriptExplorer(allTargets, activeTarget),
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: WaveformPainter(timeData: widget.dawState.audioEngine.waveformTimeData),
                     ),
-
-                  // Right Editor & Live Parameters Workbench
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Real-time Audio Oscilloscope LCD Display
-                          Container(
-                            height: 64,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0D130E),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFF2A3628), width: 1.5),
-                              boxShadow: const [
-                                BoxShadow(color: Color(0xB3000000), offset: Offset(0, 2), blurRadius: 4),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(5),
-                              child: Stack(
-                                children: [
-                                  Positioned.fill(
-                                    child: CustomPaint(
-                                      painter: WaveformPainter(timeData: widget.dawState.audioEngine.waveformTimeData),
-                                    ),
-                                  ),
-                                  Positioned(
-                                    top: 4,
-                                    left: 8,
-                                    child: Text(
-                                      'OSCILLOSCOPE [AUDIO OUT]',
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        color: const Color(0xFF98B890).withOpacity(0.85),
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 0.8,
-                                      ),
-                                    ),
-                                  ),
-                                  const Positioned.fill(
-                                    child: CustomPaint(
-                                      painter: _LcdOscilloscopeGlassReflectionPainter(),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          // Code Editor Box: Fixed ~20 visible lines with synchronized scrolling
-                          DragTarget<LuaPreset>(
-                            onAcceptWithDetails: (details) {
-                              final preset = details.data;
-                              setState(() {
-                                _codeController.text = preset.code;
-                              });
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Loaded preset "${preset.name}" into editor for ${activeTarget.title}. Press COMPILE & RUN to apply.'),
-                                  backgroundColor: EatsTheme.panelHeader,
-                                  duration: const Duration(seconds: 3),
-                                ),
-                              );
-                            },
-                            builder: (context, candidateData, rejectedData) {
-                              final isHovering = candidateData.isNotEmpty;
-
-                              return Container(
-                                decoration: BoxDecoration(
-                                  color: EatsTheme.panelBackground,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: isHovering ? EatsTheme.primaryCyan : const Color(0xFF2B3245),
-                                    width: isHovering ? 2 : 1,
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    // Editor Sub-header
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                      color: EatsTheme.panelHeader,
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.terminal, size: 14, color: EatsTheme.textMuted),
-                                          const SizedBox(width: 6),
-                                          Expanded(
-                                            child: Text(
-                                              'TARGET: ${activeTarget.title.toUpperCase()}',
-                                              style: EatsTheme.getPrimaryFontStyle(
-                                                color: targetBadgeBg,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          Text(
-                                            '${lines.length} lines • Ctrl+Enter to run',
-                                            style: EatsTheme.getPrimaryFontStyle(
-                                              color: EatsTheme.textMuted,
-                                              fontSize: 9.5,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-
-                                    // Synchronized 20-line Viewport (Height = 20 * 16.8px + 16px = 352px)
-                                    SizedBox(
-                                      height: 340,
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                                        children: [
-                                          // Line Number Gutter (Synced scroll offset)
-                                          Container(
-                                            width: 42,
-                                            color: isGrungy ? const Color(0xFF1B1814) : const Color(0xFF0D0E14),
-                                            child: SingleChildScrollView(
-                                              controller: _gutterScrollController,
-                                              physics: const NeverScrollableScrollPhysics(),
-                                              padding: const EdgeInsets.symmetric(vertical: 8),
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.end,
-                                                children: List.generate(
-                                                  lines.length.clamp(1, 9999),
-                                                  (i) => Container(
-                                                    height: 16.8,
-                                                    alignment: Alignment.centerRight,
-                                                    padding: const EdgeInsets.only(right: 8),
-                                                    child: Text(
-                                                      '${i + 1}',
-                                                      style: TextStyle(
-                                                        fontFamily: 'monospace',
-                                                        fontSize: 12,
-                                                        height: 1.4,
-                                                        color: (i + 1 == result.errorLine)
-                                                            ? Colors.redAccent
-                                                            : EatsTheme.textMuted.withOpacity(0.6),
-                                                        fontWeight: (i + 1 == result.errorLine) ? FontWeight.bold : FontWeight.normal,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-
-                                          // Code Editor Text Field (Master Scroll)
-                                          Expanded(
-                                            child: TextField(
-                                              controller: _codeController,
-                                              scrollController: _editorScrollController,
-                                              maxLines: null,
-                                              expands: true,
-                                              keyboardType: TextInputType.multiline,
-                                              style: const TextStyle(
-                                                color: Color(0xFF00FFCC),
-                                                fontSize: 12,
-                                                height: 1.4,
-                                                fontFamily: 'monospace',
-                                              ),
-                                              decoration: InputDecoration(
-                                                isDense: true,
-                                                contentPadding: const EdgeInsets.all(8),
-                                                border: InputBorder.none,
-                                                hintText: '-- Write Lua DSP, MIDI FX, or Clip script here...',
-                                                hintStyle: TextStyle(color: EatsTheme.textMuted, fontFamily: 'monospace'),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          // Compiler Diagnostics Status Bar
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: result.isSuccess ? EatsTheme.accentGreen.withOpacity(0.1) : EatsTheme.muteColor.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: result.isSuccess ? EatsTheme.accentGreen.withOpacity(0.5) : EatsTheme.muteColor,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  result.isSuccess ? Icons.check_circle : Icons.error_outline,
-                                  color: result.isSuccess ? EatsTheme.accentGreen : EatsTheme.muteColor,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    result.errorMessage,
-                                    style: EatsTheme.getDisplayFontStyle(
-                                      color: result.isSuccess ? EatsTheme.accentGreen : EatsTheme.muteColor,
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          // Dynamic Live Parameter Controls for Active Script Target
-                          if (result.params.isNotEmpty) ...[
-                            Text(
-                              'LIVE SCRIPT PARAMETERS (${activeTarget.title.toUpperCase()})',
-                              style: EatsTheme.getPrimaryFontStyle(color: targetBadgeBg, fontWeight: FontWeight.bold, fontSize: 11),
-                            ),
-                            const SizedBox(height: 6),
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
-                              children: result.params.map((param) {
-                                final currentVal = currentTargetParams[param.name] ?? param.defaultValue;
-
-                                return Container(
-                                  width: 160,
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: EatsTheme.panelBackground,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: targetBadgeBg.withOpacity(0.3)),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            param.name,
-                                            style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 10.5),
-                                          ),
-                                          Text(
-                                            currentVal.toStringAsFixed(1),
-                                            style: EatsTheme.getDisplayFontStyle(color: targetBadgeBg, fontWeight: FontWeight.bold, fontSize: 10.5),
-                                          ),
-                                        ],
-                                      ),
-                                      EatsBitsSlider(
-                                        value: currentVal.clamp(param.min, param.max),
-                                        min: param.min,
-                                        max: param.max,
-                                        defaultValue: param.defaultValue,
-                                        label: param.name,
-                                        activeColor: targetBadgeBg,
-                                        onChanged: (val) {
-                                          widget.dawState.updateScriptParamForTarget(activeTarget, param.name, val);
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ],
-                        ],
+                  ),
+                  Positioned(
+                    top: 4,
+                    left: 8,
+                    child: Text(
+                      'OSCILLOSCOPE [AUDIO OUT]',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: const Color(0xFF98B890).withOpacity(0.85),
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8,
                       ),
+                    ),
+                  ),
+                  const Positioned.fill(
+                    child: CustomPaint(
+                      painter: _LcdOscilloscopeGlassReflectionPainter(),
                     ),
                   ),
                 ],
               ),
             ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // Code Editor Box: Fixed ~20 visible lines with synchronized scrolling
+          DragTarget<LuaPreset>(
+            onAcceptWithDetails: (details) {
+              final preset = details.data;
+              setState(() {
+                _codeController.text = preset.code;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Loaded preset "${preset.name}" into editor for ${activeTarget.title}. Press COMPILE & RUN to apply.'),
+                  backgroundColor: EatsTheme.panelHeader,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            },
+            builder: (context, candidateData, rejectedData) {
+              final isHovering = candidateData.isNotEmpty;
+
+              return Container(
+                decoration: BoxDecoration(
+                  color: EatsTheme.panelBackground,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isHovering ? EatsTheme.primaryCyan : const Color(0xFF2B3245),
+                    width: isHovering ? 2 : 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Editor Sub-header
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      color: EatsTheme.panelHeader,
+                      child: Row(
+                        children: [
+                          Icon(Icons.terminal, size: 14, color: EatsTheme.textMuted),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'TARGET: ${activeTarget.title.toUpperCase()}',
+                              style: EatsTheme.getPrimaryFontStyle(
+                                color: targetBadgeBg,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            '${lines.length} lines • Ctrl+Enter to run',
+                            style: EatsTheme.getPrimaryFontStyle(
+                              color: EatsTheme.textMuted,
+                              fontSize: 9.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Synchronized 20-line Viewport (Height = 20 * 16.8px + 16px = 352px)
+                    SizedBox(
+                      height: 340,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Line Number Gutter (Synced scroll offset)
+                          Container(
+                            width: 42,
+                            color: isGrungy ? const Color(0xFF1B1814) : const Color(0xFF0D0E14),
+                            child: SingleChildScrollView(
+                              controller: _gutterScrollController,
+                              physics: const NeverScrollableScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: List.generate(
+                                  lines.length.clamp(1, 9999),
+                                  (i) => Container(
+                                    height: 16.8,
+                                    alignment: Alignment.centerRight,
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Text(
+                                      '${i + 1}',
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 12,
+                                        height: 1.4,
+                                        color: (i + 1 == result.errorLine)
+                                            ? Colors.redAccent
+                                            : EatsTheme.textMuted.withOpacity(0.6),
+                                        fontWeight: (i + 1 == result.errorLine) ? FontWeight.bold : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // Code Editor Text Field (Master Scroll)
+                          Expanded(
+                            child: TextField(
+                              controller: _codeController,
+                              scrollController: _editorScrollController,
+                              maxLines: null,
+                              expands: true,
+                              keyboardType: TextInputType.multiline,
+                              style: const TextStyle(
+                                color: Color(0xFF00FFCC),
+                                fontSize: 12,
+                                height: 1.4,
+                                fontFamily: 'monospace',
+                              ),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                contentPadding: const EdgeInsets.all(8),
+                                border: InputBorder.none,
+                                hintText: '-- Write Lua DSP, MIDI FX, or Clip script here...',
+                                hintStyle: TextStyle(color: EatsTheme.textMuted, fontFamily: 'monospace'),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+
+          const SizedBox(height: 10),
+
+          // Compiler Diagnostics Status Bar
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: result.isSuccess ? EatsTheme.accentGreen.withOpacity(0.1) : EatsTheme.muteColor.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: result.isSuccess ? EatsTheme.accentGreen.withOpacity(0.5) : EatsTheme.muteColor,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  result.isSuccess ? Icons.check_circle : Icons.error_outline,
+                  color: result.isSuccess ? EatsTheme.accentGreen : EatsTheme.muteColor,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    result.errorMessage,
+                    style: EatsTheme.getDisplayFontStyle(
+                      color: result.isSuccess ? EatsTheme.accentGreen : EatsTheme.muteColor,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Dynamic Live Parameter Controls for Active Script Target
+          if (result.params.isNotEmpty) ...[
+            Text(
+              'LIVE SCRIPT PARAMETERS (${activeTarget.title.toUpperCase()})',
+              style: EatsTheme.getPrimaryFontStyle(color: targetBadgeBg, fontWeight: FontWeight.bold, fontSize: 11),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: result.params.map((param) {
+                final currentVal = currentTargetParams[param.name] ?? param.defaultValue;
+
+                return Container(
+                  width: 160,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: EatsTheme.panelBackground,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: targetBadgeBg.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            param.name,
+                            style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 10.5),
+                          ),
+                          Text(
+                            currentVal.toStringAsFixed(1),
+                            style: EatsTheme.getDisplayFontStyle(color: targetBadgeBg, fontWeight: FontWeight.bold, fontSize: 10.5),
+                          ),
+                        ],
+                      ),
+                      EatsBitsSlider(
+                        value: currentVal.clamp(param.min, param.max),
+                        min: param.min,
+                        max: param.max,
+                        defaultValue: param.defaultValue,
+                        label: param.name,
+                        activeColor: targetBadgeBg,
+                        onChanged: (val) {
+                          widget.dawState.updateScriptParamForTarget(activeTarget, param.name, val);
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -571,15 +721,20 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.account_tree_outlined, size: 14, color: EatsTheme.primaryCyan),
-                      const SizedBox(width: 6),
-                      Text(
-                        'PROJECT SCRIPTS',
-                        style: EatsTheme.getDisplayFontStyle(fontSize: 11, fontWeight: FontWeight.bold, color: EatsTheme.textLight),
-                      ),
-                    ],
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Icon(Icons.account_tree_outlined, size: 14, color: EatsTheme.primaryCyan),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'PROJECT SCRIPTS',
+                            style: EatsTheme.getDisplayFontStyle(fontSize: 11, fontWeight: FontWeight.bold, color: EatsTheme.textLight),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   Text(
                     '${allTargets.length}',

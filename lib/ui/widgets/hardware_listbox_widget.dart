@@ -14,6 +14,7 @@ class HardwareListBoxWidget extends StatefulWidget {
   final double width;
   final double height;
   final Color accentColor;
+  final ValueChanged<int>? onSelectionChanged;
 
   const HardwareListBoxWidget({
     super.key,
@@ -25,6 +26,7 @@ class HardwareListBoxWidget extends StatefulWidget {
     this.width = 160,
     this.height = 100,
     required this.accentColor,
+    this.onSelectionChanged,
   });
 
   @override
@@ -44,8 +46,9 @@ class _HardwareListBoxWidgetState extends State<HardwareListBoxWidget> {
   @override
   void didUpdateWidget(covariant HardwareListBoxWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.track.luaParams[oldWidget.paramName] != widget.track.luaParams[widget.paramName]) {
-      _scrollToSelected(animate: true);
+    if (oldWidget.track.luaParams[oldWidget.paramName] != widget.track.luaParams[widget.paramName] ||
+        oldWidget.paramName != widget.paramName) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected(animate: true));
     }
   }
 
@@ -86,7 +89,11 @@ class _HardwareListBoxWidgetState extends State<HardwareListBoxWidget> {
     widget.track.luaParams[widget.paramName] = index.toDouble();
     widget.dawState.updateLuaParam(widget.paramName, index.toDouble());
     widget.dawState.commitHistoryTransaction();
-    if (mounted) setState(() {});
+    widget.onSelectionChanged?.call(index);
+    if (mounted) {
+      setState(() {});
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected(animate: true));
+    }
   }
 
   void _step(int delta) {
@@ -149,7 +156,7 @@ class _HardwareListBoxWidgetState extends State<HardwareListBoxWidget> {
             ),
           ],
 
-          // Main Hardware LCD Recessed Screen
+          // Main Hardware LCD Recessed Screen with Glass Enclosure
           Container(
             height: widget.height,
             decoration: BoxDecoration(
@@ -169,129 +176,144 @@ class _HardwareListBoxWidgetState extends State<HardwareListBoxWidget> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(5),
-              child: Row(
+              child: Stack(
                 children: [
-                  // Listbox Scroll Items
-                  Expanded(
-                    child: Theme(
-                      data: Theme.of(context).copyWith(
-                        scrollbarTheme: ScrollbarThemeData(
-                          thumbColor: MaterialStateProperty.all(accent.withOpacity(0.6)),
-                          trackColor: MaterialStateProperty.all(Colors.black38),
-                          thickness: MaterialStateProperty.all(4),
-                          radius: const Radius.circular(2),
-                        ),
-                      ),
-                      child: Scrollbar(
-                        controller: _scrollController,
-                        thumbVisibility: true,
-                        child: ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          itemCount: widget.options.length,
-                          itemExtent: 24,
-                          itemBuilder: (context, idx) {
-                            final isSelected = idx == _selectedIndex;
-                            final text = widget.options[idx];
+                  Positioned.fill(
+                    child: Row(
+                      children: [
+                        // Listbox Scroll Items
+                        Expanded(
+                          child: Theme(
+                            data: Theme.of(context).copyWith(
+                              scrollbarTheme: ScrollbarThemeData(
+                                thumbColor: MaterialStateProperty.all(accent.withOpacity(0.6)),
+                                trackColor: MaterialStateProperty.all(Colors.black38),
+                                thickness: MaterialStateProperty.all(4),
+                                radius: const Radius.circular(2),
+                              ),
+                            ),
+                            child: Scrollbar(
+                              controller: _scrollController,
+                              thumbVisibility: true,
+                              child: ListView.builder(
+                                controller: _scrollController,
+                                padding: const EdgeInsets.symmetric(vertical: 3),
+                                itemCount: widget.options.length,
+                                itemExtent: 24,
+                                itemBuilder: (context, idx) {
+                                  final isSelected = idx == _selectedIndex;
+                                  final text = widget.options[idx];
 
-                            return InkWell(
-                              onTap: () => _selectIndex(idx),
-                              child: Container(
-                                height: 24,
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? accent.withOpacity(0.22)
-                                      : Colors.transparent,
-                                  border: isSelected
-                                      ? Border(
-                                          left: BorderSide(color: accent, width: 3),
-                                          bottom: BorderSide(
-                                            color: accent.withOpacity(0.3),
-                                            width: 0.8,
-                                          ),
-                                        )
-                                      : null,
-                                ),
-                                child: Row(
-                                  children: [
-                                    if (isSelected) ...[
-                                      Icon(
-                                        Icons.play_arrow,
-                                        size: 10,
-                                        color: accent,
+                                  return InkWell(
+                                    onTap: () => _selectIndex(idx),
+                                    child: Container(
+                                      height: 24,
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? accent.withOpacity(0.22)
+                                            : Colors.transparent,
+                                        border: isSelected
+                                            ? Border(
+                                                left: BorderSide(color: accent, width: 3),
+                                                bottom: BorderSide(
+                                                  color: accent.withOpacity(0.3),
+                                                  width: 0.8,
+                                                ),
+                                              )
+                                            : null,
                                       ),
-                                      const SizedBox(width: 4),
-                                    ],
-                                    Expanded(
-                                      child: Text(
-                                        text,
-                                        style: EatsTheme.getPrimaryFontStyle(
-                                          color: isSelected
-                                              ? Colors.white
-                                              : EatsTheme.textSecondary,
-                                          fontSize: 10.5,
-                                          fontWeight: isSelected
-                                              ? FontWeight.bold
-                                              : FontWeight.normal,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
+                                      child: Row(
+                                        children: [
+                                          if (isSelected) ...[
+                                            Icon(
+                                              Icons.play_arrow,
+                                              size: 10,
+                                              color: accent,
+                                            ),
+                                            const SizedBox(width: 4),
+                                          ],
+                                          Expanded(
+                                            child: Text(
+                                              text,
+                                              style: EatsTheme.getPrimaryFontStyle(
+                                                color: isSelected
+                                                    ? Colors.white
+                                                    : EatsTheme.textSecondary,
+                                                fontSize: 10.5,
+                                                fontWeight: isSelected
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Mini Stepper Buttons on Right Edge
-                  Container(
-                    width: 18,
-                    decoration: BoxDecoration(
-                      color: isGrungy ? const Color(0xFF1E1A16) : EatsTheme.panelHeader,
-                      border: Border(
-                        left: BorderSide(
-                          color: isGrungy ? const Color(0xFF332B23) : const Color(0xFF202632),
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: InkWell(
-                            onTap: () => _step(-1),
-                            child: Center(
-                              child: Icon(
-                                Icons.keyboard_arrow_up,
-                                size: 14,
-                                color: accent,
+                                  );
+                                },
                               ),
                             ),
                           ),
                         ),
-                        Divider(
-                          height: 1,
-                          thickness: 1,
-                          color: isGrungy ? const Color(0xFF332B23) : const Color(0xFF202632),
-                        ),
-                        Expanded(
-                          child: InkWell(
-                            onTap: () => _step(1),
-                            child: Center(
-                              child: Icon(
-                                Icons.keyboard_arrow_down,
-                                size: 14,
-                                color: accent,
+
+                        // Mini Stepper Buttons on Right Edge
+                        Container(
+                          width: 18,
+                          decoration: BoxDecoration(
+                            color: isGrungy ? const Color(0xFF1E1A16) : EatsTheme.panelHeader,
+                            border: Border(
+                              left: BorderSide(
+                                color: isGrungy ? const Color(0xFF332B23) : const Color(0xFF202632),
+                                width: 1,
                               ),
                             ),
+                          ),
+                          child: Column(
+                            children: [
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () => _step(-1),
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.keyboard_arrow_up,
+                                      size: 14,
+                                      color: accent,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Divider(
+                                height: 1,
+                                thickness: 1,
+                                color: isGrungy ? const Color(0xFF332B23) : const Color(0xFF202632),
+                              ),
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () => _step(1),
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.keyboard_arrow_down,
+                                      size: 14,
+                                      color: accent,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
+                    ),
+                  ),
+
+                  // Glossy Glass Reflection Overlay (CRT Scanlines & Specular Glare)
+                  const Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _ListBoxGlassReflectionPainter(),
+                      ),
                     ),
                   ),
                 ],
@@ -302,4 +324,48 @@ class _HardwareListBoxWidgetState extends State<HardwareListBoxWidget> {
       ),
     );
   }
+}
+
+class _ListBoxGlassReflectionPainter extends CustomPainter {
+  const _ListBoxGlassReflectionPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 1. Curved Glass Specular Glare Streak Reflection
+    final glarePath = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width * 0.75, 0)
+      ..lineTo(0, size.height * 0.85)
+      ..close();
+    canvas.drawPath(
+      glarePath,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white.withOpacity(0.15), Colors.transparent],
+        ).createShader(Offset.zero & size),
+    );
+
+    // 2. CRT Micro-Scanlines
+    final scanlinePaint = Paint()
+      ..color = Colors.black.withOpacity(0.10)
+      ..strokeWidth = 1.0;
+    for (double y = 1; y < size.height; y += 2.5) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), scanlinePaint);
+    }
+
+    // 3. Dark Recessed Glass Inner Bezel Border Shadow
+    final bezelPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = Colors.black.withOpacity(0.55);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(5)),
+      bezelPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

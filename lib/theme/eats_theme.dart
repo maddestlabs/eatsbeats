@@ -25,14 +25,38 @@ class EatsTheme {
   static const String _displayFontFamily = 'monospace';
 
   /// Get TextStyle dynamically for Context 1 (Primary UI) with safety fallback
-  static TextStyle getPrimaryFontStyle({double? fontSize, FontWeight? fontWeight, Color? color, TextDecoration? decoration}) {
-    final baseStyle = TextStyle(fontSize: fontSize, fontWeight: fontWeight, color: color, decoration: decoration);
+  static TextStyle getPrimaryFontStyle({
+    double? fontSize,
+    FontWeight? fontWeight,
+    Color? color,
+    TextDecoration? decoration,
+    double? letterSpacing,
+  }) {
+    final baseStyle = TextStyle(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      decoration: decoration,
+      letterSpacing: letterSpacing,
+    );
     return baseStyle.copyWith(fontFamily: _primaryFontFamily);
   }
 
   /// Get TextStyle dynamically for Context 2 (Display, Meters & Monospace Code) with safety fallback
-  static TextStyle getDisplayFontStyle({double? fontSize, FontWeight? fontWeight, Color? color, TextDecoration? decoration}) {
-    final baseStyle = TextStyle(fontSize: fontSize, fontWeight: fontWeight, color: color, decoration: decoration);
+  static TextStyle getDisplayFontStyle({
+    double? fontSize,
+    FontWeight? fontWeight,
+    Color? color,
+    TextDecoration? decoration,
+    double? letterSpacing,
+  }) {
+    final baseStyle = TextStyle(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      decoration: decoration,
+      letterSpacing: letterSpacing,
+    );
     return baseStyle.copyWith(fontFamily: _displayFontFamily);
   }
 

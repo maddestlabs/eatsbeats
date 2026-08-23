@@ -188,20 +188,8 @@ class MidiFxRackWidget extends StatelessWidget {
                 ],
               ),
 
-              const SizedBox(height: 12),
-
-              if (track.midiFXRack.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  child: Center(
-                    child: Text(
-                      'No MIDI FX on this track. Notes flow straight to instrument.\nClick "+ ADD MIDI FX" to add Arpeggiator, Chord Arp, Scale Snap, or Humanize.',
-                      textAlign: TextAlign.center,
-                      style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 11),
-                    ),
-                  ),
-                )
-              else
+              if (track.midiFXRack.isNotEmpty) ...[
+                const SizedBox(height: 12),
                 ...track.midiFXRack.asMap().entries.map((entry) {
                   final idx = entry.key;
                   final fx = entry.value;
@@ -297,6 +285,7 @@ class MidiFxRackWidget extends StatelessWidget {
                     ),
                   );
                 }),
+              ],
             ],
           ),
         );

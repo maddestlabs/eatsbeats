@@ -111,6 +111,10 @@ class TrackChannelStrip {
           current = filter;
         case FXType.delay:
           current = _addDelay(current, fx.params, mix);
+        case FXType.compressor:
+          current = _addCompressor(current, fx.params, mix);
+        case FXType.limiter:
+          current = _addLimiter(current, fx.params, mix);
         case FXType.convolutionReverb:
           current = _addConvReverb(current, fx, mix, irCache, loadIrAsync);
         case FXType.luaFX:
@@ -125,6 +129,53 @@ class TrackChannelStrip {
     final drive = rawDrive <= 1.0 ? rawDrive : rawDrive / 20.0;
     final shaper = ctx.createWaveShaper();
     shaper.curve = _buildDriveCurve(drive);
+    shaper.oversample = kIsWeb ? WAOverSampleType.x4 : WAOverSampleType.x2;
+    _fxNodes.add(shaper);
+
+    if (mix >= 0.98) {
+      input.connect(shaper);
+      return shaper;
+    }
+    final bus = ctx.createGain();
+    final dry = ctx.createGain()..gain.value = 1.0 - mix;
+    final wet = ctx.createGain()..gain.value = mix;
+    _fxNodes.addAll([bus, dry, wet]);
+
+    input.connect(dry)..connect(bus);
+    input.connect(shaper)..connect(wet)..connect(bus);
+    return bus;
+  }
+
+  WANode _addCompressor(WANode input, Map<String, double> params, double mix) {
+    final threshDb = (params['Threshold'] ?? -18.0).clamp(-60.0, 0.0);
+    final ratio = (params['Ratio'] ?? 4.0).clamp(1.0, 20.0);
+    final kneeDb = (params['Knee'] ?? 12.0).clamp(0.0, 40.0);
+
+    final shaper = ctx.createWaveShaper();
+    shaper.curve = _buildCompressorCurve(threshDb, ratio, kneeDb);
+    shaper.oversample = kIsWeb ? WAOverSampleType.x4 : WAOverSampleType.x2;
+    _fxNodes.add(shaper);
+
+    if (mix >= 0.98) {
+      input.connect(shaper);
+      return shaper;
+    }
+    final bus = ctx.createGain();
+    final dry = ctx.createGain()..gain.value = 1.0 - mix;
+    final wet = ctx.createGain()..gain.value = mix;
+    _fxNodes.addAll([bus, dry, wet]);
+
+    input.connect(dry)..connect(bus);
+    input.connect(shaper)..connect(wet)..connect(bus);
+    return bus;
+  }
+
+  WANode _addLimiter(WANode input, Map<String, double> params, double mix) {
+    final threshDb = (params['Threshold'] ?? -1.0).clamp(-24.0, 0.0);
+    final ceilingDb = (params['Ceiling'] ?? -0.1).clamp(-12.0, 0.0);
+
+    final shaper = ctx.createWaveShaper();
+    shaper.curve = _buildLimiterCurve(threshDb, ceilingDb);
     shaper.oversample = kIsWeb ? WAOverSampleType.x4 : WAOverSampleType.x2;
     _fxNodes.add(shaper);
 
@@ -255,6 +306,58 @@ class TrackChannelStrip {
     return curve;
   }
 
+  static Float32List _buildCompressorCurve(double threshDb, double ratio, double kneeDb) {
+    const n = 512;
+    final curve = Float32List(n);
+    for (int i = 0; i < n; i++) {
+      final x = (2.0 * i / (n - 1)) - 1.0;
+      final xAbs = x.abs();
+      if (xAbs < 1e-5) {
+        curve[i] = 0.0;
+        continue;
+      }
+      final xDb = 20.0 * (math.log(xAbs) / math.ln10);
+      double yDb;
+      if (kneeDb <= 0.001) {
+        yDb = xDb <= threshDb ? xDb : threshDb + (xDb - threshDb) / ratio;
+      } else {
+        final halfKnee = kneeDb / 2.0;
+        if (xDb <= threshDb - halfKnee) {
+          yDb = xDb;
+        } else if (xDb >= threshDb + halfKnee) {
+          yDb = threshDb + (xDb - threshDb) / ratio;
+        } else {
+          final dx = xDb - threshDb + halfKnee;
+          yDb = xDb + ((1.0 / ratio) - 1.0) * (dx * dx) / (2.0 * kneeDb);
+        }
+      }
+      final yLin = math.pow(10.0, yDb / 20.0).toDouble();
+      curve[i] = (x < 0 ? -yLin : yLin).clamp(-1.0, 1.0);
+    }
+    return curve;
+  }
+
+  static Float32List _buildLimiterCurve(double threshDb, double ceilingDb) {
+    const n = 512;
+    final curve = Float32List(n);
+    final ceilingLin = math.pow(10.0, ceilingDb / 20.0).toDouble().clamp(0.01, 1.0);
+    final threshLin = math.pow(10.0, threshDb / 20.0).toDouble().clamp(0.001, ceilingLin);
+    final range = math.max(0.001, ceilingLin - threshLin);
+
+    for (int i = 0; i < n; i++) {
+      final x = (2.0 * i / (n - 1)) - 1.0;
+      final xAbs = x.abs();
+      if (xAbs <= threshLin) {
+        curve[i] = x;
+      } else {
+        final d = xAbs - threshLin;
+        final yAbs = threshLin + range * _tanhF(d / range);
+        curve[i] = (x < 0 ? -yAbs : yAbs).clamp(-ceilingLin, ceilingLin);
+      }
+    }
+    return curve;
+  }
+
   static Float32List _buildBitcrusherCurve(int bits) {
     const n = 256;
     final curve = Float32List(n);
@@ -279,6 +382,8 @@ class TrackChannelStrip {
 // ─────────────────────────────────────────────────────────────────────────────
 class WajuceAudioBackend {
   WAContext? _ctx;
+  WAGainNode? _masterInputBus;
+  TrackChannelStrip? _masterStrip;
   WAGainNode? _masterGain;
   WAAnalyserNode? _analyser;
 
@@ -322,8 +427,17 @@ class WajuceAudioBackend {
       // to match internal synth/soundfont/sampler/Lua buffer generation and eliminate real-time
       // resampling overhead in iPlug2. Use 512 buffer size for crisp, low-latency audio response.
       final ctx = WAContext(sampleRate: 44100, bufferSize: 512);
+      final masterInputBus = ctx.createGain();
+      masterInputBus.gain.value = 1.0;
       final masterGain = ctx.createGain();
       masterGain.gain.value = 1.0;
+      final masterStrip = TrackChannelStrip(
+        trackId: 'master_bus',
+        ctx: ctx,
+        destination: masterGain,
+      );
+      masterInputBus.connect(masterStrip.inputBus);
+
       final analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       masterGain.connect(analyser);
@@ -332,6 +446,8 @@ class WajuceAudioBackend {
       await ctx.resume();
 
       _ctx = ctx;
+      _masterInputBus = masterInputBus;
+      _masterStrip = masterStrip;
       _masterGain = masterGain;
       _analyser = analyser;
       _initialized = true;
@@ -351,6 +467,16 @@ class WajuceAudioBackend {
     _masterGain?.gain.value = volume.clamp(0.0, 1.5);
   }
 
+  void updateMasterFx(List<FXInsert> masterFxRack) {
+    _masterStrip?.update(
+      volume: 1.0,
+      pan: 0.0,
+      fxRack: masterFxRack,
+      irCache: _irCache,
+      loadIrAsync: _loadIrAsync,
+    );
+  }
+
   void setTrackParam(String trackId, String targetId, double value) {
     final strip = _channelStrips[trackId];
     if (strip != null) {
@@ -363,6 +489,10 @@ class WajuceAudioBackend {
       strip.dispose();
     }
     _channelStrips.clear();
+    _masterStrip?.dispose();
+    _masterStrip = null;
+    _masterInputBus?.dispose();
+    _masterInputBus = null;
     _ctx?.close();
   }
 
@@ -428,12 +558,13 @@ class WajuceAudioBackend {
       }
 
       // 2. Get or create persistent channel strip for this track
+      final destination = _masterInputBus ?? masterGain;
       final strip = _channelStrips.putIfAbsent(
         effectiveTrackId,
         () => TrackChannelStrip(
           trackId: effectiveTrackId,
           ctx: ctx,
-          destination: masterGain,
+          destination: destination,
         ),
       );
 

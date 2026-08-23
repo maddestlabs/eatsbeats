@@ -36,8 +36,8 @@ return Acid303
       final isUpgrade = LuaPresetLibrary.isUpgradeAvailable(olderEats303Code, trackName: 'Eats 303');
       expect(isUpgrade, isTrue);
 
-      final latestPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'acid_303');
-      final isLatestUpgrade = LuaPresetLibrary.isUpgradeAvailable(latestPreset.code, trackName: 'Eats 303');
+      final latestPreset = LuaPresetLibrary.getPresetById('jc_303')!;
+      final isLatestUpgrade = LuaPresetLibrary.isUpgradeAvailable(latestPreset.code, trackName: 'JC-303');
       expect(isLatestUpgrade, isFalse);
     });
 
@@ -74,9 +74,9 @@ return Acid303
       expect(track.luaParams['Decay'], equals(0.85));
       expect(track.luaParams['Waveform'], equals(1.0));
 
-      // Verify newly defined parameter (Overdrive) was populated with default
-      expect(track.luaParams.containsKey('Overdrive'), isTrue);
-      expect(track.luaParams['Overdrive'], equals(0.3));
+      // Verify newly defined parameter (Drive) was populated with default
+      expect(track.luaParams.containsKey('Drive'), isTrue);
+      expect(track.luaParams['Drive'], equals(0.25));
     });
 
     test('Batch upgrades all project tracks', () {
@@ -87,22 +87,22 @@ return Acid303
       t1.luaScriptCode = olderEats303Code;
 
       const olderKickCode = '''
--- @name: Eats Kick
-local ProceduralKick = {}
-function ProceduralKick.init()
-  Param.add("StartFreq", 100.0, 300.0, 160.0)
-  Param.add("EndFreq", 30.0, 60.0, 42.0)
+-- @name: FM Acoustic Kick
+local FmAcousticKick = {}
+function FmAcousticKick.init()
+  Param.add("NearPitchStart", 100.0, 300.0, 180.0)
+  Param.add("NearPitchEnd", 30.0, 80.0, 52.0)
 end
-function ProceduralKick.process(time, freq, note, params) return 0.0 end
-return ProceduralKick
+function FmAcousticKick.process(time, freq, note, params) return 0.0 end
+return FmAcousticKick
 ''';
       final t2 = TrackChannel(
         id: 'kick_tr',
-        name: 'Eats Kick',
+        name: 'FM Acoustic Kick',
         type: TrackType.luaScript,
         color: const Color(0xFF00FF66),
         luaScriptCode: olderKickCode,
-        luaParams: {'StartFreq': 220.0},
+        luaParams: {'NearPitchStart': 220.0},
       );
       state.activePattern.tracks.add(t2);
 
@@ -111,8 +111,8 @@ return ProceduralKick
       state.upgradeAllTrackPresets();
 
       expect(state.availablePresetUpgradeCount, equals(0));
-      expect(t2.luaParams['StartFreq'], equals(220.0));
-      expect(t2.luaParams.containsKey('EndFreq'), isTrue);
+      expect(t2.luaParams['NearPitchStart'], equals(220.0));
+      expect(t2.luaParams.containsKey('NearPitchEnd'), isTrue);
     });
   });
 }

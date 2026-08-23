@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import '../audio/fm_chip_engine.dart';
+import '../audio/graph/graph_evaluator.dart';
 import '../audio/snes_dsp_engine.dart';
 import '../audio/time_context.dart';
 import '../models/automation_model.dart';
@@ -31,6 +32,9 @@ class LuaParamDef {
       name.toLowerCase().contains('preset') ||
       name.toLowerCase().contains('bank') ||
       name.toLowerCase().contains('program') ||
+      name.toLowerCase().contains('seed') ||
+      name.toLowerCase().contains('algorithm') ||
+      name.toLowerCase().contains('feedback') ||
       name.toLowerCase().contains('index');
 
   String getFormattedValue(double value) {
@@ -311,10 +315,158 @@ class LuaEngine {
     bool isAccent = false,
     String? trackId,
   }) {
+    // 0. Physical Acoustic & Analog 808 Graph Synthesis
+    if (code.contains('FmAcousticKick') ||
+        code.contains('NearPitchStart') ||
+        code.contains('fm_acoustic_kick') ||
+        code.contains('Dual-Mic FM Acoustic Kick')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildDualMicFmAcousticKick(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('FmAcousticSnare') ||
+        code.contains('fm_acoustic_snare') ||
+        code.contains('Dual-Mic FM Acoustic Snare') ||
+        code.contains('WireCutoff')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildDualMicFmAcousticSnare(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('FmAcousticTom') ||
+        code.contains('fm_acoustic_tom') ||
+        code.contains('FM Acoustic Tom') ||
+        code.contains('TomPitchStart')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildDualMicFmAcousticTom(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('FmAcousticHiHat') ||
+        code.contains('fm_acoustic_hihat') ||
+        code.contains('FM Acoustic Hi-Hat')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildDualMicFmAcousticHiHat(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('Analog808Kick') ||
+        code.contains('analog_808_kick') ||
+        code.contains('Analog 808 Kick')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildAnalog808Kick(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('Analog808Snare') ||
+        code.contains('analog_808_snare') ||
+        code.contains('Analog 808 Snare')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildAnalog808Snare(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('Analog808HiHat') ||
+        code.contains('analog_808_hihat') ||
+        code.contains('Analog 808 Hi-Hat')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildAnalog808HiHat(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('Analog808Cowbell') ||
+        code.contains('analog_808_cowbell') ||
+        code.contains('Analog 808 Cowbell')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildAnalog808Cowbell(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('Analog808Tom') ||
+        code.contains('analog_808_tom') ||
+        code.contains('Analog 808 Tom')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildAnalog808Tom(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
     final int numSamples = (44100 * durationSec).toInt().clamp(1, 441000);
     final buffer = Float32List(numSamples);
 
-    // 0. Procedural Kick Fast Synthesis
+    // 1. Procedural Kick Fast Synthesis
     if (code.contains('ProceduralKick') || code.contains('StartFreq')) {
       final startF = params['StartFreq'] ?? 160.0;
       final endF = params['EndFreq'] ?? 42.0;
@@ -342,86 +494,145 @@ class LuaEngine {
       return buffer;
     }
 
-    // 1. JC-303 Acid Bass Fast Synthesis
-    if (code.contains('Acid303') || code.contains('TB303') || (code.contains('Overdrive') && code.contains('Resonance') && code.contains('Slide'))) {
+    // 1. JC-303 Acid Bass Fast Synthesis (Modelled after midilab/jc303 & Open303)
+    if (code.contains('JC303') || code.contains('JC-303') || code.contains('Acid303') || code.contains('TB303') || ((code.contains('Overdrive') || code.contains('Drive')) && code.contains('Resonance') && code.contains('Slide'))) {
       if (freq <= 0) return buffer;
+
+      // Extract parameter values with sensible defaults and range mappings
       final waveType = params['Waveform'] ?? 0.0;
-      final cutoff = params['Cutoff'] ?? 1600.0;
+      final rawCutoff = params['Cutoff'] ?? 1600.0;
+      final cutoff = rawCutoff > 10.0 ? rawCutoff : (200.0 * math.pow(2.0, rawCutoff * 4.5));
       final res = params['Resonance'] ?? 8.0;
       final envMod = params['EnvMod'] ?? 0.75;
-      final decay = params['Decay'] ?? 0.28;
+      final rawDecay = params['Decay'] ?? 0.28;
+      // Normal decay ranges from ~200ms to ~2000ms
+      final normalDecay = rawDecay <= 1.0 ? (0.200 + rawDecay * 1.800) : rawDecay;
       final accentParam = params['Accent'] ?? 0.6;
-      final drive = params['Overdrive'] ?? 0.3;
-      final slideParam = params['Slide'] ?? 0.0;
+      final drive = params['Overdrive'] ?? params['Drive'] ?? 0.3;
+      final slideParam = params['Slide'] ?? params['Portamento'] ?? params['Glide'] ?? 0.0;
+      final double glideTime = slideParam > 0.01 ? (0.010 + slideParam * 0.200) : 0.060;
+
+      // Extended TB-303 / Devil Fish mod parameters
+      final tuningOffset = params['Tuning'] ?? params['Pitch'] ?? 0.0;
+      final octaveShift = (params['Octave'] ?? 0.0).round();
+      final subVolume = params['SubVolume'] ?? params['SubOscVolume'] ?? 0.0;
+      final subWave = params['SubWaveform'] ?? 0.0;
 
       final voiceKey = trackId ?? 'default_303';
       final vState = _acidVoiceStates.putIfAbsent(voiceKey, () => _AcidVoiceState());
 
-      if (!isSlide) {
+      // Base note frequency adjusted by octave and tuning
+      final effectiveFreq = freq * math.pow(2.0, octaveShift + (tuningOffset / 12.0));
+
+      if (!isSlide && slideParam <= 0.01) {
         vState.lastEnv = 1.0;
-        vState.startFreq = freq;
+        vState.startFreq = effectiveFreq;
         vState.phase = 0.0;
+        vState.subPhase = 0.0;
         vState.stage1 = 0.0;
         vState.stage2 = 0.0;
         vState.stage3 = 0.0;
         vState.stage4 = 0.0;
         vState.hpfX1 = 0.0;
         vState.hpfY1 = 0.0;
+        vState.feedbackHpfX1 = 0.0;
+        vState.feedbackHpfY1 = 0.0;
       } else {
-        vState.startFreq = vState.lastFreq > 0 ? vState.lastFreq : freq;
+        vState.startFreq = vState.lastFreq > 0 ? vState.lastFreq : effectiveFreq;
       }
 
       final bool hasAccent = isAccent || (accentParam > 0.7 && !isSlide);
-      final envBoost = hasAccent ? (1.0 + accentParam * 1.1) : 1.0;
-      final envDecay = (decay / (hasAccent ? (1.0 + accentParam * 0.9) : 1.0)).clamp(0.02, 2.0);
-      final kRes = (res / 16.0 * 3.85).clamp(0.0, 3.95);
-      final gain = drive > 0.05 ? (1.0 + (drive * 4.0)) : 1.0;
-      final fadeSamples = (44100 * 0.04).toInt().clamp(64, math.max(1, numSamples ~/ 4));
 
-      double targetFreq = freq;
+      // In TB-303 / JC-303, an accented note overrides decay to snappy ~200ms
+      final double activeDecay = hasAccent ? 0.200 : normalDecay.clamp(0.03, 3.0);
+      final double envBoost = hasAccent ? (1.0 + accentParam * 1.25) : 1.0;
+      final double kRes = (res > 1.0 ? (res / 16.0 * 3.85) : (res * 3.85)).clamp(0.0, 3.92);
+      final double gain = drive > 0.02 ? (1.0 + (drive * 3.5)) : 1.0;
+      final int fadeSamples = (44100 * 0.04).toInt().clamp(64, math.max(1, numSamples ~/ 4));
+
+      double targetFreq = effectiveFreq;
       if (targetMidiNote != null && targetMidiNote > 0) {
-        targetFreq = 440.0 * math.pow(2.0, (targetMidiNote - 69) / 12.0);
-      } else if (isSlide || slideParam > 0.5) {
-        targetFreq = targetMidiNote != null ? (440.0 * math.pow(2.0, (targetMidiNote - 69) / 12.0)) : freq;
+        targetFreq = 440.0 * math.pow(2.0, ((targetMidiNote + octaveShift * 12) - 69 + tuningOffset) / 12.0);
+      } else if (isSlide || slideParam > 0.01) {
+        targetFreq = targetMidiNote != null
+            ? (440.0 * math.pow(2.0, ((targetMidiNote + octaveShift * 12) - 69 + tuningOffset) / 12.0))
+            : effectiveFreq;
       }
+
+      // Feedback HPF alpha at 150 Hz (Open303 / JC-303 topology)
+      const double hpCutoffHz = 150.0;
+      const double hpAlpha = 1.0 / (1.0 + (2.0 * math.pi * hpCutoffHz / 44100.0));
 
       for (int i = 0; i < numSamples; i++) {
         final time = i / 44100.0;
-        double currentFreq = freq;
-        if (targetFreq != freq || isSlide || slideParam > 0.5) {
-          currentFreq = targetFreq + (vState.startFreq - targetFreq) * math.exp(-time / 0.060);
+
+        // Exponential pitch glide for portamento slide
+        double currentFreq = effectiveFreq;
+        if (targetFreq != effectiveFreq || isSlide || slideParam > 0.01 || (vState.startFreq != effectiveFreq)) {
+          currentFreq = targetFreq + (vState.startFreq - targetFreq) * math.exp(-time / glideTime);
         }
         vState.lastFreq = currentFreq;
 
+        // Main 303 Oscillator: Leaky Integrator Saw & Differentiated Square
         vState.phase = (vState.phase + (currentFreq / 44100.0)) % 1.0;
         final normPhase = vState.phase;
+
+        // 303 Sawtooth: Ramp with highpass filtering and phase distortion
         final sawRaw = 2.0 * normPhase - 1.0;
         final sawHP = sawRaw - 0.85 * math.exp(-time * 12.0);
-        final sqrRaw = normPhase < 0.46 ? 0.75 : -0.75;
-        final osc = waveType < 0.5 ? sawHP : sqrRaw;
 
-        final env = isSlide ? (vState.lastEnv * math.exp(-time / envDecay)) : math.exp(-time / envDecay);
-        vState.lastEnv = env;
-        final accentPulse = hasAccent ? (accentParam * 0.4 * math.exp(-time / 0.035)) : 0.0;
+        // 303 Square: Asymmetric pulse wave with curved droop and soft saturation
+        final sqrRaw = normPhase < 0.48 ? 0.78 : -0.78;
+        final mainOsc = (1.0 - waveType) * sawHP + waveType * sqrRaw;
 
-        final modCutoff = (cutoff + (envMod * (env + accentPulse) * 6500.0 * envBoost)).clamp(40.0, 16000.0);
+        // Optional Sub-Oscillator (-1 or -2 octaves)
+        double subOsc = 0.0;
+        if (subVolume > 0.01) {
+          vState.subPhase = (vState.subPhase + (currentFreq * 0.5 / 44100.0)) % 1.0;
+          final subNorm = vState.subPhase;
+          subOsc = subWave > 0.5 ? (subNorm < 0.5 ? 0.7 : -0.7) : math.sin(2.0 * math.pi * subNorm);
+        }
+
+        final combinedOsc = mainOsc * (1.0 - subVolume * 0.4) + subOsc * (subVolume * 0.6);
+
+        // Filter Envelope: Soft attack (~3ms) followed by exponential decay
+        final softAttack = 1.0 - math.exp(-time / 0.003);
+        final envDecayCurve = math.exp(-time / activeDecay);
+        final baseEnv = isSlide ? (vState.lastEnv * envDecayCurve) : (softAttack * envDecayCurve);
+        vState.lastEnv = baseEnv;
+
+        // Accent Pulse: Rapid ~35ms transient cutoff boost
+        final accentPulse = hasAccent ? (accentParam * 0.55 * math.exp(-time / 0.035)) : 0.0;
+
+        // Exponential cutoff sweep modulation (up to 5.5 octaves)
+        final modCutoff = (cutoff * math.pow(2.0, (baseEnv + accentPulse) * envMod * 5.2 * envBoost)).clamp(30.0, 18000.0);
         final fNorm = (modCutoff / 44100.0 * math.pi * 2.0).clamp(0.005, 0.85);
 
-        final feedback = kRes * _tanh(vState.stage4 * 0.45);
-        final inputWithRes = _tanh(osc - feedback);
+        // Non-linear 150 Hz Feedback High-Pass Loop (Signature 303 Diode Ladder)
+        final rawFeedback = kRes * _tanh(vState.stage4 * 0.50);
+        final feedbackHP = hpAlpha * (vState.feedbackHpfY1 + rawFeedback - vState.feedbackHpfX1);
+        vState.feedbackHpfX1 = rawFeedback;
+        vState.feedbackHpfY1 = feedbackHP;
 
+        final inputWithRes = _tanh(combinedOsc - feedbackHP);
+
+        // 4-Pole 24dB Diode Ladder Cascade with Stage Non-Linearities
         vState.stage1 += fNorm * (inputWithRes - vState.stage1);
-        vState.stage2 += fNorm * (vState.stage1 - vState.stage2);
-        vState.stage3 += fNorm * (vState.stage2 - vState.stage3);
-        vState.stage4 += fNorm * (vState.stage3 - vState.stage4);
-        final filtered = vState.stage4 * (1.0 + kRes * 0.22);
+        vState.stage2 += fNorm * (_tanh(vState.stage1) - vState.stage2);
+        vState.stage3 += fNorm * (_tanh(vState.stage2) - vState.stage3);
+        vState.stage4 += fNorm * (_tanh(vState.stage3) - vState.stage4);
+        final filtered = vState.stage4 * (1.0 + kRes * 0.20);
 
-        final hpfOut = 0.978 * (vState.hpfY1 + filtered - vState.hpfX1);
+        // DC-blocking post-filter high-pass
+        final hpfOut = 0.985 * (vState.hpfY1 + filtered - vState.hpfX1);
         vState.hpfX1 = filtered;
         vState.hpfY1 = hpfOut;
 
-        double output = hpfOut * (hasAccent ? 1.35 : 1.0);
-        if (drive > 0.05) {
+        // VCA Stage & Accent Boost (+6 to +10 dB)
+        double output = hpfOut * (hasAccent ? (1.35 + accentParam * 0.45) : 1.0);
+
+        // Overdrive Saturation Stage
+        if (drive > 0.02) {
           output = _tanh(output * gain);
         }
 
@@ -557,7 +768,18 @@ class LuaEngine {
       final dsp = _snesDspEngines.putIfAbsent(voiceKey, () => SNESDSPEngine());
 
       final seed = (params['Seed'] ?? 42.0).toInt();
-      if (params.containsKey('SFXType')) {
+      if (code.contains('SNESConsole') || code.contains('SNES Synth') || (!params.containsKey('SFXType') && !code.contains('SNESSFX') && !code.contains('Laser') && !code.contains('Explosion') && !code.contains('Powerup') && !code.contains('Coin') && !code.contains('Jump') && !code.contains('Hurt') && !code.contains('Lose') && !code.contains('Button') && !code.contains('Warp'))) {
+        dsp.reset();
+        final v = dsp.voices[0];
+        v.startFreqMult = 1.0;
+        v.endFreqMult = 1.0;
+        v.sweepDuration = 0.0;
+        v.noiseEnabled = false;
+        v.noiseMix = 0.0;
+        v.vibratoRate = 0.0;
+        v.vibratoDepth = 0.0;
+        v.arpeggioNotes = const [];
+      } else if (params.containsKey('SFXType')) {
         final sfxIdx = params['SFXType']!.toInt().clamp(0, 10);
         SNESSFXRGenerator.configureFromType(dsp, sfxIdx, seed: seed);
       } else if (code.contains('Laser')) {
@@ -579,26 +801,26 @@ class LuaEngine {
       } else if (code.contains('Warp')) {
         SNESSFXRGenerator.configureWarp(dsp, DeterministicPRNG(seed));
       } else {
-        SNESSFXRGenerator.configureLaser(dsp, DeterministicPRNG(seed));
+        dsp.reset();
       }
 
       final v0 = dsp.voices[0];
       final isCustom = (params['SFXType']?.toInt() ?? 10) == 10;
 
-      if (isCustom && params.containsKey('Waveform')) {
+      if (params.containsKey('Waveform')) {
         final wIdx = params['Waveform']!.toInt().clamp(0, SNESWaveform.values.length - 1);
         v0.waveform = SNESWaveform.values[wIdx];
       }
-      if (isCustom && params.containsKey('Attack')) {
+      if (params.containsKey('Attack')) {
         v0.attack = params['Attack']!.clamp(0.0005, 2.0);
       }
-      if (isCustom && params.containsKey('Decay')) {
+      if (params.containsKey('Decay')) {
         v0.decay = params['Decay']!.clamp(0.005, 3.0);
       }
-      if (isCustom && params.containsKey('Sustain')) {
+      if (params.containsKey('Sustain')) {
         v0.sustain = params['Sustain']!.clamp(0.0, 1.0);
       }
-      if (isCustom && params.containsKey('Release')) {
+      if (params.containsKey('Release')) {
         v0.release = params['Release']!.clamp(0.005, 3.0);
       }
       if (params.containsKey('PitchSweep')) {
@@ -615,7 +837,7 @@ class LuaEngine {
           v0.endFreqMult = (v0.endFreqMult + sweep).clamp(0.02, 10.0);
         }
       }
-      if (isCustom && params.containsKey('SweepSpeed')) {
+      if (params.containsKey('SweepSpeed')) {
         v0.sweepDuration = params['SweepSpeed']!.clamp(0.005, 2.0);
       }
       if (params.containsKey('VibratoRate') && (isCustom || params['VibratoRate']! > 0.0)) {
@@ -624,7 +846,7 @@ class LuaEngine {
       if (params.containsKey('VibratoDepth') && (isCustom || params['VibratoDepth']! > 0.0)) {
         v0.vibratoDepth = params['VibratoDepth']!.clamp(0.0, 2.0);
       }
-      if (isCustom && params.containsKey('ArpSpeed')) {
+      if (params.containsKey('ArpSpeed')) {
         v0.arpeggioSpeed = params['ArpSpeed']!.clamp(0.01, 1.0);
       }
       if (params.containsKey('EchoDelay')) {
@@ -638,7 +860,7 @@ class LuaEngine {
         dsp.echo.volume = evol;
         dsp.echo.enabled = evol > 0.01;
       }
-      if (params.containsKey('NoiseMix') && (isCustom || params['NoiseMix']! > 0.0)) {
+      if (params.containsKey('NoiseMix')) {
         v0.noiseMix = params['NoiseMix']!.clamp(0.0, 1.0);
       }
 
@@ -771,97 +993,122 @@ class LuaEngine {
       return _tanh(output * 1.3);
     }
 
-    // 1. JC-303 Acid Bass Engine (Modelled after midilab/jc303)
-    if (code.contains('Acid303') || code.contains('TB303') || (code.contains('Overdrive') && code.contains('Resonance') && code.contains('Slide'))) {
+    // 1. JC-303 Acid Bass Engine (Modelled after midilab/jc303 & Open303)
+    if (code.contains('JC303') || code.contains('JC-303') || code.contains('Acid303') || code.contains('TB303') || ((code.contains('Overdrive') || code.contains('Drive')) && code.contains('Resonance') && code.contains('Slide'))) {
+      if (freq <= 0) return 0.0;
+
       final waveType = params['Waveform'] ?? 0.0;
-      final cutoff = params['Cutoff'] ?? 1600.0;
+      final rawCutoff = params['Cutoff'] ?? 1600.0;
+      final cutoff = rawCutoff > 10.0 ? rawCutoff : (200.0 * math.pow(2.0, rawCutoff * 4.5));
       final res = params['Resonance'] ?? 8.0;
       final envMod = params['EnvMod'] ?? 0.75;
-      final decay = params['Decay'] ?? 0.28;
+      final rawDecay = params['Decay'] ?? 0.28;
+      final normalDecay = rawDecay <= 1.0 ? (0.200 + rawDecay * 1.800) : rawDecay;
       final accentParam = params['Accent'] ?? 0.6;
-      final drive = params['Overdrive'] ?? 0.3;
-      final slideParam = params['Slide'] ?? 0.0;
+      final drive = params['Overdrive'] ?? params['Drive'] ?? 0.3;
+      final slideParam = params['Slide'] ?? params['Portamento'] ?? params['Glide'] ?? 0.0;
+      final double glideTime = slideParam > 0.01 ? (0.010 + slideParam * 0.200) : 0.060;
 
-      if (freq <= 0) return 0.0;
+      final tuningOffset = params['Tuning'] ?? params['Pitch'] ?? 0.0;
+      final octaveShift = (params['Octave'] ?? 0.0).round();
+      final subVolume = params['SubVolume'] ?? params['SubOscVolume'] ?? 0.0;
+      final subWave = params['SubWaveform'] ?? 0.0;
 
       final voiceKey = trackId ?? 'default_303';
       final vState = _acidVoiceStates.putIfAbsent(voiceKey, () => _AcidVoiceState());
 
+      final effectiveFreq = freq * math.pow(2.0, octaveShift + (tuningOffset / 12.0));
+
       if (sampleIndex == 0) {
-        if (!isSlide) {
-          // Full state reset for non-slide notes: makes output deterministic so
-          // the PCM cache can store and reuse this note's buffer correctly.
-          vState.lastEnv  = 1.0;
-          vState.startFreq = freq;
-          vState.phase    = 0.0;
-          vState.stage1   = 0.0;
-          vState.stage2   = 0.0;
-          vState.stage3   = 0.0;
-          vState.stage4   = 0.0;
-          vState.hpfX1    = 0.0;
-          vState.hpfY1    = 0.0;
+        if (!isSlide && slideParam <= 0.01) {
+          vState.lastEnv = 1.0;
+          vState.startFreq = effectiveFreq;
+          vState.phase = 0.0;
+          vState.subPhase = 0.0;
+          vState.stage1 = 0.0;
+          vState.stage2 = 0.0;
+          vState.stage3 = 0.0;
+          vState.stage4 = 0.0;
+          vState.hpfX1 = 0.0;
+          vState.hpfY1 = 0.0;
+          vState.feedbackHpfX1 = 0.0;
+          vState.feedbackHpfY1 = 0.0;
         } else {
-          // Slide: carry all filter state from previous note (authentic legato)
-          vState.startFreq = vState.lastFreq > 0 ? vState.lastFreq : freq;
+          vState.startFreq = vState.lastFreq > 0 ? vState.lastFreq : effectiveFreq;
         }
       }
 
-      // Pitch glide / Portamento logic
-      double currentFreq = freq;
+      final bool hasAccent = isAccent || (accentParam > 0.7 && !isSlide);
+      final double activeDecay = hasAccent ? 0.200 : normalDecay.clamp(0.03, 3.0);
+      final double envBoost = hasAccent ? (1.0 + accentParam * 1.25) : 1.0;
+      final double kRes = (res > 1.0 ? (res / 16.0 * 3.85) : (res * 3.85)).clamp(0.0, 3.92);
+      final double gain = drive > 0.02 ? (1.0 + (drive * 3.5)) : 1.0;
+
+      double targetFreq = effectiveFreq;
       if (targetMidiNote != null && targetMidiNote > 0) {
-        final targetFreq = 440.0 * math.pow(2.0, (targetMidiNote - 69) / 12.0);
-        currentFreq = targetFreq + (vState.startFreq - targetFreq) * math.exp(-time / 0.060);
-      } else if (isSlide || slideParam > 0.5) {
-        final targetFreq = targetMidiNote != null ? (440.0 * math.pow(2.0, (targetMidiNote - 69) / 12.0)) : freq;
-        currentFreq = targetFreq + (vState.startFreq - targetFreq) * math.exp(-time / 0.060);
+        targetFreq = 440.0 * math.pow(2.0, ((targetMidiNote + octaveShift * 12) - 69 + tuningOffset) / 12.0);
+      } else if (isSlide || slideParam > 0.01) {
+        targetFreq = targetMidiNote != null
+            ? (440.0 * math.pow(2.0, ((targetMidiNote + octaveShift * 12) - 69 + tuningOffset) / 12.0))
+            : effectiveFreq;
+      }
+
+      double currentFreq = effectiveFreq;
+      if (targetFreq != effectiveFreq || isSlide || slideParam > 0.01 || (vState.startFreq != effectiveFreq)) {
+        currentFreq = targetFreq + (vState.startFreq - targetFreq) * math.exp(-time / glideTime);
       }
       vState.lastFreq = currentFreq;
 
-      // Authentic 303 Oscillators with Continuous Phase Accumulator
       vState.phase = (vState.phase + (currentFreq / 44100.0)) % 1.0;
       final normPhase = vState.phase;
+
       final sawRaw = 2.0 * normPhase - 1.0;
       final sawHP = sawRaw - 0.85 * math.exp(-time * 12.0);
-      final sqrRaw = normPhase < 0.46 ? 0.75 : -0.75;
-      final osc = waveType < 0.5 ? sawHP : sqrRaw;
+      final sqrRaw = normPhase < 0.48 ? 0.78 : -0.78;
+      final mainOsc = (1.0 - waveType) * sawHP + waveType * sqrRaw;
 
-      // Dynamic Accent & VCF Envelope Decay Dynamics
-      final bool hasAccent = isAccent || (accentParam > 0.7 && !isSlide);
-      final envBoost = hasAccent ? (1.0 + accentParam * 1.1) : 1.0;
-      final envDecay = (decay / (hasAccent ? (1.0 + accentParam * 0.9) : 1.0)).clamp(0.02, 2.0);
+      double subOsc = 0.0;
+      if (subVolume > 0.01) {
+        vState.subPhase = (vState.subPhase + (currentFreq * 0.5 / 44100.0)) % 1.0;
+        final subNorm = vState.subPhase;
+        subOsc = subWave > 0.5 ? (subNorm < 0.5 ? 0.7 : -0.7) : math.sin(2.0 * math.pi * subNorm);
+      }
+      final combinedOsc = mainOsc * (1.0 - subVolume * 0.4) + subOsc * (subVolume * 0.6);
 
-      // Envelope calculation (legato vs retriggered)
-      final env = isSlide ? (vState.lastEnv * math.exp(-time / envDecay)) : math.exp(-time / envDecay);
-      vState.lastEnv = env;
+      final softAttack = 1.0 - math.exp(-time / 0.003);
+      final envDecayCurve = math.exp(-time / activeDecay);
+      final baseEnv = isSlide ? (vState.lastEnv * envDecayCurve) : (softAttack * envDecayCurve);
+      vState.lastEnv = baseEnv;
 
-      final accentPulse = hasAccent ? (accentParam * 0.4 * math.exp(-time / 0.035)) : 0.0;
+      final accentPulse = hasAccent ? (accentParam * 0.55 * math.exp(-time / 0.035)) : 0.0;
 
-      // 4-Pole 24dB Diode Ladder Filter cutoff & non-linear saturation
-      final modCutoff = (cutoff + (envMod * (env + accentPulse) * 6500.0 * envBoost)).clamp(40.0, 16000.0);
+      final modCutoff = (cutoff * math.pow(2.0, (baseEnv + accentPulse) * envMod * 5.2 * envBoost)).clamp(30.0, 18000.0);
       final fNorm = (modCutoff / 44100.0 * math.pi * 2.0).clamp(0.005, 0.85);
-      final kRes = (res / 16.0 * 3.85).clamp(0.0, 3.95);
 
-      final feedback = kRes * _tanh(vState.stage4 * 0.45);
-      final inputWithRes = _tanh(osc - feedback);
+      const double hpCutoffHz = 150.0;
+      const double hpAlpha = 1.0 / (1.0 + (2.0 * math.pi * hpCutoffHz / 44100.0));
+      final rawFeedback = kRes * _tanh(vState.stage4 * 0.50);
+      final feedbackHP = hpAlpha * (vState.feedbackHpfY1 + rawFeedback - vState.feedbackHpfX1);
+      vState.feedbackHpfX1 = rawFeedback;
+      vState.feedbackHpfY1 = feedbackHP;
+
+      final inputWithRes = _tanh(combinedOsc - feedbackHP);
 
       vState.stage1 += fNorm * (inputWithRes - vState.stage1);
-      vState.stage2 += fNorm * (vState.stage1 - vState.stage2);
-      vState.stage3 += fNorm * (vState.stage2 - vState.stage3);
-      vState.stage4 += fNorm * (vState.stage3 - vState.stage4);
-      final filtered = vState.stage4 * (1.0 + kRes * 0.22);
+      vState.stage2 += fNorm * (_tanh(vState.stage1) - vState.stage2);
+      vState.stage3 += fNorm * (_tanh(vState.stage2) - vState.stage3);
+      vState.stage4 += fNorm * (_tanh(vState.stage3) - vState.stage4);
+      final filtered = vState.stage4 * (1.0 + kRes * 0.20);
 
-      // Post-VCF 150Hz 1-Pole High-Pass filter (fixes attack transient muting bug)
-      final hpfOut = 0.978 * (vState.hpfY1 + filtered - vState.hpfX1);
+      final hpfOut = 0.985 * (vState.hpfY1 + filtered - vState.hpfX1);
       vState.hpfX1 = filtered;
       vState.hpfY1 = hpfOut;
 
-      double output = hpfOut * (hasAccent ? 1.35 : 1.0);
-      if (drive > 0.05) {
-        final gain = 1.0 + (drive * 4.0);
+      double output = hpfOut * (hasAccent ? (1.35 + accentParam * 0.45) : 1.0);
+      if (drive > 0.02) {
         output = _tanh(output * gain);
       }
 
-      // Smooth raised-cosine boundary fade-out over final 40ms of note buffer
       final fadeSamples = (44100 * 0.04).toInt().clamp(64, math.max(1, totalSamples ~/ 4));
       final samplesRemaining = totalSamples - 1 - sampleIndex;
       double boundaryFade = 1.0;
@@ -991,7 +1238,18 @@ class LuaEngine {
         final seed = (params['Seed'] ?? 42.0).toInt();
 
         // 1. Configure baseline archetype template if SFXType is provided
-        if (params.containsKey('SFXType')) {
+        if (code.contains('SNESConsole') || code.contains('SNES Synth') || (!params.containsKey('SFXType') && !code.contains('SNESSFX') && !code.contains('Laser') && !code.contains('Explosion') && !code.contains('Powerup') && !code.contains('Coin') && !code.contains('Jump') && !code.contains('Hurt') && !code.contains('Lose') && !code.contains('Button') && !code.contains('Warp'))) {
+          dsp.reset();
+          final v = dsp.voices[0];
+          v.startFreqMult = 1.0;
+          v.endFreqMult = 1.0;
+          v.sweepDuration = 0.0;
+          v.noiseEnabled = false;
+          v.noiseMix = 0.0;
+          v.vibratoRate = 0.0;
+          v.vibratoDepth = 0.0;
+          v.arpeggioNotes = const [];
+        } else if (params.containsKey('SFXType')) {
           final sfxIdx = params['SFXType']!.toInt().clamp(0, 10);
           SNESSFXRGenerator.configureFromType(dsp, sfxIdx, seed: seed);
         } else if (code.contains('Laser')) {
@@ -1013,27 +1271,27 @@ class LuaEngine {
         } else if (code.contains('Warp')) {
           SNESSFXRGenerator.configureWarp(dsp, DeterministicPRNG(seed));
         } else {
-          SNESSFXRGenerator.configureLaser(dsp, DeterministicPRNG(seed));
+          dsp.reset();
         }
 
         final v0 = dsp.voices[0];
         final isCustom = (params['SFXType']?.toInt() ?? 10) == 10;
 
         // 2. Apply live parameter overlays so sliders/automations directly modulate the sound
-        if (isCustom && params.containsKey('Waveform')) {
+        if (params.containsKey('Waveform')) {
           final wIdx = params['Waveform']!.toInt().clamp(0, SNESWaveform.values.length - 1);
           v0.waveform = SNESWaveform.values[wIdx];
         }
-        if (isCustom && params.containsKey('Attack')) {
+        if (params.containsKey('Attack')) {
           v0.attack = params['Attack']!.clamp(0.0005, 2.0);
         }
-        if (isCustom && params.containsKey('Decay')) {
+        if (params.containsKey('Decay')) {
           v0.decay = params['Decay']!.clamp(0.005, 3.0);
         }
-        if (isCustom && params.containsKey('Sustain')) {
+        if (params.containsKey('Sustain')) {
           v0.sustain = params['Sustain']!.clamp(0.0, 1.0);
         }
-        if (isCustom && params.containsKey('Release')) {
+        if (params.containsKey('Release')) {
           v0.release = params['Release']!.clamp(0.005, 3.0);
         }
         if (params.containsKey('PitchSweep')) {
@@ -1051,7 +1309,7 @@ class LuaEngine {
             v0.endFreqMult = (v0.endFreqMult + sweep).clamp(0.02, 10.0);
           }
         }
-        if (isCustom && params.containsKey('SweepSpeed')) {
+        if (params.containsKey('SweepSpeed')) {
           v0.sweepDuration = params['SweepSpeed']!.clamp(0.005, 2.0);
         }
         if (params.containsKey('VibratoRate') && (isCustom || params['VibratoRate']! > 0.0)) {
@@ -1060,7 +1318,7 @@ class LuaEngine {
         if (params.containsKey('VibratoDepth') && (isCustom || params['VibratoDepth']! > 0.0)) {
           v0.vibratoDepth = params['VibratoDepth']!.clamp(0.0, 2.0);
         }
-        if (isCustom && params.containsKey('ArpSpeed')) {
+        if (params.containsKey('ArpSpeed')) {
           v0.arpeggioSpeed = params['ArpSpeed']!.clamp(0.01, 1.0);
         }
         if (params.containsKey('EchoDelay')) {
@@ -1074,7 +1332,7 @@ class LuaEngine {
           dsp.echo.volume = evol;
           dsp.echo.enabled = evol > 0.01;
         }
-        if (params.containsKey('NoiseMix') && (isCustom || params['NoiseMix']! > 0.0)) {
+        if (params.containsKey('NoiseMix')) {
           final nm = params['NoiseMix']!.clamp(0.0, 1.0);
           v0.noiseMix = nm;
         }
@@ -1280,6 +1538,7 @@ class LuaEngine {
 
 class _AcidVoiceState {
   double phase = 0.0;
+  double subPhase = 0.0;
   double lastEnv = 1.0;
   double lastFreq = 0.0;
   double startFreq = 0.0;
@@ -1289,6 +1548,8 @@ class _AcidVoiceState {
   double stage4 = 0.0;
   double hpfX1 = 0.0;
   double hpfY1 = 0.0;
+  double feedbackHpfX1 = 0.0;
+  double feedbackHpfY1 = 0.0;
 }
 
 class _HiHatVoiceState {

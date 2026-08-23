@@ -37,6 +37,10 @@ class _ArrangerViewState extends State<ArrangerView> {
   bool _isSyncingScroll = false;
   bool _isMiddleMouseDragging = false;
   bool _showInspector = false;
+  static const double _kDefaultInspectorWidth = 290.0;
+  static const double _kMinInspectorWidth = 290.0;
+  static const double _kMaxInspectorWidth = 720.0;
+  double _inspectorWidth = _kDefaultInspectorWidth;
   double _moveDragDxAccumulator = 0.0;
   double _resizeDragDxAccumulator = 0.0;
   double _chordMoveDragDxAccumulator = 0.0;
@@ -75,7 +79,7 @@ class _ArrangerViewState extends State<ArrangerView> {
           top: 0,
           bottom: 0,
           left: 0,
-          right: (isBrowserOpen ? 320.0 : 0.0) + (isInspectorVisible ? 290.0 : 0.0),
+          right: (isBrowserOpen ? 320.0 : 0.0) + (isInspectorVisible ? _inspectorWidth : 0.0),
           child: Column(
             children: [
               // Multitrack Grid & Track Panels (Synchronized Scroll)
@@ -523,7 +527,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                 crossAxisAlignment: CrossAxisAlignment.start,
                                                 mainAxisAlignment: MainAxisAlignment.center,
                                                 children: [
-                                                  // Row 1: Readable Name (with emoji support) & Follow, M, S, FX Action Buttons
+                                                  // Row 1: Readable Name (with emoji support) & Follow, M, S Action Buttons
                                                   Row(
                                                     children: [
                                                       Expanded(
@@ -544,8 +548,6 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                       _buildMuteButton(track),
                                                       const SizedBox(width: 2),
                                                       _buildSoloButton(track),
-                                                      const SizedBox(width: 2),
-                                                      _buildFXButton(track),
                                                     ],
                                                   ),
                                                   const SizedBox(height: 4),
@@ -1453,13 +1455,19 @@ class _ArrangerViewState extends State<ArrangerView> {
     bottom: 0,
     right: isInspectorVisible
         ? (isBrowserOpen ? 320.0 : 0.0)
-        : -300.0,
-    width: 290.0,
+        : -(_inspectorWidth + 10.0),
+    width: _inspectorWidth,
     child: RepaintBoundary(
       child: isInspectorVisible
           ? ArrangerContextInspector(
               dawState: widget.dawState,
+              width: _inspectorWidth,
               onClose: () => setState(() => _showInspector = false),
+              onResize: (deltaX) {
+                setState(() {
+                  _inspectorWidth = (_inspectorWidth - deltaX).clamp(_kMinInspectorWidth, _kMaxInspectorWidth);
+                });
+              },
             )
           : const SizedBox(),
     ),
@@ -1496,34 +1504,6 @@ class _ArrangerViewState extends State<ArrangerView> {
     );
   }
 
-  Widget _buildFXButton(TrackChannel track) {
-    final hasFX = track.fxRack.any((f) => f.enabled);
-    return GestureDetector(
-      onTap: () {
-        final tIdx = widget.dawState.activePattern.tracks.indexWhere((t) => t.id == track.id);
-        if (tIdx != -1) {
-          widget.dawState.activeTrackIndex = tIdx;
-        }
-        showFxRackDialog(context, widget.dawState, track);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        decoration: BoxDecoration(
-          color: hasFX ? EatsTheme.primaryCyan.withOpacity(0.3) : EatsTheme.panelHeader,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: hasFX ? EatsTheme.primaryCyan : Colors.transparent, width: 0.5),
-        ),
-        child: Text(
-          'FX',
-          style: TextStyle(
-            color: hasFX ? EatsTheme.primaryCyan : EatsTheme.textMuted,
-            fontSize: 9,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildFollowModeButton(TrackChannel track) {
     final mode = track.chordFollowMode;

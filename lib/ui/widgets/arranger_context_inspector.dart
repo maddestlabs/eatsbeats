@@ -3,6 +3,8 @@ import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
 import 'midi_fx_rack_widget.dart';
+import 'modular_fx_rack_widget.dart';
+import 'eats_color_picker_dialog.dart';
 
 enum InspectorTab { track, clip }
 
@@ -10,12 +12,16 @@ class ArrangerContextInspector extends StatefulWidget {
   final DawState dawState;
   final VoidCallback onClose;
   final InspectorTab initialTab;
+  final double? width;
+  final ValueChanged<double>? onResize;
 
   const ArrangerContextInspector({
     super.key,
     required this.dawState,
     required this.onClose,
     this.initialTab = InspectorTab.track,
+    this.width,
+    this.onResize,
   });
 
   @override
@@ -27,18 +33,17 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
   final TextEditingController _clipNameController = TextEditingController();
   bool _isEditingTrackName = false;
   bool _isEditingClipName = false;
-  bool _isColorsExpanded = false;
   String? _lastTrackId;
   String? _lastClipId;
 
-  static const List<Color> _initialColorPalette = [
+  static const List<Color> _quickColorPalette = [
     Color(0xFF21F4E8), // Neon Cyan
-    Color(0xFFFF8C00), // Vintage Amber
-    Color(0xFF00FF66), // Acid Green
     Color(0xFFFF007A), // Hot Pink
+    Color(0xFF00FF66), // Acid Green
     Color(0xFFBD00FF), // Electric Purple
+    Color(0xFFFF8C00), // Neon Amber
+    Color(0xFFFFE600), // Yellow
     Color(0xFFFF3333), // Crimson Red
-    Color(0xFFFFD700), // Gold
     Color(0xFF3399FF), // Sky Blue
   ];
 
@@ -112,9 +117,10 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
   Widget build(BuildContext context) {
     final track = widget.dawState.activeTrack;
     final clip = widget.dawState.activeClip;
+    final currentWidth = widget.width ?? 290.0;
 
     return Container(
-      width: 290,
+      width: currentWidth,
       decoration: BoxDecoration(
         color: EatsTheme.panelBackground,
         border: const Border(left: BorderSide(color: Color(0xFF2B3245), width: 1.2)),
@@ -126,91 +132,127 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
           ),
         ],
       ),
-      child: Column(
+      child: Stack(
         children: [
-          // Context-Sensitive Sidebar Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: BoxDecoration(
-              color: EatsTheme.panelHeader,
-              border: const Border(bottom: BorderSide(color: Color(0xFF2B3245), width: 1)),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  clip != null ? Icons.view_timeline : Icons.tune,
-                  size: 14,
-                  color: clip != null ? EatsTheme.accentGold : EatsTheme.primaryCyan,
+          Column(
+            children: [
+              // Context-Sensitive Sidebar Header
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: EatsTheme.panelHeader,
+                  border: const Border(bottom: BorderSide(color: Color(0xFF2B3245), width: 1)),
                 ),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: Text(
-                    'PROPERTIES',
-                    style: TextStyle(
-                      color: EatsTheme.textPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 10.5,
-                      letterSpacing: 0.8,
+                child: Row(
+                  children: [
+                    Icon(
+                      clip != null ? Icons.view_timeline : Icons.tune,
+                      size: 14,
+                      color: clip != null ? EatsTheme.accentGold : EatsTheme.primaryCyan,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (clip != null) ...[
-                  InkWell(
-                    onTap: () => widget.dawState.selectClip(null),
-                    borderRadius: BorderRadius.circular(4),
-                    child: Container(
-                      constraints: const BoxConstraints(maxWidth: 85),
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: EatsTheme.controlBackground,
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        'PROPERTIES',
+                        style: EatsTheme.getPrimaryFontStyle(
+                          color: clip != null ? EatsTheme.accentGold : EatsTheme.primaryCyan,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10.5,
+                          letterSpacing: 0.8,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (clip != null) ...[
+                      InkWell(
+                        onTap: () => widget.dawState.selectClip(null),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: track.color.withOpacity(0.5), width: 0.8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.arrow_back, size: 9, color: track.color),
-                          const SizedBox(width: 2),
-                          Flexible(
-                            child: Text(
-                              track.name,
-                              style: TextStyle(color: track.color, fontSize: 8, fontWeight: FontWeight.bold),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                        child: Container(
+                          constraints: const BoxConstraints(maxWidth: 85),
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: EatsTheme.controlBackground,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: track.color.withOpacity(0.5), width: 0.8),
                           ),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.arrow_back, size: 9, color: track.color),
+                              const SizedBox(width: 2),
+                              Flexible(
+                                child: Text(
+                                  track.name,
+                                  style: TextStyle(color: track.color, fontSize: 8, fontWeight: FontWeight.bold),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
+                      const SizedBox(width: 4),
+                    ],
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right, size: 18),
+                      color: EatsTheme.textMuted,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                      tooltip: 'Close Inspector',
+                      onPressed: widget.onClose,
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                IconButton(
-                  icon: const Icon(Icons.chevron_right, size: 18),
-                  color: EatsTheme.textMuted,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                  tooltip: 'Close Inspector',
-                  onPressed: widget.onClose,
+                  ],
                 ),
-              ],
-            ),
+              ),
+
+              // Context-Sensitive Inspector Body (Track OR Clip)
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.all(12),
+                  children: [
+                    if (clip != null)
+                      _buildClipSection(context, track, clip)
+                    else
+                      _buildTrackSection(context, track),
+                  ],
+                ),
+              ),
+            ],
           ),
 
-          // Context-Sensitive Inspector Body (Track OR Clip)
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(12),
-              children: [
-                if (clip != null)
-                  _buildClipSection(context, track, clip)
-                else
-                  _buildTrackSection(context, track),
-              ],
+          // Left-Edge Drag Resize Handle
+          if (widget.onResize != null)
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 8,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.resizeColumn,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragUpdate: (details) {
+                    widget.onResize?.call(details.delta.dx);
+                  },
+                  child: Container(
+                    width: 8,
+                    color: Colors.transparent,
+                    child: Center(
+                      child: Container(
+                        width: 2,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: EatsTheme.textMuted.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(1),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -342,7 +384,6 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                   },
                 ),
                 const SizedBox(height: 6),
-                // Emoji Palette for Quick Symbols
                 Wrap(
                   spacing: 4,
                   runSpacing: 4,
@@ -417,7 +458,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
 
         const SizedBox(height: 10),
 
-        // Track Color Palette Selector
+        // 1. Track Color Palette & Color Picker Dialog
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
@@ -432,20 +473,44 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                 children: [
                   Text('TRACK COLOR', style: TextStyle(color: EatsTheme.textMuted, fontSize: 9, fontWeight: FontWeight.bold)),
                   const Spacer(),
-                  GestureDetector(
-                    onTap: () => setState(() => _isColorsExpanded = !_isColorsExpanded),
-                    child: Text(
-                      _isColorsExpanded ? 'LESS' : '+ MORE',
-                      style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 8.5, fontWeight: FontWeight.bold),
+                  InkWell(
+                    onTap: () {
+                      showEatsColorPickerDialog(
+                        context,
+                        currentColor: track.color,
+                        onColorSelected: (newColor) {
+                          widget.dawState.setTrackColor(track, newColor);
+                        },
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: EatsTheme.controlBackground,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.5)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.palette, size: 11, color: EatsTheme.primaryCyan),
+                          const SizedBox(width: 3),
+                          Text(
+                            'PALETTE...',
+                            style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 8.5, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
-                children: (_isColorsExpanded ? _expandedColorPalette : _initialColorPalette).map((color) {
+                children: _quickColorPalette.map((color) {
                   final isSelected = color.value == track.color.value;
                   return GestureDetector(
                     onTap: () => widget.dawState.setTrackColor(track, color),
@@ -474,15 +539,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
 
         const SizedBox(height: 10),
 
-        // Pre-Instrument MIDI FX Rack
-        MidiFxRackWidget(
-          dawState: widget.dawState,
-          track: track,
-        ),
-
-        const SizedBox(height: 10),
-
-        // Track Quick Action Strip (Add Clip, Duplicate Track, Delete Track, Order Up/Down)
+        // 2. Track Quick Action Strip (Immediately after Track Color)
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
@@ -592,6 +649,22 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
               ),
             ],
           ),
+        ),
+
+        const SizedBox(height: 10),
+
+        // 3. Pre-Instrument MIDI FX Rack
+        MidiFxRackWidget(
+          dawState: widget.dawState,
+          track: track,
+        ),
+
+        const SizedBox(height: 10),
+
+        // 4. Audio FX Insert Rack (After MIDI FX Rack)
+        ModularFxRackWidget(
+          dawState: widget.dawState,
+          track: track,
         ),
       ],
     );

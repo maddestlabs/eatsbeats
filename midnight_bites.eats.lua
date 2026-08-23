@@ -354,7 +354,7 @@ return ProceduralHiHat
         },
         {
           id = "t_lua_303",
-          name = "Eats 303",
+          name = "JC-303",
           color = 0xff00ff66,
           type = "luaScript",
           volume = 0.900,
@@ -370,38 +370,47 @@ return ProceduralHiHat
           trackerColumns = 4,
           activeView = "pianoRoll",
           luaScriptCode = [[
--- --- JC-303 Roland TB-303 Acid Engine (Lua) ---
-local Acid303 = {}
+-- --- JC-303 Acid Bassline (midilab/jc303 & Open303) ---
+local JC303 = {}
 
-function Acid303.init()
-  Param.add("Waveform", 0.0, 1.0, 0.0)    -- 0 = Saw, 1 = Square
-  Param.add("Cutoff", 100.0, 6500.0, 1600.0)
-  Param.add("Resonance", 0.5, 16.0, 8.0)
-  Param.add("EnvMod", 0.0, 1.0, 0.75)
-  Param.add("Decay", 0.05, 1.2, 0.28)
-  Param.add("Accent", 0.0, 1.0, 0.6)
-  Param.add("Slide", 0.0, 1.0, 0.4)
-  Param.add("Overdrive", 0.0, 1.0, 0.3)
+function JC303.init()
+  Param.add("Waveform", 0.0, 1.0, 0.0, 1.0)       -- 0 = Saw, 1 = Square
+  Param.add("Pitch", -12.0, 12.0, 0.0, 1.0)       -- Tuning semitones
+  Param.add("Cutoff", 200.0, 4500.0, 1400.0)      -- Base VCF Cutoff
+  Param.add("Resonance", 0.5, 16.0, 9.2)          -- Diode Ladder Q with 150Hz Feedback HPF
+  Param.add("EnvMod", 0.0, 1.0, 0.75)             -- Exponential VCF Envelope Sweep
+  Param.add("Decay", 0.05, 1.2, 0.28)             -- Non-accented Decay (forced 200ms on Accent)
+  Param.add("Accent", 0.0, 1.0, 0.78)             -- Accent Cutoff Pulse & Gain Boost
+  Param.add("Octave", -2.0, 0.0, 0.0, 1.0)        -- Octave Transpose (-2, -1, 0)
+  Param.add("SubWaveform", 0.0, 1.0, 0.0, 1.0)    -- Sub-Oscillator Waveform
+  Param.add("SubVolume", 0.0, 1.0, 0.0)           -- Sub-Oscillator Level
+  Param.add("Drive", 0.0, 1.0, 0.25)              -- Analog Overdrive Saturation
+  Param.add("Slide", 0.0, 1.0, 0.0)               -- 60ms Portamento Legato Slide
 end
 
-function Acid303.process(time, freq, note, params, targetNote, isSlide, isAccent)
+function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
   local waveType = params["Waveform"] or 0.0
-  local cutoff = params["Cutoff"] or 1600.0
-  local res = params["Resonance"] or 8.0
+  local pitch = params["Pitch"] or 0.0
+  local cutoff = params["Cutoff"] or 1400.0
+  local res = params["Resonance"] or 9.2
   local envMod = params["EnvMod"] or 0.75
   local decay = params["Decay"] or 0.28
-  local accent = params["Accent"] or 0.6
-  local drive = params["Overdrive"] or 0.3
-  local slideParam = params["Slide"] or 0.4
+  local accent = params["Accent"] or 0.78
+  local drive = params["Drive"] or params["Overdrive"] or 0.25
+  local octave = math.floor((params["Octave"] or 0.0) + 0.5)
+  local subWave = params["SubWaveform"] or 0.0
+  local subVol = params["SubVolume"] or 0.0
+  local slideParam = params["Slide"] or 0.0
 
   -- Pitch glide / Portamento logic for JC-303 continuous monophonic voice
-  local currentFreq = freq
+  local baseFreq = freq * (2.0 ^ (octave + pitch / 12.0))
+  local currentFreq = baseFreq
   if targetNote and targetNote > 0 then
-    local targetFreq = 440.0 * (2.0 ^ ((targetNote - 69) / 12.0))
-    currentFreq = targetFreq + (freq - targetFreq) * math.exp(-time / 0.060)
+    local targetFreq = 440.0 * (2.0 ^ ((targetNote + octave * 12 + pitch - 69) / 12.0))
+    currentFreq = targetFreq + (baseFreq - targetFreq) * math.exp(-time / 0.060)
   elseif isSlide or slideParam > 0.5 then
-    local targetFreq = targetNote and (440.0 * (2.0 ^ ((targetNote - 69) / 12.0))) or freq
-    currentFreq = targetFreq + (freq - targetFreq) * math.exp(-time / 0.060)
+    local targetFreq = targetNote and (440.0 * (2.0 ^ ((targetNote + octave * 12 + pitch - 69) / 12.0))) or baseFreq
+    currentFreq = targetFreq + (baseFreq - targetFreq) * math.exp(-time / 0.060)
   end
 
   -- JC-303 Oscillators: Leaky Integrator Sawtooth & Differentiated Square
@@ -409,31 +418,80 @@ function Acid303.process(time, freq, note, params, targetNote, isSlide, isAccent
   local normPhase = phase - math.floor(phase)
   local sawRaw = 2.0 * normPhase - 1.0
   local sawHP = sawRaw - 0.85 * math.exp(-time * 12.0)
-  local sqrRaw = normPhase < 0.46 and 0.75 or -0.75
-  local osc = waveType < 0.5 and sawHP or sqrRaw
+  local sqrRaw = normPhase < 0.48 and 0.78 or -0.78
+  local osc = (1.0 - waveType) * sawHP + waveType * sqrRaw
 
-  -- Dynamic Accent & VCF Envelope Decay Dynamics
+  if subVol > 0.01 then
+    local subPhase = time * (currentFreq * 0.5)
+    local subNorm = subPhase - math.floor(subPhase)
+    local subOsc = subWave > 0.5 and (subNorm < 0.5 and 0.7 or -0.7) or math.sin(6.283185 * subNorm)
+    osc = osc * (1.0 - subVol * 0.4) + subOsc * (subVol * 0.6)
+  end
+
+  -- Dynamic Accent & VCF Envelope Decay Dynamics (TB-303 / Open303 Model)
   local hasAccent = isAccent or (accent > 0.7 and not isSlide)
-  local envBoost = hasAccent and (1.0 + accent * 1.1) or 1.0
-  local envDecay = decay / (hasAccent and (1.0 + accent * 0.9) or 1.0)
-  local env = math.exp(-time / envDecay)
-  local accentPulse = hasAccent and (accent * 0.4 * math.exp(-time / 0.035)) or 0.0
+  local envBoost = hasAccent and (1.0 + accent * 1.25) or 1.0
+  local activeDecay = hasAccent and 0.200 or (decay <= 1.0 and (0.200 + decay * 1.800) or decay)
+  local softAttack = 1.0 - math.exp(-time / 0.003)
+  local env = softAttack * math.exp(-time / activeDecay)
+  local accentPulse = hasAccent and (accent * 0.55 * math.exp(-time / 0.035)) or 0.0
 
-  -- 24dB 4-Pole Diode Ladder Filter simulation with feedback saturation
-  local modCutoff = cutoff + (envMod * (env + accentPulse) * 6500.0 * envBoost)
-  local filtered = DSP.lowpass(osc, modCutoff, res)
+  -- 24dB 4-Pole Diode Ladder Filter with non-linear diode saturation
+  local modCutoff = (cutoff * (2.0 ^ ((env + accentPulse) * envMod * 5.2 * envBoost)))
+  local filtered = DSP.lowpass(osc, math.min(18000.0, math.max(30.0, modCutoff)), res)
 
   -- Post-VCF 150Hz 1-Pole High-Pass filter & overdrive saturation
-  local highpassed = filtered * 0.98
-  local output = highpassed * (hasAccent and 1.35 or 1.0)
-  if drive > 0.05 then
-    output = math.tanh(output * (1.0 + drive * 4.0))
+  local highpassed = filtered * 0.985
+  local output = highpassed * (hasAccent and (1.35 + accent * 0.45) or 1.0)
+  if drive > 0.02 then
+    output = math.tanh(output * (1.0 + drive * 3.5))
   end
 
   return output
 end
 
-return Acid303
+function JC303.gui()
+  return {
+    panel = {
+      title = "JC-303 ACID BASSLINE",
+      subtitle = "midilab/jc303 & Open303 Transistor Bass",
+      background = "silver",
+      accent = "track",
+      knobStyle = "chrome",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "switch", param = "Waveform", label = "WAVEFORM", options = {"SAW", "SQR"} },
+            { type = "divider", orientation = "vertical", height = 62 },
+            { type = "knob", param = "Pitch", label = "PITCH", size = 52, knobStyle = "chrome" },
+            { type = "knob", param = "Cutoff", label = "CUTOFF", size = 58, knobStyle = "chrome" },
+            { type = "knob", param = "Resonance", label = "RESONANCE", size = 58, knobStyle = "chrome" },
+            { type = "knob", param = "EnvMod", label = "ENV MOD", size = 54, knobStyle = "chrome" },
+            { type = "knob", param = "Decay", label = "DECAY", size = 54, knobStyle = "chrome" },
+            { type = "knob", param = "Accent", label = "ACCENT", size = 54, knobStyle = "chrome" },
+          }
+        },
+        { type = "divider", orientation = "horizontal" },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Octave", label = "OCTAVE", size = 50, knobStyle = "chrome" },
+            { type = "divider", orientation = "vertical", height = 56 },
+            { type = "switch", param = "SubWaveform", label = "SUB OSC", options = {"SIN", "SQR"} },
+            { type = "knob", param = "SubVolume", label = "SUB VOL", size = 52, knobStyle = "chrome" },
+            { type = "divider", orientation = "vertical", height = 56 },
+            { type = "slider", param = "Slide", label = "PORTAMENTO SLIDE", orientation = "horizontal", size = 140 },
+            { type = "divider", orientation = "vertical", height = 56 },
+            { type = "knob", param = "Drive", label = "DRIVE", size = 54, knobStyle = "chrome" },
+          }
+        }
+      }
+    }
+  }
+end
+
+return JC303
 
           ]],
           luaParams = {
@@ -850,38 +908,47 @@ return ProceduralHiHat
           trackerColumns = 4,
           activeView = "pianoRoll",
           luaScriptCode = [[
--- --- JC-303 Roland TB-303 Acid Engine (Lua) ---
-local Acid303 = {}
+-- --- JC-303 Acid Bassline (midilab/jc303 & Open303) ---
+local JC303 = {}
 
-function Acid303.init()
-  Param.add("Waveform", 0.0, 1.0, 0.0)    -- 0 = Saw, 1 = Square
-  Param.add("Cutoff", 100.0, 6500.0, 1600.0)
-  Param.add("Resonance", 0.5, 16.0, 8.0)
-  Param.add("EnvMod", 0.0, 1.0, 0.75)
-  Param.add("Decay", 0.05, 1.2, 0.28)
-  Param.add("Accent", 0.0, 1.0, 0.6)
-  Param.add("Slide", 0.0, 1.0, 0.4)
-  Param.add("Overdrive", 0.0, 1.0, 0.3)
+function JC303.init()
+  Param.add("Waveform", 0.0, 1.0, 0.0, 1.0)       -- 0 = Saw, 1 = Square
+  Param.add("Pitch", -12.0, 12.0, 0.0, 1.0)       -- Tuning semitones
+  Param.add("Cutoff", 200.0, 4500.0, 1400.0)      -- Base VCF Cutoff
+  Param.add("Resonance", 0.5, 16.0, 9.2)          -- Diode Ladder Q with 150Hz Feedback HPF
+  Param.add("EnvMod", 0.0, 1.0, 0.75)             -- Exponential VCF Envelope Sweep
+  Param.add("Decay", 0.05, 1.2, 0.28)             -- Non-accented Decay (forced 200ms on Accent)
+  Param.add("Accent", 0.0, 1.0, 0.78)             -- Accent Cutoff Pulse & Gain Boost
+  Param.add("Octave", -2.0, 0.0, 0.0, 1.0)        -- Octave Transpose (-2, -1, 0)
+  Param.add("SubWaveform", 0.0, 1.0, 0.0, 1.0)    -- Sub-Oscillator Waveform
+  Param.add("SubVolume", 0.0, 1.0, 0.0)           -- Sub-Oscillator Level
+  Param.add("Drive", 0.0, 1.0, 0.25)              -- Analog Overdrive Saturation
+  Param.add("Slide", 0.0, 1.0, 0.0)               -- 60ms Portamento Legato Slide
 end
 
-function Acid303.process(time, freq, note, params, targetNote, isSlide, isAccent)
+function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
   local waveType = params["Waveform"] or 0.0
-  local cutoff = params["Cutoff"] or 1600.0
-  local res = params["Resonance"] or 8.0
+  local pitch = params["Pitch"] or 0.0
+  local cutoff = params["Cutoff"] or 1400.0
+  local res = params["Resonance"] or 9.2
   local envMod = params["EnvMod"] or 0.75
   local decay = params["Decay"] or 0.28
-  local accent = params["Accent"] or 0.6
-  local drive = params["Overdrive"] or 0.3
-  local slideParam = params["Slide"] or 0.4
+  local accent = params["Accent"] or 0.78
+  local drive = params["Drive"] or params["Overdrive"] or 0.25
+  local octave = math.floor((params["Octave"] or 0.0) + 0.5)
+  local subWave = params["SubWaveform"] or 0.0
+  local subVol = params["SubVolume"] or 0.0
+  local slideParam = params["Slide"] or 0.0
 
   -- Pitch glide / Portamento logic for JC-303 continuous monophonic voice
-  local currentFreq = freq
+  local baseFreq = freq * (2.0 ^ (octave + pitch / 12.0))
+  local currentFreq = baseFreq
   if targetNote and targetNote > 0 then
-    local targetFreq = 440.0 * (2.0 ^ ((targetNote - 69) / 12.0))
-    currentFreq = targetFreq + (freq - targetFreq) * math.exp(-time / 0.060)
+    local targetFreq = 440.0 * (2.0 ^ ((targetNote + octave * 12 + pitch - 69) / 12.0))
+    currentFreq = targetFreq + (baseFreq - targetFreq) * math.exp(-time / 0.060)
   elseif isSlide or slideParam > 0.5 then
-    local targetFreq = targetNote and (440.0 * (2.0 ^ ((targetNote - 69) / 12.0))) or freq
-    currentFreq = targetFreq + (freq - targetFreq) * math.exp(-time / 0.060)
+    local targetFreq = targetNote and (440.0 * (2.0 ^ ((targetNote + octave * 12 + pitch - 69) / 12.0))) or baseFreq
+    currentFreq = targetFreq + (baseFreq - targetFreq) * math.exp(-time / 0.060)
   end
 
   -- JC-303 Oscillators: Leaky Integrator Sawtooth & Differentiated Square
@@ -889,31 +956,80 @@ function Acid303.process(time, freq, note, params, targetNote, isSlide, isAccent
   local normPhase = phase - math.floor(phase)
   local sawRaw = 2.0 * normPhase - 1.0
   local sawHP = sawRaw - 0.85 * math.exp(-time * 12.0)
-  local sqrRaw = normPhase < 0.46 and 0.75 or -0.75
-  local osc = waveType < 0.5 and sawHP or sqrRaw
+  local sqrRaw = normPhase < 0.48 and 0.78 or -0.78
+  local osc = (1.0 - waveType) * sawHP + waveType * sqrRaw
 
-  -- Dynamic Accent & VCF Envelope Decay Dynamics
+  if subVol > 0.01 then
+    local subPhase = time * (currentFreq * 0.5)
+    local subNorm = subPhase - math.floor(subPhase)
+    local subOsc = subWave > 0.5 and (subNorm < 0.5 and 0.7 or -0.7) or math.sin(6.283185 * subNorm)
+    osc = osc * (1.0 - subVol * 0.4) + subOsc * (subVol * 0.6)
+  end
+
+  -- Dynamic Accent & VCF Envelope Decay Dynamics (TB-303 / Open303 Model)
   local hasAccent = isAccent or (accent > 0.7 and not isSlide)
-  local envBoost = hasAccent and (1.0 + accent * 1.1) or 1.0
-  local envDecay = decay / (hasAccent and (1.0 + accent * 0.9) or 1.0)
-  local env = math.exp(-time / envDecay)
-  local accentPulse = hasAccent and (accent * 0.4 * math.exp(-time / 0.035)) or 0.0
+  local envBoost = hasAccent and (1.0 + accent * 1.25) or 1.0
+  local activeDecay = hasAccent and 0.200 or (decay <= 1.0 and (0.200 + decay * 1.800) or decay)
+  local softAttack = 1.0 - math.exp(-time / 0.003)
+  local env = softAttack * math.exp(-time / activeDecay)
+  local accentPulse = hasAccent and (accent * 0.55 * math.exp(-time / 0.035)) or 0.0
 
-  -- 24dB 4-Pole Diode Ladder Filter simulation with feedback saturation
-  local modCutoff = cutoff + (envMod * (env + accentPulse) * 6500.0 * envBoost)
-  local filtered = DSP.lowpass(osc, modCutoff, res)
+  -- 24dB 4-Pole Diode Ladder Filter with non-linear diode saturation
+  local modCutoff = (cutoff * (2.0 ^ ((env + accentPulse) * envMod * 5.2 * envBoost)))
+  local filtered = DSP.lowpass(osc, math.min(18000.0, math.max(30.0, modCutoff)), res)
 
   -- Post-VCF 150Hz 1-Pole High-Pass filter & overdrive saturation
-  local highpassed = filtered * 0.98
-  local output = highpassed * (hasAccent and 1.35 or 1.0)
-  if drive > 0.05 then
-    output = math.tanh(output * (1.0 + drive * 4.0))
+  local highpassed = filtered * 0.985
+  local output = highpassed * (hasAccent and (1.35 + accent * 0.45) or 1.0)
+  if drive > 0.02 then
+    output = math.tanh(output * (1.0 + drive * 3.5))
   end
 
   return output
 end
 
-return Acid303
+function JC303.gui()
+  return {
+    panel = {
+      title = "JC-303 ACID BASSLINE",
+      subtitle = "midilab/jc303 & Open303 Transistor Bass",
+      background = "silver",
+      accent = "track",
+      knobStyle = "chrome",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "switch", param = "Waveform", label = "WAVEFORM", options = {"SAW", "SQR"} },
+            { type = "divider", orientation = "vertical", height = 62 },
+            { type = "knob", param = "Pitch", label = "PITCH", size = 52, knobStyle = "chrome" },
+            { type = "knob", param = "Cutoff", label = "CUTOFF", size = 58, knobStyle = "chrome" },
+            { type = "knob", param = "Resonance", label = "RESONANCE", size = 58, knobStyle = "chrome" },
+            { type = "knob", param = "EnvMod", label = "ENV MOD", size = 54, knobStyle = "chrome" },
+            { type = "knob", param = "Decay", label = "DECAY", size = 54, knobStyle = "chrome" },
+            { type = "knob", param = "Accent", label = "ACCENT", size = 54, knobStyle = "chrome" },
+          }
+        },
+        { type = "divider", orientation = "horizontal" },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Octave", label = "OCTAVE", size = 50, knobStyle = "chrome" },
+            { type = "divider", orientation = "vertical", height = 56 },
+            { type = "switch", param = "SubWaveform", label = "SUB OSC", options = {"SIN", "SQR"} },
+            { type = "knob", param = "SubVolume", label = "SUB VOL", size = 52, knobStyle = "chrome" },
+            { type = "divider", orientation = "vertical", height = 56 },
+            { type = "slider", param = "Slide", label = "PORTAMENTO SLIDE", orientation = "horizontal", size = 140 },
+            { type = "divider", orientation = "vertical", height = 56 },
+            { type = "knob", param = "Drive", label = "DRIVE", size = 54, knobStyle = "chrome" },
+          }
+        }
+      }
+    }
+  }
+end
+
+return JC303
 
           ]],
           luaParams = {

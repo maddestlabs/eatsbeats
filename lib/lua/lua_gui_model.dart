@@ -10,12 +10,28 @@ enum LuaGuiNodeType {
   nixie,
   lcd,
   meter,
+  divider,
   row,
   column,
   group,
   label,
   spacer,
   unknown,
+}
+
+enum KnobStyle {
+  standard,
+  chrome,
+  vintage,
+  snes,
+}
+
+enum PanelBackgroundStyle {
+  dark,
+  silver,
+  grunge,
+  snes,
+  custom,
 }
 
 class LuaGuiNode {
@@ -33,6 +49,8 @@ class LuaGuiNode {
   final String? leftText;
   final String? rightText;
   final String? text;
+  final String? action;
+  final KnobStyle knobStyle;
   final List<LuaGuiNode> children;
 
   const LuaGuiNode({
@@ -50,6 +68,8 @@ class LuaGuiNode {
     this.leftText,
     this.rightText,
     this.text,
+    this.action,
+    this.knobStyle = KnobStyle.standard,
     this.children = const [],
   });
 
@@ -67,6 +87,7 @@ class LuaGuiNode {
       case 'switch':
       case 'toggle':
       case 'rocker':
+      case 'slideswitch':
         return LuaGuiNodeType.switchToggle;
       case 'button':
       case 'pushbutton':
@@ -86,6 +107,12 @@ class LuaGuiNode {
       case 'meter':
       case 'vumeter':
         return LuaGuiNodeType.meter;
+      case 'divider':
+      case 'separator':
+      case 'line':
+      case 'vbar':
+      case 'hbar':
+        return LuaGuiNodeType.divider;
       case 'row':
       case 'hgroup':
       case 'hbox':
@@ -110,11 +137,44 @@ class LuaGuiNode {
     }
   }
 
+  static KnobStyle parseKnobStyle(String? raw) {
+    if (raw == null) return KnobStyle.standard;
+    final clean = raw.toLowerCase().trim();
+    if (clean.contains('snes') || clean.contains('white') || clean.contains('controller') || clean.contains('famicom')) {
+      return KnobStyle.snes;
+    }
+    if (clean.contains('chrome') || clean.contains('303') || clean.contains('metal') || clean.contains('silver')) {
+      return KnobStyle.chrome;
+    }
+    if (clean.contains('vintage') || clean.contains('retro') || clean.contains('bakelite')) {
+      return KnobStyle.vintage;
+    }
+    return KnobStyle.standard;
+  }
+
+  static PanelBackgroundStyle parseBackgroundStyle(String? raw) {
+    if (raw == null) return PanelBackgroundStyle.dark;
+    final clean = raw.toLowerCase().trim();
+    if (clean.contains('snes') || clean.contains('famicom') || clean.contains('offwhite') || clean.contains('console') || clean.contains('beige')) {
+      return PanelBackgroundStyle.snes;
+    }
+    if (clean.contains('silver') || clean.contains('303') || clean.contains('aluminum') || clean.contains('champagne') || clean.contains('light')) {
+      return PanelBackgroundStyle.silver;
+    }
+    if (clean.contains('grunge') || clean.contains('rust') || clean.contains('distressed')) {
+      return PanelBackgroundStyle.grunge;
+    }
+    return PanelBackgroundStyle.dark;
+  }
+
   static Color? parseColor(dynamic colorVal) {
     if (colorVal == null) return null;
     if (colorVal is int) return Color(colorVal);
     if (colorVal is String) {
       final s = colorVal.trim();
+      if (s.toLowerCase() == 'track' || s.toLowerCase() == 'auto' || s.toLowerCase() == 'none') {
+        return null;
+      }
       if (s.startsWith('#')) {
         final hex = s.substring(1);
         if (hex.length == 6) {
@@ -130,6 +190,9 @@ class LuaGuiNode {
           return const Color(0xFFFF8C00);
         case 'cyan':
           return const Color(0xFF00E5FF);
+        case 'mint':
+        case 'neon':
+          return const Color(0xFF00FF9D);
         case 'green':
           return const Color(0xFF00E676);
         case 'gold':
@@ -142,6 +205,10 @@ class LuaGuiNode {
           return const Color(0xFFE040FB);
         case 'blue':
           return const Color(0xFF2979FF);
+        case 'silver':
+          return const Color(0xFFD6D3C8);
+        case 'black':
+          return const Color(0xFF141416);
       }
     }
     return null;
@@ -151,15 +218,21 @@ class LuaGuiNode {
 class LuaGuiPanelDef {
   final String title;
   final String? subtitle;
-  final String style; // 'rack', 'vintage', 'modern', 'grunge'
+  final String style; // 'rack', 'vintage', 'modern', 'grunge', 'silver', 'tb303'
+  final PanelBackgroundStyle backgroundStyle;
+  final Color? backgroundColor;
   final Color? accentColor;
+  final KnobStyle defaultKnobStyle;
   final List<LuaGuiNode> children;
 
   const LuaGuiPanelDef({
     required this.title,
     this.subtitle,
     this.style = 'rack',
+    this.backgroundStyle = PanelBackgroundStyle.dark,
+    this.backgroundColor,
     this.accentColor,
+    this.defaultKnobStyle = KnobStyle.standard,
     required this.children,
   });
 }

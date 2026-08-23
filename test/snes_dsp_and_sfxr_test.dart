@@ -221,7 +221,7 @@ void main() {
       expect(defs.params.first.options, contains('Warp'));
     });
 
-    test('SNES S-DSP Console Synth preset compiles with valid parameters', () {
+    test('SNES Synth preset compiles with valid parameters', () {
       final synth = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'snes_console_synth');
       final defs = LuaEngine.compile(synth.code);
 

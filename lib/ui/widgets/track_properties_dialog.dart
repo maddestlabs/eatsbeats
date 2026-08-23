@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
+import 'eats_color_picker_dialog.dart';
 
 Future<void> showTrackPropertiesDialog(BuildContext context, DawState dawState, TrackChannel track) async {
   final controller = TextEditingController(text: track.name)
@@ -137,14 +138,39 @@ Future<void> showTrackPropertiesDialog(BuildContext context, DawState dawState, 
                           ),
                         ),
                         const Spacer(),
-                        if (!isColorsExpanded)
-                          GestureDetector(
-                            onTap: () => setState(() => isColorsExpanded = true),
-                            child: Text(
-                              '+ MORE COLORS',
-                              style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 9, fontWeight: FontWeight.bold),
+                        InkWell(
+                          onTap: () {
+                            showEatsColorPickerDialog(
+                              context,
+                              currentColor: selectedColor,
+                              onColorSelected: (newColor) {
+                                setState(() {
+                                  selectedColor = newColor;
+                                });
+                              },
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: EatsTheme.controlBackground,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.5)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.palette, size: 11, color: EatsTheme.primaryCyan),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'PALETTE / MORE...',
+                                  style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 8.5, fontWeight: FontWeight.bold),
+                                ),
+                              ],
                             ),
                           ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),

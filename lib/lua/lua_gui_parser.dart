@@ -27,18 +27,23 @@ class LuaGuiParser {
       final title = (panelMap['title'] as String?) ?? 'CUSTOM INSTRUMENT';
       final subtitle = panelMap['subtitle'] as String?;
       final style = (panelMap['style'] as String?) ?? 'rack';
+      final bgRaw = panelMap['background'] ?? panelMap['bg'] ?? panelMap['chassis'] ?? panelMap['theme'] ?? panelMap['style'];
+      final backgroundStyle = LuaGuiNode.parseBackgroundStyle(bgRaw is String ? bgRaw : null);
+      final backgroundColor = LuaGuiNode.parseColor(bgRaw);
       final accentColor = LuaGuiNode.parseColor(panelMap['accent'] ?? panelMap['accentColor'] ?? panelMap['color']);
+      final knobStyleRaw = panelMap['knobStyle'] ?? panelMap['knobs'] ?? panelMap['knob_style'];
+      final defaultKnobStyle = LuaGuiNode.parseKnobStyle(knobStyleRaw is String ? knobStyleRaw : (backgroundStyle == PanelBackgroundStyle.silver ? 'chrome' : null));
 
       final rawLayout = panelMap['layout'] ?? panelMap['children'] ?? panelMap['items'];
       final List<LuaGuiNode> nodes = [];
 
       if (rawLayout is List) {
         for (final item in rawLayout) {
-          final node = _parseNode(item);
+          final node = _parseNode(item, defaultKnobStyle);
           if (node != null) nodes.add(node);
         }
       } else if (rawLayout is Map) {
-        final node = _parseNode(rawLayout);
+        final node = _parseNode(rawLayout, defaultKnobStyle);
         if (node != null) nodes.add(node);
       }
 
@@ -48,7 +53,10 @@ class LuaGuiParser {
         title: title,
         subtitle: subtitle,
         style: style,
+        backgroundStyle: backgroundStyle,
+        backgroundColor: backgroundColor,
         accentColor: accentColor,
+        defaultKnobStyle: defaultKnobStyle,
         children: nodes,
       );
     } catch (_) {
@@ -113,7 +121,7 @@ class LuaGuiParser {
     return null;
   }
 
-  static LuaGuiNode? _parseNode(dynamic raw) {
+  static LuaGuiNode? _parseNode(dynamic raw, [KnobStyle defaultKnobStyle = KnobStyle.standard]) {
     if (raw is! Map) return null;
     final m = Map<String, dynamic>.from(raw);
 
@@ -131,6 +139,10 @@ class LuaGuiParser {
     final leftText = m['left'] as String? ?? m['leftText'] as String?;
     final rightText = m['right'] as String? ?? m['rightText'] as String?;
     final text = m['text'] as String?;
+    final action = m['action'] as String? ?? m['onClick'] as String? ?? m['callback'] as String?;
+    final knobStyle = m['knobStyle'] != null || m['style'] != null
+        ? LuaGuiNode.parseKnobStyle((m['knobStyle'] ?? m['style']) as String?)
+        : defaultKnobStyle;
 
     final width = (m['width'] is num) ? (m['width'] as num).toDouble() : null;
     final height = (m['height'] is num) ? (m['height'] as num).toDouble() : null;
@@ -144,7 +156,7 @@ class LuaGuiParser {
     final rawChildren = m['children'] ?? m['items'] ?? m['__list'];
     if (rawChildren is List) {
       for (final childRaw in rawChildren) {
-        final childNode = _parseNode(childRaw);
+        final childNode = _parseNode(childRaw, defaultKnobStyle);
         if (childNode != null) children.add(childNode);
       }
     }
@@ -164,6 +176,8 @@ class LuaGuiParser {
       leftText: leftText,
       rightText: rightText,
       text: text,
+      action: action,
+      knobStyle: knobStyle,
       children: children,
     );
   }

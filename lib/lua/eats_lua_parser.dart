@@ -177,6 +177,31 @@ class EatsLuaParser {
       dawState.chordTrack = loadedChords;
     }
 
+    // 6. Master FX Rack if present
+    final rawMasterFx = map['masterFx'];
+    if (rawMasterFx is List) {
+      dawState.masterTrack.fxRack.clear();
+      for (final f in rawMasterFx) {
+        if (f is Map) {
+          final fMap = Map<String, dynamic>.from(f);
+          dawState.masterTrack.fxRack.add(FXInsert(
+            id: fMap['id'] ?? 'fx_${dawState.masterTrack.fxRack.length}',
+            name: fMap['name'] ?? 'FX',
+            type: FXType.values.firstWhere((e) => e.name == fMap['type'], orElse: () => FXType.biquadFilter),
+            enabled: _parseBool(fMap['enabled'], true),
+            mix: (fMap['mix'] as num?)?.toDouble() ?? 1.0,
+            params: fMap['params'] is Map
+                ? Map<String, double>.from(
+                    (fMap['params'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
+                  )
+                : {},
+            irSampleName: fMap['irSampleName'] as String?,
+          ));
+        }
+      }
+      dawState.audioEngine.updateMasterFx(dawState.masterTrack.fxRack);
+    }
+
     dawState.notifyState();
     return title;
   }

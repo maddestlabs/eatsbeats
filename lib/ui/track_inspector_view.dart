@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import '../audio/soundfont_engine.dart';
-import '../audio/soundfont_decoder.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../models/script_target_model.dart';
@@ -18,147 +16,6 @@ class TrackInspectorView extends StatelessWidget {
   final DawState dawState;
 
   const TrackInspectorView({super.key, required this.dawState});
-
-  Widget _buildSoundFontPresetSelector(BuildContext context, TrackChannel track) {
-    final isSoundFontTrack = track.sampleName.toLowerCase().endsWith('.sf2') ||
-        track.name.toLowerCase().contains('soundfont') ||
-        track.luaScriptCode.contains('SoundFont') ||
-        track.luaParams.containsKey('PresetNum');
-
-    if (!isSoundFontTrack) return const SizedBox.shrink();
-
-    return FutureBuilder<bool>(
-      future: SoundFontEngine.instance.getSoundFont('default.sf2') != null
-          ? Future.value(true)
-          : SoundFontEngine.instance.loadDefaultBundledFont(),
-      builder: (context, snapshot) {
-        final fontData = SoundFontEngine.instance.getSoundFont(track.sampleName) ??
-            SoundFontEngine.instance.getSoundFont('default.sf2');
-
-        if (fontData == null || fontData.presets.isEmpty) {
-          return const SizedBox.shrink();
-        }
-
-        final currentBank = (track.luaParams['BankNum'] ?? 0.0).toInt();
-        final currentPreset = (track.luaParams['PresetNum'] ?? 0.0).toInt();
-
-        final activePresetIdx = fontData.presets.indexWhere(
-          (p) => p.presetNum == currentPreset && p.bankNum == currentBank,
-        );
-        final validIdx = activePresetIdx != -1
-            ? activePresetIdx
-            : fontData.presets.indexWhere((p) => p.presetNum == currentPreset);
-        final finalIdx = validIdx != -1 ? validIdx : 0;
-
-        final loadedFonts = SoundFontEngine.instance.loadedDisplayFonts;
-        final currentFontId = loadedFonts.containsKey(track.sampleName) ? track.sampleName : loadedFonts.keys.first;
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: EatsTheme.panelBackground,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: EatsTheme.accentGreen, width: 1.5),
-            boxShadow: [
-              BoxShadow(color: EatsTheme.accentGreen.withOpacity(0.15), blurRadius: 8),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.piano, color: EatsTheme.accentGreen, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    'SOUNDFONT BANK',
-                    style: EatsTheme.getPrimaryFontStyle(
-                      color: EatsTheme.accentGreen,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-              if (loadedFonts.length > 1) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: EatsTheme.panelHeader,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFF2B3245)),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: currentFontId,
-                      isExpanded: true,
-                      dropdownColor: EatsTheme.panelHeader,
-                      style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.accentGreen, fontSize: 12, fontWeight: FontWeight.bold),
-                      items: loadedFonts.entries.map((e) {
-                        return DropdownMenuItem<String>(
-                          value: e.key,
-                          child: Text(e.value),
-                        );
-                      }).toList(),
-                      onChanged: (newFontId) {
-                        if (newFontId != null) {
-                          dawState.changeTrackSoundFont(track, newFontId, displayName: loadedFonts[newFontId]);
-                        }
-                      },
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 12),
-              Text(
-                'SELECT PROGRAM PRESET (${fontData.presets.length} AVAILABLE):',
-                style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 10),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: EatsTheme.panelHeader,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: const Color(0xFF2B3245)),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: finalIdx,
-                    isExpanded: true,
-                    dropdownColor: EatsTheme.panelHeader,
-                    style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.bold),
-                    items: fontData.presets.asMap().entries.map((entry) {
-                      final idx = entry.key;
-                      final preset = entry.value;
-                      final label = GeneralMidiNames.getPresetDisplayName(preset.bankNum, preset.presetNum, preset.name);
-                      return DropdownMenuItem<int>(
-                        value: idx,
-                        child: Text(label),
-                      );
-                    }).toList(),
-                    onChanged: (newIdx) {
-                      if (newIdx != null && newIdx >= 0 && newIdx < fontData.presets.length) {
-                        final p = fontData.presets[newIdx];
-                        dawState.updateLuaParam('PresetNum', p.presetNum.toDouble());
-                        dawState.updateLuaParam('BankNum', p.bankNum.toDouble());
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -382,8 +239,7 @@ class TrackInspectorView extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // 2. GUI (if provided) / Instrument & SoundFont Bank Selector
-          _buildSoundFontPresetSelector(context, track),
+          // 2. GUI (if provided) / Instrument
           DynamicInstrumentGuiWidget(dawState: dawState, track: track),
 
           const SizedBox(height: 16),

@@ -56,6 +56,10 @@ class AudioEngine {
     _backend.setMasterVolume(volume);
   }
 
+  void updateMasterFx(List<FXInsert> fxRack) {
+    _backend.updateMasterFx(fxRack);
+  }
+
   /// Updates or modulates an automated parameter on a track's audio graph strip.
   void setTrackParam(String trackId, String targetId, double value) {
     _backend.setTrackParam(trackId, targetId, value);

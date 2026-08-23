@@ -65,7 +65,9 @@ class _SkeuomorphicHardwareButtonState extends State<SkeuomorphicHardwareButton>
         duration: const Duration(milliseconds: 60),
         height: widget.height,
         width: widget.width,
-        padding: widget.padding,
+        padding: (widget.width != null && widget.padding == const EdgeInsets.symmetric(horizontal: 12, vertical: 6))
+            ? const EdgeInsets.symmetric(horizontal: 6, vertical: 4)
+            : widget.padding,
         transform: Matrix4.translationValues(0, _isPressed ? 2.0 : 0.0, 0),
         decoration: BoxDecoration(
           borderRadius: widget.borderRadius ?? BorderRadius.circular(4),
@@ -108,69 +110,73 @@ class _SkeuomorphicHardwareButtonState extends State<SkeuomorphicHardwareButton>
                     ),
                 ],
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Illuminated LED Indicator Dot
-            if (widget.showLed) ...[
-              Container(
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: widget.isActive ? ledColor : Colors.black45,
-                  boxShadow: widget.isActive
-                      ? [
-                          BoxShadow(
-                            color: ledColor,
-                            blurRadius: 4,
-                            spreadRadius: 1,
-                          ),
-                        ]
-                      : null,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Illuminated LED Indicator Dot
+              if (widget.showLed) ...[
+                Container(
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: widget.isActive ? ledColor : Colors.black45,
+                    boxShadow: widget.isActive
+                        ? [
+                            BoxShadow(
+                              color: ledColor,
+                              blurRadius: 4,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : null,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 6),
-            ],
-            if (widget.customChild != null)
-              widget.customChild!
-            else ...[
-              () {
-                final activeContentColor = (widget.activeColor != null)
-                    ? (widget.activeColor!.computeLuminance() > 0.35 ? const Color(0xFF0B0E14) : Colors.white)
-                    : (isGrungy ? const Color(0xFFFFF8E7) : (EatsTheme.isLight ? const Color(0xFF0F172A) : Colors.white));
-                final inactiveContentColor = widget.activeColor != null
-                    ? (EatsTheme.isLight && widget.activeColor == EatsTheme.primaryCyan ? const Color(0xFF006680) : widget.activeColor!.withOpacity(0.95))
-                    : (isGrungy ? const Color(0xFFA89C8C) : EatsTheme.textSecondary);
-                final finalColor = widget.isActive ? activeContentColor : inactiveContentColor;
+                const SizedBox(width: 6),
+              ],
+              if (widget.customChild != null)
+                widget.customChild!
+              else ...[
+                () {
+                  final activeContentColor = (widget.activeColor != null)
+                      ? (widget.activeColor!.computeLuminance() > 0.35 ? const Color(0xFF0B0E14) : Colors.white)
+                      : (isGrungy ? const Color(0xFFFFF8E7) : (EatsTheme.isLight ? const Color(0xFF0F172A) : Colors.white));
+                  final inactiveContentColor = widget.activeColor != null
+                      ? (EatsTheme.isLight && widget.activeColor == EatsTheme.primaryCyan ? const Color(0xFF006680) : widget.activeColor!.withOpacity(0.95))
+                      : (isGrungy ? const Color(0xFFA89C8C) : EatsTheme.textSecondary);
+                  final finalColor = widget.isActive ? activeContentColor : inactiveContentColor;
 
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (widget.icon != null) ...[
-                      Icon(
-                        widget.icon,
-                        size: (widget.label != null && widget.label!.isNotEmpty) ? 16 : 18,
-                        color: finalColor,
-                      ),
-                      if (widget.label != null && widget.label!.isNotEmpty) const SizedBox(width: 6),
-                    ],
-                    if (widget.label != null && widget.label!.isNotEmpty)
-                      Text(
-                        widget.label!.toUpperCase(),
-                        style: EatsTheme.getDisplayFontStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.icon != null) ...[
+                        Icon(
+                          widget.icon,
+                          size: (widget.label != null && widget.label!.isNotEmpty) ? 16 : 18,
                           color: finalColor,
                         ),
-                      ),
-                  ],
-                );
-              }(),
+                        if (widget.label != null && widget.label!.isNotEmpty) const SizedBox(width: 6),
+                      ],
+                      if (widget.label != null && widget.label!.isNotEmpty)
+                        Text(
+                          widget.label!.toUpperCase(),
+                          style: EatsTheme.getDisplayFontStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: finalColor,
+                          ),
+                        ),
+                    ],
+                  );
+                }(),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

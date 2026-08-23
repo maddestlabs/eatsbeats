@@ -789,4 +789,252 @@ class SNESSFXRGenerator {
       dsp.echo.feedback = (dsp.echo.feedback + r.nextRange(-0.15, 0.15)).clamp(0.0, 0.85);
     }
   }
+
+  /// Returns the curated list of suitable SNES BRR wavetables for each SFX archetype.
+  static List<SNESWaveform> getCandidateWaveformsForType(int sfxType) {
+    switch (sfxType) {
+      case 0: // Laser / Zap
+        return const [
+          SNESWaveform.sawtooth,
+          SNESWaveform.pulse12,
+          SNESWaveform.pulse25,
+          SNESWaveform.square,
+          SNESWaveform.sine,
+          SNESWaveform.triangle,
+        ];
+      case 1: // Explosion
+        return const [
+          SNESWaveform.noise,
+          SNESWaveform.triangle,
+          SNESWaveform.square,
+          SNESWaveform.sawtooth,
+          SNESWaveform.slapBass,
+        ];
+      case 2: // Powerup / 1-Up
+        return const [
+          SNESWaveform.chime,
+          SNESWaveform.sine,
+          SNESWaveform.triangle,
+          SNESWaveform.flute,
+          SNESWaveform.square,
+          SNESWaveform.pulse25,
+          SNESWaveform.organ,
+        ];
+      case 3: // Coin
+        return const [
+          SNESWaveform.pulse25,
+          SNESWaveform.pulse12,
+          SNESWaveform.chime,
+          SNESWaveform.sine,
+          SNESWaveform.triangle,
+          SNESWaveform.square,
+        ];
+      case 4: // Jump
+        return const [
+          SNESWaveform.triangle,
+          SNESWaveform.square,
+          SNESWaveform.pulse25,
+          SNESWaveform.pulse12,
+          SNESWaveform.sine,
+          SNESWaveform.slapBass,
+        ];
+      case 5: // Hurt / Damage
+        return const [
+          SNESWaveform.square,
+          SNESWaveform.noise,
+          SNESWaveform.sawtooth,
+          SNESWaveform.triangle,
+          SNESWaveform.pulse12,
+          SNESWaveform.slapBass,
+        ];
+      case 6: // Lose / Game Over
+        return const [
+          SNESWaveform.sawtooth,
+          SNESWaveform.triangle,
+          SNESWaveform.organ,
+          SNESWaveform.slapBass,
+          SNESWaveform.noise,
+          SNESWaveform.strings,
+        ];
+      case 7: // Button / Click / Beep
+        return const [
+          SNESWaveform.pulse25,
+          SNESWaveform.pulse12,
+          SNESWaveform.sine,
+          SNESWaveform.triangle,
+          SNESWaveform.square,
+          SNESWaveform.chime,
+        ];
+      case 8: // Warp / Teleport
+        return const [
+          SNESWaveform.chime,
+          SNESWaveform.organ,
+          SNESWaveform.strings,
+          SNESWaveform.flute,
+          SNESWaveform.sine,
+          SNESWaveform.triangle,
+        ];
+      default: // Mutate (9) / Custom SNES (10)
+        return SNESWaveform.values;
+    }
+  }
+
+  /// Generates a complete parameter map corresponding to a specific archetype and seed.
+  static Map<String, double> generateParamsForType(int sfxType, {int seed = 42}) {
+    final prng = DeterministicPRNG(seed);
+    final candidates = getCandidateWaveformsForType(sfxType);
+    final chosenWaveform = candidates[prng.nextInt(0, candidates.length - 1)];
+
+    final map = <String, double>{
+      'SFXType': sfxType.toDouble(),
+      'Seed': seed.toDouble(),
+      'Waveform': chosenWaveform.index.toDouble(),
+      'Attack': 0.005,
+      'Decay': 0.25,
+      'Sustain': 0.1,
+      'Release': 0.2,
+      'PitchSweep': 0.0,
+      'SweepSpeed': 0.16,
+      'VibratoRate': 0.0,
+      'VibratoDepth': 0.0,
+      'ArpSpeed': 0.05,
+      'EchoDelay': 120.0,
+      'EchoFeedback': 0.45,
+      'EchoVolume': 0.0,
+      'NoiseMix': 0.0,
+    };
+
+    switch (sfxType) {
+      case 0: // Laser / Zap
+        map['Attack'] = 0.001;
+        map['Decay'] = prng.nextRange(0.08, 0.16);
+        map['Sustain'] = 0.0;
+        map['Release'] = 0.02;
+        map['PitchSweep'] = prng.nextRange(-1.8, -0.9);
+        map['SweepSpeed'] = prng.nextRange(0.08, 0.15);
+        map['EchoVolume'] = 0.0;
+        break;
+      case 1: // Explosion
+        map['Attack'] = 0.002;
+        map['Decay'] = prng.nextRange(0.35, 0.65);
+        map['Sustain'] = 0.0;
+        map['Release'] = 0.15;
+        map['PitchSweep'] = prng.nextRange(-1.2, -0.4);
+        map['NoiseMix'] = chosenWaveform == SNESWaveform.noise ? 1.0 : prng.nextRange(0.4, 0.85);
+        map['EchoDelay'] = 160.0;
+        map['EchoFeedback'] = 0.55;
+        map['EchoVolume'] = 0.45;
+        break;
+      case 2: // Powerup / 1-Up
+        map['Attack'] = 0.002;
+        map['Decay'] = prng.nextRange(0.28, 0.42);
+        map['Sustain'] = 0.2;
+        map['Release'] = 0.25;
+        map['ArpSpeed'] = prng.nextRange(0.035, 0.055);
+        map['EchoDelay'] = 128.0;
+        map['EchoFeedback'] = 0.5;
+        map['EchoVolume'] = 0.5;
+        break;
+      case 3: // Coin
+        map['Attack'] = 0.001;
+        map['Decay'] = prng.nextRange(0.16, 0.26);
+        map['Sustain'] = 0.0;
+        map['Release'] = 0.05;
+        map['ArpSpeed'] = 0.04;
+        map['EchoVolume'] = 0.0;
+        break;
+      case 4: // Jump
+        map['Attack'] = 0.002;
+        map['Decay'] = prng.nextRange(0.14, 0.22);
+        map['Sustain'] = 0.0;
+        map['Release'] = 0.02;
+        map['PitchSweep'] = prng.nextRange(0.6, 1.4);
+        map['SweepSpeed'] = prng.nextRange(0.12, 0.20);
+        map['EchoVolume'] = 0.0;
+        break;
+      case 5: // Hurt / Damage
+        map['Attack'] = 0.001;
+        map['Decay'] = prng.nextRange(0.09, 0.16);
+        map['Sustain'] = 0.0;
+        map['Release'] = 0.02;
+        map['PitchSweep'] = prng.nextRange(-1.4, -0.6);
+        map['NoiseMix'] = prng.nextRange(0.3, 0.6);
+        map['EchoVolume'] = 0.0;
+        break;
+      case 6: // Lose / Game Over
+        map['Attack'] = 0.005;
+        map['Decay'] = prng.nextRange(0.38, 0.55);
+        map['Sustain'] = 0.1;
+        map['Release'] = 0.25;
+        map['VibratoRate'] = 6.5;
+        map['VibratoDepth'] = prng.nextRange(0.1, 0.25);
+        map['ArpSpeed'] = prng.nextRange(0.06, 0.09);
+        map['EchoDelay'] = 180.0;
+        map['EchoFeedback'] = 0.6;
+        map['EchoVolume'] = 0.55;
+        break;
+      case 7: // Button / Click / Beep
+        map['Attack'] = 0.0005;
+        map['Decay'] = prng.nextRange(0.04, 0.07);
+        map['Sustain'] = 0.0;
+        map['Release'] = 0.005;
+        map['ArpSpeed'] = prng.nextRange(0.020, 0.026);
+        map['EchoVolume'] = 0.0;
+        break;
+      case 8: // Warp / Teleport
+        map['Attack'] = 0.01;
+        map['Decay'] = prng.nextRange(0.28, 0.42);
+        map['Sustain'] = 0.2;
+        map['Release'] = 0.2;
+        map['VibratoRate'] = prng.nextRange(18.0, 28.0);
+        map['VibratoDepth'] = 0.4;
+        map['EchoDelay'] = 120.0;
+        map['EchoFeedback'] = 0.5;
+        map['EchoVolume'] = 0.4;
+        break;
+      case 9: // Mutate
+        final base = generateParamsForType(prng.nextInt(0, 8), seed: seed);
+        final mutated = mutateParams(base, seed: seed + 1);
+        mutated['SFXType'] = 9.0;
+        mutated['Seed'] = seed.toDouble();
+        return mutated;
+      default: // Custom SNES
+        map['Waveform'] = chosenWaveform.index.toDouble();
+        map['Attack'] = prng.nextRange(0.001, 0.2);
+        map['Decay'] = prng.nextRange(0.05, 1.0);
+        map['Sustain'] = prng.nextRange(0.0, 0.8);
+        map['Release'] = prng.nextRange(0.05, 0.8);
+        map['PitchSweep'] = prng.nextRange(-1.5, 1.5);
+        map['EchoVolume'] = prng.nextRange(0.0, 0.6);
+        break;
+    }
+    return map;
+  }
+
+  /// Mutates a parameter dictionary subtly within retro sweet spots.
+  static Map<String, double> mutateParams(Map<String, double> currentParams, {int seed = 42}) {
+    final prng = DeterministicPRNG(seed);
+    final mutated = Map<String, double>.from(currentParams);
+
+    if (prng.nextBool(0.6)) {
+      mutated['Waveform'] = prng.nextInt(0, SNESWaveform.values.length - 1).toDouble();
+    }
+    if (mutated.containsKey('Attack') && prng.nextBool(0.5)) {
+      mutated['Attack'] = (mutated['Attack']! * prng.nextRange(0.7, 1.4)).clamp(0.001, 0.5);
+    }
+    if (mutated.containsKey('Decay') && prng.nextBool(0.5)) {
+      mutated['Decay'] = (mutated['Decay']! * prng.nextRange(0.7, 1.4)).clamp(0.01, 2.0);
+    }
+    if (mutated.containsKey('PitchSweep') && prng.nextBool(0.5)) {
+      mutated['PitchSweep'] = (mutated['PitchSweep']! + prng.nextRange(-0.4, 0.4)).clamp(-2.0, 2.0);
+    }
+    if (mutated.containsKey('EchoVolume') && prng.nextBool(0.4)) {
+      mutated['EchoVolume'] = (mutated['EchoVolume']! + prng.nextRange(-0.2, 0.2)).clamp(0.0, 1.0);
+    }
+    if (mutated.containsKey('EchoDelay') && prng.nextBool(0.3)) {
+      mutated['EchoDelay'] = (mutated['EchoDelay']! + prng.nextInt(-32, 32)).clamp(16.0, 480.0);
+    }
+    mutated['Seed'] = seed.toDouble();
+    return mutated;
+  }
 }

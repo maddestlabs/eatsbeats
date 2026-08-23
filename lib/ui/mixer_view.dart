@@ -8,6 +8,7 @@ import 'widgets/skeuomorphic_hardware_knob.dart';
 import 'widgets/skeuomorphic_hardware_slider.dart';
 import 'widgets/stereo_meter_widget.dart';
 import 'widgets/modular_fx_rack_widget.dart';
+import 'widgets/fx_rack_dialog.dart';
 
 
 
@@ -49,7 +50,7 @@ class _MixerViewState extends State<MixerView> {
 
   Widget _buildMasterChannelStrip(DawState dawState) {
     return Container(
-      width: 140,
+      width: 165,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: EatsTheme.panelBackground,
@@ -66,7 +67,7 @@ class _MixerViewState extends State<MixerView> {
             title: 'MASTER',
             leftText: 'st-out',
             rightText: '${(dawState.masterVolume * 100).toInt()}%',
-            width: 124,
+            width: 148,
             height: 38,
           ),
           const SizedBox(height: 8),
@@ -80,7 +81,7 @@ class _MixerViewState extends State<MixerView> {
               min: -1.0,
               max: 1.0,
               defaultValue: 0.0,
-              size: 36.0,
+              size: 34.0,
               accentColor: EatsTheme.primaryCyan,
               onChanged: (_) {},
               formatValue: (v) => 'C',
@@ -89,7 +90,7 @@ class _MixerViewState extends State<MixerView> {
 
           const SizedBox(height: 10),
 
-          // Fader + Inset Glass Meter on Right
+          // Fader (Left) + Glass Meter (Right) + FX Button (Far Right)
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -120,6 +121,28 @@ class _MixerViewState extends State<MixerView> {
                   accentColor: EatsTheme.primaryCyan,
                   width: 38.0,
                   height: double.infinity,
+                ),
+                const SizedBox(width: 5),
+
+                // Compact FX Button Column on Far Right of LED readout
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    Tooltip(
+                      message: 'Master Bus FX Rack (Limiter, Compressor, Reverb, etc.)',
+                      child: SkeuomorphicHardwareButton(
+                        label: 'FX',
+                        isActive: dawState.masterTrack.fxRack.any((f) => f.enabled),
+                        activeColor: EatsTheme.primaryCyan,
+                        onTap: () => _showFXRackDialog(context, dawState, dawState.masterTrack),
+                        height: 26,
+                        width: 26,
+                        padding: EdgeInsets.zero,
+                        showLed: false,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -284,54 +307,7 @@ class _MixerViewState extends State<MixerView> {
   }
 
   void _showFXRackDialog(BuildContext context, DawState dawState, TrackChannel track) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          backgroundColor: EatsTheme.panelBackground,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: EatsTheme.secondaryMagenta, width: 2),
-          ),
-          child: Container(
-            width: 500,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      'MIXER FX RACK: ${track.name.toUpperCase()}',
-                      style: EatsTheme.getPrimaryFontStyle(
-                        color: EatsTheme.secondaryMagenta,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: Icon(Icons.close, color: EatsTheme.textMuted),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: ModularFxRackWidget(
-                      dawState: dawState,
-                      track: track,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+    showFxRackDialog(context, dawState, track);
   }
 }
 

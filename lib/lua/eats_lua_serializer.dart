@@ -61,7 +61,18 @@ class EatsLuaSerializer {
         final bassStr = chord.bassPitchClass != null ? ', bassPitchClass = ${chord.bassPitchClass}' : '';
         buffer.writeln('    { id = "${_escapeString(chord.id)}", startBar = ${chord.startBar}, barLength = ${chord.barLength}, rootPitchClass = ${chord.rootPitchClass}, quality = "${chord.quality.name}"$bassStr },');
       }
-      buffer.writeln('  }');
+      buffer.writeln('  },');
+      buffer.writeln();
+    }
+
+    // 5. Master FX Rack
+    if (dawState.masterTrack.fxRack.isNotEmpty) {
+      buffer.writeln('  masterFx = {');
+      for (final fx in dawState.masterTrack.fxRack) {
+        final irStr = fx.irSampleName != null ? ', irSampleName = "${_escapeString(fx.irSampleName!)}"' : '';
+        buffer.writeln('    { id = "${_escapeString(fx.id)}", name = "${_escapeString(fx.name)}", type = "${fx.type.name}", enabled = ${fx.enabled}, mix = ${fx.mix.toStringAsFixed(2)}, params = ${_formatMap(fx.params)}$irStr },');
+      }
+      buffer.writeln('  },');
     }
     buffer.writeln('}');
 

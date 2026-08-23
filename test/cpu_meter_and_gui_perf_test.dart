@@ -44,7 +44,7 @@ return TestSynth
       expect(snapshot.containsKey('cpuPercentage'), isTrue);
     });
 
-    testWidgets('DawState toggles CPU meter and TransportHeader switches display on double-tap', (tester) async {
+    testWidgets('DawState toggles CPU meter and TransportHeader switches display on single-tap', (tester) async {
       final state = DawState();
       expect(state.showCpuMeter, isFalse);
 
@@ -65,11 +65,9 @@ return TestSynth
       expect(find.text('R'), findsOneWidget);
       expect(find.text('CPU'), findsNothing);
 
-      // Double-tap master meter to toggle to CPU meter
-      final meterFinder = find.byTooltip('L/R Master Peak Meter - Double-tap for DSP CPU Meter');
+      // Single-tap master meter to toggle to CPU meter
+      final meterFinder = find.byTooltip('L/R Master Peak Meter - Click for DSP CPU Meter');
       expect(meterFinder, findsOneWidget);
-      await tester.tap(meterFinder);
-      await tester.pump(const Duration(milliseconds: 50));
       await tester.tap(meterFinder);
       await tester.pumpAndSettle();
 
@@ -77,11 +75,9 @@ return TestSynth
       expect(find.text('CPU'), findsOneWidget);
       expect(find.text('L'), findsNothing);
 
-      // Double-tap again to toggle back to L/R Master meter
-      final cpuMeterFinder = find.byTooltip('DSP CPU Load (${state.audioEngine.cpuPercentage.toStringAsFixed(1)}%) - Double-tap for L/R Audio Meter');
+      // Single-tap again to toggle back to L/R Master meter
+      final cpuMeterFinder = find.byTooltip('DSP CPU Load (${state.audioEngine.cpuPercentage.toStringAsFixed(1)}%) - Click for L/R Audio Meter');
       expect(cpuMeterFinder, findsOneWidget);
-      await tester.tap(cpuMeterFinder);
-      await tester.pump(const Duration(milliseconds: 50));
       await tester.tap(cpuMeterFinder);
       await tester.pumpAndSettle();
 

@@ -1,9 +1,14 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import '../../audio/snes_dsp_engine.dart';
+import '../../audio/soundfont_engine.dart';
+import '../../audio/soundfont_decoder.dart';
 import '../../lua/lua_engine.dart';
 import '../../lua/lua_gui_model.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
+import 'compact_value_dialog.dart';
 import 'eatsbits_slider.dart';
 import 'glowing_nixie_display.dart';
 import 'grungy_rack_panel.dart';
@@ -29,23 +34,28 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trackCompilation = track.luaScriptCode.isNotEmpty
-        ? LuaEngine.compile(track.luaScriptCode)
-        : dawState.compilationResult;
+    return ListenableBuilder(
+      listenable: SoundFontEngine.instance,
+      builder: (context, _) {
+        final trackCompilation = track.luaScriptCode.isNotEmpty
+            ? LuaEngine.compile(track.luaScriptCode)
+            : dawState.compilationResult;
 
-    final guiLayout = trackCompilation.guiLayout;
+        final guiLayout = trackCompilation.guiLayout;
 
-    // 1. If custom GUI layout is defined by script, render custom hardware rack faceplate
-    if (guiLayout != null) {
-      return _buildCustomRackPanel(context, guiLayout, trackCompilation);
-    }
+        // 1. If custom GUI layout is defined by script, render custom hardware rack faceplate
+        if (guiLayout != null) {
+          return _buildCustomRackPanel(context, guiLayout, trackCompilation);
+        }
 
-    // 2. If no custom GUI is provided, fallback to standard dynamic script parameters
-    if (trackCompilation.params.isNotEmpty) {
-      return _buildDefaultDynamicParams(context, trackCompilation);
-    }
+        // 2. If no custom GUI is provided, fallback to standard dynamic script parameters
+        if (trackCompilation.params.isNotEmpty) {
+          return _buildDefaultDynamicParams(context, trackCompilation);
+        }
 
-    return const SizedBox.shrink();
+        return const SizedBox.shrink();
+      },
+    );
   }
 
   Widget _buildCustomRackPanel(
@@ -53,8 +63,12 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     LuaGuiPanelDef layout,
     LuaCompilationResult compilation,
   ) {
-    final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
-    final baseAccent = layout.accentColor ?? (isGrungy ? const Color(0xFFFF8C00) : track.color);
+    final isGrungy = layout.backgroundStyle == PanelBackgroundStyle.grunge ||
+        (layout.backgroundStyle == PanelBackgroundStyle.dark && EatsTheme.currentPreset == EatsThemePreset.ateTrack);
+    final isSilver = layout.backgroundStyle == PanelBackgroundStyle.silver;
+    final isSnes = layout.backgroundStyle == PanelBackgroundStyle.snes;
+    final isLightChassis = isSilver || isSnes;
+    final baseAccent = layout.accentColor ?? track.color;
     final hasUpgrade = dawState.isPresetUpgradeAvailable(track);
 
     if (hideHeader) {
@@ -62,10 +76,18 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: isGrungy ? const Color(0xFF26221D) : EatsTheme.panelBackground,
+            color: isSnes
+                ? const Color(0xFFD8D6CD)
+                : (isSilver
+                    ? const Color(0xFFD4D0C5)
+                    : (isGrungy ? const Color(0xFF26221D) : EatsTheme.panelBackground)),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isGrungy ? const Color(0xFF423B33) : EatsTheme.panelHeader,
+              color: isSnes
+                  ? const Color(0xFF908C82)
+                  : (isSilver
+                      ? const Color(0xFF8C887D)
+                      : (isGrungy ? const Color(0xFF423B33) : EatsTheme.panelHeader)),
               width: 1.2,
             ),
           ),
@@ -74,7 +96,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             children: layout.children.map((node) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
-                child: _buildNode(context, node, compilation, baseAccent),
+                child: _buildNode(context, node, compilation, baseAccent, isLightChassis),
               );
             }).toList(),
           ),
@@ -92,6 +114,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             title: layout.title,
             subtitle: layout.subtitle ?? 'Hardware Script Interface',
             accentColor: baseAccent,
+            panelColor: layout.backgroundColor,
+            backgroundStyle: layout.backgroundStyle,
             headerActions: [
               if (hasUpgrade) ...[
                 GestureDetector(
@@ -159,7 +183,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               children: layout.children.map((node) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12.0),
-                  child: _buildNode(context, node, compilation, baseAccent),
+                  child: _buildNode(context, node, compilation, baseAccent, isLightChassis),
                 );
               }).toList(),
             ),
@@ -174,8 +198,9 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     BuildContext context,
     LuaGuiNode node,
     LuaCompilationResult compilation,
-    Color defaultAccent,
-  ) {
+    Color defaultAccent, [
+    bool isLightChassis = false,
+  ]) {
     final accent = node.accentColor ?? defaultAccent;
 
     switch (node.type) {
@@ -184,7 +209,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           mainAxisAlignment: _parseMainAxisAlignment(node.align),
           crossAxisAlignment: CrossAxisAlignment.center,
           children: node.children
-              .map((c) => _buildNode(context, c, compilation, defaultAccent))
+              .map((c) => _buildNode(context, c, compilation, defaultAccent, isLightChassis))
               .toList(),
         );
 
@@ -193,18 +218,67 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           mainAxisAlignment: _parseMainAxisAlignment(node.align),
           crossAxisAlignment: CrossAxisAlignment.center,
           children: node.children
-              .map((c) => _buildNode(context, c, compilation, defaultAccent))
+              .map((c) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3.0),
+                    child: _buildNode(context, c, compilation, defaultAccent, isLightChassis),
+                  ))
               .toList(),
         );
+
+      case LuaGuiNodeType.divider:
+        if (node.orientation == 'vertical') {
+          return Container(
+            width: node.width ?? 2.0,
+            height: node.height ?? node.size ?? 68.0,
+            margin: const EdgeInsets.symmetric(horizontal: 10.0),
+            decoration: BoxDecoration(
+              color: isLightChassis ? const Color(0xFF4A463E) : Colors.white12,
+              borderRadius: BorderRadius.circular(1.0),
+              boxShadow: isLightChassis
+                  ? [
+                      const BoxShadow(
+                        color: Color(0xFFFFFFFF),
+                        offset: Offset(1, 0),
+                        blurRadius: 0.5,
+                      )
+                    ]
+                  : null,
+            ),
+          );
+        } else {
+          return Container(
+            height: node.height ?? 2.0,
+            margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+            decoration: BoxDecoration(
+              color: isLightChassis ? const Color(0xFF4A463E) : Colors.white12,
+              borderRadius: BorderRadius.circular(1.0),
+              boxShadow: isLightChassis
+                  ? [
+                      const BoxShadow(
+                        color: Color(0xFFFFFFFF),
+                        offset: Offset(0, 1),
+                        blurRadius: 0.5,
+                      )
+                    ]
+                  : null,
+            ),
+          );
+        }
 
       case LuaGuiNodeType.group:
         return Container(
           padding: const EdgeInsets.all(10),
           margin: const EdgeInsets.symmetric(vertical: 4),
           decoration: BoxDecoration(
-            color: EatsTheme.panelHeader.withOpacity(0.6),
+            color: isLightChassis
+                ? Colors.black.withOpacity(0.05)
+                : EatsTheme.panelHeader.withOpacity(0.6),
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: accent.withOpacity(0.3)),
+            border: Border.all(
+              color: isLightChassis
+                  ? const Color(0xFF9E9A8E)
+                  : accent.withOpacity(0.3),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,14 +287,14 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                 Text(
                   node.label!.toUpperCase(),
                   style: EatsTheme.getPrimaryFontStyle(
-                    color: accent,
+                    color: isLightChassis ? const Color(0xFF1B1A17) : accent,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 8),
               ],
-              ...node.children.map((c) => _buildNode(context, c, compilation, defaultAccent)),
+              ...node.children.map((c) => _buildNode(context, c, compilation, defaultAccent, isLightChassis)),
             ],
           ),
         );
@@ -238,6 +312,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           defaultValue: paramDef.defaultValue,
           size: node.size ?? 56.0,
           accentColor: accent,
+          knobStyle: node.knobStyle,
+          isLightChassis: isLightChassis,
           onChanged: (val) {
             final snapped = paramDef.isInteger ? val.roundToDouble() : val;
             dawState.updateLuaParam(paramDef.name, snapped);
@@ -304,7 +380,32 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         return SkeuomorphicHardwareButton(
           label: node.label ?? 'TRIGGER',
           activeColor: accent,
+          width: node.width,
+          height: node.height ?? node.size ?? 32.0,
           onTap: () {
+            final actionClean = (node.action ?? '').toLowerCase().trim();
+            final labelClean = (node.label ?? '').toLowerCase().trim();
+
+            if (actionClean == 'randomize' ||
+                actionClean == 'randomize_sfx' ||
+                actionClean == 'mutate' ||
+                labelClean.contains('random') ||
+                labelClean.contains('rng seed') ||
+                labelClean.contains('generate')) {
+              final sfxType = (track.luaParams['SFXType'] ?? 0.0).toInt();
+              final currentSeed = (track.luaParams['Seed'] ?? 42.0).toInt();
+              final newSeed = (currentSeed + DateTime.now().millisecond * 7 + 17) % 9990 + 1;
+              final newParams = SNESSFXRGenerator.generateParamsForType(sfxType, seed: newSeed);
+
+              dawState.beginHistoryTransaction('Randomize ${track.name}', icon: Icons.casino);
+              for (final entry in newParams.entries) {
+                track.luaParams[entry.key] = entry.value;
+                dawState.updateLuaParam(entry.key, entry.value);
+              }
+              dawState.commitHistoryTransaction();
+              return;
+            }
+
             if (node.param != null) {
               final paramDef = _findParam(node.param, compilation);
               dawState.updateLuaParam(paramDef.name, 1.0);
@@ -317,7 +418,91 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
 
       case LuaGuiNodeType.listBox:
         final paramDef = _findParam(node.param, compilation);
-        final effectiveOptions = node.options.isNotEmpty ? node.options : paramDef.options;
+        List<String> effectiveOptions = node.options.isNotEmpty ? node.options : paramDef.options;
+        ValueChanged<int>? onSelectionChanged;
+
+        final paramNameLower = paramDef.name.toLowerCase();
+
+        // 1. SoundFont Bank ListBox dynamic handling
+        if (paramNameLower == 'soundfontbank' || paramNameLower == 'sf2bank' || (node.param != null && node.param!.toLowerCase() == 'soundfontbank')) {
+          final loadedFonts = SoundFontEngine.instance.loadedDisplayFonts;
+          final fontKeys = loadedFonts.keys.toList();
+          final fontNames = loadedFonts.values.toList();
+          if (fontNames.isNotEmpty) {
+            effectiveOptions = fontNames;
+          }
+
+          // Sync current selection based on track.sampleName
+          final currentKey = track.sampleName;
+          final keyIdx = fontKeys.indexOf(currentKey);
+          if (keyIdx != -1) {
+            track.luaParams[paramDef.name] = keyIdx.toDouble();
+          }
+
+          onSelectionChanged = (newIdx) {
+            if (newIdx >= 0 && newIdx < fontKeys.length) {
+              final fontId = fontKeys[newIdx];
+              final displayName = fontNames[newIdx];
+              dawState.changeTrackSoundFont(track, fontId, displayName: displayName);
+              track.luaParams[paramDef.name] = newIdx.toDouble();
+              track.luaParams['Preset'] = 0.0;
+              track.luaParams['PresetNum'] = 0.0;
+              track.luaParams['BankNum'] = 0.0;
+              dawState.updateLuaParam('PresetNum', 0.0);
+              dawState.updateLuaParam('BankNum', 0.0);
+            }
+          };
+        }
+        // 2. SoundFont Program Preset ListBox dynamic handling
+        else if (paramNameLower == 'preset' || paramNameLower == 'presetnum' || (node.param != null && node.param!.toLowerCase() == 'preset')) {
+          final fontData = SoundFontEngine.instance.getSoundFont(track.sampleName) ??
+              SoundFontEngine.instance.getSoundFont('default.sf2');
+          if (fontData != null && fontData.presets.isNotEmpty) {
+            effectiveOptions = fontData.presets
+                .map((p) => GeneralMidiNames.getPresetDisplayName(p.bankNum, p.presetNum, p.name))
+                .toList();
+
+            final currentPresetNum = (track.luaParams['PresetNum'] ?? 0.0).toInt();
+            final currentBankNum = (track.luaParams['BankNum'] ?? 0.0).toInt();
+            final activePresetIdx = fontData.presets.indexWhere(
+              (p) => p.presetNum == currentPresetNum && p.bankNum == currentBankNum,
+            );
+            final validIdx = activePresetIdx != -1
+                ? activePresetIdx
+                : fontData.presets.indexWhere((p) => p.presetNum == currentPresetNum);
+            if (validIdx != -1) {
+              track.luaParams[paramDef.name] = validIdx.toDouble();
+            }
+          }
+
+          onSelectionChanged = (newIdx) {
+            final activeFontData = SoundFontEngine.instance.getSoundFont(track.sampleName) ??
+                SoundFontEngine.instance.getSoundFont('default.sf2');
+            if (activeFontData != null && newIdx >= 0 && newIdx < activeFontData.presets.length) {
+              final p = activeFontData.presets[newIdx];
+              track.luaParams[paramDef.name] = newIdx.toDouble();
+              track.luaParams['PresetNum'] = p.presetNum.toDouble();
+              track.luaParams['BankNum'] = p.bankNum.toDouble();
+              dawState.updateLuaParam('PresetNum', p.presetNum.toDouble());
+              dawState.updateLuaParam('BankNum', p.bankNum.toDouble());
+            }
+          };
+        }
+        // 3. SNES SFXR Type ListBox handling
+        else if (paramDef.name == 'SFXType' || node.param == 'SFXType') {
+          onSelectionChanged = (newTypeIdx) {
+            final currentSeed = (track.luaParams['Seed'] ?? 42.0).toInt();
+            final newSeed = (currentSeed + DateTime.now().millisecond * 7 + 17) % 9990 + 1;
+            final newParams = SNESSFXRGenerator.generateParamsForType(newTypeIdx, seed: newSeed);
+
+            dawState.beginHistoryTransaction('Select SFX Type (${track.name})', icon: Icons.casino);
+            for (final entry in newParams.entries) {
+              track.luaParams[entry.key] = entry.value;
+              dawState.updateLuaParam(entry.key, entry.value);
+            }
+            dawState.commitHistoryTransaction();
+          };
+        }
 
         return HardwareListBoxWidget(
           dawState: dawState,
@@ -328,18 +513,76 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           width: node.width ?? 160.0,
           height: node.height ?? (node.size ?? 100.0),
           accentColor: accent,
+          onSelectionChanged: onSelectionChanged,
         );
 
       case LuaGuiNodeType.nixie:
         final paramDef = _findParam(node.param, compilation);
         final rawVal = (track.luaParams[node.param] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
         final formattedVal = paramDef.getFormattedValue(rawVal);
+        final displayVal = paramDef.isInteger ? rawVal.round().toString() : formattedVal;
+
+        void updateParamValue(double val) {
+          final clamped = val.clamp(paramDef.min, paramDef.max);
+          final finalVal = paramDef.isInteger ? clamped.roundToDouble() : clamped;
+          dawState.beginHistoryTransaction('Set ${paramDef.name} (${track.name})', icon: Icons.tune);
+          track.luaParams[paramDef.name] = finalVal;
+          dawState.updateLuaParam(paramDef.name, finalVal);
+
+          if ((paramDef.name == 'Seed' || paramDef.name == 'SFXType') && track.luaParams.containsKey('SFXType')) {
+            final sfxType = (track.luaParams['SFXType'] ?? 0.0).toInt();
+            final seed = (track.luaParams['Seed'] ?? 42.0).toInt();
+            final newParams = SNESSFXRGenerator.generateParamsForType(sfxType, seed: seed);
+            for (final entry in newParams.entries) {
+              track.luaParams[entry.key] = entry.value;
+              dawState.updateLuaParam(entry.key, entry.value);
+            }
+          }
+          dawState.commitHistoryTransaction();
+        }
+
+        void showEditDialog() {
+          showCompactValueEditDialog(
+            context: context,
+            title: node.label ?? paramDef.name.toUpperCase(),
+            initialValue: displayVal,
+            minMaxHint: 'Range: ${paramDef.min} - ${paramDef.max}',
+            accentColor: accent,
+            onSubmit: (val) {
+              final parsed = double.tryParse(val.trim());
+              if (parsed == null || parsed.isNaN || parsed.isInfinite) {
+                // Revert / preserve existing value on unusable input
+                return;
+              }
+              updateParamValue(parsed);
+            },
+            onResetDefault: () => updateParamValue(paramDef.defaultValue),
+          );
+        }
 
         return GlowingNixieDisplay(
           label: node.label ?? (node.param ?? 'READOUT').toUpperCase(),
           valueText: formattedVal,
-          unit: node.unit ?? '',
+          unit: node.unit,
           glowColor: accent,
+          width: node.width,
+          height: node.height,
+          centerLabel: node.width != null,
+          tooltip: '${node.label ?? paramDef.name}: $formattedVal (Scroll or Hold/Right-click to edit)',
+          onLongPress: showEditDialog,
+          onSecondaryTap: showEditDialog,
+          onPointerSignal: (pointerSignal) {
+            if (pointerSignal is PointerScrollEvent) {
+              final scrollDelta = pointerSignal.scrollDelta.dy;
+              if (scrollDelta == 0) return;
+              final step = paramDef.step > 0
+                  ? paramDef.step
+                  : (paramDef.isInteger ? 1.0 : (paramDef.max - paramDef.min) / 100.0);
+              final delta = scrollDelta < 0 ? step : -step;
+              final current = (track.luaParams[paramDef.name] ?? paramDef.defaultValue);
+              updateParamValue(current + delta);
+            }
+          },
         );
 
       case LuaGuiNodeType.lcd:
@@ -488,6 +731,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     LuaCompilationResult compilation,
   ) {
     final hasUpgrade = dawState.isPresetUpgradeAvailable(track);
+    final baseAccent = track.color;
 
     return RepaintBoundary(
       child: Column(
@@ -499,7 +743,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           decoration: BoxDecoration(
             color: EatsTheme.panelBackground,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: EatsTheme.accentGreen.withOpacity(0.5)),
+            border: Border.all(color: baseAccent.withOpacity(0.5)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -507,13 +751,13 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               if (!hideHeader) ...[
                 Row(
                   children: [
-                    const Icon(Icons.tune, color: EatsTheme.accentGreen, size: 18),
+                    Icon(Icons.tune, color: baseAccent, size: 18),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'DYNAMIC SCRIPT PARAMETERS (CODE DRIVEN)',
                         style: EatsTheme.getPrimaryFontStyle(
-                          color: EatsTheme.accentGreen,
+                          color: baseAccent,
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
@@ -553,21 +797,21 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: EatsTheme.panelBackground,
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: EatsTheme.accentGreen.withOpacity(0.4)),
+                          border: Border.all(color: baseAccent.withOpacity(0.4)),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<double>(
                             value: selectedIdx.toDouble(),
                             isExpanded: true,
                             dropdownColor: EatsTheme.panelBackground,
-                            icon: const Icon(Icons.arrow_drop_down, color: EatsTheme.accentGreen, size: 20),
+                            icon: Icon(Icons.arrow_drop_down, color: baseAccent, size: 20),
                             items: List.generate(paramDef.options.length, (idx) {
                               return DropdownMenuItem<double>(
                                 value: idx.toDouble(),
                                 child: Text(
                                   paramDef.options[idx],
                                   style: EatsTheme.getDisplayFontStyle(
-                                    color: EatsTheme.accentGreen,
+                                    color: baseAccent,
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -612,7 +856,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                       max: paramDef.max,
                       defaultValue: paramDef.defaultValue,
                       label: paramDef.name,
-                      activeColor: EatsTheme.accentGreen,
+                      activeColor: baseAccent,
                       onChanged: (val) {
                         final snapped = paramDef.isInteger ? val.roundToDouble() : val;
                         dawState.updateLuaParam(paramDef.name, snapped);
@@ -629,7 +873,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                     child: Text(
                       displayLabel,
                       style: EatsTheme.getDisplayFontStyle(
-                        color: EatsTheme.accentGreen,
+                        color: baseAccent,
                         fontWeight: FontWeight.bold,
                         fontSize: 11,
                       ),

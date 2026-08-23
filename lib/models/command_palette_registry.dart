@@ -357,6 +357,46 @@ class CommandPaletteRegistry {
           state.addFXInsert(state.activeTrack, FXType.distortion);
         },
       ),
+      QuickCommand(
+        id: 'action_add_fx_compressor',
+        title: 'Insert FX: Dynamics Compressor',
+        subtitle: 'Add threshold & ratio dynamic range compression to active track',
+        category: CommandCategory.action,
+        icon: Icons.compress,
+        onExecute: (state, ctx) {
+          state.addFXInsert(state.activeTrack, FXType.compressor);
+        },
+      ),
+      QuickCommand(
+        id: 'action_add_fx_limiter',
+        title: 'Insert FX: Brickwall Peak Limiter',
+        subtitle: 'Add ceiling & threshold peak limiter insert to active track',
+        category: CommandCategory.action,
+        icon: Icons.speed,
+        onExecute: (state, ctx) {
+          state.addFXInsert(state.activeTrack, FXType.limiter);
+        },
+      ),
+      QuickCommand(
+        id: 'action_add_master_limiter',
+        title: 'Master FX: Add Master Bus Limiter',
+        subtitle: 'Add peak limiter to master output bus to prevent clipping',
+        category: CommandCategory.action,
+        icon: Icons.shield,
+        onExecute: (state, ctx) {
+          state.addFXInsert(state.masterTrack, FXType.limiter);
+        },
+      ),
+      QuickCommand(
+        id: 'action_add_master_compressor',
+        title: 'Master FX: Add Master Bus Compressor',
+        subtitle: 'Add glue dynamic compression to master mix output bus',
+        category: CommandCategory.action,
+        icon: Icons.compress,
+        onExecute: (state, ctx) {
+          state.addFXInsert(state.masterTrack, FXType.compressor);
+        },
+      ),
     ]);
 
     // --- 3. VISUAL THEMES ---
