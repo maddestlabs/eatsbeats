@@ -8,7 +8,7 @@ enum EatsThemePreset {
   dinner,        // Dinner (Solarized Dark)
 }
 
-/// Central Theme Engine for Eatsbits.
+/// Central Theme Engine for Eatsbeats.
 /// Manages color tokens and typography styles for the application.
 class EatsTheme {
   static EatsThemePreset currentPreset = EatsThemePreset.ateTrack;
@@ -137,7 +137,7 @@ class EatsTheme {
         return const Color(0xFFFF8C00); // Warm Amber / Vintage Nixie Glow
       case EatsThemePreset.midnightBites:
       default:
-        return const Color(0xFF21F4E8); // EatsBits Signature Cyan
+        return const Color(0xFF21F4E8); // EatsBeats Signature Cyan
     }
   }
 

@@ -67,7 +67,7 @@ class QuickCommand {
 }
 
 class CommandPaletteRegistry {
-  /// Generates a comprehensive list of all executable quick commands in Eatsbits.
+  /// Generates a comprehensive list of all executable quick commands in Eatsbeats.
   static List<QuickCommand> getCommands(DawState dawState, BuildContext context) {
     final List<QuickCommand> commands = [];
 

@@ -63,7 +63,7 @@ enum EasingType {
   }
 }
 
-/// Comprehensive easing & curve evaluation library for Eatsbits.
+/// Comprehensive easing & curve evaluation library for Eatsbeats.
 class Easing {
   /// Evaluates normalized interpolation progress [t] (0.0 to 1.0) using [type].
   /// Returns interpolated value between [v0] and [v1].

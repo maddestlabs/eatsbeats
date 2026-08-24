@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart' hide Easing;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/audio/easing.dart';
-import 'package:mobile_wren_daw/audio/time_context.dart';
-import 'package:mobile_wren_daw/lua/lua_engine.dart';
-import 'package:mobile_wren_daw/models/automation_model.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
+import 'package:eatsbeats/audio/easing.dart';
+import 'package:eatsbeats/audio/time_context.dart';
+import 'package:eatsbeats/lua/lua_engine.dart';
+import 'package:eatsbeats/models/automation_model.dart';
+import 'package:eatsbeats/models/track_model.dart';
 
 void main() {
   group('Easing Engine Tests', () {
@@ -88,7 +88,7 @@ void main() {
       );
 
       final lua = lane.generateLuaScript();
-      expect(lua, contains('eatsbits.automation.evaluatePoints'));
+      expect(lua, contains('eatsbeats.automation.evaluatePoints'));
       expect(lua, contains('target = "track.volume"'));
       expect(lua, contains('step = 0.00'));
       expect(lua, contains('step = 16.00'));

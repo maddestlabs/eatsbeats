@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/theme/eats_theme.dart';
-import 'package:mobile_wren_daw/ui/arranger_view.dart';
-import 'package:mobile_wren_daw/ui/edit_view.dart';
-import 'package:mobile_wren_daw/ui/piano_roll_view.dart';
-import 'package:mobile_wren_daw/ui/widgets/arranger_context_inspector.dart';
-import 'package:mobile_wren_daw/ui/widgets/glowing_nixie_display.dart';
-import 'package:mobile_wren_daw/ui/widgets/lcd_display_widget.dart';
-import 'package:mobile_wren_daw/ui/widgets/midi_fx_rack_widget.dart';
-import 'package:mobile_wren_daw/ui/widgets/modular_fx_rack_widget.dart';
-import 'package:mobile_wren_daw/ui/widgets/skeuomorphic_hardware_switch.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/theme/eats_theme.dart';
+import 'package:eatsbeats/ui/arranger_view.dart';
+import 'package:eatsbeats/ui/edit_view.dart';
+import 'package:eatsbeats/ui/piano_roll_view.dart';
+import 'package:eatsbeats/ui/widgets/arranger_context_inspector.dart';
+import 'package:eatsbeats/ui/widgets/glowing_nixie_display.dart';
+import 'package:eatsbeats/ui/widgets/lcd_display_widget.dart';
+import 'package:eatsbeats/ui/widgets/midi_fx_rack_widget.dart';
+import 'package:eatsbeats/ui/widgets/modular_fx_rack_widget.dart';
+import 'package:eatsbeats/ui/widgets/skeuomorphic_hardware_switch.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

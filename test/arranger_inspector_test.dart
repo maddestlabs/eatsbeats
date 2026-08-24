@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/models/chord_model.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/ui/arranger_view.dart';
-import 'package:mobile_wren_daw/ui/widgets/arranger_context_inspector.dart';
+import 'package:eatsbeats/models/chord_model.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/ui/arranger_view.dart';
+import 'package:eatsbeats/ui/widgets/arranger_context_inspector.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

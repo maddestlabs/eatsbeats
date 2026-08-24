@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/lua/midi_pipeline_engine.dart';
-import 'package:mobile_wren_daw/lua/lua_engine.dart';
-import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/audio/time_context.dart';
+import 'package:eatsbeats/lua/midi_pipeline_engine.dart';
+import 'package:eatsbeats/lua/lua_engine.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/audio/time_context.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

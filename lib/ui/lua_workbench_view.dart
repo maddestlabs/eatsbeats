@@ -9,7 +9,7 @@ import '../lua/lua_preset_library.dart';
 import 'modular/eurorack_theme.dart';
 import 'modular/modular_rack_canvas.dart';
 import 'widgets/dynamic_instrument_gui_widget.dart';
-import 'widgets/eatsbits_slider.dart';
+import 'widgets/eatsbeats_slider.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
 import 'widgets/waveform_painter.dart';
 
@@ -689,7 +689,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
                           ),
                         ],
                       ),
-                      EatsBitsSlider(
+                      EatsBeatsSlider(
                         value: currentVal.clamp(param.min, param.max),
                         min: param.min,
                         max: param.max,

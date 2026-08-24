@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/ui/lua_workbench_view.dart';
-import 'package:mobile_wren_daw/ui/modular/modular_theme.dart';
-import 'package:mobile_wren_daw/ui/modular/modular_faceplate_widget.dart';
-import 'package:mobile_wren_daw/ui/modular/modular_jack_widget.dart';
-import 'package:mobile_wren_daw/ui/modular/modular_rack_canvas.dart';
-import 'package:mobile_wren_daw/ui/modular/patch_cable_painter.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/ui/lua_workbench_view.dart';
+import 'package:eatsbeats/ui/modular/modular_theme.dart';
+import 'package:eatsbeats/ui/modular/modular_faceplate_widget.dart';
+import 'package:eatsbeats/ui/modular/modular_jack_widget.dart';
+import 'package:eatsbeats/ui/modular/modular_rack_canvas.dart';
+import 'package:eatsbeats/ui/modular/patch_cable_painter.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

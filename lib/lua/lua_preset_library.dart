@@ -504,7 +504,7 @@ return FmAcousticHiHat
       id: 'analog_808_kick',
       name: 'Analog 808 Kick',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Roland TR-808 Bridged-T analog bass drum circuit with exponential pitch sweep, adjustable tone, click transient, and extended sub decay.',
+      description: 'Authentic Eats-808 analog Bridged-T analog bass drum circuit with exponential pitch sweep, adjustable tone, click transient, and extended sub decay.',
       code: '''
 -- @name: Analog 808 Kick
 -- @category: instrument
@@ -523,7 +523,7 @@ end
 function Analog808Kick.gui()
   return {
     panel = {
-      title = "ROLAND TR-808 ANALOG BASS DRUM",
+      title = "EATS-808 ANALOG BASS DRUM",
       subtitle = "Authentic Bridged-T Resonant Sine Circuit",
       accent = "track",
       layout = {
@@ -561,7 +561,7 @@ return Analog808Kick
       id: 'analog_808_snare',
       name: 'Analog 808 Snare',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Roland TR-808 dual bridged-T resonant body (180Hz & 330Hz) and snappy high-pass noise wires.',
+      description: 'Authentic Eats-808 analog dual bridged-T resonant body (180Hz & 330Hz) and snappy high-pass noise wires.',
       code: '''
 -- @name: Analog 808 Snare
 -- @category: instrument
@@ -577,7 +577,7 @@ end
 function Analog808Snare.gui()
   return {
     panel = {
-      title = "ROLAND TR-808 ANALOG SNARE DRUM",
+      title = "EATS-808 ANALOG SNARE DRUM",
       subtitle = "Dual Bridged-T Body with Snappy Noise Wires",
       accent = "track",
       layout = {
@@ -611,7 +611,7 @@ return Analog808Snare
       id: 'analog_808_hihat',
       name: 'Analog 808 Hi-Hat',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Roland TR-808 6-Schmitt-trigger square oscillator metallic cluster with 7.5kHz resonant bandpass filter.',
+      description: 'Authentic Eats-808 analog 6-Schmitt-trigger square oscillator metallic cluster with 7.5kHz resonant bandpass filter.',
       code: '''
 -- @name: Analog 808 Hi-Hat
 -- @category: instrument
@@ -626,7 +626,7 @@ end
 function Analog808HiHat.gui()
   return {
     panel = {
-      title = "ROLAND TR-808 ANALOG HI-HAT",
+      title = "EATS-808 ANALOG HI-HAT",
       subtitle = "6-Osc Inharmonic Schmitt-Trigger Cluster",
       accent = "track",
       layout = {
@@ -659,7 +659,7 @@ return Analog808HiHat
       id: 'analog_808_cowbell',
       name: 'Analog 808 Cowbell',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Roland TR-808 dual detuned square wave oscillator (540Hz & 800Hz) with 800Hz bandpass filter.',
+      description: 'Authentic Eats-808 analog dual detuned square wave oscillator (540Hz & 800Hz) with 800Hz bandpass filter.',
       code: '''
 -- @name: Analog 808 Cowbell
 -- @category: instrument
@@ -673,7 +673,7 @@ end
 function Analog808Cowbell.gui()
   return {
     panel = {
-      title = "ROLAND TR-808 ANALOG COWBELL",
+      title = "EATS-808 ANALOG COWBELL",
       subtitle = "Dual Square-Wave 540Hz/800Hz Bandpass Circuit",
       accent = "track",
       layout = {
@@ -705,7 +705,7 @@ return Analog808Cowbell
       id: 'analog_808_tom',
       name: 'Analog 808 Tom',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Roland TR-808 resonant bridged-T tank circuit tom/conga with pitch envelope decay.',
+      description: 'Authentic Eats-808 analog resonant bridged-T tank circuit tom/conga with pitch envelope decay.',
       code: '''
 -- @name: Analog 808 Tom
 -- @category: instrument
@@ -721,7 +721,7 @@ end
 function Analog808Tom.gui()
   return {
     panel = {
-      title = "ROLAND TR-808 ANALOG TOM / CONGA",
+      title = "EATS-808 ANALOG TOM / CONGA",
       subtitle = "Resonant Bridged-T Tank Circuit",
       accent = "track",
       layout = {
@@ -755,7 +755,7 @@ return Analog808Tom
       id: 'analog_909_kick',
       name: 'Analog 909 Kick',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Roland TR-909 physical circuit model (André Michelle DSP): 274Hz to 53Hz exponential sweep, single-cycle analog oscillator wavetable, 60ms hold, and beater click attack transient.',
+      description: 'Authentic Eats-909 analog physical circuit model (André Michelle DSP): 274Hz to 53Hz exponential sweep, single-cycle analog oscillator wavetable, 60ms hold, and beater click attack transient.',
       code: '''
 -- @name: Analog 909 Kick
 -- @category: instrument
@@ -770,7 +770,7 @@ end
 function Analog909Kick.gui()
   return {
     panel = {
-      title = "ROLAND TR-909 ANALOG BASS DRUM",
+      title = "EATS-909 ANALOG BASS DRUM",
       subtitle = "Physical Model: 274Hz -> 53Hz Wavetable & Attack Transient",
       accent = "track",
       layout = {
@@ -804,7 +804,7 @@ return Analog909Kick
       id: 'analog_909_snare',
       name: 'Analog 909 Snare',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Roland TR-909 dual-layer physical model (André Michelle DSP): tuned analog resonant tonal body (snare-tone) and snappy noise wires (snare-noise).',
+      description: 'Authentic Eats-909 analog dual-layer physical model (André Michelle DSP): tuned analog resonant tonal body (snare-tone) and snappy noise wires (snare-noise).',
       code: '''
 -- @name: Analog 909 Snare
 -- @category: instrument
@@ -819,7 +819,7 @@ end
 function Analog909Snare.gui()
   return {
     panel = {
-      title = "ROLAND TR-909 ANALOG SNARE DRUM",
+      title = "EATS-909 ANALOG SNARE DRUM",
       subtitle = "Dual Layer: Resonant Tonal Body & Snappy Noise Wires",
       accent = "track",
       layout = {
@@ -853,7 +853,7 @@ return Analog909Snare
       id: 'analog_909_closed_hihat',
       name: 'Analog 909 Closed Hi-Hat',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Roland TR-909 6-bit compressed PCM ROM (closed-hihat) with analog VCA decay and pitch tuning.',
+      description: 'Authentic Eats-909 analog 6-bit compressed PCM ROM (closed-hihat) with analog VCA decay and pitch tuning.',
       code: '''
 -- @name: Analog 909 Closed Hi-Hat
 -- @category: instrument
@@ -867,7 +867,7 @@ end
 function Analog909ClosedHiHat.gui()
   return {
     panel = {
-      title = "ROLAND TR-909 CLOSED HI-HAT",
+      title = "EATS-909 CLOSED HI-HAT",
       subtitle = "Authentic 6-Bit Compressed PCM ROM & Analog VCA",
       accent = "track",
       layout = {
@@ -899,7 +899,7 @@ return Analog909ClosedHiHat
       id: 'analog_909_open_hihat',
       name: 'Analog 909 Open Hi-Hat',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Roland TR-909 6-bit compressed PCM ROM (opened-hihat) with extended analog envelope decay and pitch tuning.',
+      description: 'Authentic Eats-909 analog 6-bit compressed PCM ROM (opened-hihat) with extended analog envelope decay and pitch tuning.',
       code: '''
 -- @name: Analog 909 Open Hi-Hat
 -- @category: instrument
@@ -913,7 +913,7 @@ end
 function Analog909OpenHiHat.gui()
   return {
     panel = {
-      title = "ROLAND TR-909 OPEN HI-HAT",
+      title = "EATS-909 OPEN HI-HAT",
       subtitle = "Authentic 6-Bit Compressed PCM ROM & Extended Decay",
       accent = "track",
       layout = {
@@ -945,7 +945,7 @@ return Analog909OpenHiHat
       id: 'analog_909_clap',
       name: 'Analog 909 Handclap',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Roland TR-909 handclap (clap.raw) with multi-trigger impulse playback, diffuse reverberation, and pitch tuning.',
+      description: 'Authentic Eats-909 analog handclap (clap.raw) with multi-trigger impulse playback, diffuse reverberation, and pitch tuning.',
       code: '''
 -- @name: Analog 909 Handclap
 -- @category: instrument
@@ -959,7 +959,7 @@ end
 function Analog909Clap.gui()
   return {
     panel = {
-      title = "ROLAND TR-909 HANDCLAP",
+      title = "EATS-909 HANDCLAP",
       subtitle = "Multi-Trigger Triggered ROM & Reverb Tail",
       accent = "track",
       layout = {
@@ -991,7 +991,7 @@ return Analog909Clap
       id: 'analog_909_rimshot',
       name: 'Analog 909 Rimshot',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Roland TR-909 high-Q resonant tank circuit (rim.raw) with stick click clack and envelope decay.',
+      description: 'Authentic Eats-909 analog high-Q resonant tank circuit (rim.raw) with stick click clack and envelope decay.',
       code: '''
 -- @name: Analog 909 Rimshot
 -- @category: instrument
@@ -1005,7 +1005,7 @@ end
 function Analog909Rimshot.gui()
   return {
     panel = {
-      title = "ROLAND TR-909 RIMSHOT",
+      title = "EATS-909 RIMSHOT",
       subtitle = "High-Q Resonant Tank Circuit ROM Clack",
       accent = "track",
       layout = {
@@ -1032,12 +1032,12 @@ return Analog909Rimshot
 ''',
     ),
 
-    // 1. Eats-303 Acid Bass Synth (Inspired by Roland TB-303 & JC-303 / Open303 DSP)
+    // 1. Eats-303 Acid Bass Synth (Inspired by JC-303 / Open303 DSP & 303 Diode Topology)
     LuaPreset(
       id: 'eats_303',
       name: 'Eats-303',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Roland TB-303 emulation with 24dB 4-Pole Diode Ladder filter, 150Hz feedback highpass loop, leaky integrator saw/square oscillators, accent decay override, 60ms slide portamento, and overdrive. DSP synthesis inspired by midilab/jc303 (Jean-Christophe Taveau) and Robin Schmidt (Open303).',
+      description: 'Authentic Eats-303 acid bassline emulation with 24dB 4-Pole Diode Ladder filter, 150Hz feedback highpass loop, leaky integrator saw/square oscillators, accent decay override, 60ms slide portamento, and overdrive. DSP synthesis inspired by midilab/jc303 (Jean-Christophe Taveau) and Robin Schmidt (Open303).',
       code: '''
 -- @name: Eats-303
 -- @category: instrument
@@ -1126,7 +1126,7 @@ function Eats303.gui()
   return {
     panel = {
       title = "EATS-303 ACID BASSLINE",
-      subtitle = "Roland TB-303 Emulation • (JC-303 & Open303 DSP)",
+      subtitle = "Eats-303 Acid Synth • (JC-303 & Open303 DSP)",
       background = "silver",
       accent = "#000000",
       knobStyle = "chrome",
@@ -1225,7 +1225,7 @@ return PolyLeadSynth
       id: 'ym2612_synth',
       name: 'YM2612 Genesis 4-Op FM',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Yamaha YM2612 / OPN2 4-operator FM sound chip emulation (Sega Genesis sound) with 8 selectable routing algorithms, operator feedback, Total Level brightness, and direct register poke access.',
+      description: 'Authentic YM2612 / OPN2 4-operator FM sound chip emulation (16-bit arcade & console sound) with 8 selectable routing algorithms, operator feedback, Total Level brightness, and direct register poke access.',
       code: '''
 -- @name: YM2612 Genesis 4-Op FM
 -- @category: instrument
@@ -1251,8 +1251,8 @@ end
 function YM2612.gui()
   return {
     panel = {
-      title = "YAMAHA YM2612 FM SOUND PROCESSOR",
-      subtitle = "Sega Genesis 4-Operator FM Hardware Synthesis",
+      title = "YM2612 FM SOUND PROCESSOR",
+      subtitle = "16-Bit 4-Operator FM Hardware Synthesis",
       accent = "track",
       layout = {
         {
@@ -1284,12 +1284,12 @@ return YM2612
 ''',
     ),
 
-    // 8. SNES Sfxr (Sony S-DSP / SPC700)
+    // 8. SNES Sfxr (16-Bit S-DSP / SPC700)
     LuaPreset(
       id: 'eats_sfxr',
       name: 'SNES Sfxr',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Super Nintendo (Sony S-DSP / SPC700) 16-bit procedural sound effect engine with BRR wavetables, 4-point Gaussian filtering, 8-tap FIR echo reverb, and intelligent PRNG seed randomization. Instant archetypes: Laser, Explosion, Powerup, Coin, Jump, Hurt, Lose, Button, Warp, Mutate, Custom. Completely playable chromatically across keys!',
+      description: 'Authentic 16-Bit S-DSP Console Engine 16-bit procedural sound effect engine with BRR wavetables, 4-point Gaussian filtering, 8-tap FIR echo reverb, and intelligent PRNG seed randomization. Instant archetypes: Laser, Explosion, Powerup, Coin, Jump, Hurt, Lose, Button, Warp, Mutate, Custom. Completely playable chromatically across keys!',
       code: '''
 -- @name: SNES Sfxr
 -- @category: instrument
@@ -1322,7 +1322,7 @@ function SNESSFX.gui()
   return {
     panel = {
       title = "SNES Sfxr",
-      subtitle = "16-Bit Super Nintendo Procedural Sound Engine",
+      subtitle = "16-Bit Procedural Sound Engine",
       background = "snes",
       accent = "#7B52AB",
       knobStyle = "snes",
@@ -1369,7 +1369,7 @@ return SNESSFX
       id: 'snes_console_synth',
       name: 'SNES Synth',
       category: LuaPresetCategory.instrument,
-      description: 'Polyphonic 16-bit Super Nintendo sound processor emulation with Gaussian BRR wavetables, pitch modulation (PMOD), and 8-tap FIR echo reverb.',
+      description: 'Polyphonic 16-bit console sound processor emulation with Gaussian BRR wavetables, pitch modulation (PMOD), and 8-tap FIR echo reverb.',
       code: '''
 -- @name: SNES Synth
 -- @category: instrument
@@ -1435,7 +1435,7 @@ return SNESConsole
       id: 'opl3_retro',
       name: 'OPL3 Retro Chiptune',
       category: LuaPresetCategory.instrument,
-      description: 'Yamaha YMF262 / OPL3 2-Op & 4-Op FM synthesis modelled after Sound Blaster 16 and AdLib DOS sound cards.',
+      description: 'YMF262 / OPL3 2-Op & 4-Op FM synthesis modelled after classic 16-bit retro DOS sound cards.',
       code: '''
 -- @name: OPL3 Retro Chiptune
 -- @category: instrument
@@ -1457,8 +1457,8 @@ end
 function OPL3.gui()
   return {
     panel = {
-      title = "YAMAHA YMF262 / OPL3 FM SYNTH",
-      subtitle = "Sound Blaster 16 / AdLib DOS Chiptune Hardware",
+      title = "YMF262 / OPL3 FM SYNTH",
+      subtitle = "Classic 16-Bit Retro DOS FM Hardware",
       accent = "#39FF14",
       layout = {
         {
@@ -1587,7 +1587,7 @@ return WaveShaper
 ''',
     ),
 
-    // 11. Eatsbits Sampler Instrument (Melodic / One-Shot)
+    // 11. Eatsbeats Sampler Instrument (Melodic / One-Shot)
     LuaPreset(
       id: 'sampler_instrument',
       name: 'Sampler (Melodic / One-Shot)',
@@ -1627,7 +1627,7 @@ return SamplerInstrument
 ''',
     ),
 
-    // 12. Eatsbits Multi-Slot Drum Kit Sampler
+    // 12. Eatsbeats Multi-Slot Drum Kit Sampler
     LuaPreset(
       id: 'drum_kit_sampler',
       name: 'Eats Multi-Slot Drum Sampler',

@@ -42,15 +42,15 @@ class TransportHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // EatsBits Monster Icon drawn directly on background (Theme Accent Recolorable)
+          // EatsBeats Monster Icon drawn directly on background (Theme Accent Recolorable)
           Tooltip(
-            message: 'Eatsbits Settings',
+            message: 'Eatsbeats Settings',
             child: InkWell(
               onTap: () => _showSettingsDialog(context),
               borderRadius: BorderRadius.circular(6),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-                child: EatsBitsMonsterIcon(size: 28, color: EatsTheme.primaryCyan),
+                child: EatsBeatsMonsterIcon(size: 28, color: EatsTheme.primaryCyan),
               ),
             ),
           ),
@@ -330,10 +330,10 @@ class TransportHeader extends StatelessWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               title: Row(
                 children: [
-                  EatsBitsMonsterIcon(size: 28, color: EatsTheme.primaryCyan),
+                  EatsBeatsMonsterIcon(size: 28, color: EatsTheme.primaryCyan),
                   const SizedBox(width: 10),
                   Text(
-                    'EATSBITS SETTINGS',
+                    'EATSBEATS SETTINGS',
                     style: TextStyle(color: EatsTheme.primaryCyan, fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ],
@@ -641,7 +641,7 @@ class TransportHeader extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '• Eats 303 DSP & Acid Synthesis: Inspired by JC-303 (Jean-Christophe Taveau), Open303 (Robin Schmidt), and classic Roland TB-303 diode ladder filter topology.',
+                              '• Eats-303 DSP & Acid Synthesis: Inspired by JC-303 (Jean-Christophe Taveau), Open303 (Robin Schmidt), and classic 303 diode ladder filter topology.',
                               style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
                             ),
                             const SizedBox(height: 6),
@@ -878,8 +878,8 @@ class _HeaderMeterGlassReflectionPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// Custom EatsBits Monster Icon Widget
-class EatsBitsMonsterIcon extends StatelessWidget {
+// Custom EatsBeats Monster Icon Widget
+class EatsBeatsMonsterIcon extends StatelessWidget {
   final double size;
   final Color? color;
   final Color? backgroundColor;
@@ -887,7 +887,7 @@ class EatsBitsMonsterIcon extends StatelessWidget {
   final Color? eyeColor;
   final bool isBadge;
 
-  const EatsBitsMonsterIcon({
+  const EatsBeatsMonsterIcon({
     super.key,
     this.size = 24.0,
     this.color,
@@ -914,7 +914,7 @@ class EatsBitsMonsterIcon extends StatelessWidget {
         child: Center(
           child: CustomPaint(
             size: Size(size * 0.85, size * 0.85),
-            painter: _EatsBitsMonsterPainter(
+            painter: _EatsBeatsMonsterPainter(
               bodyColor: effectiveIcon,
               eyeColor: effectiveEye,
             ),
@@ -932,7 +932,7 @@ class EatsBitsMonsterIcon extends StatelessWidget {
         child: Center(
           child: CustomPaint(
             size: Size(size * 0.9, size * 0.9),
-            painter: _EatsBitsMonsterPainter(
+            painter: _EatsBeatsMonsterPainter(
               bodyColor: effectiveColor,
               eyeColor: effectiveEye,
             ),
@@ -943,11 +943,11 @@ class EatsBitsMonsterIcon extends StatelessWidget {
   }
 }
 
-class _EatsBitsMonsterPainter extends CustomPainter {
+class _EatsBeatsMonsterPainter extends CustomPainter {
   final Color bodyColor;
   final Color eyeColor;
 
-  _EatsBitsMonsterPainter({
+  _EatsBeatsMonsterPainter({
     required this.bodyColor,
     required this.eyeColor,
   });
@@ -982,7 +982,7 @@ class _EatsBitsMonsterPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _EatsBitsMonsterPainter oldDelegate) {
+  bool shouldRepaint(covariant _EatsBeatsMonsterPainter oldDelegate) {
     return oldDelegate.bodyColor != bodyColor || oldDelegate.eyeColor != eyeColor;
   }
 }

@@ -41,7 +41,7 @@ class SoundFontPackManager extends ChangeNotifier {
     SoundFontPackInfo(
       id: 'generaluser_gs',
       title: 'GeneralUser GS SoundFont v1.471',
-      description: 'High-quality Roland GS & General MIDI compatible SoundFont bank by S. Christian Collins (30+ MB, 250+ instruments).',
+      description: 'High-quality GS & General MIDI compatible SoundFont bank by S. Christian Collins (30+ MB, 250+ instruments).',
       url: 'https://raw.githubusercontent.com/JustEnoughLinuxOS/generaluser-gs/main/GeneralUser%20GS%20v1.471.sf2',
       fallbackUrl: 'https://raw.githubusercontent.com/ROCKNIX/generaluser-gs/main/GeneralUser%20GS%20v1.471.sf2',
       fileName: 'GeneralUser_GS.sf2',

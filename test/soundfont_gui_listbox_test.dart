@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/audio/soundfont_engine.dart';
-import 'package:mobile_wren_daw/audio/soundfont_decoder.dart';
-import 'package:mobile_wren_daw/lua/lua_engine.dart';
-import 'package:mobile_wren_daw/lua/lua_gui_model.dart';
-import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/theme/eats_theme.dart';
-import 'package:mobile_wren_daw/ui/widgets/dynamic_instrument_gui_widget.dart';
-import 'package:mobile_wren_daw/ui/widgets/hardware_listbox_widget.dart';
-import 'package:mobile_wren_daw/ui/widgets/skeuomorphic_hardware_knob.dart';
-import 'package:mobile_wren_daw/ui/lua_workbench_view.dart';
-import 'package:mobile_wren_daw/ui/script_view.dart';
+import 'package:eatsbeats/audio/soundfont_engine.dart';
+import 'package:eatsbeats/audio/soundfont_decoder.dart';
+import 'package:eatsbeats/lua/lua_engine.dart';
+import 'package:eatsbeats/lua/lua_gui_model.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/theme/eats_theme.dart';
+import 'package:eatsbeats/ui/widgets/dynamic_instrument_gui_widget.dart';
+import 'package:eatsbeats/ui/widgets/hardware_listbox_widget.dart';
+import 'package:eatsbeats/ui/widgets/skeuomorphic_hardware_knob.dart';
+import 'package:eatsbeats/ui/lua_workbench_view.dart';
+import 'package:eatsbeats/ui/script_view.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

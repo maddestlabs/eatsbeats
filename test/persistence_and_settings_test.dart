@@ -1,10 +1,10 @@
 import 'dart:io' as io;
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/theme/eats_theme.dart';
-import 'package:mobile_wren_daw/utils/eats_storage_helper.dart';
-import 'package:mobile_wren_daw/utils/soundfont_pack_manager.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/theme/eats_theme.dart';
+import 'package:eatsbeats/utils/eats_storage_helper.dart';
+import 'package:eatsbeats/utils/soundfont_pack_manager.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -42,7 +42,7 @@ void main() {
     });
 
     test('Session Lua save, load, and clear', () async {
-      const sampleLua = '-- Eatsbits Test Project\nreturn eatsbits.song { bpm = 130 }';
+      const sampleLua = '-- Eatsbeats Test Project\nreturn eatsbeats.song { bpm = 130 }';
 
       await EatsStorageHelper.saveSessionLua(sampleLua);
       final loaded = await EatsStorageHelper.loadSessionLua();

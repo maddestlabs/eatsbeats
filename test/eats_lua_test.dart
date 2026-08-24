@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/lua/eats_lua_serializer.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/lua/eats_lua_serializer.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +16,7 @@ void main() {
 
       final luaString = EatsLuaSerializer.serialize(state, projectName: state.projectName);
 
-      expect(luaString, contains('return eatsbits.song {'));
+      expect(luaString, contains('return eatsbeats.song {'));
       expect(luaString, contains('title = "Acid Sunset"'));
       expect(luaString, contains('bpm = 128.00'));
       expect(luaString, contains('masterVolume = 0.90'));
@@ -90,7 +90,7 @@ void main() {
 
     test('Parses multiline embedded Lua clip code blocks', () {
       const sampleLuaFile = '''
-return eatsbits.song {
+return eatsbeats.song {
   meta = {
     title = "Generative Acid",
     bpm = 140.0,
@@ -132,7 +132,7 @@ end
       final state = DawState();
       final exported = state.exportToEatsLua();
 
-      expect(exported, contains('return eatsbits.song {'));
+      expect(exported, contains('return eatsbeats.song {'));
 
       final newState = DawState();
       expect(() => newState.loadFromEatsLua(exported), returnsNormally);

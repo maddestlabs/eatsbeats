@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/models/command_palette_registry.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/theme/eats_theme.dart';
-import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
+import 'package:eatsbeats/models/command_palette_registry.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/theme/eats_theme.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

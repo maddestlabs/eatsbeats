@@ -277,7 +277,7 @@ class AutomationLane {
   /// Automatically generates executable Lua script code representing this automation lane.
   String generateLuaScript() {
     final sb = StringBuffer();
-    sb.writeln('-- Eatsbits Automation Script: ${target.name} (${target.id})');
+    sb.writeln('-- Eatsbeats Automation Script: ${target.name} (${target.id})');
     sb.writeln('-- Generated automatically from automation curve points');
     sb.writeln('local lane = {}');
     sb.writeln('lane.target = "${target.id}"');
@@ -301,7 +301,7 @@ class AutomationLane {
       sb.writeln('    { step = ${p.step.toStringAsFixed(2)}, value = ${p.value.toStringAsFixed(3)}, easing = "${p.easing.name}" },');
     }
     sb.writeln('  }');
-    sb.writeln('  return eatsbits.automation.evaluatePoints(points, step, lane.min, lane.max, lane.defaultValue)');
+    sb.writeln('  return eatsbeats.automation.evaluatePoints(points, step, lane.min, lane.max, lane.defaultValue)');
     sb.writeln('end');
 
     return sb.toString();

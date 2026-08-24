@@ -1066,10 +1066,6 @@ class DawState extends ChangeNotifier {
   String luaCode = LuaPresetLibrary.presets.first.code;
   LuaCompilationResult compilationResult = LuaEngine.compile(LuaPresetLibrary.presets.first.code);
 
-  // Backward compatibility getters
-  String get wrenCode => luaCode;
-  set wrenCode(String val) => luaCode = val;
-
   static bool get isTestEnvironment => PlatformEnvHelper.isFlutterTest;
 
   bool _isDisposed = false;
@@ -3075,28 +3071,15 @@ class DawState extends ChangeNotifier {
     notifyListeners();
   }
 
-
-  void compileWrenCode(String code) => compileLuaCode(code);
-
   void loadLuaPreset(LuaPreset preset) {
     luaCode = preset.code;
     compileLuaCode(preset.code);
-  }
-
-  void loadWrenPreset(dynamic preset) {
-    if (preset is LuaPreset) {
-      loadLuaPreset(preset);
-    } else {
-      compileLuaCode(preset.code);
-    }
   }
 
   void updateLuaParam(String paramName, double value) {
     activeTrack.luaParams[paramName] = value;
     notifyListeners();
   }
-
-  void updateWrenParam(String paramName, double value) => updateLuaParam(paramName, value);
 
   void setPatternLength(Pattern pattern, int length) {
     pattern.lengthSteps = length;
@@ -3242,6 +3225,6 @@ class DawState extends ChangeNotifier {
       rightSamples: rightBuffer,
     );
 
-    WavExporter.saveWavFile(wavBytes, 'wren_daw_song.wav');
+    WavExporter.saveWavFile(wavBytes, 'eatsbeats_song.wav');
   }
 }

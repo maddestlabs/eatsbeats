@@ -24,20 +24,20 @@ class EatsStorageHelperImpl {
       final appData = io.Platform.environment['APPDATA'] ??
           io.Platform.environment['LOCALAPPDATA'] ??
           io.Directory.current.path;
-      path = '$appData/Eatsbits';
+      path = '$appData/Eatsbeats';
     } else if (io.Platform.isMacOS) {
       final home = io.Platform.environment['HOME'] ?? '.';
-      path = '$home/Library/Application Support/Eatsbits';
+      path = '$home/Library/Application Support/Eatsbeats';
     } else if (io.Platform.isLinux) {
       final xdg = io.Platform.environment['XDG_DATA_HOME'];
       if (xdg != null && xdg.isNotEmpty) {
-        path = '$xdg/eatsbits';
+        path = '$xdg/eatsbeats';
       } else {
         final home = io.Platform.environment['HOME'] ?? '.';
-        path = '$home/.local/share/eatsbits';
+        path = '$home/.local/share/eatsbeats';
       }
     } else {
-      path = '${io.Directory.systemTemp.path}/eatsbits';
+      path = '${io.Directory.systemTemp.path}/eatsbeats';
     }
 
     _baseDir = io.Directory(path);
@@ -45,7 +45,7 @@ class EatsStorageHelperImpl {
       try {
         _baseDir!.createSync(recursive: true);
       } catch (e) {
-        debugPrint('Error creating Eatsbits storage directory: $e');
+        debugPrint('Error creating Eatsbeats storage directory: $e');
       }
     }
     return _baseDir!;

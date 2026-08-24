@@ -9,22 +9,22 @@ import '../utils/html_preloader_helper.dart';
 import '../utils/soundfont_pack_manager.dart';
 import 'transport_header.dart';
 
-/// Skeuomorphic vintage rack panel loading screen for Eatsbits startup.
-class EatsbitsLoadingScreen extends StatefulWidget {
+/// Skeuomorphic vintage rack panel loading screen for Eatsbeats startup.
+class EatsbeatsLoadingScreen extends StatefulWidget {
   final VoidCallback onInitializationComplete;
   final DawState? dawState;
 
-  const EatsbitsLoadingScreen({
+  const EatsbeatsLoadingScreen({
     super.key,
     required this.onInitializationComplete,
     this.dawState,
   });
 
   @override
-  State<EatsbitsLoadingScreen> createState() => _EatsbitsLoadingScreenState();
+  State<EatsbeatsLoadingScreen> createState() => _EatsbeatsLoadingScreenState();
 }
 
-class _EatsbitsLoadingScreenState extends State<EatsbitsLoadingScreen> with SingleTickerProviderStateMixin {
+class _EatsbeatsLoadingScreenState extends State<EatsbeatsLoadingScreen> with SingleTickerProviderStateMixin {
   late AnimationController _animController;
   int _currentStepIndex = 0;
   double _progress = 0.0;
@@ -159,7 +159,7 @@ class _EatsbitsLoadingScreenState extends State<EatsbitsLoadingScreen> with Sing
                                   )
                                 ],
                               ),
-                              child: EatsBitsMonsterIcon(
+                              child: EatsBeatsMonsterIcon(
                                 size: 36,
                                 backgroundColor: accentAmber,
                                 iconColor: const Color(0xFF0F1218),
@@ -171,7 +171,7 @@ class _EatsbitsLoadingScreenState extends State<EatsbitsLoadingScreen> with Sing
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'EATSBITS',
+                                  'EATSBEATS',
                                   style: EatsTheme.getDisplayFontStyle(
                                     fontSize: 24,
                                     fontWeight: FontWeight.w900,

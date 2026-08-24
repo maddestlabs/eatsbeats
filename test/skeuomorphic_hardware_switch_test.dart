@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/theme/eats_theme.dart';
-import 'package:mobile_wren_daw/ui/widgets/skeuomorphic_hardware_switch.dart';
+import 'package:eatsbeats/theme/eats_theme.dart';
+import 'package:eatsbeats/ui/widgets/skeuomorphic_hardware_switch.dart';
 
 void main() {
   group('SkeuomorphicHardwareSwitch Tests', () {

@@ -3,7 +3,7 @@ import '../../lua/lua_gui_model.dart' show SliderStyle;
 import '../../theme/eats_theme.dart';
 import 'skeuomorphic_hardware_slider.dart';
 
-class EatsBitsSlider extends StatelessWidget {
+class EatsBeatsSlider extends StatelessWidget {
   final double value;
   final double min;
   final double max;
@@ -21,7 +21,7 @@ class EatsBitsSlider extends StatelessWidget {
   final Axis orientation;
   final SliderStyle style;
 
-  const EatsBitsSlider({
+  const EatsBeatsSlider({
     super.key,
     required this.value,
     this.min = 0.0,

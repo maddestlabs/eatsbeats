@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/audio/convolver_engine.dart';
-import 'package:mobile_wren_daw/audio/procedural_ir_generator.dart';
-import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/ui/widgets/space_visualizer_widget.dart';
+import 'package:eatsbeats/audio/convolver_engine.dart';
+import 'package:eatsbeats/audio/procedural_ir_generator.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/ui/widgets/space_visualizer_widget.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

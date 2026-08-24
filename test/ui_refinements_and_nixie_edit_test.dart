@@ -1,14 +1,14 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/lua/lua_engine.dart';
-import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/ui/arranger_view.dart';
-import 'package:mobile_wren_daw/ui/transport_header.dart';
-import 'package:mobile_wren_daw/ui/widgets/dynamic_instrument_gui_widget.dart';
-import 'package:mobile_wren_daw/ui/widgets/glowing_nixie_display.dart';
+import 'package:eatsbeats/lua/lua_engine.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/ui/arranger_view.dart';
+import 'package:eatsbeats/ui/transport_header.dart';
+import 'package:eatsbeats/ui/widgets/dynamic_instrument_gui_widget.dart';
+import 'package:eatsbeats/ui/widgets/glowing_nixie_display.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -303,7 +303,7 @@ void main() {
       expect(compilation.guiLayout, isNotNull);
       final panel = compilation.guiLayout!;
       expect(panel.title, contains('OPL3'));
-      expect(panel.subtitle, contains('Sound Blaster'));
+      expect(panel.subtitle, contains('Retro DOS FM Hardware'));
 
       final row1 = panel.children.first;
       expect(row1.children.any((c) => c.param == 'Algorithm'), isTrue);
@@ -350,7 +350,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('YAMAHA YMF262 / OPL3 FM SYNTH'), findsOneWidget);
+      expect(find.text('YMF262 / OPL3 FM SYNTH'), findsOneWidget);
       expect(find.text('ALGORITHM'), findsOneWidget);
       expect(find.text('FEEDBACK'), findsOneWidget);
       expect(find.text('OP1 MULT'), findsOneWidget);

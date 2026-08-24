@@ -1,15 +1,15 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart' hide Easing;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/audio/fm_chip_engine.dart';
-import 'package:mobile_wren_daw/audio/snes_dsp_engine.dart';
-import 'package:mobile_wren_daw/lua/lua_engine.dart';
-import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
+import 'package:eatsbeats/audio/fm_chip_engine.dart';
+import 'package:eatsbeats/audio/snes_dsp_engine.dart';
+import 'package:eatsbeats/lua/lua_engine.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('SNES Sony S-DSP Hardware Sound Processor Tests', () {
+  group('16-Bit S-DSP Hardware Sound Processor Tests', () {
     test('All S-DSP BRR waveforms synthesize valid audio signals', () {
       final dsp = SNESDSPEngine();
 

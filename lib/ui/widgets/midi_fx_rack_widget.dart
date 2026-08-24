@@ -6,7 +6,7 @@ import '../../models/track_model.dart';
 import '../../models/script_target_model.dart';
 import '../../theme/eats_theme.dart';
 import 'dynamic_instrument_gui_widget.dart';
-import 'eatsbits_slider.dart';
+import 'eatsbeats_slider.dart';
 import 'skeuomorphic_hardware_switch.dart';
 
 class MidiFxRackWidget extends StatelessWidget {
@@ -399,7 +399,7 @@ class MidiFxRackWidget extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: EatsBitsSlider(
+              child: EatsBeatsSlider(
                 label: 'Octaves: ${rawOctaves.round()} Oct',
                 value: rawOctaves,
                 defaultValue: 2.0,
@@ -412,7 +412,7 @@ class MidiFxRackWidget extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: EatsBitsSlider(
+              child: EatsBeatsSlider(
                 label: 'Gate: ${(rawGate * 100).round()}%',
                 value: rawGate,
                 defaultValue: 0.85,
@@ -424,7 +424,7 @@ class MidiFxRackWidget extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: EatsBitsSlider(
+              child: EatsBeatsSlider(
                 label: 'Swing: ${(rawSwing * 100).round()}%',
                 value: rawSwing,
                 defaultValue: 0.0,
@@ -522,7 +522,7 @@ class MidiFxRackWidget extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: EatsBitsSlider(
+          child: EatsBeatsSlider(
             label: 'Timing Jitter: ${(rawTiming * 100).round()}%',
             value: rawTiming,
             defaultValue: 0.04,
@@ -534,7 +534,7 @@ class MidiFxRackWidget extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: EatsBitsSlider(
+          child: EatsBeatsSlider(
             label: 'Velocity Jitter: ${(rawVel * 100).round()}%',
             value: rawVel,
             defaultValue: 0.15,
@@ -560,7 +560,7 @@ class MidiFxRackWidget extends StatelessWidget {
       children: fx.luaParams.entries.map((param) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: EatsBitsSlider(
+          child: EatsBeatsSlider(
             label: '${param.key}: ${param.value.toStringAsFixed(2)}',
             value: param.value,
             defaultValue: param.value,

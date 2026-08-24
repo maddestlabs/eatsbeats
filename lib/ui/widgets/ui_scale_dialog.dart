@@ -4,7 +4,7 @@ import '../../theme/eats_theme.dart';
 import 'glowing_nixie_display.dart';
 import 'skeuomorphic_hardware_button.dart';
 
-/// Modal dialog allowing the user to adjust the global UI scale of Eatsbits
+/// Modal dialog allowing the user to adjust the global UI scale of Eatsbeats
 /// with live real-time preview and guaranteed revert on cancel or dismiss.
 class UiScaleDialog extends StatefulWidget {
   final DawState dawState;

@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Script to build Eatsbits for Windows Native 64-bit using PowerShell.
+    Script to build Eatsbeats for Windows Native 64-bit using PowerShell.
 
 .DESCRIPTION
-    Builds the Eatsbits application into a native 64-bit Windows executable.
+    Builds the Eatsbeats application into a native 64-bit Windows executable.
     Ensures Windows desktop support is enabled, generates platform files if missing,
     and handles build cleaning, profiling, debug modes, asset bundling, and launching.
 
@@ -48,7 +48,7 @@ if (-not $rootDir) {
 Set-Location $rootDir
 
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "  Eatsbits Windows Native 64-bit Build Script" -ForegroundColor Cyan
+Write-Host "  Eatsbeats Windows Native 64-bit Build Script" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
 # ------------------------------------------------------------------
@@ -77,7 +77,7 @@ if (-not (Test-Path $windowsDir)) {
 }
 
 # Close any running instances of the app to prevent CMake file lock errors
-$runningProcesses = Get-Process | Where-Object { $_.ProcessName -eq "eatsbits" -or $_.ProcessName -eq "mobile_wren_daw" }
+$runningProcesses = Get-Process | Where-Object { $_.ProcessName -eq "eatsbeats" -or $_.ProcessName -eq "eatsbeats" }
 if ($runningProcesses) {
     Write-Host "    Closing running application instances to release file locks..." -ForegroundColor Yellow
     $runningProcesses | Stop-Process -Force -ErrorAction SilentlyContinue

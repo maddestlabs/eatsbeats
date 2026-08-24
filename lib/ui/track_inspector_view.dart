@@ -4,7 +4,7 @@ import '../models/track_model.dart';
 import '../models/script_target_model.dart';
 import '../lua/lua_preset_library.dart';
 import '../theme/eats_theme.dart';
-import 'widgets/eatsbits_slider.dart';
+import 'widgets/eatsbeats_slider.dart';
 import 'widgets/project_browser_drawer.dart';
 import 'widgets/modular_fx_rack_widget.dart';
 import 'widgets/midi_fx_rack_widget.dart';
@@ -197,7 +197,7 @@ class TrackInspectorView extends StatelessWidget {
                   children: [
                     SizedBox(width: 70, child: Text('VOLUME', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textSecondary, fontSize: 11))),
                     Expanded(
-                      child: EatsBitsSlider(
+                      child: EatsBeatsSlider(
                         value: track.volume,
                         min: 0.0,
                         max: 1.5,
@@ -218,7 +218,7 @@ class TrackInspectorView extends StatelessWidget {
                   children: [
                     SizedBox(width: 70, child: Text('PAN', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textSecondary, fontSize: 11))),
                     Expanded(
-                      child: EatsBitsSlider(
+                      child: EatsBeatsSlider(
                         value: track.pan,
                         min: -1.0,
                         max: 1.0,

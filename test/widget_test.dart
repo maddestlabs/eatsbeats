@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:mobile_wren_daw/main.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/ui/arranger_view.dart';
+import 'package:eatsbeats/main.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/ui/arranger_view.dart';
 
 void main() {
   testWidgets('DAW smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const WrenDawApp());
-    expect(find.byType(WrenDawApp), findsOneWidget);
+    await tester.pumpWidget(const EatsbeatsApp());
+    expect(find.byType(EatsbeatsApp), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 

@@ -1,4 +1,4 @@
-# Scripting Engine & Clip Architecture (Eatsbits)
+# Scripting Engine & Clip Architecture (Eatsbeats)
 
 ## Core Architectural Principle: Code as Source of Truth
 Every clip in the DAW is driven by a script (Lua). The Piano Roll visual UI acts as a bi-directional parser over the underlying Lua script state.

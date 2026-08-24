@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/lua/lua_engine.dart';
-import 'package:mobile_wren_daw/lua/lua_gui_model.dart';
-import 'package:mobile_wren_daw/lua/lua_gui_parser.dart';
-import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/ui/widgets/dynamic_instrument_gui_widget.dart';
-import 'package:mobile_wren_daw/ui/widgets/grungy_rack_panel.dart';
-import 'package:mobile_wren_daw/ui/widgets/skeuomorphic_hardware_knob.dart';
-import 'package:mobile_wren_daw/ui/widgets/skeuomorphic_hardware_switch.dart';
+import 'package:eatsbeats/lua/lua_engine.dart';
+import 'package:eatsbeats/lua/lua_gui_model.dart';
+import 'package:eatsbeats/lua/lua_gui_parser.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/ui/widgets/dynamic_instrument_gui_widget.dart';
+import 'package:eatsbeats/ui/widgets/grungy_rack_panel.dart';
+import 'package:eatsbeats/ui/widgets/skeuomorphic_hardware_knob.dart';
+import 'package:eatsbeats/ui/widgets/skeuomorphic_hardware_switch.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -26,7 +26,7 @@ function Eats303.gui()
   return {
     panel = {
       title = "EATS-303 ACID BASSLINE",
-      subtitle = "Roland TB-303 Emulation • (JC-303 & Open303 DSP)",
+      subtitle = "Eats-303 Acid Synth • (JC-303 & Open303 DSP)",
       background = "silver",
       accent = "#000000",
       knobStyle = "chrome",

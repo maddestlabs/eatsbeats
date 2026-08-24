@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
-import 'package:mobile_wren_daw/ui/widgets/project_browser_drawer.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/ui/widgets/project_browser_drawer.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -44,19 +44,19 @@ void main() {
       final track = state.activeTrack;
       track.fxRack.clear();
 
-      final delayPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'lua_delay');
-      final bitcrusherPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'bitcrusher_fx');
+      final bitcrusherPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'bitcrusher');
+      final waveshaperPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'waveshaper');
 
       // Add first FX
-      state.applyPreset(delayPreset, targetTrack: track);
+      state.applyPreset(bitcrusherPreset, targetTrack: track);
       expect(track.fxRack.length, equals(1));
-      expect(track.fxRack.first.name, equals(delayPreset.name));
+      expect(track.fxRack.first.name, equals(bitcrusherPreset.name));
 
       // Add second FX -> should append to the end
-      state.applyPreset(bitcrusherPreset, targetTrack: track);
+      state.applyPreset(waveshaperPreset, targetTrack: track);
       expect(track.fxRack.length, equals(2));
-      expect(track.fxRack.first.name, equals(delayPreset.name));
-      expect(track.fxRack.last.name, equals(bitcrusherPreset.name));
+      expect(track.fxRack.first.name, equals(bitcrusherPreset.name));
+      expect(track.fxRack.last.name, equals(waveshaperPreset.name));
     });
 
     test('applyPresetToClip with MIDI SEQ sets clip notes and tiles them across clip length', () {

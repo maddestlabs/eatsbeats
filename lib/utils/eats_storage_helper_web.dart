@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 
 class EatsStorageHelperImpl {
-  static const String _dbName = 'eatsbits_storage_db';
+  static const String _dbName = 'eatsbeats_storage_db';
   static const int _dbVersion = 1;
   static const String _soundFontStore = 'soundfonts';
 
@@ -150,7 +150,7 @@ class EatsStorageHelperImpl {
 
   // --- Session Storage API ---
 
-  static const String _sessionKey = 'eatsbits_session_lua';
+  static const String _sessionKey = 'eatsbeats_session_lua';
 
   static Future<void> saveSessionLua(String luaCode) async {
     try {

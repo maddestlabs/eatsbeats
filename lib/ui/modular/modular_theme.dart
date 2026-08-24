@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Design tokens, sizing, and color palette for the Eatsbits Modular Rack system.
+/// Design tokens, sizing, and color palette for the Eatsbeats Modular Rack system.
 class ModularTheme {
   // --- SIZING TOKENS ---
   /// Sizing unit in HP (Horizontal Pitch, 1HP ≈ 16.0 logical pixels).

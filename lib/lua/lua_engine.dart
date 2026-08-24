@@ -239,7 +239,7 @@ class LuaEngine {
       positionedParams.sort((a, b) => a.key.compareTo(b.key));
       final params = positionedParams.map((e) => e.value).toList();
 
-      // Check for eatsbits.v1 / eatbits.v1 Param handles in Lua scripts
+      // Check for eatsbeats.v1 / eatbits.v1 Param handles in Lua scripts
       final v1Matches = _v1ParamRegExp.allMatches(code);
       for (final m in v1Matches) {
         final name = m.group(1)!;
@@ -258,8 +258,8 @@ class LuaEngine {
         scriptType = 'effect';
       }
 
-      // Check basic Lua syntax markers or eatsbits.v1 / eatbits.v1 scripts
-      final isV1Script = code.contains('eatsbits.v1') || code.contains('eatbits.v1') || code.contains('Eatsbits.v1') || code.contains('Eatbits.v1') || code.contains('eatsbits') || code.contains('eatbits');
+      // Check basic Lua syntax markers or eatsbeats.v1 / eatbits.v1 scripts
+      final isV1Script = code.contains('eatsbeats.v1') || code.contains('eatbits.v1') || code.contains('Eatsbeats.v1') || code.contains('Eatbits.v1') || code.contains('eatsbeats') || code.contains('eatbits');
       final hasFunctionOrLocal = code.contains('function') || code.contains('local') || code.contains('Param.add') || code.contains('--');
 
       if (!hasFunctionOrLocal && !isV1Script) {
@@ -276,7 +276,7 @@ class LuaEngine {
 
       final result = LuaCompilationResult(
         isSuccess: true,
-        errorMessage: 'Compiled successfully (Lua Live Scripting - eatsbits.v1 Target)! Active parameters: ${params.length}${guiLayout != null ? " [Custom Hardware GUI Active]" : ""}',
+        errorMessage: 'Compiled successfully (Lua Live Scripting - eatsbeats.v1 Target)! Active parameters: ${params.length}${guiLayout != null ? " [Custom Hardware GUI Active]" : ""}',
         params: params,
         scriptType: scriptType,
         guiLayout: guiLayout,
@@ -986,7 +986,7 @@ class LuaEngine {
       return buffer;
     }
 
-    // 6. Yamaha YM2612 / OPN2 / OPL3 FM Chip Engine
+    // 6. YM2612 / OPN2 / OPL3 FM Chip Engine
     if (code.contains('YM2612') || code.contains('OPN2') || code.contains('OPL3') || code.contains('FMChip')) {
       final voiceKey = trackId ?? 'default_fm';
       final voice = _fmChipVoices.putIfAbsent(voiceKey, () => FMChipVoice());
@@ -1329,7 +1329,7 @@ class LuaEngine {
       return (carrier * env * 0.8).clamp(-1.0, 1.0);
     }
 
-    // 5. SNES Sony S-DSP & Procedural SFXR Sound Engine
+    // 5. SNES 16-Bit S-DSP & Procedural SFXR Sound Engine
     else if (code.contains('SNES') || code.contains('S-DSP') || code.contains('SPC700') || code.contains('SNESSFX') || code.contains('SFXR')) {
       final voiceKey = trackId ?? 'default_snes';
       final dsp = _snesDspEngines.putIfAbsent(voiceKey, () => SNESDSPEngine());
@@ -1458,7 +1458,7 @@ class LuaEngine {
       return ((stereo[0] + stereo[1]) * 0.5).clamp(-1.0, 1.0);
     }
 
-    // 6. Yamaha YM2612 / OPN2 / OPL3 Hardware FM Chip Engine
+    // 6. YM2612 / OPN2 / OPL3 Hardware FM Chip Engine
     else if (code.contains('YM2612') || code.contains('OPN2') || code.contains('OPL3') || code.contains('FMChip')) {
       final voiceKey = trackId ?? 'default_fm';
       final voice = _fmChipVoices.putIfAbsent(voiceKey, () => FMChipVoice());

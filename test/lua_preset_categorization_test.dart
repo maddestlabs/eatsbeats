@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/models/daw_state.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -14,7 +14,7 @@ void main() {
       final midiFxs = LuaPresetLibrary.getPresetsByCategory(LuaPresetCategory.midiFx);
 
       expect(instruments.any((p) => p.id == 'eats_303' || p.id == 'jc_303' || p.id == 'acid_303'), isTrue);
-      expect(audioFxs.any((p) => p.id == 'lua_delay'), isTrue);
+      expect(audioFxs.any((p) => p.id == 'stereo_delay' || p.id == 'bitcrusher_fx'), isTrue);
       expect(midiFxs.any((p) => p.id == 'arpeggiator_midi_fx'), isTrue);
     });
 

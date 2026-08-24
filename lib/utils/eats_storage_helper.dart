@@ -5,7 +5,7 @@ import 'eats_storage_helper_stub.dart'
     if (dart.library.html) 'eats_storage_helper_web.dart'
     if (dart.library.io) 'eats_storage_helper_io.dart';
 
-/// Cross-platform storage helper for Eatsbits.
+/// Cross-platform storage helper for Eatsbeats.
 /// - Web: Uses localStorage for settings/sessions and IndexedDB for large binary SoundFonts (.sf2).
 /// - Windows/Desktop: Uses AppData directory for settings, sessions, and binary SoundFonts.
 class EatsStorageHelper {

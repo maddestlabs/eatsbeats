@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/lua/eats_lua_parser.dart';
-import 'package:mobile_wren_daw/lua/eats_lua_serializer.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/theme/eats_theme.dart';
-import 'package:mobile_wren_daw/ui/mixer_view.dart';
-import 'package:mobile_wren_daw/ui/widgets/fx_rack_dialog.dart';
-import 'package:mobile_wren_daw/ui/widgets/modular_fx_rack_widget.dart';
-import 'package:mobile_wren_daw/ui/widgets/arranger_context_inspector.dart';
-import 'package:mobile_wren_daw/ui/widgets/skeuomorphic_hardware_button.dart';
-import 'package:mobile_wren_daw/ui/widgets/skeuomorphic_hardware_switch.dart';
+import 'package:eatsbeats/lua/eats_lua_parser.dart';
+import 'package:eatsbeats/lua/eats_lua_serializer.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/theme/eats_theme.dart';
+import 'package:eatsbeats/ui/mixer_view.dart';
+import 'package:eatsbeats/ui/widgets/fx_rack_dialog.dart';
+import 'package:eatsbeats/ui/widgets/modular_fx_rack_widget.dart';
+import 'package:eatsbeats/ui/widgets/arranger_context_inspector.dart';
+import 'package:eatsbeats/ui/widgets/skeuomorphic_hardware_button.dart';
+import 'package:eatsbeats/ui/widgets/skeuomorphic_hardware_switch.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -1,14 +1,14 @@
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:mobile_wren_daw/audio/graph/graph_node.dart';
-import 'package:mobile_wren_daw/audio/graph/graph_primitives.dart';
-import 'package:mobile_wren_daw/audio/graph/graph_evaluator.dart';
-import 'package:mobile_wren_daw/lua/lua_engine.dart';
-import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
+import 'package:eatsbeats/audio/graph/graph_node.dart';
+import 'package:eatsbeats/audio/graph/graph_primitives.dart';
+import 'package:eatsbeats/audio/graph/graph_evaluator.dart';
+import 'package:eatsbeats/lua/lua_engine.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
 
 void main() {
-  group('Eatsbits Graph (eatsbits.graph) Core DSP Unit Tests', () {
+  group('Eatsbeats Graph (eatsbeats.graph) Core DSP Unit Tests', () {
     test('NoiseNode generates bounded random signal within [-1.0, 1.0]', () {
       const noise = NoiseNode(seed: 0x12345678);
       final ctx = GraphContext(

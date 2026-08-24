@@ -27,7 +27,7 @@ class _ScriptViewState extends State<ScriptView> {
   final List<Map<String, String>> _presetTemplates = [
     {
       'name': 'Pattern Arpeggiator',
-      'code': '''-- Arpeggiator Clip Script (eatsbits.v1)
+      'code': '''-- Arpeggiator Clip Script (eatsbeats.v1)
 clip:registerParam("rate", 0.125, 1.0, 0.25)
 
 function process(notes, time_ctx)
@@ -36,7 +36,7 @@ end''',
     },
     {
       'name': 'Scale Snap (Major Scale)',
-      'code': '''-- Scale Snap Transformer (eatsbits.v1)
+      'code': '''-- Scale Snap Transformer (eatsbeats.v1)
 clip:registerParam("key", 0, 11, 0) -- 0 = C Major
 
 function process(notes, time_ctx)
@@ -45,7 +45,7 @@ end''',
     },
     {
       'name': 'Humanize Velocity & Timing',
-      'code': '''-- Humanizer Hook (eatsbits.v1)
+      'code': '''-- Humanizer Hook (eatsbeats.v1)
 clip:registerParam("timing", 0.0, 0.1, 0.02)
 clip:registerParam("velocity", 0.0, 0.3, 0.08)
 
@@ -55,7 +55,7 @@ end''',
     },
     {
       'name': 'Pitch Transpose (+2 Semitones)',
-      'code': '''-- Transpose Hook (eatsbits.v1)
+      'code': '''-- Transpose Hook (eatsbeats.v1)
 clip:registerParam("semitones", -12, 12, 2)
 
 function process(notes, time_ctx)
@@ -64,7 +64,7 @@ end''',
     },
     {
       'name': 'Euclidean Rhythm Generator',
-      'code': '''-- Generative Euclidean Rhythm (eatsbits.v1)
+      'code': '''-- Generative Euclidean Rhythm (eatsbeats.v1)
 clip:registerParam("pulses", 1, 16, 5)
 clip:registerParam("steps", 4, 32, 16)
 

@@ -1,4 +1,4 @@
-package com.example.mobile_wren_daw
+package com.example.eatsbeats
 
 import io.flutter.embedding.android.FlutterActivity
 

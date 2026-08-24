@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/audio/snes_dsp_engine.dart';
-import 'package:mobile_wren_daw/lua/lua_engine.dart';
-import 'package:mobile_wren_daw/lua/lua_gui_model.dart';
-import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/ui/widgets/dynamic_instrument_gui_widget.dart';
-import 'package:mobile_wren_daw/ui/widgets/grungy_rack_panel.dart';
-import 'package:mobile_wren_daw/ui/widgets/hardware_listbox_widget.dart';
-import 'package:mobile_wren_daw/ui/widgets/skeuomorphic_hardware_button.dart';
-import 'package:mobile_wren_daw/ui/widgets/skeuomorphic_hardware_knob.dart';
+import 'package:eatsbeats/audio/snes_dsp_engine.dart';
+import 'package:eatsbeats/lua/lua_engine.dart';
+import 'package:eatsbeats/lua/lua_gui_model.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/ui/widgets/dynamic_instrument_gui_widget.dart';
+import 'package:eatsbeats/ui/widgets/grungy_rack_panel.dart';
+import 'package:eatsbeats/ui/widgets/hardware_listbox_widget.dart';
+import 'package:eatsbeats/ui/widgets/skeuomorphic_hardware_button.dart';
+import 'package:eatsbeats/ui/widgets/skeuomorphic_hardware_knob.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -345,7 +345,7 @@ void main() {
           home: Scaffold(
             body: GrungyRackPanel(
               title: 'SNES Sfxr',
-              subtitle: '16-Bit Super Nintendo Procedural Sound Engine',
+              subtitle: '16-Bit Procedural Sound Engine',
               backgroundStyle: PanelBackgroundStyle.snes,
               accentColor: const Color(0xFF7B52AB),
               child: const Text('Console Content'),
@@ -355,7 +355,7 @@ void main() {
       );
 
       expect(find.text('SNES SFXR'), findsOneWidget);
-      expect(find.text('16-Bit Super Nintendo Procedural Sound Engine'), findsOneWidget);
+      expect(find.text('16-Bit Procedural Sound Engine'), findsOneWidget);
       expect(find.text('Console Content'), findsOneWidget);
     });
   });

@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/audio/sampler_engine.dart';
-import 'package:mobile_wren_daw/audio/wav_exporter.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
+import 'package:eatsbeats/audio/sampler_engine.dart';
+import 'package:eatsbeats/audio/wav_exporter.dart';
+import 'package:eatsbeats/models/daw_state.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

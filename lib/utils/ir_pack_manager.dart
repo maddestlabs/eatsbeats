@@ -51,7 +51,7 @@ class IrPackManager {
 
       Uint8List? zipBytes = await EatsFileHelper.fetchUrlBytes(pack.zipUrl);
       if (zipBytes == null || zipBytes.isEmpty) {
-        final fallbackUrl = 'https://raw.githubusercontent.com/maddestlabs/eatsbits/main/web/${pack.zipUrl}';
+        final fallbackUrl = 'https://raw.githubusercontent.com/maddestlabs/eatsbeats/main/web/${pack.zipUrl}';
         debugPrint('IrPackManager: Primary fetch failed, trying fallback: $fallbackUrl');
         zipBytes = await EatsFileHelper.fetchUrlBytes(fallbackUrl);
       }

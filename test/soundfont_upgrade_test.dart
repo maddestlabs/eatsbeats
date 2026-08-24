@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/audio/soundfont_decoder.dart';
+import 'package:eatsbeats/audio/soundfont_decoder.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

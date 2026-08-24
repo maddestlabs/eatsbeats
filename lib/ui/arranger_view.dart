@@ -10,7 +10,7 @@ import '../models/chord_model.dart';
 import '../theme/eats_theme.dart';
 import 'widgets/arranger_context_inspector.dart';
 import 'widgets/circle_of_fifths_dialog.dart';
-import 'widgets/eatsbits_slider.dart';
+import 'widgets/eatsbeats_slider.dart';
 import 'widgets/fx_rack_dialog.dart';
 import 'widgets/project_browser_drawer.dart';
 import 'widgets/skeuomorphic_hardware_knob.dart';
@@ -583,7 +583,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                             const SizedBox(height: 2),
                                                             SizedBox(
                                                               height: 14,
-                                                              child: EatsBitsSlider(
+                                                              child: EatsBeatsSlider(
                                                                 value: track.volume,
                                                                 min: 0.0,
                                                                 max: 1.5,

@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'fm_chip_engine.dart'; // For DeterministicPRNG
 
-/// Authentic SNES Sony S-DSP Waveform Types (BRR encoded single-cycle & multi-cycle wavetables).
+/// Authentic SNES 16-Bit S-DSP Waveform Types (BRR encoded single-cycle & multi-cycle wavetables).
 enum SNESWaveform {
   sine,
   square,
@@ -28,7 +28,7 @@ enum SNESEnvelopeMode {
   gainBentIncrease,
 }
 
-/// Represents a single voice channel (Channel 0..7) in the Sony S-DSP.
+/// Represents a single voice channel (Channel 0..7) in the 16-Bit S-DSP.
 class SNESVoice {
   final int index;
 
@@ -308,7 +308,7 @@ class SNESEchoUnit {
   }
 }
 
-/// Comprehensive Sony SPC700 / S-DSP Sound Chip Engine (SNES Sound Emulation).
+/// Comprehensive SPC700 / S-DSP Sound Chip Engine (SNES Sound Emulation).
 class SNESDSPEngine {
   final List<SNESVoice> voices = List.generate(8, (i) => SNESVoice(index: i));
   final SNESEchoUnit echo = SNESEchoUnit();

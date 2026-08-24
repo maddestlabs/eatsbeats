@@ -1,4 +1,4 @@
-# Eatsbits Engine API — Audio & Scripting Specification Reference
+# Eatsbeats Engine API — Audio & Scripting Specification Reference
 
 **Version:** 1.0.0-draft  
 **Target Runtimes:** WebAudio API (Browser / Flutter Web), Native C++ / Soundpipe / AudioUnit / VST Core  
@@ -32,7 +32,7 @@ Everything a script does becomes a message on a one-directional command queue in
 
 ---
 
-## 2. Core API Surface (`eatsbits.v1`)
+## 2. Core API Surface (`eatsbeats.v1`)
 
 ### 2.1 Opaque Handles (`NodeHandle`, `ParamHandle`, `BusHandle`)
 Scripts never hold pointers or direct JS/C++ object references into the audio graph. All references are lightweight numeric/string identifiers wrapped in Lua opaque handle tables.
@@ -52,15 +52,15 @@ function NodeHandle:getParam(paramName)
 end
 
 function NodeHandle:connect(targetNode)
-  eatsbits.v1.connect(self.id, targetNode.id)
+  eatsbeats.v1.connect(self.id, targetNode.id)
 end
 
 function NodeHandle:connectToParam(targetParamHandle)
-  eatsbits.v1.connectToParam(self.id, targetParamHandle.nodeId, targetParamHandle.paramName)
+  eatsbeats.v1.connectToParam(self.id, targetParamHandle.nodeId, targetParamHandle.paramName)
 end
 
 function NodeHandle:disconnect()
-  eatsbits.v1.disconnect(self.id)
+  eatsbeats.v1.disconnect(self.id)
 end
 
 -- ParamHandle Table Structure
@@ -72,11 +72,11 @@ function ParamHandle.new(nodeId, paramName)
 end
 
 function ParamHandle:setValueAtTime(value, time)
-  eatsbits.v1.scheduleParamOp(self.nodeId, self.paramName, "setValue", value, time)
+  eatsbeats.v1.scheduleParamOp(self.nodeId, self.paramName, "setValue", value, time)
 end
 
 function ParamHandle:exponentialRampToValueAtTime(value, time)
-  eatsbits.v1.scheduleParamOp(self.nodeId, self.paramName, "exponentialRamp", value, time)
+  eatsbeats.v1.scheduleParamOp(self.nodeId, self.paramName, "exponentialRamp", value, time)
 end
 ```
 
@@ -84,7 +84,7 @@ end
 
 ## 2.2 Node Factory & Registry
 
-Scripts request audio processing nodes via `eatsbits.v1.createNode(nodeType, configTable)`. The native WebAudio graph instantiates corresponding nodes.
+Scripts request audio processing nodes via `eatsbeats.v1.createNode(nodeType, configTable)`. The native WebAudio graph instantiates corresponding nodes.
 
 #### Standard Native Node Registry:
 | Category | Node Name | Config Keys & Defaults | Exposed `ParamHandle`s |
@@ -110,9 +110,9 @@ Scripts dynamically alter signal chains at runtime without recreating nodes or d
 
 ```lua
 -- Route Synth -> Delay -> Master Bus
-local synth = eatsbits.v1.createNode("TB303", {})
-local delay = eatsbits.v1.createNode("StereoDelayFX", { timeMs = 250 })
-local master = eatsbits.v1.getMasterBus()
+local synth = eatsbeats.v1.createNode("TB303", {})
+local delay = eatsbeats.v1.createNode("StereoDelayFX", { timeMs = 250 })
+local master = eatsbeats.v1.getMasterBus()
 
 synth:connect(delay)
 delay:connect(master)
@@ -151,7 +151,7 @@ cutoff:exponentialRampToValueAtTime(8000.0, now + Scheduler.beatsToSeconds(8.0))
 
 ---
 
-### 2.5 Curve Easing & Automation Engine (`eatsbits.easing` & `eatsbits.automation`)
+### 2.5 Curve Easing & Automation Engine (`eatsbeats.easing` & `eatsbeats.automation`)
 
 Scripts have full access to continuous and discrete curve evaluation for parameter automation, LFOs, and YMFM hardware chip registers.
 
@@ -167,7 +167,7 @@ Scripts have full access to continuous and discrete curve evaluation for paramet
 ```lua
 -- Example: Custom Lua Automation Lane
 function evaluate(step, timeCtx)
-  local sweep = eatsbits.easing.cubicInOut(0.0, 1.0, (step % 16) / 16)
+  local sweep = eatsbeats.easing.cubicInOut(0.0, 1.0, (step % 16) / 16)
   return 200 + sweep * 4000
 end
 ```
@@ -184,11 +184,11 @@ $$\text{Time}_{\text{seconds}} = \text{Clock}_{\text{start}} + \left( \text{Beat
 local Scheduler = {}
 
 function Scheduler.bpm()
-  return eatsbits.v1.getBpm()
+  return eatsbeats.v1.getBpm()
 end
 
 function Scheduler.currentTime()
-  return eatsbits.v1.getAudioTime()
+  return eatsbeats.v1.getAudioTime()
 end
 
 function Scheduler.beatsToSeconds(beats)
@@ -198,7 +198,7 @@ end
 function Scheduler.scheduleNote(pitch, velocity, beatOffset, durationBeats)
   local startTime = Scheduler.currentTime() + Scheduler.beatsToSeconds(beatOffset)
   local durationSec = Scheduler.beatsToSeconds(durationBeats)
-  eatsbits.v1.sendNoteOn(pitch, velocity, startTime, durationSec)
+  eatsbeats.v1.sendNoteOn(pitch, velocity, startTime, durationSec)
 end
 ```
 
@@ -209,9 +209,9 @@ end
 Events flow into a timestamped queue processed by native instrument engines ahead of playhead arrival (50ms - 150ms lookahead horizon).
 
 ```lua
-eatsbits.v1.sendNoteOn(60, 0.9, startTime, durationSeconds)
-eatsbits.v1.sendNoteOff(60, stopTime)
-eatsbits.v1.sendEvent("triggerAccent", { accentLevel = 1.0 }, startTime)
+eatsbeats.v1.sendNoteOn(60, 0.9, startTime, durationSeconds)
+eatsbeats.v1.sendNoteOff(60, stopTime)
+eatsbeats.v1.sendEvent("triggerAccent", { accentLevel = 1.0 }, startTime)
 ```
 
 ---
@@ -224,7 +224,7 @@ Scripts and UI poll double-buffered feedback snapshots without blocking audio ex
 local Meter = {}
 
 function Meter.getSnapshot()
-  return eatsbits.v1.getMeterSnapshot()
+  return eatsbeats.v1.getMeterSnapshot()
 end
 ```
 
@@ -263,9 +263,9 @@ return MyTrackScript
 
 ---
 
-### 2.10 Versioned API Namespace (`eatsbits.v1`)
+### 2.10 Versioned API Namespace (`eatsbeats.v1`)
 
-All track scripts target explicitly versioned namespaces (`eatsbits.v1`), guaranteeing backwards compatibility across engine upgrades.
+All track scripts target explicitly versioned namespaces (`eatsbeats.v1`), guaranteeing backwards compatibility across engine upgrades.
 
 ---
 

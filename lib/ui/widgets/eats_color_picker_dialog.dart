@@ -38,12 +38,12 @@ class _EatsColorPickerDialogState extends State<EatsColorPickerDialog> {
     {
       'name': 'CLASSIC SYNTH & STUDIO',
       'colors': [
-        Color(0xFFF77F00), // Roland Amber
-        Color(0xFFE63946), // TR Red
-        Color(0xFF0077B6), // Yamaha Blue
-        Color(0xFF2A9D8F), // Moog Teal
-        Color(0xFFE0A96D), // Oberheim Gold
-        Color(0xFF7209B7), // Korg Violet
+        Color(0xFFF77F00), // Amber Glow
+        Color(0xFFE63946), // Drum Red
+        Color(0xFF0077B6), // Indigo Blue
+        Color(0xFF2A9D8F), // Analog Teal
+        Color(0xFFE0A96D), // Brass Gold
+        Color(0xFF7209B7), // Deep Violet
         Color(0xFF457B9D), // Steel Slate
         Color(0xFFD4A373), // Warm Wood
       ],

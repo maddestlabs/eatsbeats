@@ -1,11 +1,11 @@
-# Eatsbits
+# Eatsbeats
 Mobile-first and web-first, totally unprofessional digital audio workstation (DAW) built around a core of Lua scripting with a multimedia focused API. Made with Flutter and Lua, relying on WebAudio API for audio features.
 
 ---
 
 ## See it live
 
-▶︎ [https://eatsbits.app/](https://eatsbits.app/)
+▶︎ [https://eatsbeats.app/](https://eatsbeats.app/)
 
 ---
 
@@ -26,8 +26,8 @@ Mobile-first and web-first, totally unprofessional digital audio workstation (DA
 ### Running Locally
 ```bash
 # Clone the repository
-git clone https://github.com/maddestlabs/eatsbits.git
-cd eatsbits
+git clone https://github.com/maddestlabs/eatsbeats.git
+cd eatsbeats
 
 # Fetch dependencies
 flutter pub get

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Script to build and serve the Eatsbits web app on Windows using PowerShell.
+    Script to build and serve the Eatsbeats web app on Windows using PowerShell.
 
 .DESCRIPTION
     First builds the Flutter web application. Once the build finishes successfully,
@@ -47,7 +47,7 @@ if (-not $rootDir) {
 Set-Location $rootDir
 
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "  Eatsbits Web App Build & Serve Script" -ForegroundColor Cyan
+Write-Host "  Eatsbeats Web App Build & Serve Script" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
 # ------------------------------------------------------------------

@@ -304,7 +304,7 @@ class GraphEvaluator {
   //  AUTHENTIC ANALOG 808 SUITE GRAPH BUILDERS
   // ───────────────────────────────────────────────────────────────────────────
 
-  /// Authentic Roland TR-808 Bridged-T Bass Drum
+  /// Authentic Eats-808 analog Bridged-T Bass Drum
   static GraphNode buildAnalog808Kick() {
     const pitchSweep = PitchSweepNode(
       startFreq: 140.0,
@@ -342,7 +342,7 @@ class GraphEvaluator {
     return const DistortionNode(input: masterMix, drive: 1.25, driveParam: 'Overdrive');
   }
 
-  /// Authentic Roland TR-808 Snare Drum (Dual Resonant Body + Snappy Wires)
+  /// Authentic Eats-808 analog Snare Drum (Dual Resonant Body + Snappy Wires)
   static GraphNode buildAnalog808Snare() {
     // Body Tone 1 (180Hz) & Tone 2 (330Hz)
     const body1 = SineOscNode(staticFreq: 180.0);
@@ -371,7 +371,7 @@ class GraphEvaluator {
     return const DistortionNode(input: masterMix, drive: 1.15);
   }
 
-  /// Authentic Roland TR-808 6-Oscillator Hi-Hat
+  /// Authentic Eats-808 analog 6-Oscillator Hi-Hat
   static GraphNode buildAnalog808HiHat() {
     const metalCluster = MetallicClusterNode(pitchParam: 'Tune');
     const decayEnv = DecayEnvNode(decaySec: 0.08, decayParam: 'Decay');
@@ -389,7 +389,7 @@ class GraphEvaluator {
     return const DistortionNode(input: bpf, drive: 1.1);
   }
 
-  /// Authentic Roland TR-808 Dual-Square Cowbell
+  /// Authentic Eats-808 analog Dual-Square Cowbell
   static GraphNode buildAnalog808Cowbell() {
     const osc1 = SquareOscNode(staticFreq: 540.0);
     const osc2 = SquareOscNode(staticFreq: 800.0);
@@ -409,7 +409,7 @@ class GraphEvaluator {
     return const DistortionNode(input: bpf, drive: 1.2);
   }
 
-  /// Authentic Roland TR-808 Resonant Bridged-T Tom / Conga
+  /// Authentic Eats-808 analog Resonant Bridged-T Tom / Conga
   static GraphNode buildAnalog808Tom() {
     const pitchSweep = PitchSweepNode(
       startFreq: 160.0,
@@ -439,7 +439,7 @@ class GraphEvaluator {
   //  AUTHENTIC ANALOG 909 SUITE GRAPH BUILDERS (André Michelle Physical / ROM Model)
   // ───────────────────────────────────────────────────────────────────────────
 
-  /// Authentic Roland TR-909 Bass Drum (André Michelle physical model)
+  /// Authentic Eats-909 analog Bass Drum (André Michelle physical model)
   static GraphNode buildAnalog909Kick() {
     return const Tr909KickNode(
       tuneParam: 'Tune',
@@ -448,7 +448,7 @@ class GraphEvaluator {
     );
   }
 
-  /// Authentic Roland TR-909 Snare Drum (Dual Tonal Body + Snappy Noise Wires)
+  /// Authentic Eats-909 analog Snare Drum (Dual Tonal Body + Snappy Noise Wires)
   static GraphNode buildAnalog909Snare() {
     return const Tr909SnareNode(
       tuneParam: 'Tune',
@@ -457,7 +457,7 @@ class GraphEvaluator {
     );
   }
 
-  /// Authentic Roland TR-909 Closed Hi-Hat (6-bit PCM ROM + Analog VCA Decay)
+  /// Authentic Eats-909 analog Closed Hi-Hat (6-bit PCM ROM + Analog VCA Decay)
   static GraphNode buildAnalog909ClosedHiHat() {
     return Tr909SampleVoiceNode(
       getBuffer: () => Tr909RomData.closed_hihat,
@@ -467,7 +467,7 @@ class GraphEvaluator {
     );
   }
 
-  /// Authentic Roland TR-909 Open Hi-Hat (6-bit PCM ROM + Extended Analog Decay)
+  /// Authentic Eats-909 analog Open Hi-Hat (6-bit PCM ROM + Extended Analog Decay)
   static GraphNode buildAnalog909OpenHiHat() {
     return Tr909SampleVoiceNode(
       getBuffer: () => Tr909RomData.opened_hihat,
@@ -477,7 +477,7 @@ class GraphEvaluator {
     );
   }
 
-  /// Authentic Roland TR-909 Handclap (Multi-Burst Trigger & Reverb Diffuse Tail)
+  /// Authentic Eats-909 analog Handclap (Multi-Burst Trigger & Reverb Diffuse Tail)
   static GraphNode buildAnalog909Clap() {
     return Tr909SampleVoiceNode(
       getBuffer: () => Tr909RomData.clap,
@@ -487,7 +487,7 @@ class GraphEvaluator {
     );
   }
 
-  /// Authentic Roland TR-909 Rimshot (High-Q Resonant Tank "Clack")
+  /// Authentic Eats-909 analog Rimshot (High-Q Resonant Tank "Clack")
   static GraphNode buildAnalog909Rimshot() {
     return Tr909SampleVoiceNode(
       getBuffer: () => Tr909RomData.rim,

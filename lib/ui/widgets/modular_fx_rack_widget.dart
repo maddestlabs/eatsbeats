@@ -6,7 +6,7 @@ import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
 import 'dynamic_instrument_gui_widget.dart';
-import 'eatsbits_slider.dart';
+import 'eatsbeats_slider.dart';
 import 'fx_rack_dialog.dart';
 import 'skeuomorphic_hardware_switch.dart';
 import 'space_visualizer_widget.dart';
@@ -298,7 +298,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                     ),
                                   ),
                                   Expanded(
-                                    child: EatsBitsSlider(
+                                    child: EatsBeatsSlider(
                                       value: fx.params['DryLevel'] ?? 1.0,
                                       min: 0.0,
                                       max: 1.5,
@@ -329,7 +329,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                     ),
                                   ),
                                   Expanded(
-                                    child: EatsBitsSlider(
+                                    child: EatsBeatsSlider(
                                       value: fx.params['WetLevel'] ?? 0.5,
                                       min: 0.0,
                                       max: 1.5,
@@ -396,7 +396,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                     ),
                                   ),
                                   Expanded(
-                                    child: EatsBitsSlider(
+                                    child: EatsBeatsSlider(
                                       value: fx.mix,
                                       min: 0.0,
                                       max: 1.0,
@@ -432,7 +432,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                         ),
                                       ),
                                       Expanded(
-                                        child: EatsBitsSlider(
+                                        child: EatsBeatsSlider(
                                           value: p.value.clamp(minV, maxV),
                                           min: minV,
                                           max: maxV,

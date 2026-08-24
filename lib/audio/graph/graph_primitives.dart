@@ -115,7 +115,7 @@ class SquareOscNode extends GraphNode {
   }
 }
 
-/// 6-Oscillator Inharmonic Metallic Cluster (Roland 808/909 Schmitt-Trigger Model).
+/// 6-Oscillator Inharmonic Metallic Cluster (808/909 Schmitt-Trigger Model).
 /// Uses authentic inharmonic ratios: [245.0, 306.0, 384.0, 522.0, 710.0, 805.0] Hz.
 class MetallicClusterNode extends GraphNode {
   final double pitchMultiplier;
@@ -302,7 +302,7 @@ class AdsrEnvNode extends GraphNode {
   }
 }
 
-/// Multi-Burst Trigger Envelope for authentic Handclap synthesis (Roland TR-808/909 model).
+/// Multi-Burst Trigger Envelope for authentic Handclap synthesis (Eats-808/909 model).
 /// Produces [burstCount] rapid micro-transient decay bursts spaced by [burstIntervalSec],
 /// followed by a main diffuse reverberant decay tail.
 class MultiBurstEnvNode extends GraphNode {
@@ -362,7 +362,7 @@ class MultiBurstEnvNode extends GraphNode {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  AUTHENTIC ROLAND TR-909 HARDWARE/ROM DSP NODES (André Michelle Model)
+//  AUTHENTIC 909 HARDWARE/ROM DSP NODES (André Michelle Model)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Authentic TR-909 Bass Drum DSP node.

@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'models/daw_state.dart';
 import 'theme/eats_theme.dart';
 import 'ui/arranger_view.dart';
-import 'ui/eatsbits_loading_screen.dart';
+import 'ui/eatsbeats_loading_screen.dart';
 import 'ui/edit_view.dart';
 import 'ui/lua_workbench_view.dart';
 import 'ui/mixer_view.dart';
@@ -32,17 +32,17 @@ void main() {
     debugPrint('PLATFORM UNHANDLED ERROR: $error\n$stack');
     return false;
   };
-  runApp(const WrenDawApp());
+  runApp(const EatsbeatsApp());
 }
 
-class WrenDawApp extends StatefulWidget {
-  const WrenDawApp({super.key});
+class EatsbeatsApp extends StatefulWidget {
+  const EatsbeatsApp({super.key});
 
   @override
-  State<WrenDawApp> createState() => _WrenDawAppState();
+  State<EatsbeatsApp> createState() => _EatsbeatsAppState();
 }
 
-class _WrenDawAppState extends State<WrenDawApp> {
+class _EatsbeatsAppState extends State<EatsbeatsApp> {
   final DawState _dawState = DawState();
   bool _isInitialized = false;
 
@@ -67,7 +67,7 @@ class _WrenDawAppState extends State<WrenDawApp> {
       valueListenable: _dawState.uiScaleNotifier,
       builder: (context, scale, _) {
         return MaterialApp(
-          title: 'Eatsbits',
+          title: 'Eatsbeats',
           debugShowCheckedModeBanner: false,
           theme: EatsTheme.themeData,
           builder: (context, child) {
@@ -106,7 +106,7 @@ class _WrenDawAppState extends State<WrenDawApp> {
             duration: const Duration(milliseconds: 350),
             child: _isInitialized
                 ? DawMainShell(key: const ValueKey('daw_shell'), dawState: _dawState)
-                : EatsbitsLoadingScreen(
+                : EatsbeatsLoadingScreen(
                     key: const ValueKey('loading_screen'),
                     dawState: _dawState,
                     onInitializationComplete: () {

@@ -436,13 +436,19 @@ class _LuaValueParser {
 
   dynamic parseTopLevel() {
     _skipWhitespace();
-    // Skip optional 'return eatsbits.song' prefix
+    // Skip optional 'return' prefix
     if (source.startsWith('return', pos)) {
       pos += 6;
       _skipWhitespace();
     }
-    if (source.startsWith('eatsbits.song', pos)) {
+    if (source.startsWith('eatsbeats.song', pos)) {
+      pos += 14;
+      _skipWhitespace();
+    } else if (source.startsWith('eatsbits.song', pos)) {
       pos += 13;
+      _skipWhitespace();
+    } else if (source.startsWith('eats.song', pos)) {
+      pos += 9;
       _skipWhitespace();
     }
 

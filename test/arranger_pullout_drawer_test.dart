@@ -2,14 +2,14 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/main.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/ui/arranger_view.dart';
-import 'package:mobile_wren_daw/ui/widgets/arranger_context_inspector.dart';
-import 'package:mobile_wren_daw/ui/widgets/midi_fx_rack_widget.dart';
-import 'package:mobile_wren_daw/ui/widgets/modular_fx_rack_widget.dart';
-import 'package:mobile_wren_daw/utils/fullscreen_helper.dart';
+import 'package:eatsbeats/main.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/ui/arranger_view.dart';
+import 'package:eatsbeats/ui/widgets/arranger_context_inspector.dart';
+import 'package:eatsbeats/ui/widgets/midi_fx_rack_widget.dart';
+import 'package:eatsbeats/ui/widgets/modular_fx_rack_widget.dart';
+import 'package:eatsbeats/utils/fullscreen_helper.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

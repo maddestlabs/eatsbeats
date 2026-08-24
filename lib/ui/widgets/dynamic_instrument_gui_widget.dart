@@ -11,7 +11,7 @@ import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
 import 'compact_value_dialog.dart';
-import 'eatsbits_slider.dart';
+import 'eatsbeats_slider.dart';
 import 'glowing_nixie_display.dart';
 import 'grungy_rack_panel.dart';
 import 'hardware_listbox_widget.dart';
@@ -414,7 +414,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               const SizedBox(height: 3),
               SizedBox(
                 height: 24,
-                child: EatsBitsSlider(
+                child: EatsBeatsSlider(
                   value: currentVal,
                   min: paramDef.min,
                   max: paramDef.max,
@@ -1056,7 +1056,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                     ),
                   ),
                   Expanded(
-                    child: EatsBitsSlider(
+                    child: EatsBeatsSlider(
                       value: currentVal,
                       min: paramDef.min,
                       max: paramDef.max,

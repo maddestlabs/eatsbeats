@@ -1,8 +1,8 @@
 import 'dart:io' as io;
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/audio/soundfont_decoder.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
+import 'package:eatsbeats/audio/soundfont_decoder.dart';
+import 'package:eatsbeats/models/daw_state.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

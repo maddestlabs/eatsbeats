@@ -504,12 +504,6 @@ class TrackChannel {
   String luaScriptCode;
   Map<String, double> luaParams;
 
-  // Backwards compatibility getters
-  String get wrenScriptCode => luaScriptCode;
-  set wrenScriptCode(String val) => luaScriptCode = val;
-  Map<String, double> get wrenParams => luaParams;
-  set wrenParams(Map<String, double> val) => luaParams = val;
-
   // Pattern steps & Piano Roll notes & Per-track clips
   List<StepEvent> steps; // 16 or 32 step grid
   List<Note> notes; // Active clip notes
@@ -598,14 +592,12 @@ class TrackChannel {
     this.attack = 0.01,
     this.release = 0.3,
     String? iconName,
-    String luaScriptCode = '',
-    String wrenScriptCode = '',
+    this.luaScriptCode = '',
     this.trackerColumns = 4,
     this.activeView = MusicViewType.pianoRoll,
     this.isMonophonic = false,
     this.chordFollowMode = ChordFollowMode.off,
     Map<String, double>? luaParams,
-    Map<String, double>? wrenParams,
     List<StepEvent>? steps,
     List<Note>? notes,
     List<TrackClip>? clips,
@@ -613,8 +605,7 @@ class TrackChannel {
     List<FXInsert>? fxRack,
     List<MidiFXInsert>? midiFXRack,
   })  : iconName = iconName ?? _defaultIconForType(type),
-        luaScriptCode = luaScriptCode.isNotEmpty ? luaScriptCode : wrenScriptCode,
-        luaParams = luaParams ?? wrenParams ?? {},
+        luaParams = luaParams ?? {},
         steps = steps ?? List.generate(32, (_) => StepEvent()),
         notes = notes ?? [],
         clips = clips ?? [],
@@ -652,13 +643,11 @@ class TrackChannel {
     double? release,
     String? iconName,
     String? luaScriptCode,
-    String? wrenScriptCode,
     int? trackerColumns,
     MusicViewType? activeView,
     bool? isMonophonic,
     ChordFollowMode? chordFollowMode,
     Map<String, double>? luaParams,
-    Map<String, double>? wrenParams,
     List<StepEvent>? steps,
     List<Note>? notes,
     List<TrackClip>? clips,
@@ -682,12 +671,12 @@ class TrackChannel {
       attack: attack ?? this.attack,
       release: release ?? this.release,
       iconName: iconName ?? this.iconName,
-      luaScriptCode: luaScriptCode ?? wrenScriptCode ?? this.luaScriptCode,
+      luaScriptCode: luaScriptCode ?? this.luaScriptCode,
       trackerColumns: trackerColumns ?? this.trackerColumns,
       activeView: activeView ?? this.activeView,
       isMonophonic: isMonophonic ?? this.isMonophonic,
       chordFollowMode: chordFollowMode ?? this.chordFollowMode,
-      luaParams: luaParams ?? wrenParams ?? Map.from(this.luaParams),
+      luaParams: luaParams ?? Map.from(this.luaParams),
       steps: steps ?? this.steps.map((s) => s.copyWith()).toList(),
       notes: notes ?? this.notes.map((n) => n.copyWith()).toList(),
       clips: clips ?? this.clips.map((c) => c.copyWith()).toList(),
@@ -714,13 +703,11 @@ class TrackChannel {
     'attack': attack,
     'release': release,
     'luaScriptCode': luaScriptCode,
-    'wrenScriptCode': luaScriptCode,
     'trackerColumns': trackerColumns,
     'activeView': activeView.name,
     'isMonophonic': isMonophonic,
     'chordFollowMode': chordFollowMode.name,
     'luaParams': luaParams,
-    'wrenParams': luaParams,
     'steps': steps.map((s) => s.toJson()).toList(),
     'notes': notes.map((n) => n.toJson()).toList(),
     'automationLanes': automationLanes.map((a) => a.toJson()).toList(),
@@ -744,12 +731,12 @@ class TrackChannel {
     resonance: (json['resonance'] as num?)?.toDouble() ?? 1.0,
     attack: (json['attack'] as num?)?.toDouble() ?? 0.01,
     release: (json['release'] as num?)?.toDouble() ?? 0.3,
-    luaScriptCode: json['luaScriptCode'] ?? json['wrenScriptCode'] ?? '',
+    luaScriptCode: json['luaScriptCode'] ?? '',
     trackerColumns: json['trackerColumns'] ?? 4,
     activeView: MusicViewType.values.firstWhere((e) => e.name == json['activeView'], orElse: () => MusicViewType.pianoRoll),
     isMonophonic: json['isMonophonic'] ?? false,
     chordFollowMode: ChordFollowMode.values.firstWhere((e) => e.name == json['chordFollowMode'], orElse: () => ChordFollowMode.off),
-    luaParams: Map<String, double>.from(json['luaParams'] ?? json['wrenParams'] ?? {}),
+    luaParams: Map<String, double>.from(json['luaParams'] ?? {}),
     steps: (json['steps'] as List?)?.map((s) => StepEvent.fromJson(s)).toList() ?? List.generate(32, (_) => StepEvent()),
     notes: (json['notes'] as List?)?.map((n) => Note.fromJson(n)).toList() ?? [],
     automationLanes: (json['automationLanes'] as List?)?.map((a) => AutomationLane.fromJson(a)).toList() ?? [],

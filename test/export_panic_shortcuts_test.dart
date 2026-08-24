@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/lua/eats_lua_serializer.dart';
-import 'package:mobile_wren_daw/lua/eats_lua_parser.dart';
-import 'package:mobile_wren_daw/main.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/theme/eats_theme.dart';
-import 'package:mobile_wren_daw/ui/transport_header.dart';
-import 'package:mobile_wren_daw/ui/virtual_piano_keyboard.dart';
-import 'package:mobile_wren_daw/ui/widgets/skeuomorphic_hardware_button.dart';
+import 'package:eatsbeats/lua/eats_lua_serializer.dart';
+import 'package:eatsbeats/lua/eats_lua_parser.dart';
+import 'package:eatsbeats/main.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/theme/eats_theme.dart';
+import 'package:eatsbeats/ui/transport_header.dart';
+import 'package:eatsbeats/ui/virtual_piano_keyboard.dart';
+import 'package:eatsbeats/ui/widgets/skeuomorphic_hardware_button.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -40,7 +40,7 @@ void main() {
       state.setThemePreset(EatsThemePreset.dinner);
 
       const legacySongWithTheme = '''
-return eatsbits.song {
+return eatsbeats.song {
   meta = {
     title = "Legacy Track",
     theme = "breakfast",

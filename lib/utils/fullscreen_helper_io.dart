@@ -132,13 +132,15 @@ Future<void> setFullscreenImpl(bool enable) async {
   }
 
   // System UI mode for mobile/web/fallback
-  try {
-    if (enable) {
-      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    } else {
-      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    }
-  } catch (_) {}
+  if (!PlatformEnvHelper.isFlutterTest) {
+    try {
+      if (enable) {
+        await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      } else {
+        await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      }
+    } catch (_) {}
+  }
 }
 
 bool getIsFullscreenImpl() => isFullscreenState;

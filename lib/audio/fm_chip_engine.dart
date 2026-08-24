@@ -138,7 +138,7 @@ class FMOperator {
   }
 }
 
-/// High-accuracy 4-Operator Hardware FM Sound Engine (Modelled after Yamaha YM2612 & YMF262/OPL3).
+/// High-accuracy 4-Operator Hardware FM Sound Engine (Modelled after YM2612 & YMF262/OPL3).
 class FMChipVoice {
   final List<FMOperator> operators = List.generate(4, (_) => FMOperator());
   int algorithm = 4; // 0..7
@@ -273,7 +273,7 @@ class FMChipVoice {
     operators[2].phase += (2.0 * math.pi * op3Freq) / 44100.0;
     operators[3].phase += (2.0 * math.pi * op4Freq) / 44100.0;
 
-    // 5. FM Algorithm Matrix Routing (Yamaha OPN / OPN2 Algorithms 0–7)
+    // 5. FM Algorithm Matrix Routing (OPN / OPN2 Algorithms 0–7)
     double output = 0.0;
     const modScale = 4.0; // Standard FM modulation index scaling
 
@@ -370,7 +370,7 @@ class FMChipVoice {
   }
 }
 
-/// Procedural SFXR sound generator library built entirely on Yamaha 4-Op FM hardware chips.
+/// Procedural SFXR sound generator library built entirely on 4-Op FM hardware chips.
 /// Every sound effect generated is a real FM patch that is chromatically playable as an instrument!
 class SFXRGenerator {
   /// Applies a preset based on [sfxType] index (0: Laser, 1: Explosion, 2: Powerup, 3: Coin, 4: Jump, 5: Hit, 6: Mutate, 7: Custom FM)

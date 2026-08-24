@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/models/script_target_model.dart';
-import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/models/script_target_model.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -12,7 +12,7 @@ import shutil
 PID_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".server.pid")
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build", "web")
 
-class EatsBitsHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+class EatsBeatsHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=WEB_DIR, **kwargs)
 
@@ -195,7 +195,7 @@ def main():
         f.write(str(os.getpid()))
 
     print("\n" + "=" * 60)
-    print(f"  [+] EATSBITS FLUTTER WEB SERVER STARTED")
+    print(f"  [+] EATSBEATS FLUTTER WEB SERVER STARTED")
     print(f"  URL: {url}")
     print(f"  Port: {port}")
     print(f"  Cache-Control: Optimized (HTML/SW revalidate, static assets cached)")
@@ -206,7 +206,7 @@ def main():
         webbrowser.open(url)
 
     try:
-        httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), EatsBitsHTTPRequestHandler)
+        httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), EatsBeatsHTTPRequestHandler)
         httpd.daemon_threads = True
         print("[+] Press Ctrl+C to stop the server.\n")
         httpd.serve_forever()

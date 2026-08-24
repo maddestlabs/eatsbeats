@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/models/command_palette_registry.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/ui/widgets/ui_scale_dialog.dart';
+import 'package:eatsbeats/models/command_palette_registry.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/ui/widgets/ui_scale_dialog.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

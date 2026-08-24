@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/audio/soundfont_engine.dart';
-import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
-import 'package:mobile_wren_daw/models/chord_model.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/track_model.dart';
-import 'package:mobile_wren_daw/theme/eats_theme.dart';
-import 'package:mobile_wren_daw/ui/widgets/circle_of_fifths_dialog.dart';
-import 'package:mobile_wren_daw/ui/widgets/dynamic_instrument_gui_widget.dart';
-import 'package:mobile_wren_daw/ui/widgets/floating_instrument_window.dart';
-import 'package:mobile_wren_daw/ui/widgets/modular_fx_rack_widget.dart';
-import 'package:mobile_wren_daw/ui/widgets/midi_fx_rack_widget.dart';
-import 'package:mobile_wren_daw/ui/arranger_view.dart';
+import 'package:eatsbeats/audio/soundfont_engine.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/models/chord_model.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/track_model.dart';
+import 'package:eatsbeats/theme/eats_theme.dart';
+import 'package:eatsbeats/ui/widgets/circle_of_fifths_dialog.dart';
+import 'package:eatsbeats/ui/widgets/dynamic_instrument_gui_widget.dart';
+import 'package:eatsbeats/ui/widgets/floating_instrument_window.dart';
+import 'package:eatsbeats/ui/widgets/modular_fx_rack_widget.dart';
+import 'package:eatsbeats/ui/widgets/midi_fx_rack_widget.dart';
+import 'package:eatsbeats/ui/arranger_view.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -139,7 +139,7 @@ void main() {
 
       final dawState = DawState();
       final track = dawState.activeTrack;
-      dawState.openFloatingInstrumentWindow(track, workspaceSize: const Size(1400, 900));
+      dawState.openFloatingInstrumentWindow(track, const Size(1400, 900));
 
       await tester.pumpWidget(
         MaterialApp(

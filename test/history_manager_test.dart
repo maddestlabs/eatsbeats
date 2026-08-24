@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile_wren_daw/models/daw_state.dart';
-import 'package:mobile_wren_daw/models/history_manager.dart';
+import 'package:eatsbeats/models/daw_state.dart';
+import 'package:eatsbeats/models/history_manager.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

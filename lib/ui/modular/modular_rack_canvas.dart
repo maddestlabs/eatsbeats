@@ -1304,7 +1304,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
         return [
           ModularFaceplateWidget(
             title: 'YM2612 FM CORE',
-            subtitle: 'Sega 4-Op Chip ASIC',
+            subtitle: '4-Op FM Chip ASIC',
             hpWidth: 15,
             accentColor: const Color(0xFF00E5FF),
             child: Column(
@@ -1453,7 +1453,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
       case 'snes_console_synth':
         return [
           ModularFaceplateWidget(
-            title: 'SONY S-DSP CORE',
+            title: '16-BIT S-DSP CORE',
             subtitle: '16-Bit SPC700 Chip',
             hpWidth: 15,
             accentColor: const Color(0xFFE040FB),
@@ -1832,7 +1832,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
                 const Expanded(
                   child: Center(
                     child: Text(
-                      'YAMAHA YM2612 STEREO',
+                      'YM2612 STEREO',
                       style: TextStyle(fontFamily: 'Courier', fontSize: 7.5, color: Color(0xFF00E5FF)),
                     ),
                   ),
@@ -1915,7 +1915,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
                 const Expanded(
                   child: Center(
                     child: Text(
-                      'SONY S-DSP STEREO',
+                      '16-BIT S-DSP STEREO',
                       style: TextStyle(fontFamily: 'Courier', fontSize: 7.5, color: Color(0xFFE040FB)),
                     ),
                   ),
