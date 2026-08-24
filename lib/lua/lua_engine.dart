@@ -463,6 +463,106 @@ class LuaEngine {
       );
     }
 
+    if (code.contains('Analog909Kick') ||
+        code.contains('analog_909_kick') ||
+        code.contains('Analog 909 Kick')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildAnalog909Kick(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('Analog909Snare') ||
+        code.contains('analog_909_snare') ||
+        code.contains('Analog 909 Snare')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildAnalog909Snare(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('Analog909ClosedHiHat') ||
+        code.contains('analog_909_closed_hihat') ||
+        code.contains('Analog 909 Closed Hi-Hat') ||
+        code.contains('Analog909HiHat') ||
+        code.contains('analog_909_hihat') ||
+        code.contains('Analog 909 Hi-Hat')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildAnalog909ClosedHiHat(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('Analog909OpenHiHat') ||
+        code.contains('analog_909_open_hihat') ||
+        code.contains('Analog 909 Open Hi-Hat')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildAnalog909OpenHiHat(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('Analog909Clap') ||
+        code.contains('analog_909_clap') ||
+        code.contains('Analog 909 Clap') ||
+        code.contains('Analog 909 Handclap')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildAnalog909Clap(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('Analog909Rimshot') ||
+        code.contains('analog_909_rimshot') ||
+        code.contains('Analog 909 Rimshot')) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildAnalog909Rimshot(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
     final int numSamples = (44100 * durationSec).toInt().clamp(1, 441000);
     final buffer = Float32List(numSamples);
 
@@ -494,8 +594,8 @@ class LuaEngine {
       return buffer;
     }
 
-    // 1. JC-303 Acid Bass Fast Synthesis (Modelled after midilab/jc303 & Open303)
-    if (code.contains('JC303') || code.contains('JC-303') || code.contains('Acid303') || code.contains('TB303') || ((code.contains('Overdrive') || code.contains('Drive')) && code.contains('Resonance') && code.contains('Slide'))) {
+    // 1. Eats-303 Acid Bass Fast Synthesis (Modelled after midilab/jc303 & Open303)
+    if (code.contains('Eats303') || code.contains('Eats-303') || code.contains('eats_303') || code.contains('JC303') || code.contains('JC-303') || code.contains('Acid303') || code.contains('TB303') || ((code.contains('Overdrive') || code.contains('Drive')) && code.contains('Resonance') && code.contains('Slide'))) {
       if (freq <= 0) return buffer;
 
       // Extract parameter values with sensible defaults and range mappings
@@ -993,8 +1093,8 @@ class LuaEngine {
       return _tanh(output * 1.3);
     }
 
-    // 1. JC-303 Acid Bass Engine (Modelled after midilab/jc303 & Open303)
-    if (code.contains('JC303') || code.contains('JC-303') || code.contains('Acid303') || code.contains('TB303') || ((code.contains('Overdrive') || code.contains('Drive')) && code.contains('Resonance') && code.contains('Slide'))) {
+    // 1. Eats-303 Acid Bass Engine (Modelled after midilab/jc303 & Open303)
+    if (code.contains('Eats303') || code.contains('Eats-303') || code.contains('eats_303') || code.contains('JC303') || code.contains('JC-303') || code.contains('Acid303') || code.contains('TB303') || ((code.contains('Overdrive') || code.contains('Drive')) && code.contains('Resonance') && code.contains('Slide'))) {
       if (freq <= 0) return 0.0;
 
       final waveType = params['Waveform'] ?? 0.0;

@@ -1,22 +1,18 @@
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
+import 'procedural_ir_generator.dart';
 
 class ConvolverEngine {
   static final ConvolverEngine instance = ConvolverEngine._internal();
   ConvolverEngine._internal();
 
-  static const List<String> builtInIrNames = [
-    'Great Hall',
-    'Plate Reverb',
-    'Warm Room',
-    'Spring Tank',
-  ];
+  static List<String> get builtInIrNames => ProceduralIRGenerator.presets.keys.toList();
 
   final Map<String, List<double>> _irSamples = {};
 
   Map<String, List<double>> get irSamples => Map.unmodifiable(_irSamples);
 
-  /// Registers a newly decoded IR PCM audio buffer.
+  /// Registers a newly decoded or procedurally baked IR PCM audio buffer.
   bool registerIrSample(String name, List<double> pcm) {
     if (pcm.isEmpty) return false;
     final cleanName = name.replaceAll('\\', '/').split('/').last;
@@ -24,6 +20,13 @@ class ConvolverEngine {
     _irSamples[name] = pcm;
     debugPrint('ConvolverEngine: Registered IR sample "$cleanName" (${pcm.length} samples)');
     return true;
+  }
+
+  /// Bakes a procedural space or amp cabinet on demand and registers it in memory.
+  List<double> bakeCustomSpace(AcousticSpaceParams params, {int sampleRate = 44100}) {
+    final pcm = ProceduralIRGenerator.generate(params, sampleRate: sampleRate);
+    registerIrSample(params.name, pcm);
+    return pcm;
   }
 
   /// Unloads a specific IR sample from memory.
@@ -38,7 +41,7 @@ class ConvolverEngine {
     _irSamples.clear();
   }
 
-  /// Returns list of all available Impulse Response names.
+  /// Returns list of all available Impulse Response names (both built-in procedural and imported/downloaded).
   List<String> getAvailableIrNames() {
     final names = <String>{...builtInIrNames};
     for (final k in _irSamples.keys) {
@@ -49,13 +52,24 @@ class ConvolverEngine {
     return list;
   }
 
-  /// Retrieves an IR sample buffer by name, generating built-in synthetic IRs lazily on-demand.
+  /// Retrieves an IR sample buffer by name, generating procedural IRs lazily on-demand.
   List<double>? getIrSample(String name) {
     final cleanName = name.replaceAll('\\', '/').split('/').last;
     if (_irSamples.containsKey(name)) return _irSamples[name];
     if (_irSamples.containsKey(cleanName)) return _irSamples[cleanName];
 
-    // Lazy generation on demand
+    // Check procedural preset library
+    for (final entry in ProceduralIRGenerator.presets.entries) {
+      if (entry.key.toLowerCase() == cleanName.toLowerCase() ||
+          entry.key.toLowerCase() == name.toLowerCase()) {
+        final generated = ProceduralIRGenerator.generate(entry.value);
+        _irSamples[cleanName] = generated;
+        _irSamples[name] = generated;
+        return generated;
+      }
+    }
+
+    // Fallback lazy generation
     final lazy = _generateLazyBuiltIn(cleanName);
     if (lazy != null) {
       _irSamples[cleanName] = lazy;
@@ -66,18 +80,11 @@ class ConvolverEngine {
   }
 
   static List<double>? _generateLazyBuiltIn(String name) {
-    switch (name.toLowerCase()) {
-      case 'great hall':
-        return _generateSyntheticIr(decaySec: 2.2, damping: 0.15);
-      case 'plate reverb':
-        return _generateSyntheticIr(decaySec: 1.4, damping: 0.05);
-      case 'warm room':
-        return _generateSyntheticIr(decaySec: 0.6, damping: 0.35);
-      case 'spring tank':
-        return _generateSyntheticIr(decaySec: 1.0, damping: 0.25);
-      default:
-        return null;
+    final preset = ProceduralIRGenerator.presets[name];
+    if (preset != null) {
+      return ProceduralIRGenerator.generate(preset);
     }
+    return null;
   }
 
   /// Real-time convolution / impulse reverb processing on PCM input buffer.
@@ -109,21 +116,5 @@ class ConvolverEngine {
 
     return output;
   }
-
-
-  /// Generates a synthetic impulse response buffer with exponential decay and noise diffusion.
-  static List<double> _generateSyntheticIr({required double decaySec, required double damping}) {
-    final length = (44100 * decaySec).toInt();
-    final ir = List<double>.filled(length, 0.0);
-    final rng = math.Random(42);
-
-    for (int i = 0; i < length; i++) {
-      final t = i / 44100.0;
-      final env = math.exp(-t * (4.0 / decaySec));
-      final noise = (rng.nextDouble() * 2.0 - 1.0);
-      ir[i] = noise * env * (1.0 - t * damping).clamp(0.0, 1.0);
-    }
-
-    return ir;
-  }
 }
+

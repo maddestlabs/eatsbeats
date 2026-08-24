@@ -210,6 +210,12 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
     if (code.contains('Analog808HiHat') || name.contains('808 hi-hat') || name.contains('808 hihat')) return 'analog_808_hihat';
     if (code.contains('Analog808Cowbell') || name.contains('cowbell') || name.contains('808 cowbell')) return 'analog_808_cowbell';
     if (code.contains('Analog808Tom') || name.contains('808 tom')) return 'analog_808_tom';
+    if (code.contains('Analog909Kick') || name.contains('909 kick')) return 'analog_909_kick';
+    if (code.contains('Analog909Snare') || name.contains('909 snare')) return 'analog_909_snare';
+    if (code.contains('Analog909ClosedHiHat') || name.contains('909 closed') || name.contains('909 hi-hat') || name.contains('909 hihat')) return 'analog_909_closed_hihat';
+    if (code.contains('Analog909OpenHiHat') || name.contains('909 open')) return 'analog_909_open_hihat';
+    if (code.contains('Analog909Clap') || name.contains('909 clap') || name.contains('clap')) return 'analog_909_clap';
+    if (code.contains('Analog909Rimshot') || name.contains('909 rim') || name.contains('rimshot')) return 'analog_909_rimshot';
     if (code.contains('Acid303') || name.contains('303') || name.contains('acid')) return 'acid_303';
     if (code.contains('PolyLeadSynth') || name.contains('poly lead')) return 'poly_lead';
     if (code.contains('YM2612') || name.contains('genesis') || name.contains('ym2612')) return 'ym2612_synth';

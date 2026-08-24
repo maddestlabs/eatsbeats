@@ -2,31 +2,51 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../theme/eats_theme.dart';
 
-/// A realistic skeuomorphic metallic hardware toggle switch control.
-/// Features a recessed faceplate slot, threaded hex mounting collar,
-/// 3D tapered chrome bat handle with specular lighting and dynamic cast shadow,
-/// tactile spring-snap physics animation, and a glowing jewel status LED.
+enum SwitchStyle {
+  modernPill,
+  vintageBat,
+}
+
+/// A versatile, realistic skeuomorphic hardware toggle switch control.
+/// Supports two distinct visual aesthetics:
+/// 1. [SwitchStyle.modernPill]: Sleek neomorphic / skeuomorphic recessed pill slider
+///    with illuminated active color track, tactile 3D circular thumb, optional icons,
+///    and both horizontal & vertical orientations.
+/// 2. [SwitchStyle.vintageBat]: Vintage chrome bat-handle lever switch with hex collar
+///    and status jewel LED (used exclusively for Eats-303).
 class SkeuomorphicHardwareSwitch extends StatefulWidget {
   final bool value;
   final ValueChanged<bool>? onChanged;
+  final SwitchStyle style;
+  final Axis orientation;
   final Color? activeColor;
   final Color? ledColor;
   final String? label;
-  final double width;
-  final double height;
+  final double? width;
+  final double? height;
   final bool showLed;
+  final bool showHighlightColor;
+  final bool showText;
+  final IconData? iconOn;
+  final IconData? iconOff;
   final String? tooltip;
 
   const SkeuomorphicHardwareSwitch({
     super.key,
     required this.value,
     required this.onChanged,
+    this.style = SwitchStyle.modernPill,
+    this.orientation = Axis.horizontal,
     this.activeColor,
     this.ledColor,
     this.label,
-    this.width = 46.0,
-    this.height = 26.0,
+    this.width,
+    this.height,
     this.showLed = true,
+    this.showHighlightColor = true,
+    this.showText = false,
+    this.iconOn,
+    this.iconOff,
     this.tooltip,
   });
 
@@ -86,20 +106,44 @@ class _SkeuomorphicHardwareSwitchState extends State<SkeuomorphicHardwareSwitch>
         (isGrungy ? const Color(0xFFFF8C00) : EatsTheme.primaryCyan);
     final ledCol = widget.ledColor ?? activeCol;
 
+    // Default dimensions depending on style and orientation
+    final defaultW = widget.style == SwitchStyle.vintageBat
+        ? 46.0
+        : (widget.orientation == Axis.vertical ? 18.0 : 38.0);
+    final defaultH = widget.style == SwitchStyle.vintageBat
+        ? 26.0
+        : (widget.orientation == Axis.vertical ? 30.0 : 20.0);
+
+    final effectiveW = widget.width ?? defaultW;
+    final effectiveH = widget.height ?? defaultH;
+
     final content = AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
         return CustomPaint(
-          size: Size(widget.width, widget.height),
-          painter: _HardwareSwitchPainter(
-            animationValue: _animation.value,
-            isEnabled: isEnabled,
-            activeColor: activeCol,
-            ledColor: ledCol,
-            showLed: widget.showLed,
-            isGrungy: isGrungy,
-            isLight: EatsTheme.isLight,
-          ),
+          size: Size(effectiveW, effectiveH),
+          painter: widget.style == SwitchStyle.vintageBat
+              ? _VintageBatSwitchPainter(
+                  animationValue: _animation.value,
+                  isEnabled: isEnabled,
+                  activeColor: activeCol,
+                  ledColor: ledCol,
+                  showLed: widget.showLed,
+                  isGrungy: isGrungy,
+                  isLight: EatsTheme.isLight,
+                )
+              : _ModernPillSwitchPainter(
+                  animationValue: _animation.value,
+                  isEnabled: isEnabled,
+                  orientation: widget.orientation,
+                  activeColor: activeCol,
+                  showHighlightColor: widget.showHighlightColor,
+                  showText: widget.showText,
+                  iconOn: widget.iconOn,
+                  iconOff: widget.iconOff,
+                  isGrungy: isGrungy,
+                  isLight: EatsTheme.isLight,
+                ),
         );
       },
     );
@@ -108,7 +152,7 @@ class _SkeuomorphicHardwareSwitchState extends State<SkeuomorphicHardwareSwitch>
       behavior: HitTestBehavior.opaque,
       onTap: isEnabled ? _toggle : null,
       onHorizontalDragEnd: (details) {
-        if (!isEnabled) return;
+        if (!isEnabled || widget.orientation == Axis.vertical) return;
         if (details.primaryVelocity != null) {
           if (details.primaryVelocity! > 50 && !widget.value) {
             widget.onChanged!(true);
@@ -117,11 +161,22 @@ class _SkeuomorphicHardwareSwitchState extends State<SkeuomorphicHardwareSwitch>
           }
         }
       },
+      onVerticalDragEnd: (details) {
+        if (!isEnabled || widget.orientation == Axis.horizontal) return;
+        if (details.primaryVelocity != null) {
+          // In vertical mode, dragging up (negative velocity) turns ON
+          if (details.primaryVelocity! < -50 && !widget.value) {
+            widget.onChanged!(true);
+          } else if (details.primaryVelocity! > 50 && widget.value) {
+            widget.onChanged!(false);
+          }
+        }
+      },
       child: MouseRegion(
         cursor: isEnabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
         child: SizedBox(
-          width: widget.width,
-          height: widget.height,
+          width: effectiveW,
+          height: effectiveH,
           child: Center(child: content),
         ),
       ),
@@ -163,7 +218,245 @@ class _SkeuomorphicHardwareSwitchState extends State<SkeuomorphicHardwareSwitch>
   }
 }
 
-class _HardwareSwitchPainter extends CustomPainter {
+/// Modern Neomorphic/Skeuomorphic Circle Pill Switch Painter.
+/// Features a recessed inset well with colored glow track or icon mode,
+/// and a tactile 3D circular thumb.
+class _ModernPillSwitchPainter extends CustomPainter {
+  final double animationValue; // 0.0 (OFF) -> 1.0 (ON)
+  final bool isEnabled;
+  final Axis orientation;
+  final Color activeColor;
+  final bool showHighlightColor;
+  final bool showText;
+  final IconData? iconOn;
+  final IconData? iconOff;
+  final bool isGrungy;
+  final bool isLight;
+
+  _ModernPillSwitchPainter({
+    required this.animationValue,
+    required this.isEnabled,
+    required this.orientation,
+    required this.activeColor,
+    required this.showHighlightColor,
+    required this.showText,
+    this.iconOn,
+    this.iconOff,
+    required this.isGrungy,
+    required this.isLight,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final rect = Rect.fromLTWH(0, 0, w, h);
+    final isVert = orientation == Axis.vertical;
+    final trackRadius = isVert ? (w / 2) : (h / 2);
+    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(trackRadius));
+
+    // 1. Inset Well Outer Drop Shadow
+    final dropShadowPaint = Paint()
+      ..color = Colors.black.withOpacity(isLight ? 0.15 : 0.45)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+    canvas.drawRRect(rrect.shift(const Offset(0, 1.0)), dropShadowPaint);
+
+    // 2. Inset Track Background
+    if (showHighlightColor && animationValue > 0.01) {
+      // Interpolate between dark well and vibrant active color
+      final offTrackColor = isLight
+          ? const Color(0xFFCAD4E0)
+          : (isGrungy ? const Color(0xFF1E1B18) : const Color(0xFF14171F));
+      final trackColor = Color.lerp(offTrackColor, activeColor, animationValue)!;
+
+      final trackGradient = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          trackColor.withOpacity(0.85),
+          trackColor,
+          Color.lerp(trackColor, Colors.black, 0.25)!,
+        ],
+        stops: const [0.0, 0.45, 1.0],
+      );
+      final trackPaint = Paint()..shader = trackGradient.createShader(rect);
+      canvas.drawRRect(rrect, trackPaint);
+
+      // Subtle glowing bloom when active
+      if (animationValue > 0.3) {
+        final bloomPaint = Paint()
+          ..color = activeColor.withOpacity(animationValue * 0.25)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0);
+        canvas.drawRRect(rrect, bloomPaint);
+      }
+    } else {
+      // Dark Inset Track
+      final darkWellGradient = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: isGrungy
+            ? [const Color(0xFF12100E), const Color(0xFF1C1916), const Color(0xFF26221E)]
+            : (isLight
+                ? [const Color(0xFFB0B9C6), const Color(0xFFCAD4E0), const Color(0xFFE2E8F0)]
+                : [const Color(0xFF0D0F14), const Color(0xFF141720), const Color(0xFF1C212D)]),
+        stops: const [0.0, 0.5, 1.0],
+      );
+      final wellPaint = Paint()..shader = darkWellGradient.createShader(rect);
+      canvas.drawRRect(rrect, wellPaint);
+    }
+
+    // 3. Inset Rim Borders & Bottom Reflection
+    final rimPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8
+      ..color = isGrungy
+          ? const Color(0xFF38322B)
+          : (isLight ? const Color(0xFF94A3B8) : const Color(0xFF2B3245));
+    canvas.drawRRect(rrect, rimPaint);
+
+    final bottomHighlight = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.6
+      ..color = Colors.white.withOpacity(isLight ? 0.4 : 0.12);
+    canvas.drawRRect(rrect.deflate(0.5), bottomHighlight);
+
+    // 4. Optional Icons / Text in Track
+    if (!isVert && showText && w >= 36) {
+      final textStyle = TextStyle(
+        fontSize: (h * 0.38).clamp(7.0, 10.0),
+        fontWeight: FontWeight.bold,
+        color: animationValue > 0.5
+            ? (showHighlightColor ? Colors.black87 : activeColor)
+            : EatsTheme.textMuted.withOpacity(0.6),
+        fontFamily: 'monospace',
+      );
+      final textSpan = TextSpan(text: animationValue > 0.5 ? 'ON' : 'OFF', style: textStyle);
+      final tp = TextPainter(text: textSpan, textDirection: TextDirection.ltr)..layout();
+      final textOffset = animationValue > 0.5
+          ? Offset(6.0, (h - tp.height) / 2)
+          : Offset(w - tp.width - 6.0, (h - tp.height) / 2);
+      tp.paint(canvas, textOffset);
+    } else if (iconOn != null || iconOff != null) {
+      final activeIcon = animationValue > 0.5 ? (iconOn ?? iconOff) : (iconOff ?? iconOn);
+      if (activeIcon != null) {
+        final iconPainter = TextPainter(
+          text: TextSpan(
+            text: String.fromCharCode(activeIcon.codePoint),
+            style: TextStyle(
+              inherit: false,
+              color: animationValue > 0.5 ? activeColor : EatsTheme.textMuted,
+              fontSize: (isVert ? w * 0.55 : h * 0.55).clamp(8.0, 14.0),
+              fontFamily: activeIcon.fontFamily,
+              package: activeIcon.fontPackage,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+
+        final iconPos = isVert
+            ? Offset((w - iconPainter.width) / 2, animationValue > 0.5 ? h - iconPainter.height - 4 : 4)
+            : Offset(animationValue > 0.5 ? 4 : w - iconPainter.width - 4, (h - iconPainter.height) / 2);
+        iconPainter.paint(canvas, iconPos);
+      }
+    }
+
+    // 5. 3D Tactile Circular Thumb
+    final padding = 2.0;
+    final thumbDiameter = isVert ? (w - padding * 2) : (h - padding * 2);
+    final thumbRadius = thumbDiameter / 2;
+
+    final Offset thumbCenter;
+    if (isVert) {
+      // In vertical: 0.0 is Bottom (OFF), 1.0 is Top (ON)
+      final minY = padding + thumbRadius;
+      final maxY = h - padding - thumbRadius;
+      final currentY = maxY - animationValue * (maxY - minY);
+      thumbCenter = Offset(w / 2, currentY);
+    } else {
+      // In horizontal: 0.0 is Left (OFF), 1.0 is Right (ON)
+      final minX = padding + thumbRadius;
+      final maxX = w - padding - thumbRadius;
+      final currentX = minX + animationValue * (maxX - minX);
+      thumbCenter = Offset(currentX, h / 2);
+    }
+
+    // Thumb Drop Shadow onto the track
+    final thumbShadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.55)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
+    canvas.drawCircle(thumbCenter + const Offset(0, 1.2), thumbRadius, thumbShadowPaint);
+
+    // Thumb 3D Spherical Radial Gradient
+    final thumbGradient = RadialGradient(
+      center: const Alignment(-0.35, -0.4),
+      radius: 0.9,
+      colors: isGrungy
+          ? [
+              const Color(0xFFF5E6CC),
+              const Color(0xFFC7B594),
+              const Color(0xFF7A6B53),
+              const Color(0xFF382F22),
+            ]
+          : (isLight
+              ? [
+                  Colors.white,
+                  const Color(0xFFF1F5F9),
+                  const Color(0xFFCBD5E1),
+                  const Color(0xFF94A3B8),
+                ]
+              : [
+                  const Color(0xFFFFFFFF),
+                  const Color(0xFFDDE4ED),
+                  const Color(0xFF7E8D9F),
+                  const Color(0xFF2C3442),
+                ]),
+      stops: const [0.0, 0.35, 0.75, 1.0],
+    );
+
+    final thumbPaint = Paint()
+      ..shader = thumbGradient.createShader(
+        Rect.fromCircle(center: thumbCenter, radius: thumbRadius),
+      );
+    canvas.drawCircle(thumbCenter, thumbRadius, thumbPaint);
+
+    // Thumb Outer Rim Bevel
+    final thumbBevelPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8
+      ..color = Colors.white.withOpacity(0.8);
+    canvas.drawCircle(thumbCenter, thumbRadius, thumbBevelPaint);
+
+    // Micro Grip Tactile Indents on Thumb
+    if (thumbRadius >= 6.0) {
+      final dotPaint = Paint()..color = Colors.black.withOpacity(0.25);
+      final dotHighlight = Paint()..color = Colors.white.withOpacity(0.4);
+      final dotRadius = 0.8;
+
+      canvas.drawCircle(thumbCenter + const Offset(0, -1.5), dotRadius, dotPaint);
+      canvas.drawCircle(thumbCenter + const Offset(0, -0.9), dotRadius * 0.6, dotHighlight);
+
+      canvas.drawCircle(thumbCenter + const Offset(0, 1.5), dotRadius, dotPaint);
+      canvas.drawCircle(thumbCenter + const Offset(0, 2.1), dotRadius * 0.6, dotHighlight);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ModernPillSwitchPainter oldDelegate) {
+    return oldDelegate.animationValue != animationValue ||
+        oldDelegate.isEnabled != isEnabled ||
+        oldDelegate.orientation != orientation ||
+        oldDelegate.activeColor != activeColor ||
+        oldDelegate.showHighlightColor != showHighlightColor ||
+        oldDelegate.showText != showText ||
+        oldDelegate.iconOn != iconOn ||
+        oldDelegate.iconOff != iconOff ||
+        oldDelegate.isGrungy != isGrungy ||
+        oldDelegate.isLight != isLight;
+  }
+}
+
+/// Vintage Chrome Bat-Handle Switch Painter (Eats-303).
+class _VintageBatSwitchPainter extends CustomPainter {
   final double animationValue; // 0.0 (OFF) -> 1.0 (ON)
   final bool isEnabled;
   final Color activeColor;
@@ -172,7 +465,7 @@ class _HardwareSwitchPainter extends CustomPainter {
   final bool isGrungy;
   final bool isLight;
 
-  _HardwareSwitchPainter({
+  _VintageBatSwitchPainter({
     required this.animationValue,
     required this.isEnabled,
     required this.activeColor,
@@ -189,43 +482,25 @@ class _HardwareSwitchPainter extends CustomPainter {
     final rect = Rect.fromLTWH(0, 0, w, h);
     final rrect = RRect.fromRectAndRadius(rect, Radius.circular(h / 2));
 
-    // ----------------------------------------------------
-    // 1. Recessed Bezel Outer Well (Chassis Inset Plate)
-    // ----------------------------------------------------
-    // Drop shadow beneath the recessed well
+    // 1. Recessed Bezel Outer Well
     final dropShadowPaint = Paint()
       ..color = Colors.black.withOpacity(isLight ? 0.12 : 0.45)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
     canvas.drawRRect(rrect.shift(const Offset(0, 1.2)), dropShadowPaint);
 
-    // Well background gradient (recessed depth)
     final wellGradient = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: isGrungy
-          ? [
-              const Color(0xFF141210),
-              const Color(0xFF1E1B18),
-              const Color(0xFF282420),
-            ]
+          ? [const Color(0xFF141210), const Color(0xFF1E1B18), const Color(0xFF282420)]
           : (isLight
-              ? [
-                  const Color(0xFFB0B9C6),
-                  const Color(0xFFCBD5E1),
-                  const Color(0xFFE2E8F0),
-                ]
-              : [
-                  const Color(0xFF0F1116),
-                  const Color(0xFF161922),
-                  const Color(0xFF1F2430),
-                ]),
+              ? [const Color(0xFFB0B9C6), const Color(0xFFCBD5E1), const Color(0xFFE2E8F0)]
+              : [const Color(0xFF0F1116), const Color(0xFF161922), const Color(0xFF1F2430)]),
       stops: const [0.0, 0.5, 1.0],
     );
-
     final wellPaint = Paint()..shader = wellGradient.createShader(rect);
     canvas.drawRRect(rrect, wellPaint);
 
-    // Well inner top shadow (etched rim)
     final rimPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0
@@ -234,33 +509,11 @@ class _HardwareSwitchPainter extends CustomPainter {
           : (isLight ? const Color(0xFF94A3B8) : const Color(0xFF2B3245));
     canvas.drawRRect(rrect, rimPaint);
 
-    // Highlight reflection on bottom rim of well
-    final bottomHighlightPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8
-      ..color = Colors.white.withOpacity(isGrungy ? 0.08 : (isLight ? 0.5 : 0.15));
-    final highlightPath = Path()
-      ..addArc(
-        Rect.fromCircle(center: Offset(h / 2, h / 2), radius: h / 2),
-        math.pi * 0.5,
-        math.pi * 0.5,
-      )
-      ..lineTo(w - h / 2, h)
-      ..addArc(
-        Rect.fromCircle(center: Offset(w - h / 2, h / 2), radius: h / 2),
-        0,
-        math.pi * 0.5,
-      );
-    canvas.drawPath(highlightPath, bottomHighlightPaint);
-
-    // ----------------------------------------------------
     // 2. Status Jewel LED Indicator
-    // ----------------------------------------------------
     final ledRadius = h * 0.16;
     final ledCenter = Offset(w - h * 0.44, h * 0.5);
 
     if (showLed) {
-      // Inset dark LED Bezel
       final ledBezelPaint = Paint()
         ..color = isGrungy ? const Color(0xFF1B1815) : const Color(0xFF0D0F14);
       canvas.drawCircle(ledCenter, ledRadius + 1.2, ledBezelPaint);
@@ -275,13 +528,11 @@ class _HardwareSwitchPainter extends CustomPainter {
 
       if (animationValue > 0.05 && isEnabled) {
         final glowOpacity = (animationValue * 0.75).clamp(0.0, 0.75);
-        // Outer Glow Bloom
         final glowPaint = Paint()
           ..color = ledColor.withOpacity(glowOpacity)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0);
         canvas.drawCircle(ledCenter, ledRadius * 1.8, glowPaint);
 
-        // Core Glowing Lamp
         final lampGradient = RadialGradient(
           center: const Alignment(-0.25, -0.25),
           radius: 0.85,
@@ -297,12 +548,7 @@ class _HardwareSwitchPainter extends CustomPainter {
             Rect.fromCircle(center: ledCenter, radius: ledRadius),
           );
         canvas.drawCircle(ledCenter, ledRadius, lampPaint);
-
-        // Specular Hotspot
-        final spotPaint = Paint()..color = Colors.white.withOpacity(0.9);
-        canvas.drawCircle(ledCenter + const Offset(-0.8, -0.8), ledRadius * 0.35, spotPaint);
       } else {
-        // Unlit Dark Lamp Glass
         final unlitGradient = RadialGradient(
           center: const Alignment(-0.3, -0.3),
           radius: 0.9,
@@ -318,36 +564,23 @@ class _HardwareSwitchPainter extends CustomPainter {
       }
     }
 
-    // ----------------------------------------------------
     // 3. Central Mounting Collar / Threaded Hex Nut Bushing
-    // ----------------------------------------------------
-    // Switch pivot fulcrum travels slightly or sits securely at center-left
     final fulcrumX = showLed ? (h * 0.56) : (w * 0.5);
     final fulcrumY = h * 0.5;
     final fulcrum = Offset(fulcrumX, fulcrumY);
     final collarRadius = h * 0.31;
 
-    // Collar cast shadow
     final collarShadow = Paint()
       ..color = Colors.black.withOpacity(0.55)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
     canvas.drawCircle(fulcrum + const Offset(0, 1.5), collarRadius, collarShadow);
 
-    // Collar Metallic Radial/Linear Gradient
     final collarGradient = RadialGradient(
       center: const Alignment(-0.3, -0.3),
       radius: 0.9,
       colors: isGrungy
-          ? [
-              const Color(0xFF6B5F4F),
-              const Color(0xFF4A4135),
-              const Color(0xFF29241D),
-            ]
-          : [
-              const Color(0xFF5A667A),
-              const Color(0xFF384050),
-              const Color(0xFF1D222C),
-            ],
+          ? [const Color(0xFF6B5F4F), const Color(0xFF4A4135), const Color(0xFF29241D)]
+          : [const Color(0xFF5A667A), const Color(0xFF384050), const Color(0xFF1D222C)],
     );
     final collarPaint = Paint()
       ..shader = collarGradient.createShader(
@@ -355,31 +588,24 @@ class _HardwareSwitchPainter extends CustomPainter {
       );
     canvas.drawCircle(fulcrum, collarRadius, collarPaint);
 
-    // Collar outer bevel edge
     final collarRimPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0
       ..color = Colors.white.withOpacity(isGrungy ? 0.25 : 0.35);
     canvas.drawCircle(fulcrum, collarRadius, collarRimPaint);
 
-    // Inner Dark Slot Bore
     final boreRadius = collarRadius * 0.65;
     final borePaint = Paint()
       ..color = isGrungy ? const Color(0xFF12100E) : const Color(0xFF0B0C10);
     canvas.drawCircle(fulcrum, boreRadius, borePaint);
 
-    // ----------------------------------------------------
     // 4. 3D Chrome Bat-Handle Lever & Dynamic Cast Shadow
-    // ----------------------------------------------------
-    // Toggle angle: OFF tilts left (-26° = -0.46 rad), ON tilts right (+26° = +0.46 rad)
     const maxAngle = 0.46; // ~26.4 degrees
     final currentAngle = -maxAngle + (animationValue.clamp(-0.2, 1.2) * 2 * maxAngle);
     final handleLength = h * 0.52;
 
-    // Lever tip point
     final tip = fulcrum + Offset(math.sin(currentAngle) * handleLength, -math.cos(currentAngle) * (handleLength * 0.35));
 
-    // Dynamic Cast Shadow of the Bat Handle onto the well
     final shadowTip = fulcrum + Offset(
       math.sin(currentAngle) * (handleLength * 1.15) + (currentAngle > 0 ? 2.5 : -2.5),
       (handleLength * 0.45) + 1.5,
@@ -399,11 +625,9 @@ class _HardwareSwitchPainter extends CustomPainter {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
     canvas.drawPath(shadowPath, batShadowPaint);
 
-    // 3D Tapered Bat Cylinder Shaft
     final baseWidth = collarRadius * 0.70;
     final tipRadius = h * 0.16;
 
-    // Normal vector perpendicular to handle direction
     final dx = tip.dx - fulcrum.dx;
     final dy = tip.dy - fulcrum.dy;
     final len = math.sqrt(dx * dx + dy * dy);
@@ -422,7 +646,6 @@ class _HardwareSwitchPainter extends CustomPainter {
       ..lineTo(pBaseRight.dx, pBaseRight.dy)
       ..close();
 
-    // Metallic Specular Cylinder Gradient
     final cylinderGradient = LinearGradient(
       begin: Alignment(-ny, nx),
       end: Alignment(ny, -nx),
@@ -430,14 +653,14 @@ class _HardwareSwitchPainter extends CustomPainter {
           ? [
               const Color(0xFF2C261F),
               const Color(0xFF6B5F4F),
-              const Color(0xFFD4C29D), // Warm specular highlight streak
+              const Color(0xFFD4C29D),
               const Color(0xFF8A7A64),
               const Color(0xFF383127),
             ]
           : [
               const Color(0xFF1E2430),
               const Color(0xFF4B5568),
-              const Color(0xFFF1F5F9), // Crisp chrome highlight streak
+              const Color(0xFFF1F5F9),
               const Color(0xFF8C9BAE),
               const Color(0xFF242C3C),
             ],
@@ -450,25 +673,6 @@ class _HardwareSwitchPainter extends CustomPainter {
       );
     canvas.drawPath(shaftPath, shaftPaint);
 
-    // Decorative Knurled Grip Rings on the Shaft
-    final mid1 = Offset.lerp(fulcrum, tip, 0.45)!;
-    final mid2 = Offset.lerp(fulcrum, tip, 0.65)!;
-    final ringPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0
-      ..color = Colors.black.withOpacity(0.35);
-    canvas.drawLine(
-      mid1 + Offset(nx * tipRadius * 1.1, ny * tipRadius * 1.1),
-      mid1 - Offset(nx * tipRadius * 1.1, ny * tipRadius * 1.1),
-      ringPaint,
-    );
-    canvas.drawLine(
-      mid2 + Offset(nx * tipRadius * 1.05, ny * tipRadius * 1.05),
-      mid2 - Offset(nx * tipRadius * 1.05, ny * tipRadius * 1.05),
-      ringPaint,
-    );
-
-    // Spherical Dome Tip Cap
     final tipDomeGradient = RadialGradient(
       center: const Alignment(-0.35, -0.4),
       radius: 0.85,
@@ -494,13 +698,12 @@ class _HardwareSwitchPainter extends CustomPainter {
       );
     canvas.drawCircle(tip, tipRadius, tipPaint);
 
-    // Specular Glare Dot on Tip
     final glarePaint = Paint()..color = Colors.white.withOpacity(0.9);
     canvas.drawCircle(tip + const Offset(-1.2, -1.2), tipRadius * 0.32, glarePaint);
   }
 
   @override
-  bool shouldRepaint(covariant _HardwareSwitchPainter oldDelegate) {
+  bool shouldRepaint(covariant _VintageBatSwitchPainter oldDelegate) {
     return oldDelegate.animationValue != animationValue ||
         oldDelegate.isEnabled != isEnabled ||
         oldDelegate.activeColor != activeColor ||

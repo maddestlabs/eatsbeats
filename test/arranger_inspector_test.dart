@@ -64,13 +64,11 @@ void main() {
 
       // Verify track properties are rendered
       expect(find.text('TRACK PROPERTIES'), findsOneWidget);
-      expect(find.text('TRACK NAME'), findsOneWidget);
       expect(find.text('TRACK COLOR'), findsOneWidget);
       expect(find.text(track.name), findsOneWidget);
 
       // Verify clip properties are NOT rendered
       expect(find.text('SELECTED CLIP'), findsNothing);
-      expect(find.text('CLIP TITLE'), findsNothing);
 
       // 2. When a clip IS selected -> Shows ONLY Clip properties
       dawState.selectClip(clip);
@@ -78,11 +76,9 @@ void main() {
 
       // Verify clip properties are rendered
       expect(find.text('SELECTED CLIP'), findsOneWidget);
-      expect(find.text('CLIP TITLE'), findsOneWidget);
       expect(find.text(clip.name), findsOneWidget);
 
       // Verify track properties are NOT rendered in clip mode
-      expect(find.text('TRACK NAME'), findsNothing);
       expect(find.text('TRACK COLOR'), findsNothing);
 
       dawState.dispose();
@@ -356,12 +352,11 @@ void main() {
 
       // Now inspector is open alongside the open browser
       expect(find.byType(ArrangerContextInspector), findsOneWidget);
-      expect(find.text('PROPERTIES'), findsOneWidget);
 
-      // Close inspector via close button on ArrangerContextInspector
-      final closeBtn = find.byTooltip('Close Inspector');
-      expect(closeBtn, findsOneWidget);
-      await tester.tap(closeBtn);
+      // Close inspector via pull tab
+      final collapseBtn = find.byTooltip('Collapse Track Properties');
+      expect(collapseBtn, findsOneWidget);
+      await tester.tap(collapseBtn);
       await tester.pumpAndSettle();
 
       // Inspector closes while browser remains open

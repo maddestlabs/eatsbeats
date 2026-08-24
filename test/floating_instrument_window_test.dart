@@ -123,7 +123,7 @@ void main() {
       expect(find.text('ACID SYNTH 303'), findsOneWidget);
       expect(find.byIcon(Icons.fit_screen), findsOneWidget);
       expect(find.byIcon(Icons.fullscreen), findsOneWidget);
-      expect(find.byIcon(Icons.open_in_new), findsOneWidget);
+      expect(find.byIcon(Icons.code), findsOneWidget);
       expect(find.byTooltip('Unscrew Panel (Close VSTi - Esc)'), findsOneWidget);
 
       // Verify 1:1 FittedBox scaling container is rendered

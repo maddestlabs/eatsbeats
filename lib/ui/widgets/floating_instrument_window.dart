@@ -2,12 +2,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../lua/lua_engine.dart';
 import '../../models/daw_state.dart';
+import '../../models/script_target_model.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
 import '../modular/modular_rack_canvas.dart';
 import 'dynamic_instrument_gui_widget.dart';
 
-/// A sleek, movable, resizable floating in-app VSTi Instrument window.
+/// A sleek, movable, resizable floating in-app VSTi Instrument & Audio FX window.
 /// Supports both Skeuomorphic Hardware Panel mode and Eurorack Multi-Row Modular Rack mode.
 class FloatingInstrumentWindow extends StatefulWidget {
   final DawState dawState;
@@ -25,28 +26,72 @@ class FloatingInstrumentWindow extends StatefulWidget {
 
 class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
   bool _isModularRackMode = false;
+  String? _lastFittedTrackId;
 
   @override
   Widget build(BuildContext context) {
     if (!widget.dawState.isFloatingWindowVisible) {
+      _lastFittedTrackId = null;
       return const SizedBox.shrink();
     }
 
-    final track = widget.dawState.floatingInstrumentTrack;
+    final fxInsert = widget.dawState.floatingFxInsert;
+    final fxParentTrack = widget.dawState.floatingFxTrack;
+
+    final TrackChannel? track;
+    final void Function(String, double)? onParamChanged;
+    final bool isFxMode;
+
+    if (fxInsert != null && fxParentTrack != null) {
+      isFxMode = true;
+      track = TrackChannel(
+        id: fxInsert.id,
+        name: fxInsert.name,
+        type: TrackType.luaScript,
+        color: EatsTheme.secondaryMagenta,
+        luaScriptCode: fxInsert.luaScriptCode ?? '',
+        luaParams: fxInsert.luaParams,
+      );
+      onParamChanged = (param, val) {
+        widget.dawState.updateFXParam(fxParentTrack, fxInsert.id, param, val);
+      };
+    } else {
+      isFxMode = false;
+      track = widget.dawState.floatingInstrumentTrack;
+      onParamChanged = null;
+    }
+
     if (track == null) return const SizedBox.shrink();
+    final effectiveTrack = track;
 
     final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
-    final trackCompilation = track.luaScriptCode.isNotEmpty
-        ? LuaEngine.compile(track.luaScriptCode)
+    final trackCompilation = effectiveTrack.luaScriptCode.isNotEmpty
+        ? LuaEngine.compile(effectiveTrack.luaScriptCode)
         : widget.dawState.compilationResult;
     final guiLayout = trackCompilation.guiLayout;
 
-    final accentColor = guiLayout?.accentColor ?? (isGrungy ? const Color(0xFFFF8C00) : track.color);
-    final titleText = (guiLayout?.title ?? track.name).toUpperCase();
-    final subtitleText = guiLayout?.subtitle ?? (track.type == TrackType.luaScript ? 'LUA VSTi' : track.type.name.toUpperCase());
-    final hasUpgrade = widget.dawState.isPresetUpgradeAvailable(track);
+    final accentColor = guiLayout?.accentColor ??
+        (isFxMode
+            ? EatsTheme.secondaryMagenta
+            : (isGrungy ? const Color(0xFFFF8C00) : effectiveTrack.color));
+    final titleText = (guiLayout?.title ?? effectiveTrack.name).toUpperCase();
+    final subtitleText = guiLayout?.subtitle ??
+        (isFxMode
+            ? 'AUDIO FX INSERT'
+            : (effectiveTrack.type == TrackType.luaScript ? 'INSTRUMENT' : effectiveTrack.type.name.toUpperCase()));
+    final hasUpgrade = !isFxMode && widget.dawState.isPresetUpgradeAvailable(effectiveTrack);
     final isMaximized = widget.dawState.isFloatingWindowMaximized;
     final wsBounds = widget.workspaceBounds ?? MediaQuery.of(context).size;
+
+    // Auto-scale window to "Fit to Screen" proportions whenever opened for a track
+    if (_lastFittedTrackId != effectiveTrack.id) {
+      _lastFittedTrackId = effectiveTrack.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.dawState.isFloatingWindowVisible) {
+          widget.dawState.fitFloatingWindowToWorkspace(wsBounds, effectiveTrack);
+        }
+      });
+    }
 
     return RepaintBoundary(
       child: Container(
@@ -121,7 +166,7 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                     if (hasUpgrade) ...[
                       GestureDetector(
                         onTap: () {
-                          widget.dawState.upgradeTrackPreset(track);
+                          widget.dawState.upgradeTrackPreset(effectiveTrack);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Upgraded "$titleText" to latest preset! (Settings preserved)'),
@@ -202,10 +247,25 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                       message: 'Open in Script Editor (Tab 5)',
                       child: InkWell(
                         onTap: () {
-                          final idx = widget.dawState.activePattern.tracks.indexOf(track);
-                          if (idx != -1) widget.dawState.activeTrackIndex = idx;
-                          widget.dawState.activeTabIndex = 4;
-                          widget.dawState.closeFloatingInstrumentWindow();
+                          if (isFxMode && fxInsert != null && fxParentTrack != null) {
+                            final target = ScriptTarget(
+                              id: 'fx_${fxParentTrack.id}_${fxInsert.id}',
+                              type: ScriptTargetType.audioFx,
+                              title: '${fxInsert.name} (${fxParentTrack.name})',
+                              subtitle: 'Audio FX Insert Module',
+                              trackId: fxParentTrack.id,
+                              trackName: fxParentTrack.name,
+                              trackColor: fxParentTrack.color,
+                              secondaryId: fxInsert.id,
+                            );
+                            widget.dawState.openScriptInEditor(target);
+                            widget.dawState.closeFloatingInstrumentWindow();
+                          } else {
+                            final idx = widget.dawState.activePattern.tracks.indexOf(effectiveTrack);
+                            if (idx != -1) widget.dawState.activeTrackIndex = idx;
+                            widget.dawState.activeTabIndex = 4;
+                            widget.dawState.closeFloatingInstrumentWindow();
+                          }
                         },
                         child: Container(
                           padding: const EdgeInsets.all(4),
@@ -214,7 +274,7 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                             color: EatsTheme.controlBackground.withOpacity(0.5),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Icon(Icons.open_in_new, size: 14, color: EatsTheme.primaryCyan),
+                          child: Icon(Icons.code, size: 14, color: EatsTheme.primaryCyan),
                         ),
                       ),
                     ),
@@ -244,8 +304,9 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                           width: 520,
                           child: DynamicInstrumentGuiWidget(
                             dawState: widget.dawState,
-                            track: track,
+                            track: effectiveTrack,
                             hideHeader: true,
+                            onParamChanged: onParamChanged,
                           ),
                         ),
                       ),

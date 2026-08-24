@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../lua/lua_preset_library.dart';
 import '../theme/eats_theme.dart';
 import '../ui/widgets/ui_scale_dialog.dart';
+import '../utils/fullscreen_helper.dart';
 import 'daw_state.dart';
 import 'track_model.dart';
 
@@ -137,6 +138,15 @@ class CommandPaletteRegistry {
           state.browserTabIndex = 4;
           if (!state.isBrowserOpen) state.toggleBrowser();
         },
+      ),
+      QuickCommand(
+        id: 'view_toggle_fullscreen',
+        title: 'View: Toggle Fullscreen Mode',
+        subtitle: 'Toggle borderless desktop fullscreen display',
+        category: CommandCategory.view,
+        icon: Icons.fullscreen,
+        shortcutHint: 'F11 / Alt+Enter',
+        onExecute: (state, ctx) => FullscreenHelper.toggleFullscreen(),
       ),
       QuickCommand(
         id: 'view_adjust_scale',

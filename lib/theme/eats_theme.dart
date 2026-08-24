@@ -373,6 +373,90 @@ class EatsTheme {
     }
   }
 
+  /// Script editor background canvas color
+  static Color get codeEditorBackground {
+    switch (currentPreset) {
+      case EatsThemePreset.lightSnack:
+        return const Color(0xFFFFFFFF); // Clean white editor
+      case EatsThemePreset.breakfast:
+        return const Color(0xFFFDF6E3); // Solarized light base3
+      case EatsThemePreset.dinner:
+        return const Color(0xFF002B36); // Solarized dark base03
+      case EatsThemePreset.ateTrack:
+        return const Color(0xFF141210); // Weathered grungy dark
+      case EatsThemePreset.midnightBites:
+      default:
+        return const Color(0xFF0D0F17); // Obsidian code dark
+    }
+  }
+
+  /// Script editor line number gutter background color
+  static Color get codeEditorGutterBackground {
+    switch (currentPreset) {
+      case EatsThemePreset.lightSnack:
+        return const Color(0xFFF1F5F9); // Slate-100 gutter
+      case EatsThemePreset.breakfast:
+        return const Color(0xFFEEE8D5); // Solarized base2 gutter
+      case EatsThemePreset.dinner:
+        return const Color(0xFF073642); // Solarized base02 gutter
+      case EatsThemePreset.ateTrack:
+        return const Color(0xFF1B1814); // Grungy rack gutter
+      case EatsThemePreset.midnightBites:
+      default:
+        return const Color(0xFF08090E); // Deep dark gutter
+    }
+  }
+
+  /// Script editor primary text color
+  static Color get codeEditorTextColor {
+    switch (currentPreset) {
+      case EatsThemePreset.lightSnack:
+        return const Color(0xFF0F172A); // High-contrast slate-900
+      case EatsThemePreset.breakfast:
+        return const Color(0xFF073642); // Solarized base02 high contrast
+      case EatsThemePreset.dinner:
+        return const Color(0xFF2AA198); // Solarized cyan
+      case EatsThemePreset.ateTrack:
+        return const Color(0xFFFFD580); // Warm amber text
+      case EatsThemePreset.midnightBites:
+      default:
+        return const Color(0xFF00FFCC); // Neon cyber cyan
+    }
+  }
+
+  /// Script editor line number text color
+  static Color get codeEditorGutterTextColor {
+    switch (currentPreset) {
+      case EatsThemePreset.lightSnack:
+        return const Color(0xFF94A3B8);
+      case EatsThemePreset.breakfast:
+        return const Color(0xFF93A1A1);
+      case EatsThemePreset.dinner:
+        return const Color(0xFF586E75);
+      case EatsThemePreset.ateTrack:
+      case EatsThemePreset.midnightBites:
+      default:
+        return const Color(0xFF535D6E);
+    }
+  }
+
+  /// Script editor border color
+  static Color get codeEditorBorder {
+    switch (currentPreset) {
+      case EatsThemePreset.lightSnack:
+        return const Color(0xFFCBD5E1);
+      case EatsThemePreset.breakfast:
+        return const Color(0xFFD33682).withOpacity(0.3);
+      case EatsThemePreset.dinner:
+        return const Color(0xFF2AA198).withOpacity(0.4);
+      case EatsThemePreset.ateTrack:
+        return const Color(0xFF3B332A);
+      case EatsThemePreset.midnightBites:
+      default:
+        return const Color(0xFF2B3245);
+    }
+  }
+
 
 
   static ThemeData get themeData {
@@ -402,6 +486,12 @@ class EatsTheme {
         labelLarge: getPrimaryFontStyle(color: textPrimary, fontSize: 12, fontWeight: FontWeight.bold),
         labelMedium: getPrimaryFontStyle(color: textSecondary, fontSize: 10),
         labelSmall: getPrimaryFontStyle(color: textMuted, fontSize: 9),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: panelHeader,
+        surfaceTintColor: Colors.transparent,
+        textStyle: getPrimaryFontStyle(color: textPrimary, fontSize: 11),
+        labelTextStyle: WidgetStateProperty.all(getPrimaryFontStyle(color: textPrimary, fontSize: 11)),
       ),
       sliderTheme: SliderThemeData(
         activeTrackColor: primaryCyan,

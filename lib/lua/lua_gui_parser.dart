@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'eats_lua_parser.dart';
 import 'lua_gui_model.dart';
 
@@ -147,6 +148,22 @@ class LuaGuiParser {
     final width = (m['width'] is num) ? (m['width'] as num).toDouble() : null;
     final height = (m['height'] is num) ? (m['height'] as num).toDouble() : null;
 
+    final canvasMode = (m['mode'] as String?) ?? (m['canvasMode'] as String?) ?? 'pixel';
+    final cols = (m['cols'] as num?)?.toInt() ?? (m['columns'] as num?)?.toInt() ?? (m['gridCols'] as num?)?.toInt() ?? 32;
+    final rows = (m['rows'] as num?)?.toInt() ?? (m['gridRows'] as num?)?.toInt() ?? 24;
+    final scale = (m['scale'] as num?)?.toDouble() ?? 1.0;
+    final showDpad = (m['showDpad'] == true) || (m['dpad'] == true) || (m['touchControls'] == true);
+    final showActionButtons = (m['showActionButtons'] == true) || (m['gamepad'] == true) || (m['buttons'] == true);
+
+    List<Color> palette = [];
+    final rawPalette = m['palette'] ?? m['colors'];
+    if (rawPalette is List) {
+      for (final p in rawPalette) {
+        final c = LuaGuiNode.parseColor(p);
+        if (c != null) palette.add(c);
+      }
+    }
+
     List<String> options = [];
     if (m['options'] is List) {
       options = (m['options'] as List).map((e) => e.toString()).toList();
@@ -178,6 +195,13 @@ class LuaGuiParser {
       text: text,
       action: action,
       knobStyle: knobStyle,
+      canvasMode: canvasMode,
+      cols: cols,
+      rows: rows,
+      scale: scale,
+      showDpad: showDpad,
+      showActionButtons: showActionButtons,
+      palette: palette,
       children: children,
     );
   }

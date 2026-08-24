@@ -53,7 +53,7 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = widget.accentColor ?? (widget.knobStyle == KnobStyle.chrome ? const Color(0xFF00FF9D) : EatsTheme.primaryCyan);
+    final activeColor = widget.accentColor ?? (widget.knobStyle == KnobStyle.chrome ? const Color(0xFF141416) : EatsTheme.primaryCyan);
     final normalized = ((widget.value - widget.min) / (widget.max - widget.min)).clamp(0.0, 1.0);
     final displayVal = widget.formatValue != null
         ? widget.formatValue!(widget.value)
@@ -150,7 +150,7 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
 
   void _showManualEditDialog(BuildContext context) {
     final displayVal = widget.formatValue != null ? widget.formatValue!(widget.value) : widget.value.toStringAsFixed(2);
-    final accent = widget.accentColor ?? (widget.knobStyle == KnobStyle.chrome ? const Color(0xFF00FF9D) : EatsTheme.primaryCyan);
+    final accent = widget.accentColor ?? (widget.knobStyle == KnobStyle.chrome ? const Color(0xFF141416) : EatsTheme.primaryCyan);
 
     showCompactValueEditDialog(
       context: context,
@@ -203,8 +203,8 @@ class _KnobPainter extends CustomPainter {
     if (isChrome || isLightChassis || isSnes) {
       const int numTicks = 11;
       final tickPaint = Paint()
-        ..color = (isSnes || isLightChassis)
-            ? const Color(0xFF2C2C32).withOpacity(0.7)
+        ..color = (isSnes || isLightChassis || isChrome)
+            ? const Color(0xFF1B1A17).withOpacity(0.75)
             : const Color(0xFF8C96A5).withOpacity(0.65)
         ..strokeWidth = 1.2
         ..strokeCap = StrokeCap.round;
@@ -230,39 +230,46 @@ class _KnobPainter extends CustomPainter {
     // Inactive Background Track Arc
     final inactiveArcPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = isChrome ? 2.8 : 2.5
+      ..strokeWidth = isChrome ? 2.6 : 2.5
       ..strokeCap = StrokeCap.round
       ..color = (isSnes || isLightChassis)
           ? const Color(0xFFC0BCB0)
-          : (isGrungyTheme ? const Color(0xFF38322B) : const Color(0xFF222733));
+          : (isChrome ? const Color(0xFF32363E) : (isGrungyTheme ? const Color(0xFF38322B) : const Color(0xFF222733)));
     canvas.drawArc(arcRect, startAngle, totalAngleRange, false, inactiveArcPaint);
 
     // Active Value Arc
     if (normalizedValue > 0.001) {
       final sweepAngle = (normalizedValue * totalAngleRange).clamp(0.001, totalAngleRange);
 
-      if (isSnes) {
-        // SNES Dark Gray / Accent Level Indicator Arc
+      if (isSnes || (isChrome && isLightChassis)) {
+        // Classic Silkscreen Solid Charcoal/Black Arc (Authentic TB-303 / Tau)
         final activeArcPaint = Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.6
           ..strokeCap = StrokeCap.round
-          ..color = const Color(0xFF36353D);
+          ..color = const Color(0xFF141416);
+        canvas.drawArc(arcRect, startAngle, sweepAngle, false, activeArcPaint);
+      } else if (isChrome) {
+        // Dark metallic chrome chassis track (deep gunmetal indicator)
+        final activeArcPaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.6
+          ..strokeCap = StrokeCap.round
+          ..color = accentColor == const Color(0xFF141416) ? const Color(0xFF00FF9D) : accentColor;
         canvas.drawArc(arcRect, startAngle, sweepAngle, false, activeArcPaint);
       } else {
-        // Arc Glow Pass
+        // Standard Glowing Arc
         final arcGlowPaint = Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = isChrome ? 4.5 : 4.0
+          ..strokeWidth = 4.0
           ..strokeCap = StrokeCap.round
-          ..color = accentColor.withOpacity(isChrome ? 0.65 : 0.5)
+          ..color = accentColor.withOpacity(0.5)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
         canvas.drawArc(arcRect, startAngle, sweepAngle, false, arcGlowPaint);
 
-        // Arc Foreground Line
         final activeArcPaint = Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = isChrome ? 2.8 : 2.5
+          ..strokeWidth = 2.5
           ..strokeCap = StrokeCap.round
           ..color = accentColor;
         canvas.drawArc(arcRect, startAngle, sweepAngle, false, activeArcPaint);
@@ -272,7 +279,7 @@ class _KnobPainter extends CustomPainter {
     // ----------------------------------------------------
     // 3. Physical Knob Body & Bezel (3D Skeuomorphic Rotary Dial)
     // ----------------------------------------------------
-    final knobRadius = outerRadius * (isChrome ? 0.70 : 0.76);
+    final knobRadius = outerRadius * (isChrome ? 0.74 : 0.76);
 
     // Bezel Drop Shadow
     final shadowPaint = Paint()
@@ -335,20 +342,24 @@ class _KnobPainter extends CustomPainter {
       canvas.drawCircle(center, innerRadius, innerRimPaint);
 
     } else if (isChrome) {
-      // Chrome Mirror Outer Beveled Well Rim
+      // ----------------------------------------------------
+      // Smooth Polished Chrome Beveled Dial (TB-303 / Silver Hardware)
+      // ----------------------------------------------------
+      // Chrome Mirror Outer Beveled Rim
       final chromeOuterBezelPaint = Paint()
         ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
             Color(0xFFFFFFFF),
-            Color(0xFF8A929E),
-            Color(0xFF303640),
-            Color(0xFF6B7280),
+            Color(0xFFB8C0CA),
+            Color(0xFF4A5260),
+            Color(0xFF8E97A4),
+            Color(0xFFD4DCE6),
           ],
-          stops: [0.0, 0.35, 0.75, 1.0],
-        ).createShader(Rect.fromCircle(center: center, radius: knobRadius + 1.5));
-      canvas.drawCircle(center, knobRadius + 1.5, chromeOuterBezelPaint);
+          stops: [0.0, 0.28, 0.65, 0.85, 1.0],
+        ).createShader(Rect.fromCircle(center: center, radius: knobRadius + 1.2));
+      canvas.drawCircle(center, knobRadius + 1.2, chromeOuterBezelPaint);
 
       // Chrome Body Cap with Conical Mirror Gleam Gradient
       final chromeBodyPaint = Paint()
@@ -379,9 +390,9 @@ class _KnobPainter extends CustomPainter {
         radius: 0.85,
         colors: const [
           Color(0xFFFFFFFF),
-          Color(0xFFD6DBE0),
-          Color(0xFF9BA4B0),
-          Color(0xFF747D8A),
+          Color(0xFFE5E9EE),
+          Color(0xFFB8C0CA),
+          Color(0xFF848E9C),
         ],
         stops: const [0.0, 0.35, 0.75, 1.0],
       );
@@ -393,8 +404,8 @@ class _KnobPainter extends CustomPainter {
       // Inner Face Chamfer Rim Line
       final innerRimPaint = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
-        ..color = Colors.white.withOpacity(0.85);
+        ..strokeWidth = 0.9
+        ..color = Colors.white.withOpacity(0.9);
       canvas.drawCircle(center, innerRadius, innerRimPaint);
 
     } else {
@@ -459,8 +470,8 @@ class _KnobPainter extends CustomPainter {
     // ----------------------------------------------------
     // 4. Pointer Notch / Line
     // ----------------------------------------------------
-    final p1 = center + Offset(math.cos(currentAngle) * (knobRadius * 0.22), math.sin(currentAngle) * (knobRadius * 0.22));
-    final p2 = center + Offset(math.cos(currentAngle) * (knobRadius * 0.72), math.sin(currentAngle) * (knobRadius * 0.72));
+    final p1 = center + Offset(math.cos(currentAngle) * (knobRadius * 0.15), math.sin(currentAngle) * (knobRadius * 0.15));
+    final p2 = center + Offset(math.cos(currentAngle) * (knobRadius * (isChrome ? 0.64 : 0.72)), math.sin(currentAngle) * (knobRadius * (isChrome ? 0.64 : 0.72)));
 
     if (isSnes) {
       // Solid Dark Gray Level Indicator Notch
@@ -469,20 +480,27 @@ class _KnobPainter extends CustomPainter {
         ..strokeWidth = 2.6
         ..strokeCap = StrokeCap.round;
       canvas.drawLine(p1, p2, snesNotchPaint);
-    } else {
-      if (isChrome) {
-        // Dark pointer notch border on chrome
-        final notchEdgePaint = Paint()
-          ..color = const Color(0xFF1A1E24)
-          ..strokeWidth = 3.8
-          ..strokeCap = StrokeCap.round;
-        canvas.drawLine(p1, p2, notchEdgePaint);
-      }
+    } else if (isChrome) {
+      // Authentic TB-303 / Muon Tau Inset Black Engraved Slot
+      final notchShadowPaint = Paint()
+        ..color = const Color(0xFF000000)
+        ..strokeWidth = 2.6
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(p1, p2, notchShadowPaint);
 
+      // Subtle 3D Inset Bevel Highlight on Slot Edge
+      final normalAngle = currentAngle + math.pi * 0.5;
+      final offsetHl = Offset(math.cos(normalAngle) * 0.7, math.sin(normalAngle) * 0.7);
+      final notchHlPaint = Paint()
+        ..color = Colors.white.withOpacity(0.5)
+        ..strokeWidth = 0.8
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(p1 + offsetHl, p2 + offsetHl, notchHlPaint);
+    } else {
       // Pointer Glow
       final pointerGlowPaint = Paint()
         ..color = accentColor.withOpacity(0.7)
-        ..strokeWidth = isChrome ? 3.5 : 4.0
+        ..strokeWidth = 4.0
         ..strokeCap = StrokeCap.round
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
       canvas.drawLine(p1, p2, pointerGlowPaint);
@@ -490,7 +508,7 @@ class _KnobPainter extends CustomPainter {
       // Pointer Core Line
       final pointerCorePaint = Paint()
         ..color = accentColor
-        ..strokeWidth = isChrome ? 2.0 : 2.5
+        ..strokeWidth = 2.5
         ..strokeCap = StrokeCap.round;
       canvas.drawLine(p1, p2, pointerCorePaint);
     }

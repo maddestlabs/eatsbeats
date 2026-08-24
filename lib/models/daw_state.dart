@@ -283,6 +283,35 @@ class DawState extends ChangeNotifier {
   double _floatingWindowScale = 1.0;
   double get floatingWindowScale => _floatingWindowScale;
 
+  String? _floatingFxTrackId;
+  String? _floatingFxInsertId;
+  String? get floatingFxTrackId => _floatingFxTrackId;
+  String? get floatingFxInsertId => _floatingFxInsertId;
+
+  FXInsert? get floatingFxInsert {
+    if (_floatingFxInsertId == null || _floatingFxTrackId == null) return null;
+    final parent = _floatingFxTrackId == masterTrack.id
+        ? masterTrack
+        : activePattern.tracks.firstWhere(
+            (t) => t.id == _floatingFxTrackId,
+            orElse: () => activeTrack,
+          );
+    try {
+      return parent.fxRack.firstWhere((f) => f.id == _floatingFxInsertId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  TrackChannel? get floatingFxTrack {
+    if (_floatingFxTrackId == null) return null;
+    if (_floatingFxTrackId == masterTrack.id) return masterTrack;
+    return activePattern.tracks.firstWhere(
+      (t) => t.id == _floatingFxTrackId,
+      orElse: () => activeTrack,
+    );
+  }
+
   TrackChannel? get floatingInstrumentTrack {
     if (_floatingInstrumentTrackId == null) return activeTrack;
     return activePattern.tracks.firstWhere(
@@ -292,6 +321,8 @@ class DawState extends ChangeNotifier {
   }
 
   void openFloatingInstrumentWindow(TrackChannel track, {Size? workspaceSize}) {
+    _floatingFxTrackId = null;
+    _floatingFxInsertId = null;
     _floatingInstrumentTrackId = track.id;
     _isFloatingWindowVisible = true;
     final trackIdx = activePattern.tracks.indexOf(track);
@@ -307,9 +338,35 @@ class DawState extends ChangeNotifier {
     }
   }
 
+  void openFloatingFxWindow(TrackChannel track, FXInsert fx, {Size? workspaceSize}) {
+    _floatingInstrumentTrackId = null;
+    _floatingFxTrackId = track.id;
+    _floatingFxInsertId = fx.id;
+    _isFloatingWindowVisible = true;
+
+    final fxTrack = TrackChannel(
+      id: fx.id,
+      name: fx.name,
+      type: TrackType.luaScript,
+      color: EatsTheme.secondaryMagenta,
+      luaScriptCode: fx.luaScriptCode ?? '',
+      luaParams: fx.luaParams,
+    );
+
+    if (workspaceSize != null) {
+      fitFloatingWindowToWorkspace(workspaceSize, fxTrack);
+    } else {
+      final naturalH = getTrackNaturalGuiHeight(fxTrack);
+      _floatingWindowSize = Size(540, (naturalH + 38.0).clamp(240.0, 680.0));
+      notifyListeners();
+    }
+  }
+
   void closeFloatingInstrumentWindow() {
     _isFloatingWindowVisible = false;
     _isFloatingWindowMaximized = false;
+    _floatingFxTrackId = null;
+    _floatingFxInsertId = null;
     notifyListeners();
   }
 
@@ -563,23 +620,8 @@ class DawState extends ChangeNotifier {
       audioEngine.invalidateLuaCache(track.id);
       recordHistory('Applied instrument "${preset.name}" to ${track.name}', icon: Icons.piano);
     } else if (preset.isAudioFx) {
-      FXType fxType = FXType.distortion;
-      final lowerId = preset.id.toLowerCase();
-      final lowerName = preset.name.toLowerCase();
-      if (lowerId.contains('delay') || lowerName.contains('delay') || lowerName.contains('chorus')) {
-        fxType = FXType.delay;
-      } else if (lowerId.contains('crush') || lowerName.contains('crush') || lowerName.contains('bit')) {
-        fxType = FXType.bitcrusher;
-      } else if (lowerId.contains('reverb') || lowerName.contains('reverb')) {
-        fxType = FXType.convolutionReverb;
-      } else if (lowerId.contains('filter') || lowerName.contains('filter')) {
-        fxType = FXType.biquadFilter;
-      }
-      final fx = FXInsert.create(fxType);
-      fx.name = preset.name;
-      track.fxRack.add(fx);
-      audioEngine.invalidateLuaCache(track.id);
-      recordHistory('Add FX "${preset.name}" to end of ${track.name} FX rack', icon: Icons.tune);
+      addAudioFXFromPreset(track, preset);
+      return;
     } else if (preset.isMidiFx) {
       addMidiFXInsert(
         track,
@@ -1114,7 +1156,25 @@ class DawState extends ChangeNotifier {
         ),
       );
 
-      // 2. Track MIDI FX modules
+      // 2. Track Audio FX Scripts
+      for (final fx in track.fxRack) {
+        if (fx.luaScriptCode?.isNotEmpty ?? false) {
+          list.add(
+            ScriptTarget(
+              id: 'fx_${track.id}_${fx.id}',
+              type: ScriptTargetType.audioFx,
+              title: '${fx.name} (${track.name})',
+              subtitle: 'Audio FX Insert Module',
+              trackId: track.id,
+              trackName: track.name,
+              trackColor: track.color,
+              secondaryId: fx.id,
+            ),
+          );
+        }
+      }
+
+      // 3. Track MIDI FX Modules
       for (final mfx in track.midiFXRack) {
         list.add(
           ScriptTarget(
@@ -1130,7 +1190,7 @@ class DawState extends ChangeNotifier {
         );
       }
 
-      // 3. Track Clip Scripts
+      // 4. Track Clip Scripts
       for (final clip in track.clips) {
         list.add(
           ScriptTarget(
@@ -1147,14 +1207,40 @@ class DawState extends ChangeNotifier {
         );
       }
     }
+
+    // 5. Master Bus Audio FX Scripts
+    for (final fx in masterTrack.fxRack) {
+      if (fx.luaScriptCode?.isNotEmpty ?? false) {
+        list.add(
+          ScriptTarget(
+            id: 'fx_${masterTrack.id}_${fx.id}',
+            type: ScriptTargetType.audioFx,
+            title: '${fx.name} (Master)',
+            subtitle: 'Master Bus Audio FX',
+            trackId: masterTrack.id,
+            trackName: masterTrack.name,
+            trackColor: masterTrack.color,
+            secondaryId: fx.id,
+          ),
+        );
+      }
+    }
     return list;
   }
 
+  TrackChannel _getTrackForScriptTarget(ScriptTarget target) {
+    if (target.trackId == masterTrack.id) return masterTrack;
+    return activePattern.tracks.where((t) => t.id == target.trackId).firstOrNull ?? activeTrack;
+  }
+
   String getScriptCodeForTarget(ScriptTarget target) {
-    final track = activePattern.tracks.where((t) => t.id == target.trackId).firstOrNull ?? activeTrack;
+    final track = _getTrackForScriptTarget(target);
     switch (target.type) {
       case ScriptTargetType.trackDsp:
         return track.luaScriptCode;
+      case ScriptTargetType.audioFx:
+        final fx = track.fxRack.where((f) => f.id == target.secondaryId).firstOrNull;
+        return fx?.luaScriptCode ?? '';
       case ScriptTargetType.midiFx:
         final mfx = track.midiFXRack.where((f) => f.id == target.secondaryId).firstOrNull;
         return mfx?.luaScriptCode ?? '';
@@ -1165,10 +1251,13 @@ class DawState extends ChangeNotifier {
   }
 
   Map<String, double> getScriptParamsForTarget(ScriptTarget target) {
-    final track = activePattern.tracks.where((t) => t.id == target.trackId).firstOrNull ?? activeTrack;
+    final track = _getTrackForScriptTarget(target);
     switch (target.type) {
       case ScriptTargetType.trackDsp:
         return track.luaParams;
+      case ScriptTargetType.audioFx:
+        final fx = track.fxRack.where((f) => f.id == target.secondaryId).firstOrNull;
+        return fx?.luaParams ?? {};
       case ScriptTargetType.midiFx:
         final mfx = track.midiFXRack.where((f) => f.id == target.secondaryId).firstOrNull;
         return mfx?.luaParams ?? {};
@@ -1179,11 +1268,14 @@ class DawState extends ChangeNotifier {
   }
 
   void updateScriptParamForTarget(ScriptTarget target, String paramName, double value) {
-    final track = activePattern.tracks.where((t) => t.id == target.trackId).firstOrNull ?? activeTrack;
+    final track = _getTrackForScriptTarget(target);
     switch (target.type) {
       case ScriptTargetType.trackDsp:
         track.luaParams[paramName] = value;
         break;
+      case ScriptTargetType.audioFx:
+        updateFXParam(track, target.secondaryId ?? '', paramName, value);
+        return;
       case ScriptTargetType.midiFx:
         updateMidiFXParam(track, target.secondaryId ?? '', paramName, value);
         return;
@@ -1224,7 +1316,7 @@ class DawState extends ChangeNotifier {
     luaCode = code;
     compilationResult = LuaEngine.compile(code);
 
-    final track = activePattern.tracks.where((t) => t.id == target.trackId).firstOrNull ?? activeTrack;
+    final track = _getTrackForScriptTarget(target);
 
     if (compilationResult.isSuccess) {
       switch (target.type) {
@@ -1237,6 +1329,19 @@ class DawState extends ChangeNotifier {
           }
           track.luaParams = newParams;
           audioEngine.invalidateLuaCache(track.id);
+          break;
+
+        case ScriptTargetType.audioFx:
+          final fx = track.fxRack.where((f) => f.id == target.secondaryId).firstOrNull;
+          if (fx != null) {
+            fx.luaScriptCode = code;
+            final newParams = <String, double>{};
+            for (final p in compilationResult.params) {
+              newParams[p.name] = fx.luaParams[p.name] ?? p.defaultValue;
+            }
+            fx.luaParams = newParams;
+            _syncFxAudio(track);
+          }
           break;
 
         case ScriptTargetType.midiFx:
@@ -1668,126 +1773,232 @@ class DawState extends ChangeNotifier {
       }
 
       // Arranger Clip Position Playback Logic
-      for (final clip in track.clips) {
-        final int clipStartStep = clip.startBar * 16;
-        final int clipEndStep = (clip.startBar + clip.barLength) * 16;
+      if (track.clips.isNotEmpty) {
+        for (final clip in track.clips) {
+          final int clipStartStep = clip.startBar * 16;
+          final int clipEndStep = (clip.startBar + clip.barLength) * 16;
 
-        if (stepIdx >= clipStartStep && stepIdx < clipEndStep) {
-          final int localStep = stepIdx - clipStartStep;
+          if (stepIdx >= clipStartStep && stepIdx < clipEndStep) {
+            final int localStep = stepIdx - clipStartStep;
 
-          // Evaluate Clip Automation Lanes
-          for (final lane in clip.automationLanes) {
-            if (!lane.enabled) continue;
-            final val = LuaEngine.evaluateAutomation(lane: lane, step: localStep.toDouble(), timeCtx: timeContext);
-            audioEngine.setTrackParam(track.id, lane.target.id, val);
-          }
-          
-          final List<Note> effectiveNotes = clip.evaluatedNotesCache ??
-              (track.midiFXRack.any((f) => f.enabled)
-                  ? pipeline.processClip(clip: clip, track: track, timeContext: timeContext)
-                  : clip.notes);
+            // Evaluate Clip Automation Lanes
+            for (final lane in clip.automationLanes) {
+              if (!lane.enabled) continue;
+              final val = LuaEngine.evaluateAutomation(lane: lane, step: localStep.toDouble(), timeCtx: timeContext);
+              audioEngine.setTrackParam(track.id, lane.target.id, val);
+            }
+            
+            final List<Note> effectiveNotes = clip.evaluatedNotesCache ??
+                (track.midiFXRack.any((f) => f.enabled)
+                    ? pipeline.processClip(clip: clip, track: track, timeContext: timeContext)
+                    : clip.notes);
 
-          if (effectiveNotes.isNotEmpty) {
-            // Find all notes starting within this 16th step window: [localStep, localStep + 1.0)
-            final matchingNotes = effectiveNotes.where(
-              (n) => n.startStep >= localStep && n.startStep < (localStep + 1.0),
-            ).toList();
+            if (effectiveNotes.isNotEmpty) {
+              // Find all notes starting within this 16th step window: [localStep, localStep + 1.0)
+              final matchingNotes = effectiveNotes.where(
+                (n) => n.startStep >= localStep && n.startStep < (localStep + 1.0),
+              ).toList();
 
-            if (matchingNotes.isNotEmpty) {
-              if (track.isMonophonicTrack) {
-                final sortedNotes = matchingNotes.toList()..sort((a, b) => a.startStep.compareTo(b.startStep));
-                final hasSlideParam = (track.luaParams['Slide'] ?? 0.0) > 0.01 ||
-                    (track.luaParams['Portamento'] ?? 0.0) > 0.01 ||
-                    (track.luaParams['Glide'] ?? 0.0) > 0.01;
+              if (matchingNotes.isNotEmpty) {
+                if (track.isMonophonicTrack) {
+                  final sortedNotes = matchingNotes.toList()..sort((a, b) => a.startStep.compareTo(b.startStep));
+                  final hasSlideParam = (track.luaParams['Slide'] ?? 0.0) > 0.01 ||
+                      (track.luaParams['Portamento'] ?? 0.0) > 0.01 ||
+                      (track.luaParams['Glide'] ?? 0.0) > 0.01;
 
-                for (int mIdx = 0; mIdx < sortedNotes.length; mIdx++) {
-                  final note = sortedNotes[mIdx];
-                  final double subOffset = (note.startStep - localStep).clamp(0.0, 0.99);
-                  final double noteHardwareTime = hardwareTime + (subOffset * stepDurationSec);
+                  for (int mIdx = 0; mIdx < sortedNotes.length; mIdx++) {
+                    final note = sortedNotes[mIdx];
+                    final double subOffset = (note.startStep - localStep).clamp(0.0, 0.99);
+                    final double noteHardwareTime = hardwareTime + (subOffset * stepDurationSec);
 
-                  final otherMatching = sortedNotes.where((n) => n != note).toList();
-                  final nextNotes = effectiveNotes.where((n) => n.startStep > note.startStep && n.startStep <= (note.startStep + math.max(1.5, note.durationSteps + 0.5))).toList();
+                    final otherMatching = sortedNotes.where((n) => n != note).toList();
+                    final nextNotes = effectiveNotes.where((n) => n.startStep > note.startStep && n.startStep <= (note.startStep + math.max(1.5, note.durationSteps + 0.5))).toList();
 
-                  int? rawTargetPitch;
-                  if (otherMatching.isNotEmpty && (mIdx < sortedNotes.length - 1 || sortedNotes.length > 1)) {
-                    // Simultaneous notes in clip: slide towards the concurrent note
-                    final targetSimNote = sortedNotes.last != note ? sortedNotes.last : sortedNotes.first;
-                    rawTargetPitch = targetSimNote.pitch;
-                  } else if (nextNotes.isNotEmpty) {
-                    rawTargetPitch = nextNotes.first.pitch;
+                    int? rawTargetPitch;
+                    if (otherMatching.isNotEmpty && (mIdx < sortedNotes.length - 1 || sortedNotes.length > 1)) {
+                      // Simultaneous notes in pattern sequencer / clip: slide towards the concurrent note
+                      final targetSimNote = sortedNotes.last != note ? sortedNotes.last : sortedNotes.first;
+                      rawTargetPitch = targetSimNote.pitch;
+                    } else if (nextNotes.isNotEmpty) {
+                      rawTargetPitch = nextNotes.first.pitch;
+                    }
+
+                    final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
+
+                    final bool hasPrevOverlap = effectiveNotes.any(
+                      (n) => n.startStep < note.startStep && (n.startStep + n.durationSteps) > note.startStep,
+                    );
+
+                    final bool isSlideNote = note.isSlide ||
+                        hasPrevOverlap ||
+                        otherMatching.isNotEmpty ||
+                        hasSlideParam ||
+                        (note.durationSteps > 1.0) ||
+                        (nextNotes.isNotEmpty && (note.isSlide || hasSlideParam || note.durationSteps >= 1.0));
+                    final bool isAccentNote = note.isAccent || note.velocity > 0.75;
+                    final effectiveMidi = remapPitch(note.pitch);
+
+                    audioEngine.playNoteOrSample(
+                      track: track,
+                      midiNote: effectiveMidi,
+                      targetMidiNote: targetPitch,
+                      isSlide: isSlideNote,
+                      isAccent: isAccentNote,
+                      velocity: note.velocity,
+                      durationSec: math.max(0.02, note.durationSteps * stepDurationSec),
+                      scheduledTime: noteHardwareTime,
+                    );
                   }
+                } else {
+                  // Polyphonic track: schedule all simultaneous / sub-step notes in this window
+                  for (final note in matchingNotes) {
+                    final double subOffset = (note.startStep - localStep).clamp(0.0, 0.99);
+                    final double noteHardwareTime = hardwareTime + (subOffset * stepDurationSec);
+                    final bool isAccentNote = note.isAccent || note.velocity > 0.75;
+                    final effectiveMidi = remapPitch(note.pitch);
 
-                  final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
-
-                  final bool hasPrevOverlap = effectiveNotes.any(
-                    (n) => n.startStep < note.startStep && (n.startStep + n.durationSteps) > note.startStep,
-                  );
-
-                  final bool isSlideNote = note.isSlide ||
-                      hasPrevOverlap ||
-                      otherMatching.isNotEmpty ||
-                      hasSlideParam ||
-                      (note.durationSteps > 1.0) ||
-                      (nextNotes.isNotEmpty && (note.isSlide || hasSlideParam || note.durationSteps >= 1.0));
-                  final bool isAccentNote = note.isAccent || note.velocity > 0.75;
-                  final effectiveMidi = remapPitch(note.pitch);
-
-                  audioEngine.playNoteOrSample(
-                    track: track,
-                    midiNote: effectiveMidi,
-                    targetMidiNote: targetPitch,
-                    isSlide: isSlideNote,
-                    isAccent: isAccentNote,
-                    velocity: note.velocity,
-                    durationSec: math.max(0.02, note.durationSteps * stepDurationSec),
-                    scheduledTime: noteHardwareTime,
-                  );
-                }
-              } else {
-                // Polyphonic track: schedule all simultaneous / sub-step notes in this window
-                for (final note in matchingNotes) {
-                  final double subOffset = (note.startStep - localStep).clamp(0.0, 0.99);
-                  final double noteHardwareTime = hardwareTime + (subOffset * stepDurationSec);
-                  final bool isAccentNote = note.isAccent || note.velocity > 0.75;
-                  final effectiveMidi = remapPitch(note.pitch);
-
-                  audioEngine.playNoteOrSample(
-                    track: track,
-                    midiNote: effectiveMidi,
-                    isSlide: note.isSlide,
-                    isAccent: isAccentNote,
-                    velocity: note.velocity,
-                    durationSec: math.max(0.02, note.durationSteps * stepDurationSec),
-                    scheduledTime: noteHardwareTime,
-                  );
+                    audioEngine.playNoteOrSample(
+                      track: track,
+                      midiNote: effectiveMidi,
+                      isSlide: note.isSlide,
+                      isAccent: isAccentNote,
+                      velocity: note.velocity,
+                      durationSec: math.max(0.02, note.durationSteps * stepDurationSec),
+                      scheduledTime: noteHardwareTime,
+                    );
+                  }
                 }
               }
-            }
-          } else if (localStep < track.steps.length) {
-            final step = track.steps[localStep % track.steps.length];
-            if (step.active) {
-              final nextStep = track.steps[(localStep + 1) % track.steps.length];
-              final prevStep = track.steps[(localStep - 1 + track.steps.length) % track.steps.length];
-              final bool isSlideStep = step.isSlide ||
-                  (track.isMonophonicTrack && nextStep.active) ||
-                  (track.isMonophonicTrack && prevStep.active);
-              final int? rawTargetPitch = nextStep.active ? nextStep.pitch : null;
-              final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
-              final bool isAccentStep = step.isAccent || step.velocity > 0.75;
+            } else if (localStep < track.steps.length) {
+              final step = track.steps[localStep % track.steps.length];
+              if (step.active) {
+                final nextStep = track.steps[(localStep + 1) % track.steps.length];
+                final prevStep = track.steps[(localStep - 1 + track.steps.length) % track.steps.length];
+                final bool isSlideStep = step.isSlide ||
+                    (track.isMonophonicTrack && nextStep.active) ||
+                    (track.isMonophonicTrack && prevStep.active);
+                final int? rawTargetPitch = nextStep.active ? nextStep.pitch : null;
+                final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
+                final bool isAccentStep = step.isAccent || step.velocity > 0.75;
 
-              final effectiveMidi = remapPitch(step.pitch);
+                final effectiveMidi = remapPitch(step.pitch);
 
-              audioEngine.playNoteOrSample(
-                track: track,
-                midiNote: effectiveMidi,
-                targetMidiNote: targetPitch,
-                isSlide: isSlideStep,
-                isAccent: isAccentStep,
-                velocity: step.velocity,
-                durationSec: stepDurationSec, // synthesize only one 16th note, not the 0.4s default
-                scheduledTime: hardwareTime,
-              );
+                audioEngine.playNoteOrSample(
+                  track: track,
+                  midiNote: effectiveMidi,
+                  targetMidiNote: targetPitch,
+                  isSlide: isSlideStep,
+                  isAccent: isAccentStep,
+                  velocity: step.velocity,
+                  durationSec: stepDurationSec, // synthesize only one 16th note, not the 0.4s default
+                  scheduledTime: hardwareTime,
+                );
+              }
             }
+          }
+        }
+      } else {
+        // Pattern Sequencer Playback without clips (EDIT pane / Pattern Mode)
+        final int localStep = stepIdx % 16;
+        final List<Note> effectiveNotes = track.notes;
+
+        if (effectiveNotes.isNotEmpty) {
+          final matchingNotes = effectiveNotes.where(
+            (n) => n.startStep >= localStep && n.startStep < (localStep + 1.0),
+          ).toList();
+
+          if (matchingNotes.isNotEmpty) {
+            if (track.isMonophonicTrack) {
+              final sortedNotes = matchingNotes.toList()..sort((a, b) => a.startStep.compareTo(b.startStep));
+              final hasSlideParam = (track.luaParams['Slide'] ?? 0.0) > 0.01 ||
+                  (track.luaParams['Portamento'] ?? 0.0) > 0.01 ||
+                  (track.luaParams['Glide'] ?? 0.0) > 0.01;
+
+              for (int mIdx = 0; mIdx < sortedNotes.length; mIdx++) {
+                final note = sortedNotes[mIdx];
+                final double subOffset = (note.startStep - localStep).clamp(0.0, 0.99);
+                final double noteHardwareTime = hardwareTime + (subOffset * stepDurationSec);
+
+                final otherMatching = sortedNotes.where((n) => n != note).toList();
+                final nextNotes = effectiveNotes.where((n) => n.startStep > note.startStep && n.startStep <= (note.startStep + math.max(1.5, note.durationSteps + 0.5))).toList();
+
+                int? rawTargetPitch;
+                if (otherMatching.isNotEmpty && (mIdx < sortedNotes.length - 1 || sortedNotes.length > 1)) {
+                  // Simultaneous notes in pattern sequencer: slide towards concurrent note
+                  final targetSimNote = sortedNotes.last != note ? sortedNotes.last : sortedNotes.first;
+                  rawTargetPitch = targetSimNote.pitch;
+                } else if (nextNotes.isNotEmpty) {
+                  rawTargetPitch = nextNotes.first.pitch;
+                }
+
+                final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
+                final bool hasPrevOverlap = effectiveNotes.any(
+                  (n) => n.startStep < note.startStep && (n.startStep + n.durationSteps) > note.startStep,
+                );
+
+                final bool isSlideNote = note.isSlide ||
+                    hasPrevOverlap ||
+                    otherMatching.isNotEmpty ||
+                    hasSlideParam ||
+                    (note.durationSteps > 1.0) ||
+                    (nextNotes.isNotEmpty && (note.isSlide || hasSlideParam || note.durationSteps >= 1.0));
+                final bool isAccentNote = note.isAccent || note.velocity > 0.75;
+                final effectiveMidi = remapPitch(note.pitch);
+
+                audioEngine.playNoteOrSample(
+                  track: track,
+                  midiNote: effectiveMidi,
+                  targetMidiNote: targetPitch,
+                  isSlide: isSlideNote,
+                  isAccent: isAccentNote,
+                  velocity: note.velocity,
+                  durationSec: math.max(0.02, note.durationSteps * stepDurationSec),
+                  scheduledTime: noteHardwareTime,
+                );
+              }
+            } else {
+              for (final note in matchingNotes) {
+                final double subOffset = (note.startStep - localStep).clamp(0.0, 0.99);
+                final double noteHardwareTime = hardwareTime + (subOffset * stepDurationSec);
+                final bool isAccentNote = note.isAccent || note.velocity > 0.75;
+                final effectiveMidi = remapPitch(note.pitch);
+
+                audioEngine.playNoteOrSample(
+                  track: track,
+                  midiNote: effectiveMidi,
+                  isSlide: note.isSlide,
+                  isAccent: isAccentNote,
+                  velocity: note.velocity,
+                  durationSec: math.max(0.02, note.durationSteps * stepDurationSec),
+                  scheduledTime: noteHardwareTime,
+                );
+              }
+            }
+          }
+        } else if (localStep < track.steps.length) {
+          final step = track.steps[localStep % track.steps.length];
+          if (step.active) {
+            final nextStep = track.steps[(localStep + 1) % track.steps.length];
+            final prevStep = track.steps[(localStep - 1 + track.steps.length) % track.steps.length];
+            final bool isSlideStep = step.isSlide ||
+                (track.isMonophonicTrack && nextStep.active) ||
+                (track.isMonophonicTrack && prevStep.active);
+            final int? rawTargetPitch = nextStep.active ? nextStep.pitch : null;
+            final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
+            final bool isAccentStep = step.isAccent || step.velocity > 0.75;
+
+            final effectiveMidi = remapPitch(step.pitch);
+
+            audioEngine.playNoteOrSample(
+              track: track,
+              midiNote: effectiveMidi,
+              targetMidiNote: targetPitch,
+              isSlide: isSlideStep,
+              isAccent: isAccentStep,
+              velocity: step.velocity,
+              durationSec: stepDurationSec,
+              scheduledTime: hardwareTime,
+            );
           }
         }
       }
@@ -1855,9 +2066,23 @@ class DawState extends ChangeNotifier {
   void addNote(TrackChannel track, Note note) {
     track.notes.add(note);
     _syncClipNotes(track);
+
+    int? targetSlidePitch;
+    bool isSlide = note.isSlide;
+    if (track.isMonophonicTrack) {
+      final simNotes = track.notes.where((n) => n.id != note.id && (n.startStep - note.startStep).abs() < 0.5).toList();
+      if (simNotes.isNotEmpty) {
+        targetSlidePitch = note.pitch;
+        isSlide = true;
+      }
+    }
+
     audioEngine.playNoteOrSample(
       track: track,
       midiNote: note.pitch,
+      targetMidiNote: targetSlidePitch,
+      isSlide: isSlide,
+      isAccent: note.isAccent || note.velocity > 0.75,
       velocity: note.velocity,
     );
     recordHistory('Add Note ${_formatPitch(note.pitch)} (${track.name})', icon: Icons.music_note, force: true);
@@ -2204,6 +2429,45 @@ class DawState extends ChangeNotifier {
     }
   }
 
+  void addAudioFXFromPreset(TrackChannel track, LuaPreset preset) {
+    final compiled = LuaEngine.compile(preset.code);
+    final initialParams = <String, double>{};
+    for (final p in compiled.params) {
+      initialParams[p.name] = p.defaultValue;
+    }
+
+    FXType type = FXType.luaFX;
+    final lowerId = preset.id.toLowerCase();
+    final lowerName = preset.name.toLowerCase();
+    if (lowerId == 'limiter' || lowerName.contains('limiter')) {
+      type = FXType.limiter;
+    } else if (lowerId == 'compressor' || lowerName.contains('compressor')) {
+      type = FXType.compressor;
+    } else if (lowerId.contains('reverb') || lowerName.contains('reverb')) {
+      type = FXType.convolutionReverb;
+    } else if (lowerId == 'biquad_filter' || lowerId == 'lowpass_filter') {
+      type = FXType.biquadFilter;
+    } else if (lowerId == 'tube_distortion') {
+      type = FXType.distortion;
+    } else if (lowerId == 'bitcrusher_8bit') {
+      type = FXType.bitcrusher;
+    } else if (lowerId == 'stereo_delay') {
+      type = FXType.delay;
+    }
+
+    final fx = FXInsert.create(
+      type,
+      name: preset.name,
+      luaScriptCode: preset.code,
+      presetId: preset.id,
+      luaParams: initialParams,
+    );
+    track.fxRack.add(fx);
+    _syncFxAudio(track);
+    recordHistory('Add FX "${preset.name}" to ${track.name} FX rack', icon: Icons.tune);
+    notifyListeners();
+  }
+
   void addFXInsert(TrackChannel track, FXType type) {
     track.fxRack.add(FXInsert.create(type));
     _syncFxAudio(track);
@@ -2317,6 +2581,21 @@ class DawState extends ChangeNotifier {
     invalidateTrackMidiCache(track);
     recordHistory('Add MIDI FX "$name" to ${track.name}', icon: Icons.music_note);
     notifyListeners();
+  }
+
+  void addMidiFXFromPreset(TrackChannel track, LuaPreset preset) {
+    final initialParams = <String, double>{};
+    final compilation = LuaEngine.compile(preset.code);
+    for (final p in compilation.params) {
+      initialParams[p.name] = p.defaultValue;
+    }
+
+    addMidiFXInsert(
+      track,
+      name: preset.name,
+      luaScriptCode: preset.code,
+      params: initialParams,
+    );
   }
 
   void removeMidiFXInsert(TrackChannel track, String midiFxId) {

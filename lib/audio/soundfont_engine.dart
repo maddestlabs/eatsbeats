@@ -194,10 +194,19 @@ class SoundFontEngine extends ChangeNotifier {
       final frac = srcIndex - idx0;
 
       double sampleVal = 0.0;
-      if (idx0 >= font.pcmData.length - 1) {
+      if (!isLooping && srcIndex >= endIdx) {
+        sampleVal = 0.0;
+      } else if (idx0 >= font.pcmData.length - 1) {
         sampleVal = font.pcmData.last;
       } else {
         sampleVal = (1.0 - frac) * font.pcmData[idx0] + frac * font.pcmData[idx1];
+      }
+
+      // Smooth anti-click fade at raw sample boundary for non-looping one-shots
+      if (!isLooping && srcIndex >= endIdx - (128 * playbackRate)) {
+        final double distToEnd = math.max(0.0, endIdx - srcIndex);
+        final double sampleFade = (distToEnd / (128 * playbackRate)).clamp(0.0, 1.0);
+        sampleVal *= sampleFade;
       }
 
       // Calculate ADSR Volume Envelope curve (TinySoundFont spec)
@@ -209,6 +218,7 @@ class SoundFontEngine extends ChangeNotifier {
       final double holdT = attackT + zone.volEnvHold;
       final double decayT = holdT + zone.volEnvDecay;
       final double releaseStartT = targetDurationSec;
+      final double releaseDur = math.max(0.001, zone.volEnvRelease);
 
       if (t < delayT) {
         envGain = 0.0;
@@ -222,8 +232,15 @@ class SoundFontEngine extends ChangeNotifier {
       } else if (t < releaseStartT) {
         envGain = zone.volEnvSustain;
       } else {
-        final releaseProgress = (t - releaseStartT) / zone.volEnvRelease;
-        envGain = (zone.volEnvSustain * (1.0 - releaseProgress)).clamp(0.0, 1.0);
+        final releaseProgress = (t - releaseStartT) / releaseDur;
+        envGain = (zone.volEnvSustain * math.max(0.0, 1.0 - releaseProgress)).clamp(0.0, 1.0);
+      }
+
+      // Efficient tail de-click fade-out during final 128 samples (~2.9ms)
+      final int remainingSamples = targetSampleCount - 1 - i;
+      if (remainingSamples < 128) {
+        final fadeOut = remainingSamples / 128.0;
+        envGain *= (0.5 * (1.0 - math.cos(math.pi * fadeOut)));
       }
 
       result[i] = (sampleVal * envGain).toDouble();

@@ -193,7 +193,11 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
                           items: allTargets.map((target) {
                             final badgeColor = target.type == ScriptTargetType.trackDsp
                                 ? EatsTheme.primaryCyan
-                                : (target.type == ScriptTargetType.midiFx ? EatsTheme.accentGold : EatsTheme.secondaryMagenta);
+                                : (target.type == ScriptTargetType.midiFx
+                                    ? EatsTheme.accentGold
+                                    : (target.type == ScriptTargetType.audioFx
+                                        ? EatsTheme.secondaryMagenta
+                                        : EatsTheme.accentGreen));
 
                             return DropdownMenuItem<ScriptTarget>(
                               value: target,
@@ -496,10 +500,10 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
 
               return Container(
                 decoration: BoxDecoration(
-                  color: EatsTheme.panelBackground,
+                  color: EatsTheme.codeEditorBackground,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: isHovering ? EatsTheme.primaryCyan : const Color(0xFF2B3245),
+                    color: isHovering ? EatsTheme.primaryCyan : EatsTheme.codeEditorBorder,
                     width: isHovering ? 2 : 1,
                   ),
                 ),
@@ -545,7 +549,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
                           // Line Number Gutter (Synced scroll offset)
                           Container(
                             width: 42,
-                            color: isGrungy ? const Color(0xFF1B1814) : const Color(0xFF0D0E14),
+                            color: EatsTheme.codeEditorGutterBackground,
                             child: SingleChildScrollView(
                               controller: _gutterScrollController,
                               physics: const NeverScrollableScrollPhysics(),
@@ -566,7 +570,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
                                         height: 1.4,
                                         color: (i + 1 == result.errorLine)
                                             ? Colors.redAccent
-                                            : EatsTheme.textMuted.withOpacity(0.6),
+                                            : EatsTheme.codeEditorGutterTextColor,
                                         fontWeight: (i + 1 == result.errorLine) ? FontWeight.bold : FontWeight.normal,
                                       ),
                                     ),
@@ -584,8 +588,8 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
                               maxLines: null,
                               expands: true,
                               keyboardType: TextInputType.multiline,
-                              style: const TextStyle(
-                                color: Color(0xFF00FFCC),
+                              style: TextStyle(
+                                color: EatsTheme.codeEditorTextColor,
                                 fontSize: 12,
                                 height: 1.4,
                                 fontFamily: 'monospace',
@@ -671,10 +675,14 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            param.name,
-                            style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 10.5),
+                          Expanded(
+                            child: Text(
+                              param.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 10.5),
+                            ),
                           ),
+                          const SizedBox(width: 4),
                           Text(
                             currentVal.toStringAsFixed(1),
                             style: EatsTheme.getDisplayFontStyle(color: targetBadgeBg, fontWeight: FontWeight.bold, fontSize: 10.5),
@@ -707,6 +715,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
   Widget _buildScriptExplorer(List<ScriptTarget> allTargets, ScriptTarget activeTarget) {
     final query = _scriptFilterQuery.trim().toLowerCase();
     final dspTargets = allTargets.where((t) => t.type == ScriptTargetType.trackDsp).where((t) => query.isEmpty || t.title.toLowerCase().contains(query)).toList();
+    final audioFxTargets = allTargets.where((t) => t.type == ScriptTargetType.audioFx).where((t) => query.isEmpty || t.title.toLowerCase().contains(query)).toList();
     final midiFxTargets = allTargets.where((t) => t.type == ScriptTargetType.midiFx).where((t) => query.isEmpty || t.title.toLowerCase().contains(query)).toList();
     final clipTargets = allTargets.where((t) => t.type == ScriptTargetType.clipScript).where((t) => query.isEmpty || t.title.toLowerCase().contains(query)).toList();
 
@@ -772,7 +781,19 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
 
               const Divider(color: Color(0xFF2B3245), height: 12),
 
-              // 2. Track MIDI FX Inserts
+              // 2. Audio FX Inserts
+              _buildExplorerCategoryHeader('AUDIO FX INSERTS (${audioFxTargets.length})', Icons.graphic_eq, EatsTheme.secondaryMagenta),
+              if (audioFxTargets.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: Text('No Audio FX modules in tracks', style: TextStyle(fontSize: 9.5, color: EatsTheme.textMuted, fontStyle: FontStyle.italic)),
+                )
+              else
+                ...audioFxTargets.map((t) => _buildExplorerScriptItem(t, activeTarget)),
+
+              const Divider(color: Color(0xFF2B3245), height: 12),
+
+              // 3. Track MIDI FX Inserts
               _buildExplorerCategoryHeader('TRACK MIDI FX (${midiFxTargets.length})', Icons.bolt, EatsTheme.accentGold),
               if (midiFxTargets.isEmpty)
                 Padding(
@@ -784,8 +805,8 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
 
               const Divider(color: Color(0xFF2B3245), height: 12),
 
-              // 3. Generative Clip Scripts
-              _buildExplorerCategoryHeader('CLIP SCRIPTS (${clipTargets.length})', Icons.view_timeline, EatsTheme.secondaryMagenta),
+              // 4. Generative Clip Scripts
+              _buildExplorerCategoryHeader('CLIP SCRIPTS (${clipTargets.length})', Icons.view_timeline, EatsTheme.accentGreen),
               if (clipTargets.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -796,7 +817,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
 
               const Divider(color: Color(0xFF2B3245), height: 12),
 
-              // 4. Preset Templates & Boilerplates
+              // 5. Preset Templates & Boilerplates
               _buildExplorerCategoryHeader('QUICK TEMPLATES', Icons.bookmark_border, EatsTheme.accentGreen),
               _buildTemplateTile('Acid 303 Synth', '-- Acid 303 DSP\nfunction Synth.render() end', EatsTheme.primaryCyan),
               _buildTemplateTile('Pattern Arpeggiator', '-- Arpeggiator Script\nclip:registerParam("rate", 0.125, 1.0, 0.25)\nfunction process(notes, time_ctx)\n  return arpeggiate(notes, params.rate)\nend', EatsTheme.accentGold),
@@ -816,9 +837,13 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
         children: [
           Icon(icon, size: 12, color: color),
           const SizedBox(width: 4),
-          Text(
-            title,
-            style: EatsTheme.getPrimaryFontStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: EatsTheme.getPrimaryFontStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color),
+            ),
           ),
         ],
       ),
@@ -829,7 +854,11 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
     final isSelected = target.id == activeTarget.id;
     final badgeColor = target.type == ScriptTargetType.trackDsp
         ? EatsTheme.primaryCyan
-        : (target.type == ScriptTargetType.midiFx ? EatsTheme.accentGold : EatsTheme.secondaryMagenta);
+        : (target.type == ScriptTargetType.midiFx
+            ? EatsTheme.accentGold
+            : (target.type == ScriptTargetType.audioFx
+                ? EatsTheme.secondaryMagenta
+                : EatsTheme.accentGreen));
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

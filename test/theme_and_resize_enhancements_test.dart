@@ -4,7 +4,9 @@ import 'package:mobile_wren_daw/models/daw_state.dart';
 import 'package:mobile_wren_daw/models/track_model.dart';
 import 'package:mobile_wren_daw/theme/eats_theme.dart';
 import 'package:mobile_wren_daw/ui/arranger_view.dart';
+import 'package:mobile_wren_daw/ui/edit_view.dart';
 import 'package:mobile_wren_daw/ui/piano_roll_view.dart';
+import 'package:mobile_wren_daw/ui/widgets/arranger_context_inspector.dart';
 import 'package:mobile_wren_daw/ui/widgets/glowing_nixie_display.dart';
 import 'package:mobile_wren_daw/ui/widgets/lcd_display_widget.dart';
 import 'package:mobile_wren_daw/ui/widgets/midi_fx_rack_widget.dart';
@@ -171,7 +173,7 @@ void main() {
       await tester.tap(propBtn);
       await tester.pumpAndSettle();
 
-      expect(find.text('PROPERTIES'), findsOneWidget);
+      expect(find.byType(ArrangerContextInspector), findsOneWidget);
 
       dawState.dispose();
     });

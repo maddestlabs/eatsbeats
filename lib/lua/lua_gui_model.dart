@@ -16,6 +16,9 @@ enum LuaGuiNodeType {
   group,
   label,
   spacer,
+  canvas,
+  dpad,
+  gamepad,
   unknown,
 }
 
@@ -51,6 +54,13 @@ class LuaGuiNode {
   final String? text;
   final String? action;
   final KnobStyle knobStyle;
+  final String canvasMode; // 'pixel', 'vector', 'grid'
+  final int cols;
+  final int rows;
+  final double scale;
+  final bool showDpad;
+  final bool showActionButtons;
+  final List<Color> palette;
   final List<LuaGuiNode> children;
 
   const LuaGuiNode({
@@ -70,6 +80,13 @@ class LuaGuiNode {
     this.text,
     this.action,
     this.knobStyle = KnobStyle.standard,
+    this.canvasMode = 'pixel',
+    this.cols = 32,
+    this.rows = 24,
+    this.scale = 1.0,
+    this.showDpad = false,
+    this.showActionButtons = false,
+    this.palette = const [],
     this.children = const [],
   });
 
@@ -91,6 +108,7 @@ class LuaGuiNode {
         return LuaGuiNodeType.switchToggle;
       case 'button':
       case 'pushbutton':
+      case 'arcadebutton':
         return LuaGuiNodeType.button;
       case 'listbox':
       case 'list':
@@ -107,6 +125,23 @@ class LuaGuiNode {
       case 'meter':
       case 'vumeter':
         return LuaGuiNodeType.meter;
+      case 'canvas':
+      case 'gamecanvas':
+      case 'screen':
+      case 'display':
+      case 'viewport':
+      case 'visualizer':
+      case 'framebuffer':
+        return LuaGuiNodeType.canvas;
+      case 'dpad':
+      case 'joystick':
+      case 'directional':
+        return LuaGuiNodeType.dpad;
+      case 'gamepad':
+      case 'arcadebuttons':
+      case 'actionbuttons':
+      case 'controller':
+        return LuaGuiNodeType.gamepad;
       case 'divider':
       case 'separator':
       case 'line':

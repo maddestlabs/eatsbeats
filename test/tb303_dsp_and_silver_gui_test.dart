@@ -14,21 +14,21 @@ import 'package:mobile_wren_daw/ui/widgets/skeuomorphic_hardware_switch.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('JC-303 & Eatsbits Silver GUI API Tests', () {
+  group('Eats-303 & Silver GUI API Tests', () {
     test('LuaGuiParser correctly parses silver chassis, chrome knobs, and dividers', () {
       const scriptCode = '''
-local JC303 = {}
-function JC303.init()
+local Eats303 = {}
+function Eats303.init()
   Param.add("Cutoff", 200.0, 4500.0, 1400.0)
   Param.add("Resonance", 0.5, 16.0, 9.2)
 end
-function JC303.gui()
+function Eats303.gui()
   return {
     panel = {
-      title = "JC-303 ACID BASSLINE",
-      subtitle = "midilab/jc303 & Open303 Transistor Bass",
+      title = "EATS-303 ACID BASSLINE",
+      subtitle = "Roland TB-303 Emulation • (JC-303 & Open303 DSP)",
       background = "silver",
-      accent = "track",
+      accent = "#000000",
       knobStyle = "chrome",
       layout = {
         {
@@ -45,15 +45,15 @@ function JC303.gui()
     }
   }
 end
-return JC303
+return Eats303
 ''';
 
       final panelDef = LuaGuiParser.parseFromCode(scriptCode);
       expect(panelDef, isNotNull);
-      expect(panelDef!.title, 'JC-303 ACID BASSLINE');
+      expect(panelDef!.title, 'EATS-303 ACID BASSLINE');
       expect(panelDef.backgroundStyle, PanelBackgroundStyle.silver);
       expect(panelDef.defaultKnobStyle, KnobStyle.chrome);
-      expect(panelDef.accentColor, isNull); // accent = "track" resolves to null for track color inheritance
+      expect(panelDef.accentColor, const Color(0xFF000000));
 
       expect(panelDef.children.length, 2);
       expect(panelDef.children[0].type, LuaGuiNodeType.row);
@@ -69,14 +69,14 @@ return JC303
       expect(rowChildren[2].knobStyle, KnobStyle.chrome);
     });
 
-    testWidgets('DynamicInstrumentGuiWidget renders silver JC-303 panel and chrome knobs', (tester) async {
+    testWidgets('DynamicInstrumentGuiWidget renders silver Eats-303 panel and chrome knobs', (tester) async {
       final dawState = DawState();
-      final preset = LuaPresetLibrary.getPresetById('jc_303')!;
+      final preset = LuaPresetLibrary.getPresetById('eats_303')!;
 
       final track = TrackChannel(
         id: 'track_303',
-        name: 'JC-303',
-        color: const Color(0xFFE040FB), // Magenta custom track color
+        name: 'Eats-303',
+        color: const Color(0xFFE040FB),
         type: TrackType.synth,
         luaScriptCode: preset.code,
       );
@@ -96,9 +96,9 @@ return JC303
       );
       await tester.pumpAndSettle();
 
-      // Verify GrungyRackPanel rendered with silver background and JC-303 title
+      // Verify GrungyRackPanel rendered with silver background and Eats-303 title
       expect(find.byType(GrungyRackPanel), findsOneWidget);
-      expect(find.text('JC-303 ACID BASSLINE'), findsOneWidget);
+      expect(find.text('EATS-303 ACID BASSLINE'), findsOneWidget);
 
       // Verify knobs and switches rendered
       expect(find.byType(SkeuomorphicHardwareKnob), findsWidgets);
@@ -112,9 +112,9 @@ return JC303
     });
   });
 
-  group('JC-303 / Open303 DSP Synthesis Dynamics Tests', () {
-    test('JC-303 synthesis produces non-zero audio buffer and handles slides & accents', () {
-      final preset = LuaPresetLibrary.getPresetById('jc_303')!;
+  group('Eats-303 / Open303 DSP Synthesis Dynamics Tests', () {
+    test('Eats-303 synthesis produces non-zero audio buffer and handles slides & accents', () {
+      final preset = LuaPresetLibrary.getPresetById('eats_303')!;
 
       // 1. Normal note synthesis
       final normalBuf = LuaEngine.synthesizeBuffer(
@@ -198,7 +198,16 @@ return JC303
       expect(slidePeak, greaterThan(0.05));
     });
 
-    test('isMonophonicTrack detects JC-303, Acid303, TB303, bass tracks and polyphony=1', () {
+    test('isMonophonicTrack detects Eats-303, JC-303, Acid303, TB303, bass tracks and polyphony=1', () {
+      final eats303Track = TrackChannel(
+        id: 't0',
+        name: 'Eats-303 Bass',
+        color: const Color(0xFF00E5FF),
+        type: TrackType.synth,
+        luaScriptCode: 'local Eats303 = {}\nreturn Eats303',
+      );
+      expect(eats303Track.isMonophonicTrack, isTrue);
+
       final jc303Track = TrackChannel(
         id: 't1',
         name: 'JC-303 Bass',
@@ -235,7 +244,7 @@ return JC303
       expect(polySynthTrack.isMonophonicTrack, isFalse);
     });
 
-    test('Default instruments inherit track color while SNES instruments retain console theme', () {
+    test('Default drum and synth instruments inherit track color while SNES/Eats-303 retain custom theme', () {
       // 1. Check default drum and synth instruments have accent = "track" (parsed as null for track color inheritance)
       final defaultPresetIds = [
         'fm_acoustic_kick',
@@ -247,7 +256,12 @@ return JC303
         'analog_808_hihat',
         'analog_808_cowbell',
         'analog_808_tom',
-        'jc_303',
+        'analog_909_kick',
+        'analog_909_snare',
+        'analog_909_closed_hihat',
+        'analog_909_open_hihat',
+        'analog_909_clap',
+        'analog_909_rimshot',
         'ym2612_synth',
       ];
 
@@ -259,11 +273,53 @@ return JC303
         expect(panelDef!.accentColor, isNull, reason: 'Preset $id should inherit track color');
       }
 
-      // 2. Check SNES instruments retain their console purple theme
+      // 2. Check Eats-303 uses authentic black accent on silver chassis
+      final eats303Preset = LuaPresetLibrary.getPresetById('eats_303')!;
+      final eats303Panel = LuaGuiParser.parseFromCode(eats303Preset.code);
+      expect(eats303Panel, isNotNull);
+      expect(eats303Panel!.accentColor, const Color(0xFF000000), reason: 'Eats-303 should use authentic black dials/levels');
+
+      // 3. Check SNES instruments retain their console purple theme
       final snesPreset = LuaPresetLibrary.getPresetById('eats_sfxr')!;
       final snesPanel = LuaGuiParser.parseFromCode(snesPreset.code);
       expect(snesPanel, isNotNull);
       expect(snesPanel!.accentColor, const Color(0xFF7B52AB), reason: 'SNES instrument should retain custom console styling');
+    });
+
+    test('Simultaneous notes in pattern sequencer trigger note slides on Eats-303 track', () {
+      final state = DawState();
+      final track = state.activeTrack;
+      track.name = 'Eats-303';
+      track.type = TrackType.synth;
+      track.luaScriptCode = LuaPresetLibrary.getPresetById('eats_303')!.code;
+
+      expect(track.isMonophonicTrack, isTrue);
+
+      track.notes.clear();
+
+      // Add two simultaneous notes at step 0 (e.g. note C2 and G2)
+      final note1 = Note(id: 'n1', pitch: 36, startStep: 0.0, durationSteps: 2.0);
+      final note2 = Note(id: 'n2', pitch: 43, startStep: 0.0, durationSteps: 2.0);
+
+      state.addNote(track, note1);
+      state.addNote(track, note2);
+
+      expect(track.notes.length, 2);
+
+      // Synthesis of monophonic slide with simultaneous notes
+      final slideBuffer = LuaEngine.synthesizeBuffer(
+        code: track.luaScriptCode,
+        durationSec: 0.4,
+        freq: 65.41, // C2
+        note: 36,
+        targetMidiNote: 43, // Slide target G2
+        params: {},
+        isSlide: true,
+        trackId: track.id,
+      );
+
+      expect(slideBuffer.isNotEmpty, isTrue);
+      state.dispose();
     });
   });
 }

@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import '../../audio/convolver_engine.dart';
+import '../../audio/procedural_ir_generator.dart';
 import '../../lua/lua_preset_library.dart';
 import '../../models/daw_state.dart';
-
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
+import 'dynamic_instrument_gui_widget.dart';
 import 'eatsbits_slider.dart';
+import 'fx_rack_dialog.dart';
 import 'skeuomorphic_hardware_switch.dart';
+import 'space_visualizer_widget.dart';
 
-class ModularFxRackWidget extends StatelessWidget {
+class ModularFxRackWidget extends StatefulWidget {
   final DawState dawState;
   final TrackChannel track;
 
@@ -19,11 +22,64 @@ class ModularFxRackWidget extends StatelessWidget {
   });
 
   @override
+  State<ModularFxRackWidget> createState() => _ModularFxRackWidgetState();
+}
+
+class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
+  final Set<String> _expandedGuiFxIds = {};
+  final Set<String> _expandedDesignerFxIds = {};
+  final Map<String, AcousticSpaceParams> _designerSpaceParams = {};
+
+  void _toggleGuiExpanded(String fxId) {
+    setState(() {
+      if (_expandedGuiFxIds.contains(fxId)) {
+        _expandedGuiFxIds.remove(fxId);
+      } else {
+        _expandedGuiFxIds.add(fxId);
+      }
+    });
+  }
+
+  void _toggleDesignerExpanded(String fxId) {
+    setState(() {
+      if (_expandedDesignerFxIds.contains(fxId)) {
+        _expandedDesignerFxIds.remove(fxId);
+      } else {
+        _expandedDesignerFxIds.add(fxId);
+      }
+    });
+  }
+
+  AcousticSpaceParams _getSpaceParamsForFx(FXInsert fx) {
+    if (_designerSpaceParams.containsKey(fx.id)) {
+      return _designerSpaceParams[fx.id]!;
+    }
+    final presetName = fx.irSampleName ?? 'Great Hall';
+    final preset = ProceduralIRGenerator.presets[presetName] ??
+        ProceduralIRGenerator.presets['Great Hall']!;
+    _designerSpaceParams[fx.id] = preset;
+    return preset;
+  }
+
+  void _updateAndBakeSpace(TrackChannel track, FXInsert fx, AcousticSpaceParams params) {
+    setState(() {
+      _designerSpaceParams[fx.id] = params;
+    });
+    // Bake directly into ConvolverEngine
+    ConvolverEngine.instance.bakeCustomSpace(params);
+    widget.dawState.updateFXIrSample(track, fx.id, params.name);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final dawState = widget.dawState;
+    final track = widget.track;
+
     return ListenableBuilder(
       listenable: dawState,
       builder: (context, _) {
         final availableIrs = ConvolverEngine.instance.getAvailableIrNames();
+        final allAudioPresets = LuaPresetLibrary.presets.where((p) => p.isAudioFx).toList();
 
         return DragTarget<LuaPreset>(
           onWillAcceptWithDetails: (details) => details.data.isAudioFx,
@@ -42,10 +98,10 @@ class ModularFxRackWidget extends StatelessWidget {
             final isHovering = candidateData.isNotEmpty;
 
             return Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: isHovering ? EatsTheme.secondaryMagenta.withOpacity(0.2) : EatsTheme.panelBackground,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: isHovering ? EatsTheme.secondaryMagenta : EatsTheme.secondaryMagenta.withOpacity(0.5),
                   width: isHovering ? 2 : 1,
@@ -77,9 +133,13 @@ class ModularFxRackWidget extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      PopupMenuButton<FXType>(
-                        tooltip: 'Add FX Insert',
+                      PopupMenuButton<LuaPreset>(
+                        tooltip: 'Add FX Insert from Library',
                         color: EatsTheme.panelHeader,
+                        popUpAnimationStyle: const AnimationStyle(
+                          duration: Duration(milliseconds: 100),
+                          curve: Curves.fastOutSlowIn,
+                        ),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
@@ -96,16 +156,8 @@ class ModularFxRackWidget extends StatelessWidget {
                             ),
                           ),
                         ),
-                        itemBuilder: (ctx) => [
-                          const PopupMenuItem(value: FXType.limiter, child: Text('Master Limiter / Peak')),
-                          const PopupMenuItem(value: FXType.compressor, child: Text('Dynamics Compressor')),
-                          const PopupMenuItem(value: FXType.convolutionReverb, child: Text('Convolution Reverb')),
-                          const PopupMenuItem(value: FXType.distortion, child: Text('Tube Distortion')),
-                          const PopupMenuItem(value: FXType.bitcrusher, child: Text('Bitcrusher 8-Bit')),
-                          const PopupMenuItem(value: FXType.delay, child: Text('Stereo Delay')),
-                          const PopupMenuItem(value: FXType.biquadFilter, child: Text('Lowpass Filter')),
-                        ],
-                        onSelected: (type) => dawState.addFXInsert(track, type),
+                        itemBuilder: (ctx) => _buildFxMenuItems(allAudioPresets),
+                        onSelected: (preset) => dawState.addAudioFXFromPreset(track, preset),
                       ),
                     ],
                   ),
@@ -117,10 +169,20 @@ class ModularFxRackWidget extends StatelessWidget {
                       final fx = entry.value;
                       final isFirst = idx == 0;
                       final isLast = idx == track.fxRack.length - 1;
+                      final isExpanded = _expandedGuiFxIds.contains(fx.id);
+
+                      final fxTrack = TrackChannel(
+                        id: fx.id,
+                        name: fx.name,
+                        type: TrackType.luaScript,
+                        color: EatsTheme.secondaryMagenta,
+                        luaScriptCode: fx.luaScriptCode ?? '',
+                        luaParams: fx.luaParams,
+                      );
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: EatsTheme.panelHeader,
                           borderRadius: BorderRadius.circular(6),
@@ -131,54 +193,110 @@ class ModularFxRackWidget extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Header Strip
                             Row(
                               children: [
                                 SkeuomorphicHardwareSwitch(
                                   value: fx.enabled,
+                                  style: SwitchStyle.modernPill,
+                                  orientation: Axis.vertical,
+                                  width: 16.0,
+                                  height: 28.0,
                                   activeColor: EatsTheme.secondaryMagenta,
                                   tooltip: 'Toggle ${fx.name} (Bypass / Active)',
                                   onChanged: (val) => dawState.toggleFXInsert(track, fx.id, val),
                                 ),
                                 const SizedBox(width: 6),
                                 Expanded(
-                                  child: Text(
-                                    fx.name.toUpperCase(),
-                                    style: EatsTheme.getPrimaryFontStyle(
-                                      color: fx.enabled ? EatsTheme.textPrimary : EatsTheme.textMuted,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
+                                  child: InkWell(
+                                    onTap: () => _toggleGuiExpanded(fx.id),
+                                    child: Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            fx.name.toUpperCase(),
+                                            style: EatsTheme.getPrimaryFontStyle(
+                                              color: fx.enabled ? EatsTheme.textPrimary : EatsTheme.textMuted,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 11,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Icon(
+                                          isExpanded ? Icons.expand_less : Icons.expand_more,
+                                          size: 14,
+                                          color: EatsTheme.secondaryMagenta,
+                                        ),
+                                      ],
                                     ),
-                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 IconButton(
                                   tooltip: 'Move FX Up',
-                                  icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+                                  icon: const Icon(Icons.keyboard_arrow_up, size: 18),
                                   color: isFirst ? Colors.white12 : EatsTheme.primaryCyan,
                                   padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                  constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
                                   onPressed: isFirst ? null : () => dawState.moveFXUp(track, idx),
                                 ),
                                 IconButton(
                                   tooltip: 'Move FX Down',
-                                  icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+                                  icon: const Icon(Icons.keyboard_arrow_down, size: 18),
                                   color: isLast ? Colors.white12 : EatsTheme.primaryCyan,
                                   padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                  constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
                                   onPressed: isLast ? null : () => dawState.moveFXDown(track, idx),
                                 ),
                                 IconButton(
                                   tooltip: 'Remove FX',
-                                  icon: Icon(Icons.delete_outline, color: EatsTheme.textMuted, size: 18),
+                                  icon: Icon(Icons.delete_outline, color: EatsTheme.textMuted, size: 16),
                                   padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                  constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
                                   onPressed: () => dawState.removeFXInsert(track, fx.id),
                                 ),
                               ],
                             ),
 
-                            // FX Specific Parameters
-                            if (fx.type == FXType.convolutionReverb) ...[
+                            // Inline Hardware Faceplate GUI (when expanded or Lua script has GUI)
+                            if (isExpanded && (fx.luaScriptCode?.isNotEmpty ?? false)) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  InkWell(
+                                    onTap: () => dawState.openFloatingFxWindow(track, fx),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.open_in_new, size: 12, color: EatsTheme.primaryCyan),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'POPOUT',
+                                          style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.primaryCyan),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.35),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: EatsTheme.secondaryMagenta.withOpacity(0.4)),
+                                ),
+                                padding: const EdgeInsets.all(8),
+                                child: DynamicInstrumentGuiWidget(
+                                  dawState: dawState,
+                                  track: fxTrack,
+                                  hideHeader: true,
+                                  onParamChanged: (p, v) => dawState.updateFXParam(track, fx.id, p, v),
+                                ),
+                              ),
+                            ] else if (isExpanded && fx.type == FXType.convolutionReverb) ...[
                               const SizedBox(height: 6),
                               // Dry Level Slider
                               Row(
@@ -242,9 +360,50 @@ class ModularFxRackWidget extends StatelessWidget {
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Text(
-                                'IMPULSE RESPONSE (IR):',
-                                style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'IMPULSE RESPONSE (IR):',
+                                    style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 10),
+                                  ),
+                                  InkWell(
+                                    onTap: () => _toggleDesignerExpanded(fx.id),
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: _expandedDesignerFxIds.contains(fx.id)
+                                            ? EatsTheme.primaryCyan.withOpacity(0.2)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: _expandedDesignerFxIds.contains(fx.id)
+                                              ? EatsTheme.primaryCyan
+                                              : EatsTheme.textMuted.withOpacity(0.4),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            _expandedDesignerFxIds.contains(fx.id) ? Icons.view_in_ar : Icons.view_in_ar_outlined,
+                                            size: 12,
+                                            color: _expandedDesignerFxIds.contains(fx.id) ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            _expandedDesignerFxIds.contains(fx.id) ? 'CLOSE 3D DESIGNER' : '3D SPACE / CAB DESIGNER',
+                                            style: EatsTheme.getPrimaryFontStyle(
+                                              color: _expandedDesignerFxIds.contains(fx.id) ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 4),
                               Container(
@@ -270,12 +429,347 @@ class ModularFxRackWidget extends StatelessWidget {
                                         .map((ir) => DropdownMenuItem(value: ir, child: Text(ir)))
                                         .toList(),
                                     onChanged: (newIr) {
-                                      if (newIr != null) dawState.updateFXIrSample(track, fx.id, newIr);
+                                      if (newIr != null) {
+                                        final preset = ProceduralIRGenerator.presets[newIr];
+                                        if (preset != null) {
+                                          setState(() => _designerSpaceParams[fx.id] = preset);
+                                        }
+                                        dawState.updateFXIrSample(track, fx.id, newIr);
+                                      }
                                     },
                                   ),
                                 ),
                               ),
-                            ] else ...[
+
+                              // --- Expanded 3D Space & Cabinet Designer ---
+                              if (_expandedDesignerFxIds.contains(fx.id)) ...[
+                                const SizedBox(height: 10),
+                                Builder(builder: (context) {
+                                  final space = _getSpaceParamsForFx(fx);
+                                  final isCab = space.isCabinetMode;
+
+                                  return Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF141724),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: isCab ? EatsTheme.accentOrange.withOpacity(0.5) : EatsTheme.primaryCyan.withOpacity(0.5),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Mode Switcher Header
+                                        Row(
+                                          children: [
+                                            Text(
+                                              'ACOUSTIC MODE:',
+                                              style: EatsTheme.getPrimaryFontStyle(
+                                                color: EatsTheme.textMuted,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            ChoiceChip(
+                                              label: Text('ROOM REVERB', style: EatsTheme.getPrimaryFontStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                              selected: !isCab,
+                                              selectedColor: EatsTheme.primaryCyan.withOpacity(0.3),
+                                              backgroundColor: EatsTheme.panelBackground,
+                                              side: BorderSide(color: !isCab ? EatsTheme.primaryCyan : Colors.transparent),
+                                              onSelected: (sel) {
+                                                if (sel) {
+                                                  _updateAndBakeSpace(
+                                                    track,
+                                                    fx,
+                                                    space.copyWith(
+                                                      name: 'Custom Room',
+                                                      isCabinetMode: false,
+                                                      width: space.width < 1.0 ? 8.0 : space.width,
+                                                      length: space.length < 1.0 ? 12.0 : space.length,
+                                                      height: space.height < 1.0 ? 4.0 : space.height,
+                                                      rt60: space.rt60 < 0.1 ? 1.8 : space.rt60,
+                                                    ),
+                                                  );
+                                                }
+                                              },
+                                            ),
+                                            const SizedBox(width: 6),
+                                            ChoiceChip(
+                                              label: Text('AMP CABINET', style: EatsTheme.getPrimaryFontStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                              selected: isCab,
+                                              selectedColor: EatsTheme.accentOrange.withOpacity(0.3),
+                                              backgroundColor: EatsTheme.panelBackground,
+                                              side: BorderSide(color: isCab ? EatsTheme.accentOrange : Colors.transparent),
+                                              onSelected: (sel) {
+                                                if (sel) {
+                                                  _updateAndBakeSpace(
+                                                    track,
+                                                    fx,
+                                                    space.copyWith(
+                                                      name: 'Custom Cabinet',
+                                                      isCabinetMode: true,
+                                                      width: space.width > 2.0 ? 0.76 : space.width,
+                                                      length: space.length > 2.0 ? 0.76 : space.length,
+                                                      height: space.height > 2.0 ? 0.36 : space.height,
+                                                      rt60: space.rt60 > 0.1 ? 0.035 : space.rt60,
+                                                      material: AcousticMaterialType.birchPlywood,
+                                                    ),
+                                                  );
+                                                }
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+
+                                        // 3D Space Visualizer
+                                        SpaceVisualizerWidget(
+                                          params: space,
+                                          height: 160,
+                                          onParamsChanged: (newP) => _updateAndBakeSpace(track, fx, newP),
+                                        ),
+                                        const SizedBox(height: 8),
+
+                                        // Material Selection Dropdown
+                                        Row(
+                                          children: [
+                                            SizedBox(
+                                              width: 70,
+                                              child: Text(
+                                                'MATERIAL',
+                                                style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 10),
+                                              ),
+                                            ),
+                                            Expanded(
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                                decoration: BoxDecoration(
+                                                  color: EatsTheme.panelBackground,
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  border: Border.all(color: const Color(0xFF2B3245)),
+                                                ),
+                                                child: DropdownButtonHideUnderline(
+                                                  child: DropdownButton<AcousticMaterialType>(
+                                                    value: space.material,
+                                                    isExpanded: true,
+                                                    dropdownColor: EatsTheme.panelBackground,
+                                                    style: EatsTheme.getPrimaryFontStyle(
+                                                      color: EatsTheme.textPrimary,
+                                                      fontSize: 10,
+                                                    ),
+                                                    items: AcousticMaterialType.values.map((m) {
+                                                      final info = AcousticMaterial.get(m);
+                                                      return DropdownMenuItem(
+                                                        value: m,
+                                                        child: Text(info.displayName),
+                                                      );
+                                                    }).toList(),
+                                                    onChanged: (newMat) {
+                                                      if (newMat != null) {
+                                                        _updateAndBakeSpace(track, fx, space.copyWith(material: newMat));
+                                                      }
+                                                    },
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+
+                                        // Dimensions: Width, Length, Height
+                                        Row(
+                                          children: [
+                                            SizedBox(
+                                              width: 70,
+                                              child: Text('WIDTH (Lx)', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9)),
+                                            ),
+                                            Expanded(
+                                              child: EatsBitsSlider(
+                                                value: space.width,
+                                                min: isCab ? 0.2 : 1.0,
+                                                max: isCab ? 1.5 : 30.0,
+                                                defaultValue: isCab ? 0.76 : 8.0,
+                                                label: 'Width',
+                                                activeColor: isCab ? EatsTheme.accentOrange : EatsTheme.primaryCyan,
+                                                onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(width: val)),
+                                              ),
+                                            ),
+                                            SizedBox(
+                                              width: 45,
+                                              child: Text('${space.width.toStringAsFixed(2)}m', style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.textPrimary)),
+                                            ),
+                                          ],
+                                        ),
+                                        Row(
+                                          children: [
+                                            SizedBox(
+                                              width: 70,
+                                              child: Text('LENGTH (Ly)', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9)),
+                                            ),
+                                            Expanded(
+                                              child: EatsBitsSlider(
+                                                value: space.length,
+                                                min: isCab ? 0.2 : 1.0,
+                                                max: isCab ? 1.5 : 40.0,
+                                                defaultValue: isCab ? 0.76 : 12.0,
+                                                label: 'Length',
+                                                activeColor: isCab ? EatsTheme.accentOrange : EatsTheme.primaryCyan,
+                                                onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(length: val)),
+                                              ),
+                                            ),
+                                            SizedBox(
+                                              width: 45,
+                                              child: Text('${space.length.toStringAsFixed(2)}m', style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.textPrimary)),
+                                            ),
+                                          ],
+                                        ),
+                                        Row(
+                                          children: [
+                                            SizedBox(
+                                              width: 70,
+                                              child: Text('HEIGHT (Lz)', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9)),
+                                            ),
+                                            Expanded(
+                                              child: EatsBitsSlider(
+                                                value: space.height,
+                                                min: isCab ? 0.15 : 1.0,
+                                                max: isCab ? 1.0 : 18.0,
+                                                defaultValue: isCab ? 0.36 : 4.0,
+                                                label: 'Height',
+                                                activeColor: isCab ? EatsTheme.accentOrange : EatsTheme.primaryCyan,
+                                                onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(height: val)),
+                                              ),
+                                            ),
+                                            SizedBox(
+                                              width: 45,
+                                              child: Text('${space.height.toStringAsFixed(2)}m', style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.textPrimary)),
+                                            ),
+                                          ],
+                                        ),
+
+                                        if (!isCab) ...[
+                                          // RT60 Decay
+                                          Row(
+                                            children: [
+                                              SizedBox(
+                                                width: 70,
+                                                child: Text('RT60 DECAY', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9)),
+                                              ),
+                                              Expanded(
+                                                child: EatsBitsSlider(
+                                                  value: space.rt60,
+                                                  min: 0.1,
+                                                  max: 5.0,
+                                                  defaultValue: 1.8,
+                                                  label: 'RT60 Decay',
+                                                  activeColor: EatsTheme.primaryCyan,
+                                                  onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(rt60: val)),
+                                                ),
+                                              ),
+                                              SizedBox(
+                                                width: 45,
+                                                child: Text('${space.rt60.toStringAsFixed(2)}s', style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.primaryCyan)),
+                                              ),
+                                            ],
+                                          ),
+                                          // Damping
+                                          Row(
+                                            children: [
+                                              SizedBox(
+                                                width: 70,
+                                                child: Text('DAMPING', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9)),
+                                              ),
+                                              Expanded(
+                                                child: EatsBitsSlider(
+                                                  value: space.damping,
+                                                  min: 0.0,
+                                                  max: 1.0,
+                                                  defaultValue: 0.5,
+                                                  label: 'Damping',
+                                                  activeColor: EatsTheme.secondaryMagenta,
+                                                  onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(damping: val)),
+                                                ),
+                                              ),
+                                              SizedBox(
+                                                width: 45,
+                                                child: Text('${(space.damping * 100).toInt()}%', style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.secondaryMagenta)),
+                                              ),
+                                            ],
+                                          ),
+                                        ] else ...[
+                                          // Cabinet: Mic Distance
+                                          Row(
+                                            children: [
+                                              SizedBox(
+                                                width: 70,
+                                                child: Text('MIC DISTANCE', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9)),
+                                              ),
+                                              Expanded(
+                                                child: EatsBitsSlider(
+                                                  value: space.micDistance,
+                                                  min: 0.01,
+                                                  max: 0.30,
+                                                  defaultValue: 0.05,
+                                                  label: 'Mic Distance',
+                                                  activeColor: EatsTheme.accentOrange,
+                                                  onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(micDistance: val)),
+                                                ),
+                                              ),
+                                              SizedBox(
+                                                width: 45,
+                                                child: Text('${(space.micDistance * 100).toStringAsFixed(1)}cm', style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.accentOrange)),
+                                              ),
+                                            ],
+                                          ),
+                                          // Cabinet: Mic Angle
+                                          Row(
+                                            children: [
+                                              SizedBox(
+                                                width: 70,
+                                                child: Text('OFF-AXIS', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9)),
+                                              ),
+                                              Expanded(
+                                                child: EatsBitsSlider(
+                                                  value: space.micAngleDeg,
+                                                  min: 0.0,
+                                                  max: 60.0,
+                                                  defaultValue: 0.0,
+                                                  label: 'Off-Axis Angle',
+                                                  activeColor: EatsTheme.primaryCyan,
+                                                  onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(micAngleDeg: val)),
+                                                ),
+                                              ),
+                                              SizedBox(
+                                                width: 45,
+                                                child: Text('${space.micAngleDeg.toInt()}°', style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.primaryCyan)),
+                                              ),
+                                            ],
+                                          ),
+                                          // Cabinet: Open-Back Switch
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                'OPEN-BACK DIPOLE CANCELLATION',
+                                                style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9, fontWeight: FontWeight.bold),
+                                              ),
+                                              Switch(
+                                                value: space.isOpenBack,
+                                                activeColor: EatsTheme.accentOrange,
+                                                onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(isOpenBack: val)),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ] else if (isExpanded) ...[
                               // Dry/Wet Mix Slider
                               Row(
                                 children: [
@@ -357,6 +851,53 @@ class ModularFxRackWidget extends StatelessWidget {
         );
       },
     );
+  }
+
+  List<PopupMenuEntry<LuaPreset>> _buildFxMenuItems(List<LuaPreset> presets) {
+    return presets.map((p) {
+      return PopupMenuItem<LuaPreset>(
+        value: p,
+        child: Row(
+          children: [
+            Icon(
+              p.id.contains('scope') || p.id.contains('spectrum')
+                  ? Icons.remove_red_eye_outlined
+                  : Icons.graphic_eq,
+              size: 14,
+              color: p.id.contains('scope') || p.id.contains('spectrum')
+                  ? const Color(0xFF00E5FF)
+                  : EatsTheme.secondaryMagenta,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    p.name,
+                    style: EatsTheme.getPrimaryFontStyle(
+                      color: EatsTheme.textPrimary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    p.description,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: EatsTheme.getPrimaryFontStyle(
+                      color: EatsTheme.textMuted,
+                      fontSize: 9,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }).toList();
   }
 
   static double _getParamMin(String key) {

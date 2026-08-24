@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../lua/lua_engine.dart';
 import '../../lua/lua_preset_library.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../models/script_target_model.dart';
 import '../../theme/eats_theme.dart';
+import 'dynamic_instrument_gui_widget.dart';
 import 'eatsbits_slider.dart';
 import 'skeuomorphic_hardware_switch.dart';
 
@@ -36,10 +38,10 @@ class MidiFxRackWidget extends StatelessWidget {
         final isHovering = candidateData.isNotEmpty;
 
         return Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: isHovering ? EatsTheme.primaryCyan.withOpacity(0.15) : EatsTheme.panelBackground,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isHovering ? EatsTheme.primaryCyan : EatsTheme.primaryCyan.withOpacity(0.4),
               width: isHovering ? 2 : 1,
@@ -58,7 +60,7 @@ class MidiFxRackWidget extends StatelessWidget {
               // Header
               Row(
                 children: [
-                  const Icon(Icons.bolt, color: EatsTheme.accentGold, size: 16),
+                  Icon(Icons.piano, color: EatsTheme.primaryCyan, size: 16),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -92,9 +94,13 @@ class MidiFxRackWidget extends StatelessWidget {
                       label: const Text('Bake to MIDI', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
                     ),
                   const SizedBox(width: 4),
-                  PopupMenuButton<String>(
+                  PopupMenuButton<LuaPreset>(
                     tooltip: 'Add MIDI FX Module',
                     color: EatsTheme.panelHeader,
+                    popUpAnimationStyle: const AnimationStyle(
+                      duration: Duration(milliseconds: 100),
+                      curve: Curves.fastOutSlowIn,
+                    ),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
@@ -111,78 +117,23 @@ class MidiFxRackWidget extends StatelessWidget {
                         ),
                       ),
                     ),
-                    itemBuilder: (ctx) => [
-                      PopupMenuItem(
-                        value: 'arp',
-                        child: Row(
-                          children: [
-                            Icon(Icons.stairs, color: EatsTheme.primaryCyan, size: 16),
-                            const SizedBox(width: 8),
-                            const Text('Arpeggiator FX', style: TextStyle(color: Colors.white, fontSize: 12)),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'chord_arp',
-                        child: Row(
-                          children: [
-                            Icon(Icons.queue_music, color: EatsTheme.accentGold, size: 16),
-                            SizedBox(width: 8),
-                            Text('Chord Arpeggiator (Chord Track)', style: TextStyle(color: Colors.white, fontSize: 12)),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'scale_snap',
-                        child: Row(
-                          children: [
-                            Icon(Icons.music_note, color: EatsTheme.accentGreen, size: 16),
-                            const SizedBox(width: 8),
-                            const Text('Scale Snap FX', style: TextStyle(color: Colors.white, fontSize: 12)),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'humanize',
-                        child: Row(
-                          children: [
-                            Icon(Icons.grain, color: EatsTheme.secondaryMagenta, size: 16),
-                            const SizedBox(width: 8),
-                            const Text('Humanize & Groove', style: TextStyle(color: Colors.white, fontSize: 12)),
-                          ],
-                        ),
-                      ),
-                    ],
-                    onSelected: (val) {
-                      if (val == 'arp') {
-                        dawState.addMidiFXInsert(
-                          track,
-                          name: 'Arpeggiator FX',
-                          luaScriptCode: 'arpeggiator',
-                          params: {'Rate': 1.0, 'Octaves': 2.0, 'Pattern': 0.0, 'Gate': 0.85, 'Swing': 0.0},
+                    itemBuilder: (ctx) {
+                      final presets = LuaPresetLibrary.presets.where((p) => p.isMidiFx).toList();
+                      return presets.map((p) {
+                        return PopupMenuItem<LuaPreset>(
+                          value: p,
+                          child: Row(
+                            children: [
+                              Icon(Icons.bolt, color: EatsTheme.accentGold, size: 16),
+                              const SizedBox(width: 8),
+                              Text(p.name, style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12)),
+                            ],
+                          ),
                         );
-                      } else if (val == 'chord_arp') {
-                        dawState.addMidiFXInsert(
-                          track,
-                          name: 'Chord Arpeggiator FX',
-                          luaScriptCode: 'chord_arp',
-                          params: {'Rate': 1.0, 'Octaves': 2.0, 'Pattern': 0.0, 'Gate': 0.85, 'Swing': 0.0},
-                        );
-                      } else if (val == 'scale_snap') {
-                        dawState.addMidiFXInsert(
-                          track,
-                          name: 'Scale Snap FX',
-                          luaScriptCode: 'scale_snap',
-                          params: {'Key': dawState.songKeyRoot.toDouble(), 'Minor': dawState.isSongKeyMinor ? 1.0 : 0.0},
-                        );
-                      } else if (val == 'humanize') {
-                        dawState.addMidiFXInsert(
-                          track,
-                          name: 'Humanize FX',
-                          luaScriptCode: 'humanize',
-                          params: {'Timing': 0.04, 'Velocity': 0.15},
-                        );
-                      }
+                      }).toList();
+                    },
+                    onSelected: (preset) {
+                      dawState.addMidiFXFromPreset(track, preset);
                     },
                   ),
                 ],
@@ -215,6 +166,10 @@ class MidiFxRackWidget extends StatelessWidget {
                           children: [
                             SkeuomorphicHardwareSwitch(
                               value: fx.enabled,
+                              style: SwitchStyle.modernPill,
+                              orientation: Axis.vertical,
+                              width: 16.0,
+                              height: 28.0,
                               activeColor: EatsTheme.primaryCyan,
                               tooltip: 'Toggle ${fx.name} (Bypass / Active)',
                               onChanged: (val) => dawState.toggleMidiFXInsert(track, fx.id, val),
@@ -294,6 +249,26 @@ class MidiFxRackWidget extends StatelessWidget {
   }
 
   Widget _buildMidiFxControls(BuildContext context, MidiFXInsert fx) {
+    if (fx.luaScriptCode.isNotEmpty) {
+      final compilation = LuaEngine.compile(fx.luaScriptCode);
+      if (compilation.guiLayout != null) {
+        final fxTrack = TrackChannel(
+          id: fx.id,
+          name: fx.name,
+          type: TrackType.luaScript,
+          color: EatsTheme.primaryCyan,
+          luaScriptCode: fx.luaScriptCode,
+          luaParams: fx.luaParams,
+        );
+        return DynamicInstrumentGuiWidget(
+          dawState: dawState,
+          track: fxTrack,
+          hideHeader: true,
+          onParamChanged: (p, v) => dawState.updateMidiFXParam(track, fx.id, p, v),
+        );
+      }
+    }
+
     final code = fx.luaScriptCode.toLowerCase();
     final nameLower = fx.name.toLowerCase();
 

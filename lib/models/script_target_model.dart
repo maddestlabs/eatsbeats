@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 enum ScriptTargetType {
   trackDsp,
+  audioFx,
   midiFx,
   clipScript,
 }
@@ -14,7 +15,7 @@ class ScriptTarget {
   final String trackId;
   final String trackName;
   final Color trackColor;
-  final String? secondaryId; // midiFX.id or clip.id
+  final String? secondaryId; // midiFX.id, fx.id, or clip.id
   final String? clipName;
 
   const ScriptTarget({
@@ -33,6 +34,8 @@ class ScriptTarget {
     switch (type) {
       case ScriptTargetType.trackDsp:
         return 'SYNTH DSP';
+      case ScriptTargetType.audioFx:
+        return 'AUDIO FX';
       case ScriptTargetType.midiFx:
         return 'MIDI FX';
       case ScriptTargetType.clipScript:
@@ -44,6 +47,8 @@ class ScriptTarget {
     switch (type) {
       case ScriptTargetType.trackDsp:
         return Icons.piano;
+      case ScriptTargetType.audioFx:
+        return Icons.graphic_eq;
       case ScriptTargetType.midiFx:
         return Icons.bolt;
       case ScriptTargetType.clipScript:

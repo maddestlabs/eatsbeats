@@ -355,7 +355,7 @@ return ProceduralHiHat
         },
         {
           id = "t_lua_303",
-          name = "JC-303",
+          name = "Eats-303",
           color = 0xff00ff66,
           type = "luaScript",
           volume = 0.900,
@@ -371,10 +371,10 @@ return ProceduralHiHat
           trackerColumns = 4,
           activeView = "pianoRoll",
           luaScriptCode = [[
--- --- JC-303 Acid Bassline (midilab/jc303 & Open303) ---
-local JC303 = {}
+-- --- Eats-303 Acid Bassline (JC-303 & Open303 DSP) ---
+local Eats303 = {}
 
-function JC303.init()
+function Eats303.init()
   Param.add("Waveform", 0.0, 1.0, 0.0, 1.0)       -- 0 = Saw, 1 = Square
   Param.add("Pitch", -12.0, 12.0, 0.0, 1.0)       -- Tuning semitones
   Param.add("Cutoff", 200.0, 4500.0, 1400.0)      -- Base VCF Cutoff
@@ -389,7 +389,7 @@ function JC303.init()
   Param.add("Slide", 0.0, 1.0, 0.0)               -- 60ms Portamento Legato Slide
 end
 
-function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
+function Eats303.process(time, freq, note, params, targetNote, isSlide, isAccent)
   local waveType = params["Waveform"] or 0.0
   local pitch = params["Pitch"] or 0.0
   local cutoff = params["Cutoff"] or 1400.0
@@ -403,7 +403,7 @@ function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
   local subVol = params["SubVolume"] or 0.0
   local slideParam = params["Slide"] or 0.0
 
-  -- Pitch glide / Portamento logic for JC-303 continuous monophonic voice
+  -- Pitch glide / Portamento logic for Eats-303 continuous monophonic voice
   local baseFreq = freq * (2.0 ^ (octave + pitch / 12.0))
   local currentFreq = baseFreq
   if targetNote and targetNote > 0 then
@@ -414,7 +414,7 @@ function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
     currentFreq = targetFreq + (baseFreq - targetFreq) * math.exp(-time / 0.060)
   end
 
-  -- JC-303 Oscillators: Leaky Integrator Sawtooth & Differentiated Square
+  -- Eats-303 Oscillators: Leaky Integrator Sawtooth & Differentiated Square
   local phase = time * currentFreq
   local normPhase = phase - math.floor(phase)
   local sawRaw = 2.0 * normPhase - 1.0
@@ -451,13 +451,13 @@ function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
   return output
 end
 
-function JC303.gui()
+function Eats303.gui()
   return {
     panel = {
-      title = "JC-303 ACID BASSLINE",
-      subtitle = "midilab/jc303 & Open303 Transistor Bass",
+      title = "EATS-303 ACID BASSLINE",
+      subtitle = "Roland TB-303 Emulation • (JC-303 & Open303 DSP)",
       background = "silver",
-      accent = "track",
+      accent = "#000000",
       knobStyle = "chrome",
       layout = {
         {
@@ -492,7 +492,9 @@ function JC303.gui()
   }
 end
 
-return JC303
+JC303 = Eats303
+
+return Eats303
 
           ]],
           luaParams = {
@@ -893,7 +895,7 @@ return ProceduralHiHat
         },
         {
           id = "p1_w",
-          name = "Eats 303",
+          name = "Eats-303",
           color = 0xff00ff66,
           type = "luaScript",
           volume = 0.900,
@@ -909,10 +911,10 @@ return ProceduralHiHat
           trackerColumns = 4,
           activeView = "pianoRoll",
           luaScriptCode = [[
--- --- JC-303 Acid Bassline (midilab/jc303 & Open303) ---
-local JC303 = {}
+-- --- Eats-303 Acid Bassline (JC-303 & Open303 DSP) ---
+local Eats303 = {}
 
-function JC303.init()
+function Eats303.init()
   Param.add("Waveform", 0.0, 1.0, 0.0, 1.0)       -- 0 = Saw, 1 = Square
   Param.add("Pitch", -12.0, 12.0, 0.0, 1.0)       -- Tuning semitones
   Param.add("Cutoff", 200.0, 4500.0, 1400.0)      -- Base VCF Cutoff
@@ -927,7 +929,7 @@ function JC303.init()
   Param.add("Slide", 0.0, 1.0, 0.0)               -- 60ms Portamento Legato Slide
 end
 
-function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
+function Eats303.process(time, freq, note, params, targetNote, isSlide, isAccent)
   local waveType = params["Waveform"] or 0.0
   local pitch = params["Pitch"] or 0.0
   local cutoff = params["Cutoff"] or 1400.0
@@ -941,7 +943,7 @@ function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
   local subVol = params["SubVolume"] or 0.0
   local slideParam = params["Slide"] or 0.0
 
-  -- Pitch glide / Portamento logic for JC-303 continuous monophonic voice
+  -- Pitch glide / Portamento logic for Eats-303 continuous monophonic voice
   local baseFreq = freq * (2.0 ^ (octave + pitch / 12.0))
   local currentFreq = baseFreq
   if targetNote and targetNote > 0 then
@@ -952,7 +954,7 @@ function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
     currentFreq = targetFreq + (baseFreq - targetFreq) * math.exp(-time / 0.060)
   end
 
-  -- JC-303 Oscillators: Leaky Integrator Sawtooth & Differentiated Square
+  -- Eats-303 Oscillators: Leaky Integrator Sawtooth & Differentiated Square
   local phase = time * currentFreq
   local normPhase = phase - math.floor(phase)
   local sawRaw = 2.0 * normPhase - 1.0
@@ -989,13 +991,13 @@ function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
   return output
 end
 
-function JC303.gui()
+function Eats303.gui()
   return {
     panel = {
-      title = "JC-303 ACID BASSLINE",
-      subtitle = "midilab/jc303 & Open303 Transistor Bass",
+      title = "EATS-303 ACID BASSLINE",
+      subtitle = "Roland TB-303 Emulation • (JC-303 & Open303 DSP)",
       background = "silver",
-      accent = "track",
+      accent = "#000000",
       knobStyle = "chrome",
       layout = {
         {
@@ -1030,8 +1032,9 @@ function JC303.gui()
   }
 end
 
-return JC303
+JC303 = Eats303
 
+return Eats303
           ]],
           luaParams = {
             ["Waveform"] = 0.0000,

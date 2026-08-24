@@ -298,6 +298,74 @@ void main() {
       expect(tomPcm.any((s) => s.abs() > 0.1), isTrue);
     });
 
+    test('GraphEvaluator synthesizes Authentic Analog 909 Suite', () {
+      // 1. 909 Kick
+      final kick909 = GraphEvaluator.buildAnalog909Kick();
+      final kickPcm = GraphEvaluator.evaluate(
+        root: kick909,
+        durationSec: 0.4,
+        freq: 54.0,
+        note: 36,
+        params: {'Tune': 0.018, 'Attack': 1.0, 'Decay': 0.050},
+      );
+      expect(kickPcm.any((s) => s.abs() > 0.1), isTrue);
+
+      // 2. 909 Snare
+      final snare909 = GraphEvaluator.buildAnalog909Snare();
+      final snarePcm = GraphEvaluator.evaluate(
+        root: snare909,
+        durationSec: 0.25,
+        freq: 195.0,
+        note: 38,
+        params: {'Tune': 0.0, 'Snappy': 1.0, 'ToneDecay': 0.12},
+      );
+      expect(snarePcm.any((s) => s.abs() > 0.1), isTrue);
+
+      // 3. 909 Closed Hi-Hat
+      final ch909 = GraphEvaluator.buildAnalog909ClosedHiHat();
+      final chPcm = GraphEvaluator.evaluate(
+        root: ch909,
+        durationSec: 0.08,
+        freq: 440.0,
+        note: 42,
+        params: {'Tune': 0.0, 'Decay': 0.025},
+      );
+      expect(chPcm.any((s) => s.abs() > 0.05), isTrue);
+
+      // 4. 909 Open Hi-Hat
+      final oh909 = GraphEvaluator.buildAnalog909OpenHiHat();
+      final ohPcm = GraphEvaluator.evaluate(
+        root: oh909,
+        durationSec: 0.35,
+        freq: 440.0,
+        note: 46,
+        params: {'Tune': 0.0, 'Decay': 0.080},
+      );
+      expect(ohPcm.any((s) => s.abs() > 0.05), isTrue);
+
+      // 5. 909 Handclap
+      final clap909 = GraphEvaluator.buildAnalog909Clap();
+      final clapPcm = GraphEvaluator.evaluate(
+        root: clap909,
+        durationSec: 0.3,
+        freq: 1150.0,
+        note: 39,
+        params: {'Tune': 0.0, 'Decay': 0.28},
+      );
+      expect(clapPcm.any((s) => s.abs() > 0.08), isTrue);
+
+      // 6. 909 Rimshot
+      final rim909 = GraphEvaluator.buildAnalog909Rimshot();
+      final rimPcm = GraphEvaluator.evaluate(
+        root: rim909,
+        durationSec: 0.15,
+        freq: 1850.0,
+        note: 37,
+        params: {'Tune': 0.0, 'Decay': 0.075},
+      );
+      expect(rimPcm.any((s) => s.abs() > 0.1), isTrue);
+    });
+
     test('LuaPresetLibrary contains all new drum presets with compiled GUI layouts', () {
       final presetIds = [
         'fm_acoustic_tom',
@@ -307,6 +375,12 @@ void main() {
         'analog_808_hihat',
         'analog_808_cowbell',
         'analog_808_tom',
+        'analog_909_kick',
+        'analog_909_snare',
+        'analog_909_closed_hihat',
+        'analog_909_open_hihat',
+        'analog_909_clap',
+        'analog_909_rimshot',
       ];
 
       for (final id in presetIds) {
@@ -315,6 +389,15 @@ void main() {
         final comp = LuaEngine.compile(preset!.code);
         expect(comp.isSuccess, isTrue, reason: 'Preset $id should compile');
         expect(comp.guiLayout, isNotNull, reason: 'Preset $id should have GUI layout');
+
+        final synthBuffer = LuaEngine.synthesizeBuffer(
+          code: preset.code,
+          durationSec: 0.1,
+          freq: 100.0,
+          note: 36,
+          params: const {},
+        );
+        expect(synthBuffer.any((s) => s.abs() > 0.01), isTrue, reason: 'Preset $id should synthesize non-silent audio');
       }
     });
   });

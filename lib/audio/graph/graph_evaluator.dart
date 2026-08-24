@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'graph_node.dart';
 import 'graph_primitives.dart';
+import 'tr909_rom_data.dart';
 
 /// Evaluator that executes modular audio graphs into high-performance Float32List PCM buffers.
 class GraphEvaluator {
@@ -432,6 +433,68 @@ class GraphEvaluator {
     );
 
     return const DistortionNode(input: shellFilter, drive: 1.1);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  //  AUTHENTIC ANALOG 909 SUITE GRAPH BUILDERS (André Michelle Physical / ROM Model)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /// Authentic Roland TR-909 Bass Drum (André Michelle physical model)
+  static GraphNode buildAnalog909Kick() {
+    return const Tr909KickNode(
+      tuneParam: 'Tune',
+      decayParam: 'Decay',
+      attackParam: 'Attack',
+    );
+  }
+
+  /// Authentic Roland TR-909 Snare Drum (Dual Tonal Body + Snappy Noise Wires)
+  static GraphNode buildAnalog909Snare() {
+    return const Tr909SnareNode(
+      tuneParam: 'Tune',
+      toneParam: 'ToneDecay',
+      snappyParam: 'Snappy',
+    );
+  }
+
+  /// Authentic Roland TR-909 Closed Hi-Hat (6-bit PCM ROM + Analog VCA Decay)
+  static GraphNode buildAnalog909ClosedHiHat() {
+    return Tr909SampleVoiceNode(
+      getBuffer: () => Tr909RomData.closed_hihat,
+      tuneParam: 'Tune',
+      decay: 0.025,
+      decayParam: 'Decay',
+    );
+  }
+
+  /// Authentic Roland TR-909 Open Hi-Hat (6-bit PCM ROM + Extended Analog Decay)
+  static GraphNode buildAnalog909OpenHiHat() {
+    return Tr909SampleVoiceNode(
+      getBuffer: () => Tr909RomData.opened_hihat,
+      tuneParam: 'Tune',
+      decay: 0.080,
+      decayParam: 'Decay',
+    );
+  }
+
+  /// Authentic Roland TR-909 Handclap (Multi-Burst Trigger & Reverb Diffuse Tail)
+  static GraphNode buildAnalog909Clap() {
+    return Tr909SampleVoiceNode(
+      getBuffer: () => Tr909RomData.clap,
+      tuneParam: 'Tune',
+      decay: 0.28,
+      decayParam: 'Decay',
+    );
+  }
+
+  /// Authentic Roland TR-909 Rimshot (High-Q Resonant Tank "Clack")
+  static GraphNode buildAnalog909Rimshot() {
+    return Tr909SampleVoiceNode(
+      getBuffer: () => Tr909RomData.rim,
+      tuneParam: 'Tune',
+      decay: 0.075,
+      decayParam: 'Decay',
+    );
   }
 }
 

@@ -110,7 +110,11 @@ class LuaPresetLibrary {
 
   static LuaPreset? getPresetById(String id) {
     try {
-      return presets.firstWhere((p) => p.id == id || (id == 'acid_303' && p.id == 'jc_303') || (id == 'jc_303' && p.id == 'acid_303'));
+      return presets.firstWhere((p) =>
+          p.id == id ||
+          (id == 'eats_303' && (p.id == 'jc_303' || p.id == 'acid_303')) ||
+          (id == 'jc_303' && (p.id == 'eats_303' || p.id == 'acid_303')) ||
+          (id == 'acid_303' && (p.id == 'eats_303' || p.id == 'jc_303')));
     } catch (_) {
       return null;
     }
@@ -184,14 +188,61 @@ class LuaPresetLibrary {
     if (luaCode.contains('Analog808Tom') || luaCode.contains('Analog 808 Tom') || luaCode.contains('analog_808_tom')) {
       return getPresetById('analog_808_tom');
     }
-    if (luaCode.contains('JC303') || luaCode.contains('JC-303') || luaCode.contains('Acid303') || luaCode.contains('TB303') || luaCode.contains('jc_303') || luaCode.contains('acid_303')) {
-      return getPresetById('jc_303');
+    if (luaCode.contains('Analog909Kick') || luaCode.contains('Analog 909 Kick') || luaCode.contains('analog_909_kick')) {
+      return getPresetById('analog_909_kick');
+    }
+    if (luaCode.contains('Analog909Snare') || luaCode.contains('Analog 909 Snare') || luaCode.contains('analog_909_snare')) {
+      return getPresetById('analog_909_snare');
+    }
+    if (luaCode.contains('Analog909ClosedHiHat') || luaCode.contains('Analog 909 Closed Hi-Hat') || luaCode.contains('analog_909_closed_hihat') || luaCode.contains('analog_909_hihat') || luaCode.contains('Analog 909 Hi-Hat') || luaCode.contains('Analog909HiHat')) {
+      return getPresetById('analog_909_closed_hihat');
+    }
+    if (luaCode.contains('Analog909OpenHiHat') || luaCode.contains('Analog 909 Open Hi-Hat') || luaCode.contains('analog_909_open_hihat')) {
+      return getPresetById('analog_909_open_hihat');
+    }
+    if (luaCode.contains('Analog909Clap') || luaCode.contains('Analog 909 Clap') || luaCode.contains('analog_909_clap') || luaCode.contains('Analog 909 Handclap')) {
+      return getPresetById('analog_909_clap');
+    }
+    if (luaCode.contains('Analog909Rimshot') || luaCode.contains('Analog 909 Rimshot') || luaCode.contains('analog_909_rimshot')) {
+      return getPresetById('analog_909_rimshot');
+    }
+    if (luaCode.contains('Eats303') || luaCode.contains('Eats-303') || luaCode.contains('eats_303') ||
+        luaCode.contains('JC303') || luaCode.contains('JC-303') || luaCode.contains('Acid303') ||
+        luaCode.contains('TB303') || luaCode.contains('jc_303') || luaCode.contains('acid_303')) {
+      return getPresetById('eats_303');
     }
     if (luaCode.contains('YM2612')) {
       return getPresetById('ym2612_synth');
     }
     if (luaCode.contains('SNESSFX') || luaCode.contains('SFXR')) {
       return getPresetById('eats_sfxr');
+    }
+    if (luaCode.contains('Nibbles') || luaCode.contains('nibbles') || luaCode.contains('eats_nibbles') || luaCode.contains('Eats-Nibbles')) {
+      return getPresetById('eats_nibbles');
+    }
+    if (luaCode.contains('CyberRunner') || luaCode.contains('Cyber Runner') || luaCode.contains('eats_runner') || luaCode.contains('Eats-Runner')) {
+      return getPresetById('eats_runner');
+    }
+    if (luaCode.contains('Oscilloscope') || luaCode.contains('eats_scope') || luaCode.contains('Eats-Scope') || luaCode.contains('Scope')) {
+      return getPresetById('eats_scope');
+    }
+    if (luaCode.contains('Spectrum') || luaCode.contains('eats_spectrum') || luaCode.contains('Eats-Spectrum') || luaCode.contains('Analyzer')) {
+      return getPresetById('eats_spectrum');
+    }
+    if (luaCode.contains('Limiter') || luaCode.contains('master_limiter') || luaCode.contains('Master Limiter')) {
+      return getPresetById('master_limiter');
+    }
+    if (luaCode.contains('Compressor') || luaCode.contains('dynamics_compressor') || luaCode.contains('Dynamics Compressor')) {
+      return getPresetById('dynamics_compressor');
+    }
+    if (luaCode.contains('ConvReverb') || luaCode.contains('convolution_reverb') || luaCode.contains('Convolution Reverb')) {
+      return getPresetById('convolution_reverb');
+    }
+    if (luaCode.contains('StereoDelay') || luaCode.contains('stereo_delay') || luaCode.contains('Stereo Delay')) {
+      return getPresetById('stereo_delay');
+    }
+    if (luaCode.contains('FilterFX') || luaCode.contains('lowpass_filter') || luaCode.contains('Lowpass Filter')) {
+      return getPresetById('lowpass_filter');
     }
     if (luaCode.contains('PolyLeadSynth')) {
       return getPresetById('poly_lead');
@@ -693,18 +744,301 @@ return Analog808Tom
 ''',
     ),
 
-    // 1. JC-303 Acid Bass Synth (midilab/jc303 & Open303 based)
+    // 0k. Authentic Analog 909 Bass Drum
     LuaPreset(
-      id: 'jc_303',
-      name: 'JC-303',
+      id: 'analog_909_kick',
+      name: 'Analog 909 Kick',
       category: LuaPresetCategory.instrument,
-      description: 'Authentic Roland TB-303 emulation based on midilab/jc303 and Robin Schmidt (Open303) with 24dB 4-Pole Diode Ladder filter, 150Hz feedback highpass loop, leaky integrator saw/square oscillators, accent decay override, 60ms slide portamento, and overdrive.',
+      description: 'Authentic Roland TR-909 physical circuit model (André Michelle DSP): 274Hz to 53Hz exponential sweep, single-cycle analog oscillator wavetable, 60ms hold, and beater click attack transient.',
       code: '''
--- @name: JC-303
+-- @name: Analog 909 Kick
 -- @category: instrument
-local JC303 = {}
+local Analog909Kick = {}
 
-function JC303.init()
+function Analog909Kick.init()
+  Param.add("Tune", 0.007, 0.030, 0.018)
+  Param.add("Attack", 0.0, 2.0, 1.0)
+  Param.add("Decay", 0.012, 0.120, 0.050)
+end
+
+function Analog909Kick.gui()
+  return {
+    panel = {
+      title = "ROLAND TR-909 ANALOG BASS DRUM",
+      subtitle = "Physical Model: 274Hz -> 53Hz Wavetable & Attack Transient",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Tune", label = "TUNE PITCH", unit = "s" },
+            { type = "nixie", param = "Attack", label = "ATTACK CLICK" },
+            { type = "nixie", param = "Decay", label = "DECAY HOLD", unit = "s" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Tune", label = "TUNE", size = 56 },
+            { type = "knob", param = "Attack", label = "ATTACK", size = 56 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 56 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Analog909Kick
+''',
+    ),
+
+    // 0l. Authentic Analog 909 Snare Drum
+    LuaPreset(
+      id: 'analog_909_snare',
+      name: 'Analog 909 Snare',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic Roland TR-909 dual-layer physical model (André Michelle DSP): tuned analog resonant tonal body (snare-tone) and snappy noise wires (snare-noise).',
+      code: '''
+-- @name: Analog 909 Snare
+-- @category: instrument
+local Analog909Snare = {}
+
+function Analog909Snare.init()
+  Param.add("Tune", -0.5, 0.5, 0.0)
+  Param.add("Snappy", 0.0, 2.0, 1.0)
+  Param.add("ToneDecay", 0.04, 0.25, 0.12)
+end
+
+function Analog909Snare.gui()
+  return {
+    panel = {
+      title = "ROLAND TR-909 ANALOG SNARE DRUM",
+      subtitle = "Dual Layer: Resonant Tonal Body & Snappy Noise Wires",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Tune", label = "TONE PITCH" },
+            { type = "nixie", param = "Snappy", label = "SNAPPY WIRE" },
+            { type = "nixie", param = "ToneDecay", label = "TONE DECAY", unit = "s" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Tune", label = "TUNE", size = 56 },
+            { type = "knob", param = "Snappy", label = "SNAPPY", size = 56 },
+            { type = "knob", param = "ToneDecay", label = "TONE DEC", size = 56 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Analog909Snare
+''',
+    ),
+
+    // 0m. Authentic Analog 909 Closed Hi-Hat
+    LuaPreset(
+      id: 'analog_909_closed_hihat',
+      name: 'Analog 909 Closed Hi-Hat',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic Roland TR-909 6-bit compressed PCM ROM (closed-hihat) with analog VCA decay and pitch tuning.',
+      code: '''
+-- @name: Analog 909 Closed Hi-Hat
+-- @category: instrument
+local Analog909ClosedHiHat = {}
+
+function Analog909ClosedHiHat.init()
+  Param.add("Tune", -0.5, 0.5, 0.0)
+  Param.add("Decay", 0.008, 0.060, 0.025)
+end
+
+function Analog909ClosedHiHat.gui()
+  return {
+    panel = {
+      title = "ROLAND TR-909 CLOSED HI-HAT",
+      subtitle = "Authentic 6-Bit Compressed PCM ROM & Analog VCA",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Tune", label = "SAMPLE TUNE" },
+            { type = "nixie", param = "Decay", label = "VCA DECAY", unit = "s" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Tune", label = "TUNE", size = 56 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 56 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Analog909ClosedHiHat
+''',
+    ),
+
+    // 0n. Authentic Analog 909 Open Hi-Hat
+    LuaPreset(
+      id: 'analog_909_open_hihat',
+      name: 'Analog 909 Open Hi-Hat',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic Roland TR-909 6-bit compressed PCM ROM (opened-hihat) with extended analog envelope decay and pitch tuning.',
+      code: '''
+-- @name: Analog 909 Open Hi-Hat
+-- @category: instrument
+local Analog909OpenHiHat = {}
+
+function Analog909OpenHiHat.init()
+  Param.add("Tune", -0.5, 0.5, 0.0)
+  Param.add("Decay", 0.030, 0.160, 0.080)
+end
+
+function Analog909OpenHiHat.gui()
+  return {
+    panel = {
+      title = "ROLAND TR-909 OPEN HI-HAT",
+      subtitle = "Authentic 6-Bit Compressed PCM ROM & Extended Decay",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Tune", label = "SAMPLE TUNE" },
+            { type = "nixie", param = "Decay", label = "VCA DECAY", unit = "s" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Tune", label = "TUNE", size = 56 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 56 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Analog909OpenHiHat
+''',
+    ),
+
+    // 0o. Authentic Analog 909 Handclap
+    LuaPreset(
+      id: 'analog_909_clap',
+      name: 'Analog 909 Handclap',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic Roland TR-909 handclap (clap.raw) with multi-trigger impulse playback, diffuse reverberation, and pitch tuning.',
+      code: '''
+-- @name: Analog 909 Handclap
+-- @category: instrument
+local Analog909Clap = {}
+
+function Analog909Clap.init()
+  Param.add("Tune", -0.5, 0.5, 0.0)
+  Param.add("Decay", 0.08, 0.60, 0.28)
+end
+
+function Analog909Clap.gui()
+  return {
+    panel = {
+      title = "ROLAND TR-909 HANDCLAP",
+      subtitle = "Multi-Trigger Triggered ROM & Reverb Tail",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Tune", label = "SAMPLE TUNE" },
+            { type = "nixie", param = "Decay", label = "REVERB DECAY", unit = "s" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Tune", label = "TUNE", size = 56 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 56 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Analog909Clap
+''',
+    ),
+
+    // 0p. Authentic Analog 909 Rimshot
+    LuaPreset(
+      id: 'analog_909_rimshot',
+      name: 'Analog 909 Rimshot',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic Roland TR-909 high-Q resonant tank circuit (rim.raw) with stick click clack and envelope decay.',
+      code: '''
+-- @name: Analog 909 Rimshot
+-- @category: instrument
+local Analog909Rimshot = {}
+
+function Analog909Rimshot.init()
+  Param.add("Tune", -0.5, 0.5, 0.0)
+  Param.add("Decay", 0.02, 0.20, 0.075)
+end
+
+function Analog909Rimshot.gui()
+  return {
+    panel = {
+      title = "ROLAND TR-909 RIMSHOT",
+      subtitle = "High-Q Resonant Tank Circuit ROM Clack",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Tune", label = "SAMPLE TUNE" },
+            { type = "nixie", param = "Decay", label = "RING DECAY", unit = "s" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Tune", label = "TUNE", size = 56 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 56 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Analog909Rimshot
+''',
+    ),
+
+    // 1. Eats-303 Acid Bass Synth (Inspired by Roland TB-303 & JC-303 / Open303 DSP)
+    LuaPreset(
+      id: 'eats_303',
+      name: 'Eats-303',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic Roland TB-303 emulation with 24dB 4-Pole Diode Ladder filter, 150Hz feedback highpass loop, leaky integrator saw/square oscillators, accent decay override, 60ms slide portamento, and overdrive. DSP synthesis inspired by midilab/jc303 (Jean-Christophe Taveau) and Robin Schmidt (Open303).',
+      code: '''
+-- @name: Eats-303
+-- @category: instrument
+-- @description: Authentic TB-303 acid bass emulation with diode ladder filter. DSP inspired by JC-303 (Jean-Christophe Taveau) & Open303.
+local Eats303 = {}
+
+function Eats303.init()
   Param.add("Waveform", 0.0, 1.0, 0.0, 1.0)       -- 0 = Saw, 1 = Square
   Param.add("Pitch", -12.0, 12.0, 0.0, 1.0)       -- Tuning semitones
   Param.add("Cutoff", 200.0, 4500.0, 1400.0)      -- Base VCF Cutoff
@@ -719,7 +1053,7 @@ function JC303.init()
   Param.add("Slide", 0.0, 1.0, 0.0)               -- 60ms Portamento Legato Slide
 end
 
-function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
+function Eats303.process(time, freq, note, params, targetNote, isSlide, isAccent)
   local waveType = params["Waveform"] or 0.0
   local pitch = params["Pitch"] or 0.0
   local cutoff = params["Cutoff"] or 1400.0
@@ -734,7 +1068,7 @@ function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
   local slideParam = params["Slide"] or params["Portamento"] or 0.0
   local glideTime = slideParam > 0.01 and (0.010 + slideParam * 0.200) or 0.060
 
-  -- Pitch glide / Portamento logic for JC-303 continuous monophonic voice
+  -- Pitch glide / Portamento logic for Eats-303 continuous monophonic voice
   local baseFreq = freq * (2.0 ^ (octave + pitch / 12.0))
   local currentFreq = baseFreq
   if targetNote and targetNote > 0 then
@@ -745,7 +1079,7 @@ function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
     currentFreq = targetFreq + (baseFreq - targetFreq) * math.exp(-time / glideTime)
   end
 
-  -- JC-303 Oscillators: Leaky Integrator Sawtooth & Differentiated Square
+  -- Eats-303 Oscillators: Leaky Integrator Sawtooth & Differentiated Square
   local phase = time * currentFreq
   local normPhase = phase - math.floor(phase)
   local sawRaw = 2.0 * normPhase - 1.0
@@ -782,13 +1116,13 @@ function JC303.process(time, freq, note, params, targetNote, isSlide, isAccent)
   return output
 end
 
-function JC303.gui()
+function Eats303.gui()
   return {
     panel = {
-      title = "JC-303 ACID BASSLINE",
-      subtitle = "midilab/jc303 & Open303 Transistor Bass",
+      title = "EATS-303 ACID BASSLINE",
+      subtitle = "Roland TB-303 Emulation • (JC-303 & Open303 DSP)",
       background = "silver",
-      accent = "track",
+      accent = "#000000",
       knobStyle = "chrome",
       layout = {
         {
@@ -823,7 +1157,10 @@ function JC303.gui()
   }
 end
 
-return JC303
+-- Backward compatibility aliases
+JC303 = Eats303
+
+return Eats303
 ''',
     ),
 
@@ -1399,7 +1736,6 @@ function SoundFontSampler.gui()
       title = "SoundFont 2 Player",
       subtitle = "Multi-Sample SF2 Bank & Instrument Engine",
       background = "snes",
-      accent = "#21F4E8",
       knobStyle = "snes",
       layout = {
         {
@@ -1407,6 +1743,11 @@ function SoundFontSampler.gui()
           children = {
             { type = "listbox", param = "SoundFontBank", label = "SoundFont Bank", width = 160, height = 90 },
             { type = "listbox", param = "Preset", label = "Program Preset", width = 200, height = 90 },
+          }
+        },
+        {
+          type = "row",
+          children = {
             { type = "knob", param = "AttackSec", label = "ATTACK", size = 48 },
             { type = "knob", param = "DecaySec", label = "DECAY", size = 48 },
             { type = "knob", param = "Sustain", label = "SUSTAIN", size = 48 },
@@ -1426,21 +1767,48 @@ return SoundFontSampler
     // 14. Lua MIDI Arpeggiator FX
     LuaPreset(
       id: 'arpeggiator_midi_fx',
-      name: 'Lua MIDI Arpeggiator FX',
+      name: 'Arpeggiator FX',
       category: LuaPresetCategory.midiFx,
       description: 'Advanced MIDI arpeggiator with multi-octave cycling, rate dividers, gate, swing, and 8 pattern modes.',
       code: '''
--- @name: Lua MIDI Arpeggiator FX
+-- @name: Arpeggiator FX
 -- @category: midiFx
--- @param: Rate = 1.0 (0.25: 1/64, 0.5: 1/32, 1.0: 1/16, 2.0: 1/8, 4.0: 1/4)
--- @param: Octaves = 2.0 (1 to 4 octaves)
--- @param: Pattern = 0.0 (0: Up, 1: Down, 2: UpDown, 3: DownUp, 4: Converge, 5: Diverge, 6: Random, 7: Chord, 8: AsPlayed)
--- @param: Gate = 0.85 (0.1: Staccato to 2.0: Legato)
--- @param: Swing = 0.0 (0.0 to 0.5 groove timing)
+-- @description: Advanced melodic MIDI arpeggiator with multi-octave cycling and pattern modes.
 local ArpeggiatorMidiFX = {}
+
+function ArpeggiatorMidiFX.init()
+  Param.add("Rate", 0.25, 4.0, 1.0, 0.25)
+  Param.add("Octaves", 1.0, 4.0, 2.0, 1.0)
+  Param.choice("Pattern", {"Up", "Down", "UpDown", "DownUp", "Converge", "Diverge", "Random", "Chord", "AsPlayed"}, 0.0)
+  Param.add("Gate", 0.1, 2.0, 0.85, 0.05)
+  Param.add("Swing", 0.0, 0.5, 0.0, 0.05)
+end
 
 function ArpeggiatorMidiFX.transform_notes(notes, params, timeContext)
   return Midi.arpeggiate(notes, params, timeContext)
+end
+
+function ArpeggiatorMidiFX.gui()
+  return {
+    panel = {
+      title = "Arpeggiator FX",
+      subtitle = "Melodic Note Arpeggiator & Gate Modulator",
+      background = "dark",
+      accent = "#FFD700",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Rate", label = "RATE", unit = "x", size = 52 },
+            { type = "knob", param = "Octaves", label = "OCTAVES", size = 52 },
+            { type = "listbox", param = "Pattern", label = "PATTERN", width = 110, height = 70 },
+            { type = "knob", param = "Gate", label = "GATE", size = 52 },
+            { type = "knob", param = "Swing", label = "SWING", size = 52 },
+          }
+        }
+      }
+    }
+  }
 end
 
 return ArpeggiatorMidiFX
@@ -1668,12 +2036,34 @@ end
       code: '''
 -- @name: Harmonic Chord Follower FX
 -- @category: midiFx
--- @param: Mode = 0 (0: Chord, 1: Bass, 2: Scale, 3: Color)
+-- @description: Conforms incoming notes non-destructively to active project Chord Track.
 local ChordFollower = {}
 
+function ChordFollower.init()
+  Param.choice("Mode", {"Chord Tones", "Bass Root", "Scale Steps", "Color Extensions"}, 0.0)
+end
+
 function ChordFollower.transform_notes(notes, params, timeContext)
-  -- Uses timeContext.chord / timeContext.chordTrack to conform notes
   return Midi.chord_follow(notes, params["Mode"] or 0, timeContext)
+end
+
+function ChordFollower.gui()
+  return {
+    panel = {
+      title = "Harmonic Chord Follower FX",
+      subtitle = "Project Chord Track Harmonizer",
+      background = "dark",
+      accent = "#FF8C00",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "listbox", param = "Mode", label = "HARMONIC MODE", width = 140, height = 70 },
+          }
+        }
+      }
+    }
+  }
 end
 
 return ChordFollower
@@ -1689,16 +2079,133 @@ return ChordFollower
       code: '''
 -- @name: Chord Arpeggiator FX
 -- @category: midiFx
--- @param: Rate = 0.25 (0.25: 16th, 0.5: 8th, 1.0: Quarter)
--- @param: Octaves = 2 (1 to 3 octaves)
--- @param: Pattern = 0 (0: Up, 1: Down, 2: UpDown, 3: Random)
+-- @description: Dynamic arpeggiator voiced to active project Chord Track.
 local ChordArp = {}
+
+function ChordArp.init()
+  Param.add("Rate", 0.25, 4.0, 1.0, 0.25)
+  Param.add("Octaves", 1.0, 4.0, 2.0, 1.0)
+  Param.choice("Pattern", {"Up", "Down", "UpDown", "Random"}, 0.0)
+  Param.add("Gate", 0.1, 2.0, 0.85, 0.05)
+end
 
 function ChordArp.transform_notes(notes, params, timeContext)
   return Midi.chord_arp(notes, params, timeContext)
 end
 
+function ChordArp.gui()
+  return {
+    panel = {
+      title = "Chord Arpeggiator FX",
+      subtitle = "Chord Progression Voiced Arpeggiator",
+      background = "dark",
+      accent = "#00FF9D",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Rate", label = "RATE", unit = "x", size = 52 },
+            { type = "knob", param = "Octaves", label = "OCTAVES", size = 52 },
+            { type = "listbox", param = "Pattern", label = "PATTERN", width = 100, height = 65 },
+            { type = "knob", param = "Gate", label = "GATE", size = 52 },
+          }
+        }
+      }
+    }
+  }
+end
+
 return ChordArp
+''',
+    ),
+
+    // 25b. Scale Snap MIDI FX
+    LuaPreset(
+      id: 'scale_snap_midi_fx',
+      name: 'Scale Snap FX',
+      category: LuaPresetCategory.midiFx,
+      description: 'Quantizes note pitches non-destructively to musical scale degrees.',
+      code: '''
+-- @name: Scale Snap FX
+-- @category: midiFx
+-- @description: Quantizes note pitches non-destructively to musical scale degrees.
+local ScaleSnap = {}
+
+function ScaleSnap.init()
+  Param.add("Key", 0.0, 11.0, 0.0, 1.0)
+  Param.choice("Scale", {"Major", "Natural Minor", "Harmonic Minor", "Melodic Minor", "Dorian", "Mixolydian", "Pentatonic", "Blues"}, 0.0)
+end
+
+function ScaleSnap.transform_notes(notes, params, timeContext)
+  return Midi.scale_snap(notes, params, timeContext)
+end
+
+function ScaleSnap.gui()
+  return {
+    panel = {
+      title = "Scale Snap FX",
+      subtitle = "Musical Pitch Quantizer & Scale Snapper",
+      background = "dark",
+      accent = "#00E5FF",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Key", label = "ROOT KEY" },
+            { type = "listbox", param = "Scale", label = "SCALE MODE", width = 130, height = 70 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return ScaleSnap
+''',
+    ),
+
+    // 25c. Humanize & Groove MIDI FX
+    LuaPreset(
+      id: 'humanize_midi_fx',
+      name: 'Humanize & Groove FX',
+      category: LuaPresetCategory.midiFx,
+      description: 'Adds organic human feel with micro-timing jitter and velocity dynamics.',
+      code: '''
+-- @name: Humanize & Groove FX
+-- @category: midiFx
+-- @description: Adds organic human feel with micro-timing jitter and velocity dynamics.
+local Humanize = {}
+
+function Humanize.init()
+  Param.add("Timing", 0.0, 0.15, 0.04, 0.005)
+  Param.add("Velocity", 0.0, 0.5, 0.15, 0.02)
+end
+
+function Humanize.transform_notes(notes, params, timeContext)
+  return Midi.humanize(notes, params, timeContext)
+end
+
+function Humanize.gui()
+  return {
+    panel = {
+      title = "Humanize & Groove FX",
+      subtitle = "Organic Micro-Timing & Velocity Humanizer",
+      background = "dark",
+      accent = "#E040FB",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Timing", label = "TIMING JITTER", size = 56 },
+            { type = "knob", param = "Velocity", label = "VEL DYNAMICS", size = 56 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Humanize
 ''',
     ),
 
@@ -1750,6 +2257,467 @@ notes = {
 function process(notes, time_ctx)
   return Chord.snap_to_chord(notes, time_ctx, "bass")
 end
+''',
+    ),
+
+    // 28. Eats-Nibbles (Throwback Arcade Game & SFX Synthesizer)
+    LuaPreset(
+      id: 'eats_nibbles',
+      name: 'Eats-Nibbles',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic FastTracker II Nibbles throwback arcade game and procedural sound engine with SNES Sfxr integration, score tracking, on-screen D-Pad, and beat-synced rhythm turning.',
+      code: '''
+-- @name: Eats-Nibbles
+-- @category: instrument
+-- @description: Authentic FastTracker II Nibbles throwback game with procedural SNES Sfxr sound effects
+local Nibbles = {}
+
+function Nibbles.init()
+  Param.add("Speed", 4.0, 30.0, 14.0, 1.0)
+  Param.choice("SFXType", {"Coin", "Laser", "Explosion", "Powerup", "Jump", "Button"}, 0.0)
+  Param.add("BeatSync", 0.0, 1.0, 0.0, 1.0)
+  Param.add("Seed", 1.0, 9999.0, 1337.0, 1.0)
+end
+
+function Nibbles.process(time, freq, note, params)
+  return 0.0
+end
+
+function Nibbles.gui()
+  return {
+    panel = {
+      title = "Eats-Nibbles",
+      subtitle = "FastTracker II Classic Arcade Easter Egg",
+      background = "dark",
+      accent = "#00FF9D",
+      layout = {
+        {
+          type = "canvas",
+          mode = "grid",
+          cols = 32,
+          rows = 22,
+          width = 340,
+          height = 190,
+          showDpad = true,
+          showActionButtons = true
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Speed", label = "SPEED", unit = "fps" },
+            { type = "switch", param = "BeatSync", label = "BEAT SYNC" },
+            { type = "listbox", param = "SFXType", label = "SFX TONE", width = 110, height = 70 }
+          }
+        }
+      }
+    }
+  }
+end
+
+return Nibbles
+''',
+    ),
+
+    // 29. Eats-Runner (Audiovisual Platformer & Synced Visualizer)
+    LuaPreset(
+      id: 'eats_runner',
+      name: 'Eats-Runner',
+      category: LuaPresetCategory.instrument,
+      description: '16-bit audiovisual side-scroller runner game with parallax skyline, starry horizon, jump physics, SNES Sfxr sound triggers, and timeline parameter automation.',
+      code: '''
+-- @name: Eats-Runner
+-- @category: instrument
+-- @description: 16-bit audiovisual platformer and timeline-automated music visualizer
+local CyberRunner = {}
+
+function CyberRunner.init()
+  Param.add("Jump", 0.0, 1.0, 0.0, 1.0)
+  Param.add("Speed", 50.0, 250.0, 120.0, 10.0)
+  Param.choice("SFXType", {"Jump", "Coin", "Laser", "Explosion", "Powerup"}, 0.0)
+  Param.add("Seed", 1.0, 9999.0, 543.0, 1.0)
+end
+
+function CyberRunner.process(time, freq, note, params)
+  return 0.0
+end
+
+function CyberRunner.gui()
+  return {
+    panel = {
+      title = "Eats-Runner",
+      subtitle = "Audiovisual Platformer & Synced Visualizer",
+      background = "snes",
+      accent = "#00E5FF",
+      knobStyle = "snes",
+      layout = {
+        {
+          type = "canvas",
+          mode = "pixel",
+          width = 340,
+          height = 180,
+          showActionButtons = true
+        },
+        {
+          type = "row",
+          children = {
+            { type = "button", param = "Jump", label = "JUMP", width = 80, height = 36 },
+            { type = "knob", param = "Speed", label = "SPEED", unit = "px/s", knobStyle = "snes" },
+            { type = "listbox", param = "SFXType", label = "SFX VOICE", width = 120, height = 70 }
+          }
+        }
+      }
+    }
+  }
+end
+
+return CyberRunner
+''',
+    ),
+
+    // 30. Eats-Scope (Vector Oscilloscope Audio Visualizer FX)
+    LuaPreset(
+      id: 'eats_scope',
+      name: 'Eats-Scope',
+      category: LuaPresetCategory.audioFx,
+      description: 'Glowing neon vector oscilloscope and waveform monitor visualizer that reacts in real-time to audio playback and synthesizer modulations.',
+      code: '''
+-- @name: Eats-Scope
+-- @category: audioFx
+-- @description: Glowing neon vector oscilloscope and waveform monitor visualizer
+local Scope = {}
+
+function Scope.init()
+  Param.add("Timebase", 0.1, 2.0, 1.0, 0.05)
+  Param.add("Gain", 0.1, 3.0, 1.0, 0.1)
+  Param.choice("GlowColor", {"Neon Mint", "Cyber Cyan", "Laser Red", "Gold Solar", "Purple Dream"}, 0.0)
+end
+
+function Scope.process(input_l, input_r, params)
+  return input_l, input_r
+end
+
+function Scope.gui()
+  return {
+    panel = {
+      title = "Eats-Scope",
+      subtitle = "Vector Waveform Oscilloscope Visualizer",
+      background = "dark",
+      accent = "#00FF9D",
+      layout = {
+        {
+          type = "canvas",
+          mode = "vector",
+          width = 340,
+          height = 180
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Timebase", label = "TIMEBASE", unit = "x" },
+            { type = "knob", param = "Gain", label = "GAIN", unit = "x" },
+            { type = "listbox", param = "GlowColor", label = "BEAM COLOR", width = 120, height = 70 }
+          }
+        }
+      }
+    }
+  }
+end
+
+return Scope
+''',
+    ),
+
+    // 31. Eats-Spectrum (16-Band Real-Time Spectrum Analyzer FX)
+    LuaPreset(
+      id: 'eats_spectrum',
+      name: 'Eats-Spectrum',
+      category: LuaPresetCategory.audioFx,
+      description: 'Multi-band graphic spectrum analyzer visualizer with peak hold caps, multi-gradient color LED meters, and audio-reactive energy tracking.',
+      code: '''
+-- @name: Eats-Spectrum
+-- @category: audioFx
+-- @description: 16-band graphic spectrum analyzer visualizer with peak hold caps
+local Spectrum = {}
+
+function Spectrum.init()
+  Param.add("Gain", 0.2, 4.0, 1.0, 0.1)
+  Param.add("Decay", 0.1, 2.0, 0.6, 0.05)
+  Param.choice("Mode", {"16-Band Bar", "8-Band Chunky", "Peak Hold", "Smooth Curve"}, 0.0)
+end
+
+function Spectrum.process(input_l, input_r, params)
+  return input_l, input_r
+end
+
+function Spectrum.gui()
+  return {
+    panel = {
+      title = "Eats-Spectrum",
+      subtitle = "16-Band Real-Time Spectrum Analyzer",
+      background = "dark",
+      accent = "#00E5FF",
+      layout = {
+        {
+          type = "canvas",
+          mode = "spectrum",
+          width = 340,
+          height = 180
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Gain", label = "GAIN", unit = "x" },
+            { type = "knob", param = "Decay", label = "DECAY", unit = "s" },
+            { type = "listbox", param = "Mode", label = "METER MODE", width = 120, height = 70 }
+          }
+        }
+      }
+    }
+  }
+end
+
+return Spectrum
+''',
+    ),
+
+    // 32. Master Limiter / Peak Guard FX
+    LuaPreset(
+      id: 'master_limiter',
+      name: 'Master Limiter',
+      category: LuaPresetCategory.audioFx,
+      description: 'Brickwall peak limiter with lookahead ceiling protection and transparent release envelope.',
+      code: '''
+-- @name: Master Limiter
+-- @category: audioFx
+-- @description: Brickwall peak limiter with lookahead ceiling protection
+local Limiter = {}
+
+function Limiter.init()
+  Param.add("Threshold", -24.0, 0.0, -1.0, 0.5)
+  Param.add("Release", 0.01, 1.0, 0.05, 0.01)
+  Param.add("Ceiling", -6.0, 0.0, -0.1, 0.1)
+end
+
+function Limiter.process(input_l, input_r, params)
+  return input_l, input_r
+end
+
+function Limiter.gui()
+  return {
+    panel = {
+      title = "Master Limiter",
+      subtitle = "Brickwall Peak Limiting & Output Protection",
+      background = "silver",
+      accent = "#FF3366",
+      knobStyle = "chrome",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Threshold", label = "THRESHOLD", unit = "dB", knobStyle = "chrome" },
+            { type = "knob", param = "Release", label = "RELEASE", unit = "s", knobStyle = "chrome" },
+            { type = "knob", param = "Ceiling", label = "CEILING", unit = "dB", knobStyle = "chrome" },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Limiter
+''',
+    ),
+
+    // 33. Dynamics Compressor FX
+    LuaPreset(
+      id: 'dynamics_compressor',
+      name: 'Dynamics Compressor',
+      category: LuaPresetCategory.audioFx,
+      description: 'Studio dynamic range compressor with adjustable ratio, soft knee, attack, and release.',
+      code: '''
+-- @name: Dynamics Compressor
+-- @category: audioFx
+-- @description: Studio dynamic range compressor with adjustable ratio and knee
+local Compressor = {}
+
+function Compressor.init()
+  Param.add("Threshold", -40.0, 0.0, -18.0, 1.0)
+  Param.add("Ratio", 1.0, 20.0, 4.0, 0.5)
+  Param.add("Attack", 0.001, 0.2, 0.02, 0.005)
+  Param.add("Release", 0.01, 1.0, 0.25, 0.01)
+  Param.add("Knee", 0.0, 24.0, 12.0, 1.0)
+end
+
+function Compressor.process(input_l, input_r, params)
+  return input_l, input_r
+end
+
+function Compressor.gui()
+  return {
+    panel = {
+      title = "Dynamics Compressor",
+      subtitle = "Studio VCA Dynamic Range Compression",
+      background = "dark",
+      accent = "#00FF9D",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Threshold", label = "THRESHOLD", unit = "dB" },
+            { type = "knob", param = "Ratio", label = "RATIO", unit = ":1" },
+            { type = "knob", param = "Attack", label = "ATTACK", unit = "s" },
+            { type = "knob", param = "Release", label = "RELEASE", unit = "s" },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Compressor
+''',
+    ),
+
+    // 34. Convolution Reverb FX
+    LuaPreset(
+      id: 'convolution_reverb',
+      name: 'Convolution Reverb',
+      category: LuaPresetCategory.audioFx,
+      description: 'Impulse-response based acoustic space reverb simulator with true stereo convolution.',
+      code: '''
+-- @name: Convolution Reverb
+-- @category: audioFx
+-- @description: Impulse-response based acoustic space reverb simulator
+local ConvReverb = {}
+
+function ConvReverb.init()
+  Param.choice("IRSample", {"Great Hall", "Cathedral", "Plate Reverb", "Spring Reverb", "Warm Chamber", "Studio Room"}, 0.0)
+  Param.add("DryLevel", 0.0, 1.5, 1.0, 0.05)
+  Param.add("WetLevel", 0.0, 1.5, 0.5, 0.05)
+  Param.add("PreDelayMs", 0.0, 100.0, 10.0, 1.0)
+  Param.add("HighCut", 1000.0, 20000.0, 8000.0, 100.0)
+end
+
+function ConvReverb.process(input_l, input_r, params)
+  return input_l, input_r
+end
+
+function ConvReverb.gui()
+  return {
+    panel = {
+      title = "Convolution Reverb",
+      subtitle = "True Stereo Acoustic Space Modeling",
+      background = "grunge",
+      accent = "#21F4E8",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "listbox", param = "IRSample", label = "SPACE / IMPULSE", width = 140, height = 80 },
+            { type = "knob", param = "DryLevel", label = "DRY" },
+            { type = "knob", param = "WetLevel", label = "WET" },
+            { type = "knob", param = "HighCut", label = "HI-CUT", unit = "Hz" },
+          }
+        }
+      }
+    }
+  }
+end
+
+return ConvReverb
+''',
+    ),
+
+    // 35. Stereo Delay FX
+    LuaPreset(
+      id: 'stereo_delay',
+      name: 'Stereo Delay',
+      category: LuaPresetCategory.audioFx,
+      description: 'Stereo feedback echo delay unit with ping-pong spatial modulation.',
+      code: '''
+-- @name: Stereo Delay
+-- @category: audioFx
+-- @description: Stereo feedback echo delay unit with ping-pong modulation
+local StereoDelay = {}
+
+function StereoDelay.init()
+  Param.add("TimeMs", 20.0, 1000.0, 250.0, 10.0)
+  Param.add("Feedback", 0.0, 0.95, 0.40, 0.05)
+  Param.add("Mix", 0.0, 1.0, 0.35, 0.05)
+end
+
+function StereoDelay.process(input_l, input_r, params)
+  return input_l, input_r
+end
+
+function StereoDelay.gui()
+  return {
+    panel = {
+      title = "Stereo Delay",
+      subtitle = "Dual-Channel Echo & Feedback Unit",
+      background = "dark",
+      accent = "#FFD700",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "TimeMs", label = "TIME", unit = "ms" },
+            { type = "knob", param = "Feedback", label = "FEEDBACK" },
+            { type = "knob", param = "Mix", label = "DRY/WET" },
+          }
+        }
+      }
+    }
+  }
+end
+
+return StereoDelay
+''',
+    ),
+
+    // 36. Lowpass Filter FX
+    LuaPreset(
+      id: 'lowpass_filter',
+      name: 'Lowpass Filter',
+      category: LuaPresetCategory.audioFx,
+      description: 'Analog-modeled 24dB resonant state-variable lowpass filter with drive saturation.',
+      code: '''
+-- @name: Lowpass Filter
+-- @category: audioFx
+-- @description: Analog-modeled 24dB resonant lowpass filter
+local FilterFX = {}
+
+function FilterFX.init()
+  Param.add("Cutoff", 20.0, 20000.0, 3500.0, 50.0)
+  Param.add("Resonance", 0.1, 15.0, 1.5, 0.1)
+end
+
+function FilterFX.process(input_l, input_r, params)
+  return input_l, input_r
+end
+
+function FilterFX.gui()
+  return {
+    panel = {
+      title = "Lowpass Filter",
+      subtitle = "Analog-Modeled 24dB Resonant Filter",
+      background = "snes",
+      accent = "#E040FB",
+      knobStyle = "snes",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Cutoff", label = "CUTOFF", unit = "Hz", knobStyle = "snes", size = 64 },
+            { type = "knob", param = "Resonance", label = "RESONANCE", knobStyle = "snes" },
+          }
+        }
+      }
+    }
+  }
+end
+
+return FilterFX
 ''',
     ),
   ];

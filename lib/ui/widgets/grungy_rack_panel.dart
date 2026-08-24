@@ -34,7 +34,7 @@ class GrungyRackPanel extends StatelessWidget {
     final isSilver = backgroundStyle == PanelBackgroundStyle.silver;
     final isSnes = backgroundStyle == PanelBackgroundStyle.snes;
 
-    final baseAccent = accentColor ?? (isSnes ? const Color(0xFF7B52AB) : (isSilver ? const Color(0xFF00FF9D) : (isGrungy ? const Color(0xFFFF8C00) : EatsTheme.primaryCyan)));
+    final baseAccent = accentColor ?? (isSnes ? const Color(0xFF7B52AB) : (isSilver ? const Color(0xFF141416) : (isGrungy ? const Color(0xFFFF8C00) : EatsTheme.primaryCyan)));
 
     Color basePanel;
     if (panelColor != null) {
@@ -145,16 +145,16 @@ class GrungyRackPanel extends StatelessWidget {
             ),
             child: Row(
               children: [
-                // Stamped LED indicator dot
+                // Stamped LED indicator dot (Vintage Red LED for Silver TB-303)
                 Container(
                   width: 6,
                   height: 6,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: baseAccent,
+                    color: isSilver ? const Color(0xFFFF2222) : baseAccent,
                     boxShadow: [
                       BoxShadow(
-                        color: baseAccent,
+                        color: (isSilver ? const Color(0xFFFF2222) : baseAccent).withOpacity(0.8),
                         blurRadius: 4,
                         spreadRadius: 1,
                       ),

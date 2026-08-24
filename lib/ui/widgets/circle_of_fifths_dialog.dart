@@ -45,6 +45,7 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
   late ChordQuality _selectedQuality;
   int? _selectedBass;
   late double _barLength;
+  int _mobileTabIndex = 0; // 0: Circle of Fifths Wheel, 1: Qualities & Bass
 
   @override
   void initState() {
@@ -87,6 +88,267 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
     _auditionCurrentChord();
   }
 
+  Widget _buildHeroCard(ChordEvent chord, String roman) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            EatsTheme.primaryCyan.withOpacity(0.2),
+            EatsTheme.secondaryMagenta.withOpacity(0.15),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.4)),
+      ),
+      child: Row(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'SELECTED CHORD',
+                style: EatsTheme.getPrimaryFontStyle(
+                  color: EatsTheme.textMuted,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                chord.displayName,
+                style: EatsTheme.getDisplayFontStyle(
+                  color: EatsTheme.textPrimary,
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          // Roman Numeral Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: EatsTheme.controlBackground,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: EatsTheme.accentGold, width: 1.5),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  'DEGREE',
+                  style: EatsTheme.getPrimaryFontStyle(
+                    color: EatsTheme.accentGold,
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  roman,
+                  style: EatsTheme.getDisplayFontStyle(
+                    color: EatsTheme.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWheelWidget(double wheelSize, ChordEvent chord) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: wheelSize,
+          height: wheelSize,
+          child: GestureDetector(
+            onTapUp: (details) => _handleWheelTap(details.localPosition, wheelSize, wheelSize),
+            child: CustomPaint(
+              painter: _CircleOfFifthsPainter(
+                selectedRoot: _selectedRoot,
+                selectedQuality: _selectedQuality,
+                songKeyRoot: widget.dawState.songKeyRoot,
+                isSongKeyMinor: widget.dawState.isSongKeyMinor,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        ElevatedButton.icon(
+          onPressed: _auditionCurrentChord,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: EatsTheme.controlBackground,
+            foregroundColor: EatsTheme.primaryCyan,
+            side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          ),
+          icon: const Icon(Icons.volume_up, size: 18),
+          label: Text(
+            'AUDITION (${chord.displayName})',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModifiersMatrix(ChordEvent chord) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Chord Qualities / Extensions Matrix
+        Text(
+          'CHORD QUALITY & EXTENSIONS',
+          style: EatsTheme.getPrimaryFontStyle(
+            color: EatsTheme.textMuted,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: ChordQuality.values.map((quality) {
+            final isSelected = _selectedQuality == quality;
+            return ChoiceChip(
+              label: Text(
+                quality.displayName,
+                style: TextStyle(
+                  color: isSelected ? Colors.black : EatsTheme.textPrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              selected: isSelected,
+              selectedColor: EatsTheme.primaryCyan,
+              backgroundColor: EatsTheme.controlBackground,
+              side: BorderSide(
+                color: isSelected ? EatsTheme.primaryCyan : EatsTheme.textMuted.withOpacity(0.25),
+              ),
+              onSelected: (_) {
+                setState(() => _selectedQuality = quality);
+                _auditionCurrentChord();
+              },
+            );
+          }).toList(),
+        ),
+
+        const SizedBox(height: 14),
+
+        // Bass Note / Inversion Selector
+        Text(
+          'BASS / SLASH NOTE (INVERSION)',
+          style: EatsTheme.getPrimaryFontStyle(
+            color: EatsTheme.textMuted,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            // Default Root Bass Chip
+            ChoiceChip(
+              label: Text('Root Bass', style: TextStyle(fontSize: 11, color: _selectedBass == null ? Colors.black : EatsTheme.textPrimary)),
+              selected: _selectedBass == null,
+              selectedColor: EatsTheme.accentGold,
+              backgroundColor: EatsTheme.controlBackground,
+              onSelected: (_) => setState(() => _selectedBass = null),
+            ),
+            const SizedBox(width: 8),
+            // Dropdown for custom slash bass
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: EatsTheme.controlBackground,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: EatsTheme.textMuted.withOpacity(0.25)),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<int?>(
+                    value: _selectedBass,
+                    hint: Text('Slash Bass Note (e.g. /E)', style: TextStyle(fontSize: 11, color: EatsTheme.textMuted)),
+                    dropdownColor: EatsTheme.controlBackground,
+                    isExpanded: true,
+                    items: [
+                      DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('None (Default Root)', style: TextStyle(fontSize: 11, color: EatsTheme.textPrimary)),
+                      ),
+                      ...List.generate(12, (pc) {
+                        return DropdownMenuItem<int?>(
+                          value: pc,
+                          child: Text('/${ChordTheory.pitchClassNames[pc]}', style: TextStyle(fontSize: 11, color: EatsTheme.textPrimary)),
+                        );
+                      }),
+                    ],
+                    onChanged: (val) {
+                      setState(() => _selectedBass = val);
+                      _auditionCurrentChord();
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 16),
+
+        // Progression Presets Quick Apply
+        Text(
+          'QUICK PROGRESSION PRESETS',
+          style: EatsTheme.getPrimaryFontStyle(
+            color: EatsTheme.textMuted,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: EatsTheme.controlBackground,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: EatsTheme.accentGold.withOpacity(0.3)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<ChordProgressionPreset>(
+              hint: const Text('Insert Progression from Bar...', style: TextStyle(fontSize: 11, color: EatsTheme.accentGold)),
+              dropdownColor: EatsTheme.controlBackground,
+              isExpanded: true,
+              items: ChordTheory.progressionPresets.map((preset) {
+                return DropdownMenuItem<ChordProgressionPreset>(
+                  value: preset,
+                  child: Text(
+                    '${preset.name} (${preset.genre})',
+                    style: TextStyle(fontSize: 11, color: EatsTheme.textPrimary),
+                  ),
+                );
+              }).toList(),
+              onChanged: (preset) {
+                if (preset != null) {
+                  widget.dawState.applyChordProgressionPreset(preset, startBar: widget.targetBar);
+                  Navigator.of(context).pop();
+                }
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final chord = _currentChord;
@@ -97,12 +359,18 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
       chord.quality,
     );
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isCompact = screenWidth < 700;
+    final dialogWidth = math.min(720.0, screenWidth - 24.0);
+    final dialogMaxHeight = math.min(740.0, screenHeight - 32.0);
+
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
       child: Container(
-        width: 720,
-        constraints: const BoxConstraints(maxHeight: 740),
+        width: dialogWidth,
+        constraints: BoxConstraints(maxHeight: dialogMaxHeight),
         decoration: BoxDecoration(
           color: EatsTheme.backgroundDark,
           borderRadius: BorderRadius.circular(16),
@@ -119,7 +387,7 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
           children: [
             // Header Bar
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 color: EatsTheme.panelHeader,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
@@ -127,19 +395,21 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.album_outlined, color: EatsTheme.primaryCyan, size: 20),
+                  Icon(Icons.album_outlined, color: EatsTheme.primaryCyan, size: 18),
                   const SizedBox(width: 8),
-                  Text(
-                    'CHORD SELECTOR & CIRCLE OF FIFTHS',
-                    style: EatsTheme.getDisplayFontStyle(
-                      color: EatsTheme.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      isCompact ? 'CHORD SELECTOR' : 'CHORD SELECTOR & CIRCLE OF FIFTHS',
+                      style: EatsTheme.getDisplayFontStyle(
+                        color: EatsTheme.textPrimary,
+                        fontSize: isCompact ? 11.5 : 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const Spacer(),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
                     decoration: BoxDecoration(
                       color: EatsTheme.controlBackground,
                       borderRadius: BorderRadius.circular(6),
@@ -147,12 +417,12 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
                     ),
                     child: Text(
                       'KEY: ${widget.dawState.songKey.toUpperCase()}',
-                      style: const TextStyle(color: EatsTheme.accentGold, fontSize: 10, fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: EatsTheme.accentGold, fontSize: 9.5, fontWeight: FontWeight.bold),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
                     decoration: BoxDecoration(
                       color: EatsTheme.controlBackground,
                       borderRadius: BorderRadius.circular(6),
@@ -160,10 +430,10 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
                     ),
                     child: Text(
                       'BAR ${widget.targetBar + 1}',
-                      style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 10, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 9.5, fontWeight: FontWeight.bold),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   InkWell(
                     onTap: () => Navigator.of(context).pop(),
                     child: Icon(Icons.close, color: EatsTheme.textMuted, size: 20),
@@ -172,286 +442,126 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
               ),
             ),
 
-            // Main Body: Wheel & Modifiers Matrix
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+            // Compact Mode Mobile Switcher Tabs
+            if (isCompact) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                child: _buildHeroCard(chord, roman),
+              ),
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: EatsTheme.controlBackground,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.2)),
+                ),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Left Column: Interactive Circle of Fifths Wheel
-                    Column(
-                      children: [
-                        SizedBox(
-                          width: 320,
-                          height: 320,
-                          child: GestureDetector(
-                            onTapUp: (details) => _handleWheelTap(details.localPosition, 320, 320),
-                            child: CustomPaint(
-                              painter: _CircleOfFifthsPainter(
-                                selectedRoot: _selectedRoot,
-                                selectedQuality: _selectedQuality,
-                                songKeyRoot: widget.dawState.songKeyRoot,
-                                isSongKeyMinor: widget.dawState.isSongKeyMinor,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        // Quick Audition Button
-                        ElevatedButton.icon(
-                          onPressed: _auditionCurrentChord,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: EatsTheme.controlBackground,
-                            foregroundColor: EatsTheme.primaryCyan,
-                            side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                          ),
-                          icon: const Icon(Icons.volume_up, size: 18),
-                          label: Text(
-                            'AUDITION (${chord.displayName})',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(width: 20),
-
-                    // Right Column: Chord Preview, Quality Selector & Inversions
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Active Chord Hero Card
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  EatsTheme.primaryCyan.withOpacity(0.2),
-                                  EatsTheme.secondaryMagenta.withOpacity(0.15),
+                      child: InkWell(
+                        onTap: () => setState(() => _mobileTabIndex = 0),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                          decoration: BoxDecoration(
+                            color: _mobileTabIndex == 0 ? EatsTheme.primaryCyan : Colors.transparent,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Center(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.album_outlined, size: 13, color: _mobileTabIndex == 0 ? Colors.black : EatsTheme.textSecondary),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'CIRCLE OF FIFTHS',
+                                    style: EatsTheme.getPrimaryFontStyle(
+                                      color: _mobileTabIndex == 0 ? Colors.black : EatsTheme.textSecondary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                  ),
                                 ],
                               ),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.4)),
-                            ),
-                            child: Row(
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'SELECTED CHORD',
-                                      style: EatsTheme.getPrimaryFontStyle(
-                                        color: EatsTheme.textMuted,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      chord.displayName,
-                                      style: EatsTheme.getDisplayFontStyle(
-                                        color: Colors.white,
-                                        fontSize: 26,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const Spacer(),
-                                // Roman Numeral Badge
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: EatsTheme.controlBackground,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: EatsTheme.accentGold, width: 1.5),
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      Text(
-                                        'DEGREE',
-                                        style: EatsTheme.getPrimaryFontStyle(
-                                          color: EatsTheme.accentGold,
-                                          fontSize: 8,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      Text(
-                                        roman,
-                                        style: EatsTheme.getDisplayFontStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
                             ),
                           ),
-
-                          const SizedBox(height: 14),
-
-                          // Chord Qualities / Extensions Matrix
-                          Text(
-                            'CHORD QUALITY & EXTENSIONS',
-                            style: EatsTheme.getPrimaryFontStyle(
-                              color: EatsTheme.textMuted,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setState(() => _mobileTabIndex = 1),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                          decoration: BoxDecoration(
+                            color: _mobileTabIndex == 1 ? EatsTheme.primaryCyan : Colors.transparent,
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                          const SizedBox(height: 6),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: ChordQuality.values.map((quality) {
-                              final isSelected = _selectedQuality == quality;
-                              return ChoiceChip(
-                                label: Text(
-                                  quality.displayName,
-                                  style: TextStyle(
-                                    color: isSelected ? Colors.black : Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                selected: isSelected,
-                                selectedColor: EatsTheme.primaryCyan,
-                                backgroundColor: EatsTheme.controlBackground,
-                                side: BorderSide(
-                                  color: isSelected ? EatsTheme.primaryCyan : Colors.white.withOpacity(0.12),
-                                ),
-                                onSelected: (_) {
-                                  setState(() => _selectedQuality = quality);
-                                  _auditionCurrentChord();
-                                },
-                              );
-                            }).toList(),
-                          ),
-
-                          const SizedBox(height: 14),
-
-                          // Bass Note / Inversion Selector
-                          Text(
-                            'BASS / SLASH NOTE (INVERSION)',
-                            style: EatsTheme.getPrimaryFontStyle(
-                              color: EatsTheme.textMuted,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              // Default Root Bass Chip
-                              ChoiceChip(
-                                label: const Text('Root Bass', style: TextStyle(fontSize: 11)),
-                                selected: _selectedBass == null,
-                                selectedColor: EatsTheme.accentGold,
-                                backgroundColor: EatsTheme.controlBackground,
-                                onSelected: (_) => setState(() => _selectedBass = null),
-                              ),
-                              const SizedBox(width: 8),
-                              // Dropdown for custom slash bass
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                                  decoration: BoxDecoration(
-                                    color: EatsTheme.controlBackground,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.white.withOpacity(0.15)),
-                                  ),
-                                  child: DropdownButtonHideUnderline(
-                                    child: DropdownButton<int?>(
-                                      value: _selectedBass,
-                                      hint: Text('Slash Bass Note (e.g. /E)', style: TextStyle(fontSize: 11, color: EatsTheme.textMuted)),
-                                      dropdownColor: EatsTheme.controlBackground,
-                                      isExpanded: true,
-                                      items: [
-                                        const DropdownMenuItem<int?>(
-                                          value: null,
-                                          child: Text('None (Default Root)', style: TextStyle(fontSize: 11, color: Colors.white)),
-                                        ),
-                                        ...List.generate(12, (pc) {
-                                          return DropdownMenuItem<int?>(
-                                            value: pc,
-                                            child: Text('/${ChordTheory.pitchClassNames[pc]}', style: const TextStyle(fontSize: 11, color: Colors.white)),
-                                          );
-                                        }),
-                                      ],
-                                      onChanged: (val) {
-                                        setState(() => _selectedBass = val);
-                                        _auditionCurrentChord();
-                                      },
+                          child: Center(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.tune, size: 13, color: _mobileTabIndex == 1 ? Colors.black : EatsTheme.textSecondary),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'QUALITIES & BASS',
+                                    style: EatsTheme.getPrimaryFontStyle(
+                                      color: _mobileTabIndex == 1 ? Colors.black : EatsTheme.textSecondary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 10,
                                     ),
                                   ),
-                                ),
-                              ),
-                            ],
-                          ),
-
-
-
-                          const SizedBox(height: 16),
-
-                          // Progression Presets Quick Apply
-                          Text(
-                            'QUICK PROGRESSION PRESETS',
-                            style: EatsTheme.getPrimaryFontStyle(
-                              color: EatsTheme.textMuted,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            decoration: BoxDecoration(
-                              color: EatsTheme.controlBackground,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: EatsTheme.accentGold.withOpacity(0.3)),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<ChordProgressionPreset>(
-                                hint: const Text('Insert Progression from Bar...', style: TextStyle(fontSize: 11, color: EatsTheme.accentGold)),
-                                dropdownColor: EatsTheme.controlBackground,
-                                isExpanded: true,
-                                items: ChordTheory.progressionPresets.map((preset) {
-                                  return DropdownMenuItem<ChordProgressionPreset>(
-                                    value: preset,
-                                    child: Text(
-                                      '${preset.name} (${preset.genre})',
-                                      style: const TextStyle(fontSize: 11, color: Colors.white),
-                                    ),
-                                  );
-                                }).toList(),
-                                onChanged: (preset) {
-                                  if (preset != null) {
-                                    widget.dawState.applyChordProgressionPreset(preset, startBar: widget.targetBar);
-                                    Navigator.of(context).pop();
-                                  }
-                                },
+                                ],
                               ),
                             ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
+            ],
+
+            // Main Body: Responsive Desktop vs Mobile Tabbed View
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: isCompact
+                    ? (_mobileTabIndex == 0
+                        ? Center(child: _buildWheelWidget(math.min(270.0, dialogWidth - 48), chord))
+                        : _buildModifiersMatrix(chord))
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Left Column: Interactive Circle of Fifths Wheel
+                          _buildWheelWidget(320.0, chord),
+
+                          const SizedBox(width: 20),
+
+                          // Right Column: Chord Preview, Quality Selector & Inversions
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildHeroCard(chord, roman),
+                                const SizedBox(height: 14),
+                                _buildModifiersMatrix(chord),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
             ),
 
             // Footer Action Buttons
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 color: EatsTheme.panelHeader,
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(15)),
@@ -467,14 +577,14 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
                       },
                       style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
                       icon: const Icon(Icons.delete_outline, size: 16),
-                      label: const Text('Delete Chord', style: TextStyle(fontSize: 11)),
+                      label: const Text('Delete', style: TextStyle(fontSize: 11)),
                     ),
                   const Spacer(),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     child: Text('CANCEL', style: TextStyle(color: EatsTheme.textMuted, fontSize: 11)),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   ElevatedButton.icon(
                     onPressed: () {
                       final c = _currentChord;
@@ -488,12 +598,12 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
                       backgroundColor: EatsTheme.primaryCyan,
                       foregroundColor: Colors.black,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
                     ),
-                    icon: const Icon(Icons.check, size: 18),
+                    icon: const Icon(Icons.check, size: 16),
                     label: Text(
                       'APPLY TO BAR ${widget.targetBar + 1}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
                     ),
                   ),
                 ],

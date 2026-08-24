@@ -13,7 +13,7 @@ void main() {
       final audioFxs = LuaPresetLibrary.getPresetsByCategory(LuaPresetCategory.audioFx);
       final midiFxs = LuaPresetLibrary.getPresetsByCategory(LuaPresetCategory.midiFx);
 
-      expect(instruments.any((p) => p.id == 'jc_303' || p.id == 'acid_303'), isTrue);
+      expect(instruments.any((p) => p.id == 'eats_303' || p.id == 'jc_303' || p.id == 'acid_303'), isTrue);
       expect(audioFxs.any((p) => p.id == 'lua_delay'), isTrue);
       expect(midiFxs.any((p) => p.id == 'arpeggiator_midi_fx'), isTrue);
     });

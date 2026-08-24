@@ -7,9 +7,12 @@ import 'package:mobile_wren_daw/lua/lua_gui_model.dart';
 import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
 import 'package:mobile_wren_daw/models/daw_state.dart';
 import 'package:mobile_wren_daw/models/track_model.dart';
+import 'package:mobile_wren_daw/theme/eats_theme.dart';
 import 'package:mobile_wren_daw/ui/widgets/dynamic_instrument_gui_widget.dart';
 import 'package:mobile_wren_daw/ui/widgets/hardware_listbox_widget.dart';
 import 'package:mobile_wren_daw/ui/widgets/skeuomorphic_hardware_knob.dart';
+import 'package:mobile_wren_daw/ui/lua_workbench_view.dart';
+import 'package:mobile_wren_daw/ui/script_view.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -19,7 +22,7 @@ void main() {
   });
 
   group('SoundFont 2 Player Preset & GUI Layout Tests', () {
-    test('SoundFont 2 Player compiles with SNES background and ListBox controls', () {
+    test('SoundFont 2 Player compiles with SNES background, track accent, and 2-row layout', () {
       final sfPreset = LuaPresetLibrary.getPresetById('soundfont_sampler')!;
       final compilation = LuaEngine.compile(sfPreset.code);
 
@@ -29,11 +32,15 @@ void main() {
       final gui = compilation.guiLayout!;
       expect(gui.title, equals('SoundFont 2 Player'));
       expect(gui.backgroundStyle, equals(PanelBackgroundStyle.snes));
-      expect(gui.accentColor, equals(const Color(0xFF21F4E8)));
+      // Follows track-based color scheme
+      expect(gui.accentColor, isNull);
       expect(gui.defaultKnobStyle, equals(KnobStyle.snes));
 
-      // Check ListBox children
-      final row1 = gui.children.first;
+      // Check 2-row layout: Row 1 = ListBoxes, Row 2 = Knobs
+      expect(gui.children.length, equals(2));
+      final row1 = gui.children[0];
+      final row2 = gui.children[1];
+
       final bankListBox = row1.children.firstWhere((c) => c.param == 'SoundFontBank');
       expect(bankListBox.width, equals(160.0));
       expect(bankListBox.height, equals(90.0));
@@ -42,26 +49,29 @@ void main() {
       expect(presetListBox.width, equals(200.0));
       expect(presetListBox.height, equals(90.0));
 
-      // Verify ADSR parameters exist
-      expect(compilation.params.any((p) => p.name == 'AttackSec'), isTrue);
-      expect(compilation.params.any((p) => p.name == 'DecaySec'), isTrue);
-      expect(compilation.params.any((p) => p.name == 'Sustain'), isTrue);
-      expect(compilation.params.any((p) => p.name == 'ReleaseSec'), isTrue);
-      expect(compilation.params.any((p) => p.name == 'Gain'), isTrue);
+      // Row 2 contains the 5 knobs
+      expect(row2.children.length, equals(5));
+      expect(row2.children.any((c) => c.param == 'AttackSec'), isTrue);
+      expect(row2.children.any((c) => c.param == 'DecaySec'), isTrue);
+      expect(row2.children.any((c) => c.param == 'Sustain'), isTrue);
+      expect(row2.children.any((c) => c.param == 'ReleaseSec'), isTrue);
+      expect(row2.children.any((c) => c.param == 'Gain'), isTrue);
+
+      // Verify parameters exist
       expect(compilation.params.any((p) => p.name == 'PresetNum'), isTrue);
       expect(compilation.params.any((p) => p.name == 'BankNum'), isTrue);
     });
   });
 
   group('SoundFont GUI ListBox Widget Interaction Tests', () {
-    testWidgets('DynamicInstrumentGuiWidget renders SoundFont Player with Bank and Preset ListBoxes', (tester) async {
+    testWidgets('DynamicInstrumentGuiWidget renders SoundFont Player with 2-row layout and INSTRUMENT badge', (tester) async {
       final dawState = DawState();
       final sfPreset = LuaPresetLibrary.getPresetById('soundfont_sampler')!;
       final track = TrackChannel(
         id: 'sf_track_1',
         name: 'SoundFont Track',
         type: TrackType.luaScript,
-        color: const Color(0xFF21F4E8),
+        color: const Color(0xFFFF8C00), // Track color (Orange)
         sampleName: 'super_small_font.sf2',
         luaScriptCode: sfPreset.code,
         luaParams: {
@@ -96,6 +106,10 @@ void main() {
       expect(find.text('SOUNDFONT 2 PLAYER'), findsWidgets);
       expect(find.text('Multi-Sample SF2 Bank & Instrument Engine'), findsWidgets);
 
+      // Verify Top Right Badge reads INSTRUMENT
+      expect(find.text('INSTRUMENT'), findsOneWidget);
+      expect(find.text('LUA VSTi'), findsNothing);
+
       // Verify two HardwareListBoxWidgets are rendered
       final listBoxes = find.byType(HardwareListBoxWidget);
       expect(listBoxes, findsNWidgets(2));
@@ -120,7 +134,7 @@ void main() {
         id: 'sf_track_2',
         name: 'SoundFont Track',
         type: TrackType.luaScript,
-        color: const Color(0xFF21F4E8),
+        color: const Color(0xFF00FF66),
         sampleName: 'super_small_font.sf2',
         luaScriptCode: sfPreset.code,
         luaParams: {
@@ -150,7 +164,6 @@ void main() {
       final fontData = SoundFontEngine.instance.getSoundFont('super_small_font.sf2')!;
       expect(fontData.presets.length, greaterThan(1));
 
-      // Pick the second preset from fontData
       final secondPreset = fontData.presets[1];
       final secondPresetLabel = GeneralMidiNames.getPresetDisplayName(
         secondPreset.bankNum,
@@ -177,7 +190,7 @@ void main() {
         id: 'sf_track_3',
         name: 'SoundFont Track',
         type: TrackType.luaScript,
-        color: const Color(0xFF21F4E8),
+        color: const Color(0xFFBD00FF),
         sampleName: 'super_small_font.sf2',
         luaScriptCode: sfPreset.code,
         luaParams: {
@@ -204,7 +217,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Verify custom bank item appears in the list box
       final customBankFinder = find.text('Custom GM Bank');
       expect(customBankFinder, findsOneWidget);
 
@@ -213,6 +225,75 @@ void main() {
 
       expect(track.sampleName, equals('custom_gm.sf2'));
       expect(track.name, equals('Custom GM Bank'));
+    });
+  });
+
+  group('SoundFont Buffer Anti-Clicking Tests', () {
+    test('getPitchShiftedBuffer smoothly fades tail without harsh end clipping', () {
+      final buffer = SoundFontEngine.instance.getPitchShiftedBuffer(
+        fontId: 'super_small_font.sf2',
+        presetNum: 0,
+        midiNote: 60,
+        targetDurationSec: 0.2,
+      );
+
+      expect(buffer.isNotEmpty, isTrue);
+      // Last sample in buffer should fade to near zero
+      expect(buffer.last.abs(), lessThan(0.01));
+    });
+  });
+
+  group('Script Editor Theme Consistency Tests', () {
+    testWidgets('LuaWorkbenchView and ScriptView use readable theme-consistent colors in light theme', (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      EatsTheme.currentPreset = EatsThemePreset.lightSnack;
+      expect(EatsTheme.isLight, isTrue);
+
+      final dawState = DawState();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ScriptView(dawState: dawState),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final scriptTextFields = find.byType(TextField);
+      expect(scriptTextFields, findsOneWidget);
+      final scriptWidget = tester.widget<TextField>(scriptTextFields.first);
+      expect(scriptWidget.style?.color, equals(EatsTheme.codeEditorTextColor));
+      // In light theme, text color is high-contrast slate-900 (Color(0xFF0F172A))
+      expect(scriptWidget.style?.color, equals(const Color(0xFF0F172A)));
+
+      // Also verify LuaWorkbenchView text styling
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 1200,
+              height: 800,
+              child: LuaWorkbenchView(dawState: dawState),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      final workbenchTextFields = find.byType(TextField);
+      expect(workbenchTextFields, findsWidgets);
+      final editorField = tester.widgetList<TextField>(workbenchTextFields).firstWhere(
+        (tf) => tf.maxLines == null,
+      );
+      expect(editorField.style?.color, equals(EatsTheme.codeEditorTextColor));
+      expect(editorField.style?.color, equals(const Color(0xFF0F172A)));
+
+      // Reset theme
+      EatsTheme.currentPreset = EatsThemePreset.ateTrack;
     });
   });
 }

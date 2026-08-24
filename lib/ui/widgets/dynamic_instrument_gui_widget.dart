@@ -13,6 +13,7 @@ import 'eatsbits_slider.dart';
 import 'glowing_nixie_display.dart';
 import 'grungy_rack_panel.dart';
 import 'hardware_listbox_widget.dart';
+import 'interactive_game_canvas_widget.dart';
 import 'lcd_display_widget.dart';
 import 'skeuomorphic_hardware_button.dart';
 import 'skeuomorphic_hardware_knob.dart';
@@ -24,13 +25,24 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
   final DawState dawState;
   final TrackChannel track;
   final bool hideHeader;
+  final void Function(String paramName, double value)? onParamChanged;
 
   const DynamicInstrumentGuiWidget({
     super.key,
     required this.dawState,
     required this.track,
     this.hideHeader = false,
+    this.onParamChanged,
   });
+
+  void _setParam(String paramName, double value) {
+    track.luaParams[paramName] = value;
+    if (onParamChanged != null) {
+      onParamChanged!(paramName, value);
+    } else {
+      dawState.updateLuaParam(paramName, value);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +80,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     final isSilver = layout.backgroundStyle == PanelBackgroundStyle.silver;
     final isSnes = layout.backgroundStyle == PanelBackgroundStyle.snes;
     final isLightChassis = isSilver || isSnes;
-    final baseAccent = layout.accentColor ?? track.color;
+    final baseAccent = layout.accentColor ?? (isSilver ? const Color(0xFF141416) : track.color);
     final hasUpgrade = dawState.isPresetUpgradeAvailable(track);
 
     if (hideHeader) {
@@ -158,19 +170,19 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: baseAccent.withOpacity(0.18),
+                  color: (isSilver ? const Color(0xFF141416) : baseAccent).withOpacity(isSilver ? 0.08 : 0.18),
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: baseAccent.withOpacity(0.5)),
+                  border: Border.all(color: (isSilver ? const Color(0xFF141416) : baseAccent).withOpacity(isSilver ? 0.35 : 0.5)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.memory, size: 12, color: baseAccent),
+                    Icon(Icons.piano, size: 12, color: isSilver ? const Color(0xFF141416) : baseAccent),
                     const SizedBox(width: 4),
                     Text(
-                      'LUA VSTi',
+                      'INSTRUMENT',
                       style: EatsTheme.getPrimaryFontStyle(
-                        color: baseAccent,
+                        color: isSilver ? const Color(0xFF141416) : baseAccent,
                         fontSize: 9.5,
                         fontWeight: FontWeight.bold,
                       ),
@@ -316,7 +328,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           isLightChassis: isLightChassis,
           onChanged: (val) {
             final snapped = paramDef.isInteger ? val.roundToDouble() : val;
-            dawState.updateLuaParam(paramDef.name, snapped);
+            _setParam(paramDef.name, snapped);
           },
           onChangeStart: () => dawState.beginHistoryTransaction(
             '${paramDef.name} (${track.name})',
@@ -346,7 +358,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           activeColor: accent,
           onChanged: (val) {
             final snapped = paramDef.isInteger ? val.roundToDouble() : val;
-            dawState.updateLuaParam(paramDef.name, snapped);
+            _setParam(paramDef.name, snapped);
           },
           onChangeStart: () => dawState.beginHistoryTransaction(
             '${paramDef.name} (${track.name})',
@@ -364,14 +376,21 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         final rawVal = (track.luaParams[node.param] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
         final bool isChecked = rawVal > 0.5;
 
+        final isEats303 = track.name.toLowerCase().contains('303') ||
+            track.luaScriptCode.contains('Eats303') ||
+            track.luaScriptCode.contains('JC303');
+        final switchStyle = isEats303 ? SwitchStyle.vintageBat : SwitchStyle.modernPill;
+
         return SkeuomorphicHardwareSwitch(
+          style: switchStyle,
           label: node.label ?? paramDef.name.toUpperCase(),
           value: isChecked,
           activeColor: accent,
           ledColor: accent,
+          showText: !isEats303,
           onChanged: (bool val) {
             dawState.beginHistoryTransaction('Toggle ${paramDef.name} (${track.name})', icon: Icons.toggle_on);
-            dawState.updateLuaParam(paramDef.name, val ? 1.0 : 0.0);
+            _setParam(paramDef.name, val ? 1.0 : 0.0);
             dawState.commitHistoryTransaction();
           },
         );
@@ -400,17 +419,25 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               dawState.beginHistoryTransaction('Randomize ${track.name}', icon: Icons.casino);
               for (final entry in newParams.entries) {
                 track.luaParams[entry.key] = entry.value;
-                dawState.updateLuaParam(entry.key, entry.value);
+                _setParam(entry.key, entry.value);
               }
               dawState.commitHistoryTransaction();
+
+              // Auto-audition a brief C5 (MIDI 72) note for instant SFX preview
+              dawState.audioEngine.playNoteOrSample(
+                track: track,
+                midiNote: 72,
+                velocity: 0.85,
+                durationSec: 0.6,
+              );
               return;
             }
 
             if (node.param != null) {
               final paramDef = _findParam(node.param, compilation);
-              dawState.updateLuaParam(paramDef.name, 1.0);
+              _setParam(paramDef.name, 1.0);
               Future.delayed(const Duration(milliseconds: 150), () {
-                dawState.updateLuaParam(paramDef.name, 0.0);
+                _setParam(paramDef.name, 0.0);
               });
             }
           },
@@ -448,8 +475,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               track.luaParams['Preset'] = 0.0;
               track.luaParams['PresetNum'] = 0.0;
               track.luaParams['BankNum'] = 0.0;
-              dawState.updateLuaParam('PresetNum', 0.0);
-              dawState.updateLuaParam('BankNum', 0.0);
+              _setParam('PresetNum', 0.0);
+              _setParam('BankNum', 0.0);
             }
           };
         }
@@ -483,8 +510,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               track.luaParams[paramDef.name] = newIdx.toDouble();
               track.luaParams['PresetNum'] = p.presetNum.toDouble();
               track.luaParams['BankNum'] = p.bankNum.toDouble();
-              dawState.updateLuaParam('PresetNum', p.presetNum.toDouble());
-              dawState.updateLuaParam('BankNum', p.bankNum.toDouble());
+              _setParam('PresetNum', p.presetNum.toDouble());
+              _setParam('BankNum', p.bankNum.toDouble());
             }
           };
         }
@@ -498,9 +525,17 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             dawState.beginHistoryTransaction('Select SFX Type (${track.name})', icon: Icons.casino);
             for (final entry in newParams.entries) {
               track.luaParams[entry.key] = entry.value;
-              dawState.updateLuaParam(entry.key, entry.value);
+              _setParam(entry.key, entry.value);
             }
             dawState.commitHistoryTransaction();
+
+            // Auto-audition a brief C5 (MIDI 72) note for instant SFX preview
+            dawState.audioEngine.playNoteOrSample(
+              track: track,
+              midiNote: 72,
+              velocity: 0.85,
+              durationSec: 0.6,
+            );
           };
         }
 
@@ -527,7 +562,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           final finalVal = paramDef.isInteger ? clamped.roundToDouble() : clamped;
           dawState.beginHistoryTransaction('Set ${paramDef.name} (${track.name})', icon: Icons.tune);
           track.luaParams[paramDef.name] = finalVal;
-          dawState.updateLuaParam(paramDef.name, finalVal);
+          _setParam(paramDef.name, finalVal);
 
           if ((paramDef.name == 'Seed' || paramDef.name == 'SFXType') && track.luaParams.containsKey('SFXType')) {
             final sfxType = (track.luaParams['SFXType'] ?? 0.0).toInt();
@@ -535,8 +570,14 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             final newParams = SNESSFXRGenerator.generateParamsForType(sfxType, seed: seed);
             for (final entry in newParams.entries) {
               track.luaParams[entry.key] = entry.value;
-              dawState.updateLuaParam(entry.key, entry.value);
+              _setParam(entry.key, entry.value);
             }
+            dawState.audioEngine.playNoteOrSample(
+              track: track,
+              midiNote: 72,
+              velocity: 0.85,
+              durationSec: 0.6,
+            );
           }
           dawState.commitHistoryTransaction();
         }
@@ -608,6 +649,17 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             fontSize: 11,
             fontWeight: FontWeight.bold,
           ),
+        );
+
+      case LuaGuiNodeType.canvas:
+      case LuaGuiNodeType.dpad:
+      case LuaGuiNodeType.gamepad:
+        return InteractiveGameCanvasWidget(
+          dawState: dawState,
+          track: track,
+          node: node,
+          accentColor: accent,
+          isLightChassis: isLightChassis,
         );
 
       case LuaGuiNodeType.spacer:
@@ -821,7 +873,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                             onChanged: (val) {
                               if (val != null) {
                                 dawState.beginHistoryTransaction('Change ${paramDef.name} (${track.name})', icon: Icons.tune);
-                                dawState.updateLuaParam(paramDef.name, val);
+                                _setParam(paramDef.name, val);
                                 dawState.commitHistoryTransaction();
                               }
                             },
@@ -859,7 +911,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                       activeColor: baseAccent,
                       onChanged: (val) {
                         final snapped = paramDef.isInteger ? val.roundToDouble() : val;
-                        dawState.updateLuaParam(paramDef.name, snapped);
+                        _setParam(paramDef.name, snapped);
                       },
                       onChangeStart: () => dawState.beginHistoryTransaction(
                         '${paramDef.name} (${track.name})',

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'graph_node.dart';
+import 'tr909_rom_data.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  OSCILLATORS & SOURCES
@@ -297,6 +298,291 @@ class AdsrEnvNode extends GraphNode {
         final double prog = (t - gate) / r;
         outBuffer[i] = (s * math.max(0.0, 1.0 - prog)).clamp(0.0, 1.0);
       }
+    }
+  }
+}
+
+/// Multi-Burst Trigger Envelope for authentic Handclap synthesis (Roland TR-808/909 model).
+/// Produces [burstCount] rapid micro-transient decay bursts spaced by [burstIntervalSec],
+/// followed by a main diffuse reverberant decay tail.
+class MultiBurstEnvNode extends GraphNode {
+  final int burstCount;
+  final double burstIntervalSec;
+  final String? spreadParam;
+  final double burstDecaySec;
+  final double tailDecaySec;
+  final String? decayParam;
+
+  const MultiBurstEnvNode({
+    this.burstCount = 4,
+    this.burstIntervalSec = 0.011,
+    this.spreadParam,
+    this.burstDecaySec = 0.008,
+    this.tailDecaySec = 0.28,
+    this.decayParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double spread = math.max(
+      0.003,
+      spreadParam != null ? ctx.getParam(spreadParam!, burstIntervalSec) : burstIntervalSec,
+    );
+    final double tailDecay = math.max(
+      0.01,
+      decayParam != null ? ctx.getParam(decayParam!, tailDecaySec) : tailDecaySec,
+    );
+    final double sr = ctx.sampleRate;
+    final double tailStartTime = (burstCount - 1) * spread;
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+      double amp = 0.0;
+
+      // 1. Check micro bursts
+      for (int b = 0; b < burstCount; b++) {
+        final double bTime = b * spread;
+        if (t >= bTime) {
+          final double dt = t - bTime;
+          final double bAmp = math.exp(-dt * (4.0 / burstDecaySec));
+          if (bAmp > amp) amp = bAmp;
+        }
+      }
+
+      // 2. Main tail starting at the final burst
+      if (t >= tailStartTime) {
+        final double dt = t - tailStartTime;
+        final double tAmp = math.exp(-dt * (4.0 / tailDecay));
+        if (tAmp > amp) amp = tAmp;
+      }
+
+      outBuffer[i] = amp.clamp(0.0, 1.0);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  AUTHENTIC ROLAND TR-909 HARDWARE/ROM DSP NODES (André Michelle Model)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Authentic TR-909 Bass Drum DSP node.
+/// Reconstructs the exact physical circuit: single-cycle analog oscillator wavetable
+/// swept exponentially from 274Hz to 53Hz with 60ms release hold, exponential decay,
+/// and interpolated beater click attack transient.
+class Tr909KickNode extends GraphNode {
+  final double tune; // 0.007 to 0.0294 (pitch decay time constant)
+  final String? tuneParam;
+  final double decay; // 0.012 to 0.100 (amplitude decay time constant)
+  final String? decayParam;
+  final double attackLevel; // 0.0 to 1.5
+  final String? attackParam;
+
+  const Tr909KickNode({
+    this.tune = 0.018,
+    this.tuneParam,
+    this.decay = 0.050,
+    this.decayParam,
+    this.attackLevel = 1.0,
+    this.attackParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double srInv = 1.0 / sr;
+    final cycle = Tr909RomData.bassdrum_cycle;
+    final attack = Tr909RomData.bassdrum_attack;
+
+    double tTune = tuneParam != null ? ctx.getParam(tuneParam!, tune) : tune;
+    if (tTune > 1.0) {
+      tTune = (0.007 + ((tTune - 35.0) / 50.0).clamp(0.0, 1.0) * (0.0294 - 0.007));
+    }
+    tTune = tTune.clamp(0.003, 0.100);
+
+    double tDecay = decayParam != null ? ctx.getParam(decayParam!, decay) : decay;
+    if (tDecay > 0.5) {
+      tDecay = (0.012 + ((tDecay - 0.1) / 1.7).clamp(0.0, 1.0) * (0.100 - 0.012));
+    }
+    tDecay = tDecay.clamp(0.005, 0.300);
+
+    final double tAttack = attackParam != null ? ctx.getParam(attackParam!, attackLevel) : attackLevel;
+
+    final double gainCoeff = math.exp(-1.0 / (sr * tDecay));
+    final double freqCoeff = math.exp(-1.0 / (sr * tTune));
+    final double attackRate = 44100.0 * srInv;
+
+    double gainEnv = 1.0;
+    double freqEnv = 274.0;
+    double time = 0.0;
+    double phase = 0.0;
+    double attackPos = 0.0;
+
+    const double releaseStartTime = 0.060;
+    const double freqEnd = 53.0;
+
+    final int len = outBuffer.length;
+    for (int i = 0; i < len; i++) {
+      if (time > releaseStartTime) {
+        gainEnv *= gainCoeff;
+      }
+
+      final double pos = (phase - phase.floorToDouble()) * cycle.length;
+      final int posInt = pos.floor();
+      final double alpha = pos - posInt;
+      final double p0 = cycle[posInt % cycle.length];
+      final double p1 = cycle[(posInt + 1) % cycle.length];
+      final double cycleSample = p0 + alpha * (p1 - p0);
+
+      double sample = cycleSample * gainEnv;
+
+      if (attackPos < attack.length - 1) {
+        final int pi = attackPos.toInt();
+        final double a0 = attack[pi];
+        final double a1 = attack[pi + 1];
+        sample += (a0 + (attackPos - pi) * (a1 - a0)) * tAttack;
+        attackPos += attackRate;
+      }
+
+      outBuffer[i] = sample;
+
+      time += srInv;
+      phase += freqEnv * srInv;
+      phase -= phase.floorToDouble();
+      freqEnv = freqEnd + freqCoeff * (freqEnv - freqEnd);
+    }
+  }
+}
+
+/// Authentic TR-909 Snare Drum DSP node.
+/// Plays dual layers: tuned tonal body (snare-tone) + snappy noise wires (snare-noise).
+class Tr909SnareNode extends GraphNode {
+  final double tune; // pitch semitone offset (-0.5 to +0.5)
+  final String? tuneParam;
+  final double tone; // noise decay time constant (0.04 to 0.20)
+  final String? toneParam;
+  final double snappy; // noise wire gain (0.0 to 1.5)
+  final String? snappyParam;
+
+  const Tr909SnareNode({
+    this.tune = 0.0,
+    this.tuneParam,
+    this.tone = 0.12,
+    this.toneParam,
+    this.snappy = 1.0,
+    this.snappyParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double srInv = 1.0 / sr;
+    final toneBuf = Tr909RomData.snare_tone;
+    final noiseBuf = Tr909RomData.snare_noise;
+
+    double tTune = tuneParam != null ? ctx.getParam(tuneParam!, tune) : tune;
+    if (tTune > 2.0) {
+      tTune = (tTune - 195.0) / 100.0;
+    }
+    tTune = tTune.clamp(-0.8, 0.8);
+
+    double tTone = toneParam != null ? ctx.getParam(toneParam!, tone) : tone;
+    if (tTone < 0.01) tTone = 0.01;
+    if (tTone > 0.5) tTone = 0.5;
+
+    final double tSnappy = snappyParam != null ? ctx.getParam(snappyParam!, snappy) : snappy;
+
+    final double tuneRate = 44100.0 * srInv * math.pow(2.0, tTune);
+    final double noiseRate = 44100.0 * srInv;
+    final double noiseGainCoeff = math.exp(-1.0 / (sr * tTone));
+
+    double tonePos = 0.0;
+    double noisePos = 0.0;
+    double noiseGain = tSnappy;
+
+    final int len = outBuffer.length;
+    for (int i = 0; i < len; i++) {
+      double sample = 0.0;
+
+      if (tonePos < toneBuf.length - 1) {
+        final int pi = tonePos.toInt();
+        final double p0 = toneBuf[pi];
+        final double p1 = toneBuf[pi + 1];
+        sample += p0 + (tonePos - pi) * (p1 - p0);
+        tonePos += tuneRate;
+      }
+
+      if (noisePos < noiseBuf.length - 1) {
+        final int pi = noisePos.toInt();
+        final double p0 = noiseBuf[pi];
+        final double p1 = noiseBuf[pi + 1];
+        sample += (p0 + (noisePos - pi) * (p1 - p0)) * noiseGain;
+        noiseGain *= noiseGainCoeff;
+        noisePos += noiseRate;
+      }
+
+      outBuffer[i] = sample;
+    }
+  }
+}
+
+/// Authentic TR-909 ROM Sample voice.
+/// Interpolates 6-bit compressed PCM recordings (Hi-Hats, Clap, Rimshot, Toms)
+/// with variable pitch tuning and exponential release decay.
+class Tr909SampleVoiceNode extends GraphNode {
+  final Float32List Function() getBuffer;
+  final double tune;
+  final String? tuneParam;
+  final double decay;
+  final String? decayParam;
+  final double releaseStartTime;
+
+  const Tr909SampleVoiceNode({
+    required this.getBuffer,
+    this.tune = 0.0,
+    this.tuneParam,
+    this.decay = 0.100,
+    this.decayParam,
+    this.releaseStartTime = 0.0,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double srInv = 1.0 / sr;
+    final buffer = getBuffer();
+
+    double tTune = tuneParam != null ? ctx.getParam(tuneParam!, tune) : tune;
+    if (tTune > 2.0) {
+      tTune = 0.0;
+    }
+    tTune = tTune.clamp(-0.8, 0.8);
+
+    double tDecay = decayParam != null ? ctx.getParam(decayParam!, decay) : decay;
+    tDecay = tDecay.clamp(0.005, 1.5);
+
+    final double rate = 44100.0 * srInv * math.pow(2.0, tTune);
+    final double envCoeff = math.exp(-1.0 / (sr * tDecay));
+    final int releaseStartFrame = (releaseStartTime * sr).toInt();
+
+    double pos = 0.0;
+    double env = 1.0;
+    int frame = 0;
+
+    final int len = outBuffer.length;
+    for (int i = 0; i < len; i++) {
+      if (pos >= buffer.length - 1) {
+        break;
+      }
+
+      if (frame++ >= releaseStartFrame) {
+        env *= envCoeff;
+      }
+
+      final int pi = pos.toInt();
+      final double v0 = buffer[pi];
+      final double v1 = buffer[pi + 1];
+      outBuffer[i] = (v0 + (pos - pi) * (v1 - v0)) * env;
+      pos += rate;
     }
   }
 }

@@ -179,6 +179,9 @@ class FXInsert {
   double mix; // Dry/Wet 0.0 - 1.0
   Map<String, double> params; // e.g. 'cutoff': 2000, 'resonance': 3.0
   String? irSampleName; // Active Impulse Response name for convolutionReverb
+  String? luaScriptCode; // Full Lua script code if Lua FX / visualizer
+  String? presetId; // Preset identifier from LuaPresetLibrary
+  Map<String, double> luaParams; // Custom Lua params
 
   FXInsert({
     required this.id,
@@ -188,49 +191,72 @@ class FXInsert {
     this.mix = 0.5,
     required this.params,
     this.irSampleName,
-  });
+    this.luaScriptCode,
+    this.presetId,
+    Map<String, double>? luaParams,
+  }) : luaParams = luaParams ?? {};
 
-  factory FXInsert.create(FXType type) {
+  bool get isLuaFX => type == FXType.luaFX || (luaScriptCode != null && luaScriptCode!.isNotEmpty);
+
+  factory FXInsert.create(
+    FXType type, {
+    String? name,
+    String? luaScriptCode,
+    String? presetId,
+    Map<String, double>? luaParams,
+  }) {
     final id = 'fx_${DateTime.now().millisecondsSinceEpoch}_${type.name}';
     switch (type) {
       case FXType.convolutionReverb:
         return FXInsert(
           id: id,
-          name: 'Convolution Reverb',
+          name: name ?? 'Convolution Reverb',
           type: FXType.convolutionReverb,
           mix: 0.5,
           params: {'DryLevel': 1.0, 'WetLevel': 0.5, 'PreDelayMs': 10.0, 'HighCut': 8000.0},
           irSampleName: 'Great Hall',
+          luaScriptCode: luaScriptCode,
+          presetId: presetId,
+          luaParams: luaParams,
         );
 
       case FXType.distortion:
         return FXInsert(
           id: id,
-          name: 'Tube Distortion',
+          name: name ?? 'Tube Distortion',
           type: FXType.distortion,
           mix: 0.5,
           params: {'Drive': 0.5, 'Tone': 5000.0},
+          luaScriptCode: luaScriptCode,
+          presetId: presetId,
+          luaParams: luaParams,
         );
       case FXType.bitcrusher:
         return FXInsert(
           id: id,
-          name: 'Bitcrusher 8-Bit',
+          name: name ?? 'Bitcrusher 8-Bit',
           type: FXType.bitcrusher,
           mix: 0.6,
           params: {'Bits': 8.0, 'Downsample': 4.0},
+          luaScriptCode: luaScriptCode,
+          presetId: presetId,
+          luaParams: luaParams,
         );
       case FXType.delay:
         return FXInsert(
           id: id,
-          name: 'Stereo Delay',
+          name: name ?? 'Stereo Delay',
           type: FXType.delay,
           mix: 0.3,
           params: {'TimeMs': 250.0, 'Feedback': 0.4},
+          luaScriptCode: luaScriptCode,
+          presetId: presetId,
+          luaParams: luaParams,
         );
       case FXType.compressor:
         return FXInsert(
           id: id,
-          name: 'Dynamics Compressor',
+          name: name ?? 'Dynamics Compressor',
           type: FXType.compressor,
           mix: 1.0,
           params: {
@@ -240,11 +266,14 @@ class FXInsert {
             'Release': 0.25,
             'Knee': 12.0,
           },
+          luaScriptCode: luaScriptCode,
+          presetId: presetId,
+          luaParams: luaParams,
         );
       case FXType.limiter:
         return FXInsert(
           id: id,
-          name: 'Master Limiter',
+          name: name ?? 'Master Limiter',
           type: FXType.limiter,
           mix: 1.0,
           params: {
@@ -252,15 +281,32 @@ class FXInsert {
             'Release': 0.05,
             'Ceiling': -0.1,
           },
+          luaScriptCode: luaScriptCode,
+          presetId: presetId,
+          luaParams: luaParams,
+        );
+      case FXType.luaFX:
+        return FXInsert(
+          id: id,
+          name: name ?? 'Lua FX',
+          type: FXType.luaFX,
+          mix: 1.0,
+          params: {},
+          luaScriptCode: luaScriptCode,
+          presetId: presetId,
+          luaParams: luaParams,
         );
       case FXType.biquadFilter:
       default:
         return FXInsert(
           id: id,
-          name: 'Lowpass Filter',
+          name: name ?? 'Lowpass Filter',
           type: FXType.biquadFilter,
           mix: 1.0,
           params: {'Cutoff': 3500.0, 'Resonance': 1.5},
+          luaScriptCode: luaScriptCode,
+          presetId: presetId,
+          luaParams: luaParams,
         );
     }
   }
@@ -273,6 +319,9 @@ class FXInsert {
     'mix': mix,
     'params': params,
     'irSampleName': irSampleName,
+    'luaScriptCode': luaScriptCode,
+    'presetId': presetId,
+    'luaParams': luaParams,
   };
 
   factory FXInsert.fromJson(Map<String, dynamic> json) => FXInsert(
@@ -283,6 +332,9 @@ class FXInsert {
     mix: (json['mix'] as num?)?.toDouble() ?? 0.5,
     params: Map<String, double>.from(json['params'] ?? {}),
     irSampleName: json['irSampleName'] as String?,
+    luaScriptCode: json['luaScriptCode'] as String?,
+    presetId: json['presetId'] as String?,
+    luaParams: Map<String, double>.from(json['luaParams'] ?? {}),
   );
 }
 
@@ -481,6 +533,9 @@ class TrackChannel {
       type == TrackType.bass ||
       name.toLowerCase().contains('303') ||
       name.toLowerCase().contains('bass') ||
+      luaScriptCode.contains('Eats303') ||
+      luaScriptCode.contains('Eats-303') ||
+      luaScriptCode.contains('eats_303') ||
       luaScriptCode.contains('JC303') ||
       luaScriptCode.contains('JC-303') ||
       luaScriptCode.contains('Acid303') ||

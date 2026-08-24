@@ -248,14 +248,14 @@ end''',
             // Code Editor Canvas with Line Numbers
             Expanded(
               child: Container(
-                color: isGrungy ? const Color(0xFF141210) : const Color(0xFF12141C),
+                color: EatsTheme.codeEditorBackground,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // Line Number Gutter
                     Container(
                       width: 36,
-                      color: isGrungy ? const Color(0xFF1B1814) : const Color(0xFF0D0E14),
+                      color: EatsTheme.codeEditorGutterBackground,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
@@ -270,7 +270,7 @@ end''',
                                 fontSize: 11,
                                 color: (i + 1 == _compilationResult.errorLine)
                                     ? Colors.redAccent
-                                    : EatsTheme.textMuted,
+                                    : EatsTheme.codeEditorGutterTextColor,
                               ),
                             ),
                           ),
@@ -288,11 +288,11 @@ end''',
                           maxLines: null,
                           expands: true,
                           keyboardType: TextInputType.multiline,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 12,
                             height: 1.3,
-                            color: Color(0xFF00FFCC),
+                            color: EatsTheme.codeEditorTextColor,
                           ),
                           decoration: InputDecoration(
                             border: InputBorder.none,

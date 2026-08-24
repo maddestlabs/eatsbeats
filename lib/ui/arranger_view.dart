@@ -36,11 +36,12 @@ class _ArrangerViewState extends State<ArrangerView> {
 
   bool _isSyncingScroll = false;
   bool _isMiddleMouseDragging = false;
-  bool _showInspector = false;
-  static const double _kDefaultInspectorWidth = 290.0;
-  static const double _kMinInspectorWidth = 290.0;
-  static const double _kMaxInspectorWidth = 720.0;
-  double _inspectorWidth = _kDefaultInspectorWidth;
+  bool _isPropertiesExpanded = false;
+  static const double _kMinPropertiesWidth = 290.0;
+  static const double _kDefaultPropertiesWidth = _kMinPropertiesWidth;
+  static const double _kMaxPropertiesWidth = 720.0;
+  static const double _kPropertiesPullTabWidth = 24.0;
+  double _propertiesWidth = _kDefaultPropertiesWidth;
   double _moveDragDxAccumulator = 0.0;
   double _resizeDragDxAccumulator = 0.0;
   double _chordMoveDragDxAccumulator = 0.0;
@@ -68,7 +69,9 @@ class _ArrangerViewState extends State<ArrangerView> {
     final double loopStartX = widget.dawState.loopStartBar * barWidth;
     final double loopWidth = (widget.dawState.loopEndBar - widget.dawState.loopStartBar) * barWidth;
     final bool isBrowserOpen = widget.dawState.isBrowserOpen;
-    final bool isInspectorVisible = _showInspector;
+    final double drawerWidth = _isPropertiesExpanded
+        ? _kPropertiesPullTabWidth + _propertiesWidth
+        : _kPropertiesPullTabWidth;
 
     return Stack(
       children: [
@@ -79,14 +82,10 @@ class _ArrangerViewState extends State<ArrangerView> {
           top: 0,
           bottom: 0,
           left: 0,
-          right: (isBrowserOpen ? 320.0 : 0.0) + (isInspectorVisible ? _inspectorWidth : 0.0),
-          child: Column(
+          right: (isBrowserOpen ? 320.0 : 0.0) + drawerWidth,
+          child: Row(
             children: [
-              // Multitrack Grid & Track Panels (Synchronized Scroll)
-              Expanded(
-                child: Row(
-                  children: [
-                      // Left Panel: Vertical Track Control Strips (Synced Scroll)
+              // Left Panel: Vertical Track Control Strips (Synced Scroll)
                       SizedBox(
                         width: 210,
                         child: Column(
@@ -156,6 +155,10 @@ class _ArrangerViewState extends State<ArrangerView> {
                             tooltip: 'Song Key: ${widget.dawState.songKey}',
                             color: EatsTheme.controlBackground,
                             padding: EdgeInsets.zero,
+                            popUpAnimationStyle: const AnimationStyle(
+                              duration: Duration(milliseconds: 100),
+                              curve: Curves.fastOutSlowIn,
+                            ),
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                               decoration: BoxDecoration(
@@ -179,7 +182,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                 'C Major', 'G Major', 'D Major', 'A Major', 'E Major', 'B Major', 'F# Major', 'Db Major', 'Ab Major', 'Eb Major', 'Bb Major', 'F Major',
                                 'A Minor', 'E Minor', 'B Minor', 'F# Minor', 'C# Minor', 'G# Minor', 'D# Minor', 'Bb Minor', 'F Minor', 'C Minor', 'G Minor', 'D Minor',
                               ];
-                              return keys.map((k) => PopupMenuItem(value: k, child: Text(k, style: const TextStyle(fontSize: 11, color: Colors.white)))).toList();
+                              return keys.map((k) => PopupMenuItem(value: k, child: Text(k, style: TextStyle(fontSize: 11, color: EatsTheme.textPrimary)))).toList();
                             },
                             onSelected: (k) => widget.dawState.setSongKey(k),
                           ),
@@ -400,12 +403,12 @@ class _ArrangerViewState extends State<ArrangerView> {
 
                                   return GestureDetector(
                                     onLongPress: () {
-                                      setState(() => _showInspector = true);
+                                      setState(() => _isPropertiesExpanded = true);
                                       widget.dawState.activeTrackIndex = trackIdx;
                                       widget.dawState.selectClip(null);
                                     },
                                     onSecondaryTap: () {
-                                      setState(() => _showInspector = true);
+                                      setState(() => _isPropertiesExpanded = true);
                                       widget.dawState.activeTrackIndex = trackIdx;
                                       widget.dawState.selectClip(null);
                                     },
@@ -1128,16 +1131,16 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                          widget.dawState.openClipInEditor(clip);
                                                        }
                                                      },
-                                                     onSecondaryTap: () {
-                                                       setState(() => _showInspector = true);
-                                                       widget.dawState.activeTrackIndex = trackIdx;
-                                                       widget.dawState.selectClip(clip);
-                                                     },
-                                                     onLongPress: () {
-                                                       setState(() => _showInspector = true);
-                                                       widget.dawState.activeTrackIndex = trackIdx;
-                                                       widget.dawState.selectClip(clip);
-                                                     },
+                                                      onSecondaryTap: () {
+                                                        setState(() => _isPropertiesExpanded = true);
+                                                        widget.dawState.activeTrackIndex = trackIdx;
+                                                        widget.dawState.selectClip(clip);
+                                                      },
+                                                      onLongPress: () {
+                                                        setState(() => _isPropertiesExpanded = true);
+                                                        widget.dawState.activeTrackIndex = trackIdx;
+                                                        widget.dawState.selectClip(clip);
+                                                      },
                                                      onHorizontalDragStart: (_) {
                                                        _moveDragDxAccumulator = 0.0;
                                                        widget.dawState.beginHistoryTransaction('Move Clip "${clip.name}"', icon: Icons.open_with);
@@ -1384,96 +1387,128 @@ class _ArrangerViewState extends State<ArrangerView> {
         ],
       ),
     ),
-  ],
-),
-),
 
-  // Right-Sidebar Properties Icon Tab (Always visible when inspector is closed so user can tap/click to open)
-  if (!isInspectorVisible)
-    Positioned(
-      top: 36,
+    // Right-Sidebar Vertical Track Properties Pullout Drawer (Styled with exact pullout method from Virtual Piano Keyboard)
+    AnimatedPositioned(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.fastOutSlowIn,
+      top: 0,
+      bottom: 0,
       right: isBrowserOpen ? 320.0 : 0.0,
-      child: Tooltip(
-        message: 'Open Properties Panel',
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => setState(() => _showInspector = true),
-            borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 8),
-              decoration: BoxDecoration(
-                color: EatsTheme.panelHeader,
-                borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)),
-                border: Border(
-                  left: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6), width: 1.2),
-                  top: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6), width: 1.2),
-                  bottom: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6), width: 1.2),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.4),
-                    blurRadius: 4,
-                    offset: const Offset(-2, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.tune,
-                    size: 15,
-                    color: EatsTheme.primaryCyan,
-                  ),
-                  const SizedBox(height: 6),
-                  RotatedBox(
-                    quarterTurns: 3,
-                    child: Text(
-                      'PROPERTIES',
-                      style: TextStyle(
-                        color: EatsTheme.textSecondary,
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+      width: drawerWidth,
+      child: _buildVerticalTrackPropertiesPullout(context),
+    ),
+  ],
+);
+  }
+
+  Widget _buildVerticalTrackPropertiesPullout(BuildContext context) {
+    final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
+    final activeTrack = widget.dawState.activeTrack;
+    final activeClip = widget.dawState.activeClip;
+    final trackColor = activeTrack.color;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isGrungy ? const Color(0xFF1B1815) : EatsTheme.panelBackground,
+        border: Border(
+          left: BorderSide(
+            color: isGrungy ? const Color(0xFF4A423A) : EatsTheme.panelHeader,
+            width: 1.5,
           ),
         ),
       ),
-    ),
-
-  // Right-Hand Context Inspector (Aligns to left of Project Browser when open, or right screen edge when closed)
-  AnimatedPositioned(
-    duration: const Duration(milliseconds: 150),
-    curve: Curves.fastOutSlowIn,
-    top: 0,
-    bottom: 0,
-    right: isInspectorVisible
-        ? (isBrowserOpen ? 320.0 : 0.0)
-        : -(_inspectorWidth + 10.0),
-    width: _inspectorWidth,
-    child: RepaintBoundary(
-      child: isInspectorVisible
-          ? ArrangerContextInspector(
-              dawState: widget.dawState,
-              width: _inspectorWidth,
-              onClose: () => setState(() => _showInspector = false),
-              onResize: (deltaX) {
+      child: Row(
+        children: [
+          // Vertical Pull Tab Strip (24px wide, full height)
+          Tooltip(
+            message: _isPropertiesExpanded ? 'Collapse Track Properties' : 'Open Properties Panel',
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
                 setState(() {
-                  _inspectorWidth = (_inspectorWidth - deltaX).clamp(_kMinInspectorWidth, _kMaxInspectorWidth);
+                  _isPropertiesExpanded = !_isPropertiesExpanded;
                 });
               },
-            )
-          : const SizedBox(),
-    ),
-  ),
-],
-);
+              onHorizontalDragUpdate: (details) {
+                setState(() {
+                  if (!_isPropertiesExpanded && details.delta.dx < -2) {
+                    _isPropertiesExpanded = true;
+                  } else if (_isPropertiesExpanded) {
+                    _propertiesWidth = (_propertiesWidth - details.delta.dx)
+                        .clamp(_kMinPropertiesWidth, _kMaxPropertiesWidth);
+                    if (_propertiesWidth <= _kMinPropertiesWidth + 10 && details.delta.dx > 5) {
+                      _isPropertiesExpanded = false;
+                      _propertiesWidth = _kDefaultPropertiesWidth;
+                    }
+                  }
+                });
+              },
+              child: Container(
+                width: _kPropertiesPullTabWidth - 1.5,
+                height: double.infinity,
+                color: isGrungy ? const Color(0xFF28231E) : EatsTheme.panelHeader,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Centered vertical visual pill drag handle
+                    Container(
+                      width: 5,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        color: isGrungy ? const Color(0xFF8C7A6B) : EatsTheme.textMuted,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+
+                    // Top: Active track color circle
+                    Positioned(
+                      top: 14,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: trackColor,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(color: trackColor.withOpacity(0.7), blurRadius: 4),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Bottom: Arrow indicator
+                    Positioned(
+                      bottom: 12,
+                      child: Icon(
+                        _isPropertiesExpanded ? Icons.chevron_right : Icons.chevron_left,
+                        size: 16,
+                        color: EatsTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Expanded Vertical Properties Inspector Body
+          if (_isPropertiesExpanded)
+            Expanded(
+              child: ArrangerContextInspector(
+                dawState: widget.dawState,
+                onClose: () => setState(() => _isPropertiesExpanded = false),
+                onResize: (deltaX) {
+                  setState(() {
+                    _propertiesWidth = (_propertiesWidth - deltaX)
+                        .clamp(_kMinPropertiesWidth, _kMaxPropertiesWidth);
+                  });
+                },
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   Widget _buildMuteButton(TrackChannel track) {
@@ -1530,6 +1565,10 @@ class _ArrangerViewState extends State<ArrangerView> {
       tooltip: 'Chord Follow: ${mode.displayName} - ${mode.description}',
       color: EatsTheme.controlBackground,
       padding: EdgeInsets.zero,
+      popUpAnimationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 100),
+        curve: Curves.fastOutSlowIn,
+      ),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         decoration: BoxDecoration(
@@ -1571,7 +1610,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 11,
-                          color: m == mode ? EatsTheme.primaryCyan : Colors.white,
+                          color: m == mode ? EatsTheme.primaryCyan : EatsTheme.textPrimary,
                         ),
                       ),
                       Text(
@@ -1585,15 +1624,15 @@ class _ArrangerViewState extends State<ArrangerView> {
             );
           }),
           const PopupMenuDivider(),
-          const PopupMenuItem<String>(
+          PopupMenuItem<String>(
             value: 'bake',
             child: Row(
               children: [
-                Icon(Icons.lock_clock, size: 13, color: EatsTheme.accentGold),
-                SizedBox(width: 8),
+                const Icon(Icons.lock_clock, size: 13, color: EatsTheme.accentGold),
+                const SizedBox(width: 8),
                 Text(
                   'Bake Chords to MIDI Notes',
-                  style: TextStyle(fontSize: 10.5, color: EatsTheme.accentGold, fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontSize: 10.5, color: EatsTheme.accentGold, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -1631,6 +1670,10 @@ class _ArrangerViewState extends State<ArrangerView> {
       context: context,
       position: rect,
       color: EatsTheme.panelHeader,
+      popUpAnimationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 100),
+        curve: Curves.fastOutSlowIn,
+      ),
       items: [
         PopupMenuItem(
           value: 'edit',
@@ -1638,7 +1681,7 @@ class _ArrangerViewState extends State<ArrangerView> {
             children: [
               Icon(Icons.album_outlined, size: 16, color: EatsTheme.primaryCyan),
               const SizedBox(width: 8),
-              const Text('Edit in Circle of Fifths', style: TextStyle(color: Colors.white, fontSize: 12)),
+              Text('Edit in Circle of Fifths', style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12)),
             ],
           ),
         ),

@@ -18,6 +18,7 @@ import 'ui/widgets/project_browser_drawer.dart';
 import 'ui/widgets/floating_instrument_window.dart';
 import 'ui/virtual_piano_keyboard.dart';
 import 'utils/eats_file_helper.dart';
+import 'utils/fullscreen_helper.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -298,6 +299,23 @@ class _DawMainShellState extends State<DawMainShell> {
             );
             widget.dawState.duplicateClip(track, activeClip);
           }
+        },
+        // Universal Desktop Fullscreen Shortcuts (Alt+Enter on Windows, Cmd+F / Ctrl+Cmd+F on Mac, F11 Universal)
+        const SingleActivator(LogicalKeyboardKey.enter, alt: true): () {
+          FullscreenHelper.toggleFullscreen();
+        },
+        const SingleActivator(LogicalKeyboardKey.f11): () {
+          FullscreenHelper.toggleFullscreen();
+        },
+        const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () {
+          final primaryFocus = FocusManager.instance.primaryFocus;
+          if (primaryFocus != null && primaryFocus.context != null) {
+            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
+          }
+          FullscreenHelper.toggleFullscreen();
+        },
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true, meta: true): () {
+          FullscreenHelper.toggleFullscreen();
         },
       },
       child: Scaffold(
