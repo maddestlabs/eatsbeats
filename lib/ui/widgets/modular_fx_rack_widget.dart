@@ -27,9 +27,6 @@ class ModularFxRackWidget extends StatefulWidget {
 
 class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
   final Set<String> _expandedGuiFxIds = {};
-  final Set<String> _expandedDesignerFxIds = {};
-  final Map<String, AcousticSpaceParams> _designerSpaceParams = {};
-
   void _toggleGuiExpanded(String fxId) {
     setState(() {
       if (_expandedGuiFxIds.contains(fxId)) {
@@ -38,36 +35,6 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
         _expandedGuiFxIds.add(fxId);
       }
     });
-  }
-
-  void _toggleDesignerExpanded(String fxId) {
-    setState(() {
-      if (_expandedDesignerFxIds.contains(fxId)) {
-        _expandedDesignerFxIds.remove(fxId);
-      } else {
-        _expandedDesignerFxIds.add(fxId);
-      }
-    });
-  }
-
-  AcousticSpaceParams _getSpaceParamsForFx(FXInsert fx) {
-    if (_designerSpaceParams.containsKey(fx.id)) {
-      return _designerSpaceParams[fx.id]!;
-    }
-    final presetName = fx.irSampleName ?? 'Great Hall';
-    final preset = ProceduralIRGenerator.presets[presetName] ??
-        ProceduralIRGenerator.presets['Great Hall']!;
-    _designerSpaceParams[fx.id] = preset;
-    return preset;
-  }
-
-  void _updateAndBakeSpace(TrackChannel track, FXInsert fx, AcousticSpaceParams params) {
-    setState(() {
-      _designerSpaceParams[fx.id] = params;
-    });
-    // Bake directly into ConvolverEngine
-    ConvolverEngine.instance.bakeCustomSpace(params);
-    widget.dawState.updateFXIrSample(track, fx.id, params.name);
   }
 
   @override
@@ -178,6 +145,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                         color: EatsTheme.secondaryMagenta,
                         luaScriptCode: fx.luaScriptCode ?? '',
                         luaParams: fx.luaParams,
+                        sampleName: fx.irSampleName ?? 'Great Hall',
                       );
 
                       return Container(
@@ -266,7 +234,12 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
                                   InkWell(
-                                    onTap: () => dawState.openFloatingFxWindow(track, fx),
+                                    onTap: () {
+                                      setState(() {
+                                        _expandedGuiFxIds.remove(fx.id);
+                                      });
+                                      dawState.openFloatingFxWindow(track, fx);
+                                    },
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -283,17 +256,33 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                               ),
                               const SizedBox(height: 4),
                               Container(
+                                width: double.infinity,
                                 decoration: BoxDecoration(
                                   color: Colors.black.withOpacity(0.35),
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(color: EatsTheme.secondaryMagenta.withOpacity(0.4)),
                                 ),
                                 padding: const EdgeInsets.all(8),
-                                child: DynamicInstrumentGuiWidget(
-                                  dawState: dawState,
-                                  track: fxTrack,
-                                  hideHeader: true,
-                                  onParamChanged: (p, v) => dawState.updateFXParam(track, fx.id, p, v),
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    const designWidth = 520.0;
+                                    return SizedBox(
+                                      width: constraints.maxWidth,
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        alignment: Alignment.topLeft,
+                                        child: SizedBox(
+                                          width: designWidth,
+                                          child: DynamicInstrumentGuiWidget(
+                                            dawState: dawState,
+                                            track: fxTrack,
+                                            hideHeader: true,
+                                            onParamChanged: (p, v) => dawState.updateFXParam(track, fx.id, p, v),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                             ] else if (isExpanded && fx.type == FXType.convolutionReverb) ...[
@@ -360,50 +349,9 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'IMPULSE RESPONSE (IR):',
-                                    style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 10),
-                                  ),
-                                  InkWell(
-                                    onTap: () => _toggleDesignerExpanded(fx.id),
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: _expandedDesignerFxIds.contains(fx.id)
-                                            ? EatsTheme.primaryCyan.withOpacity(0.2)
-                                            : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(
-                                          color: _expandedDesignerFxIds.contains(fx.id)
-                                              ? EatsTheme.primaryCyan
-                                              : EatsTheme.textMuted.withOpacity(0.4),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            _expandedDesignerFxIds.contains(fx.id) ? Icons.view_in_ar : Icons.view_in_ar_outlined,
-                                            size: 12,
-                                            color: _expandedDesignerFxIds.contains(fx.id) ? EatsTheme.primaryCyan : EatsTheme.textMuted,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            _expandedDesignerFxIds.contains(fx.id) ? 'CLOSE 3D DESIGNER' : '3D SPACE / CAB DESIGNER',
-                                            style: EatsTheme.getPrimaryFontStyle(
-                                              color: _expandedDesignerFxIds.contains(fx.id) ? EatsTheme.primaryCyan : EatsTheme.textMuted,
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              Text(
+                                'IMPULSE RESPONSE (IR):',
+                                style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 10),
                               ),
                               const SizedBox(height: 4),
                               Container(
@@ -430,345 +378,12 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                         .toList(),
                                     onChanged: (newIr) {
                                       if (newIr != null) {
-                                        final preset = ProceduralIRGenerator.presets[newIr];
-                                        if (preset != null) {
-                                          setState(() => _designerSpaceParams[fx.id] = preset);
-                                        }
                                         dawState.updateFXIrSample(track, fx.id, newIr);
                                       }
                                     },
                                   ),
                                 ),
                               ),
-
-                              // --- Expanded 3D Space & Cabinet Designer ---
-                              if (_expandedDesignerFxIds.contains(fx.id)) ...[
-                                const SizedBox(height: 10),
-                                Builder(builder: (context) {
-                                  final space = _getSpaceParamsForFx(fx);
-                                  final isCab = space.isCabinetMode;
-
-                                  return Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF141724),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: isCab ? EatsTheme.accentOrange.withOpacity(0.5) : EatsTheme.primaryCyan.withOpacity(0.5),
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        // Mode Switcher Header
-                                        Row(
-                                          children: [
-                                            Text(
-                                              'ACOUSTIC MODE:',
-                                              style: EatsTheme.getPrimaryFontStyle(
-                                                color: EatsTheme.textMuted,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            ChoiceChip(
-                                              label: Text('ROOM REVERB', style: EatsTheme.getPrimaryFontStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                                              selected: !isCab,
-                                              selectedColor: EatsTheme.primaryCyan.withOpacity(0.3),
-                                              backgroundColor: EatsTheme.panelBackground,
-                                              side: BorderSide(color: !isCab ? EatsTheme.primaryCyan : Colors.transparent),
-                                              onSelected: (sel) {
-                                                if (sel) {
-                                                  _updateAndBakeSpace(
-                                                    track,
-                                                    fx,
-                                                    space.copyWith(
-                                                      name: 'Custom Room',
-                                                      isCabinetMode: false,
-                                                      width: space.width < 1.0 ? 8.0 : space.width,
-                                                      length: space.length < 1.0 ? 12.0 : space.length,
-                                                      height: space.height < 1.0 ? 4.0 : space.height,
-                                                      rt60: space.rt60 < 0.1 ? 1.8 : space.rt60,
-                                                    ),
-                                                  );
-                                                }
-                                              },
-                                            ),
-                                            const SizedBox(width: 6),
-                                            ChoiceChip(
-                                              label: Text('AMP CABINET', style: EatsTheme.getPrimaryFontStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                                              selected: isCab,
-                                              selectedColor: EatsTheme.accentOrange.withOpacity(0.3),
-                                              backgroundColor: EatsTheme.panelBackground,
-                                              side: BorderSide(color: isCab ? EatsTheme.accentOrange : Colors.transparent),
-                                              onSelected: (sel) {
-                                                if (sel) {
-                                                  _updateAndBakeSpace(
-                                                    track,
-                                                    fx,
-                                                    space.copyWith(
-                                                      name: 'Custom Cabinet',
-                                                      isCabinetMode: true,
-                                                      width: space.width > 2.0 ? 0.76 : space.width,
-                                                      length: space.length > 2.0 ? 0.76 : space.length,
-                                                      height: space.height > 2.0 ? 0.36 : space.height,
-                                                      rt60: space.rt60 > 0.1 ? 0.035 : space.rt60,
-                                                      material: AcousticMaterialType.birchPlywood,
-                                                    ),
-                                                  );
-                                                }
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-
-                                        // 3D Space Visualizer
-                                        SpaceVisualizerWidget(
-                                          params: space,
-                                          height: 160,
-                                          onParamsChanged: (newP) => _updateAndBakeSpace(track, fx, newP),
-                                        ),
-                                        const SizedBox(height: 8),
-
-                                        // Material Selection Dropdown
-                                        Row(
-                                          children: [
-                                            SizedBox(
-                                              width: 70,
-                                              child: Text(
-                                                'MATERIAL',
-                                                style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 10),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              child: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                                                decoration: BoxDecoration(
-                                                  color: EatsTheme.panelBackground,
-                                                  borderRadius: BorderRadius.circular(4),
-                                                  border: Border.all(color: const Color(0xFF2B3245)),
-                                                ),
-                                                child: DropdownButtonHideUnderline(
-                                                  child: DropdownButton<AcousticMaterialType>(
-                                                    value: space.material,
-                                                    isExpanded: true,
-                                                    dropdownColor: EatsTheme.panelBackground,
-                                                    style: EatsTheme.getPrimaryFontStyle(
-                                                      color: EatsTheme.textPrimary,
-                                                      fontSize: 10,
-                                                    ),
-                                                    items: AcousticMaterialType.values.map((m) {
-                                                      final info = AcousticMaterial.get(m);
-                                                      return DropdownMenuItem(
-                                                        value: m,
-                                                        child: Text(info.displayName),
-                                                      );
-                                                    }).toList(),
-                                                    onChanged: (newMat) {
-                                                      if (newMat != null) {
-                                                        _updateAndBakeSpace(track, fx, space.copyWith(material: newMat));
-                                                      }
-                                                    },
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 6),
-
-                                        // Dimensions: Width, Length, Height
-                                        Row(
-                                          children: [
-                                            SizedBox(
-                                              width: 70,
-                                              child: Text('WIDTH (Lx)', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9)),
-                                            ),
-                                            Expanded(
-                                              child: EatsBitsSlider(
-                                                value: space.width,
-                                                min: isCab ? 0.2 : 1.0,
-                                                max: isCab ? 1.5 : 30.0,
-                                                defaultValue: isCab ? 0.76 : 8.0,
-                                                label: 'Width',
-                                                activeColor: isCab ? EatsTheme.accentOrange : EatsTheme.primaryCyan,
-                                                onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(width: val)),
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: 45,
-                                              child: Text('${space.width.toStringAsFixed(2)}m', style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.textPrimary)),
-                                            ),
-                                          ],
-                                        ),
-                                        Row(
-                                          children: [
-                                            SizedBox(
-                                              width: 70,
-                                              child: Text('LENGTH (Ly)', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9)),
-                                            ),
-                                            Expanded(
-                                              child: EatsBitsSlider(
-                                                value: space.length,
-                                                min: isCab ? 0.2 : 1.0,
-                                                max: isCab ? 1.5 : 40.0,
-                                                defaultValue: isCab ? 0.76 : 12.0,
-                                                label: 'Length',
-                                                activeColor: isCab ? EatsTheme.accentOrange : EatsTheme.primaryCyan,
-                                                onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(length: val)),
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: 45,
-                                              child: Text('${space.length.toStringAsFixed(2)}m', style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.textPrimary)),
-                                            ),
-                                          ],
-                                        ),
-                                        Row(
-                                          children: [
-                                            SizedBox(
-                                              width: 70,
-                                              child: Text('HEIGHT (Lz)', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9)),
-                                            ),
-                                            Expanded(
-                                              child: EatsBitsSlider(
-                                                value: space.height,
-                                                min: isCab ? 0.15 : 1.0,
-                                                max: isCab ? 1.0 : 18.0,
-                                                defaultValue: isCab ? 0.36 : 4.0,
-                                                label: 'Height',
-                                                activeColor: isCab ? EatsTheme.accentOrange : EatsTheme.primaryCyan,
-                                                onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(height: val)),
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: 45,
-                                              child: Text('${space.height.toStringAsFixed(2)}m', style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.textPrimary)),
-                                            ),
-                                          ],
-                                        ),
-
-                                        if (!isCab) ...[
-                                          // RT60 Decay
-                                          Row(
-                                            children: [
-                                              SizedBox(
-                                                width: 70,
-                                                child: Text('RT60 DECAY', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9)),
-                                              ),
-                                              Expanded(
-                                                child: EatsBitsSlider(
-                                                  value: space.rt60,
-                                                  min: 0.1,
-                                                  max: 5.0,
-                                                  defaultValue: 1.8,
-                                                  label: 'RT60 Decay',
-                                                  activeColor: EatsTheme.primaryCyan,
-                                                  onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(rt60: val)),
-                                                ),
-                                              ),
-                                              SizedBox(
-                                                width: 45,
-                                                child: Text('${space.rt60.toStringAsFixed(2)}s', style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.primaryCyan)),
-                                              ),
-                                            ],
-                                          ),
-                                          // Damping
-                                          Row(
-                                            children: [
-                                              SizedBox(
-                                                width: 70,
-                                                child: Text('DAMPING', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9)),
-                                              ),
-                                              Expanded(
-                                                child: EatsBitsSlider(
-                                                  value: space.damping,
-                                                  min: 0.0,
-                                                  max: 1.0,
-                                                  defaultValue: 0.5,
-                                                  label: 'Damping',
-                                                  activeColor: EatsTheme.secondaryMagenta,
-                                                  onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(damping: val)),
-                                                ),
-                                              ),
-                                              SizedBox(
-                                                width: 45,
-                                                child: Text('${(space.damping * 100).toInt()}%', style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.secondaryMagenta)),
-                                              ),
-                                            ],
-                                          ),
-                                        ] else ...[
-                                          // Cabinet: Mic Distance
-                                          Row(
-                                            children: [
-                                              SizedBox(
-                                                width: 70,
-                                                child: Text('MIC DISTANCE', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9)),
-                                              ),
-                                              Expanded(
-                                                child: EatsBitsSlider(
-                                                  value: space.micDistance,
-                                                  min: 0.01,
-                                                  max: 0.30,
-                                                  defaultValue: 0.05,
-                                                  label: 'Mic Distance',
-                                                  activeColor: EatsTheme.accentOrange,
-                                                  onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(micDistance: val)),
-                                                ),
-                                              ),
-                                              SizedBox(
-                                                width: 45,
-                                                child: Text('${(space.micDistance * 100).toStringAsFixed(1)}cm', style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.accentOrange)),
-                                              ),
-                                            ],
-                                          ),
-                                          // Cabinet: Mic Angle
-                                          Row(
-                                            children: [
-                                              SizedBox(
-                                                width: 70,
-                                                child: Text('OFF-AXIS', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9)),
-                                              ),
-                                              Expanded(
-                                                child: EatsBitsSlider(
-                                                  value: space.micAngleDeg,
-                                                  min: 0.0,
-                                                  max: 60.0,
-                                                  defaultValue: 0.0,
-                                                  label: 'Off-Axis Angle',
-                                                  activeColor: EatsTheme.primaryCyan,
-                                                  onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(micAngleDeg: val)),
-                                                ),
-                                              ),
-                                              SizedBox(
-                                                width: 45,
-                                                child: Text('${space.micAngleDeg.toInt()}°', style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.primaryCyan)),
-                                              ),
-                                            ],
-                                          ),
-                                          // Cabinet: Open-Back Switch
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Text(
-                                                'OPEN-BACK DIPOLE CANCELLATION',
-                                                style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9, fontWeight: FontWeight.bold),
-                                              ),
-                                              Switch(
-                                                value: space.isOpenBack,
-                                                activeColor: EatsTheme.accentOrange,
-                                                onChanged: (val) => _updateAndBakeSpace(track, fx, space.copyWith(isOpenBack: val)),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  );
-                                }),
-                              ],
                             ] else if (isExpanded) ...[
                               // Dry/Wet Mix Slider
                               Row(

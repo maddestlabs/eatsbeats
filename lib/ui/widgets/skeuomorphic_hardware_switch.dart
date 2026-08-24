@@ -108,10 +108,10 @@ class _SkeuomorphicHardwareSwitchState extends State<SkeuomorphicHardwareSwitch>
 
     // Default dimensions depending on style and orientation
     final defaultW = widget.style == SwitchStyle.vintageBat
-        ? 46.0
+        ? (widget.orientation == Axis.vertical ? 26.0 : 46.0)
         : (widget.orientation == Axis.vertical ? 18.0 : 38.0);
     final defaultH = widget.style == SwitchStyle.vintageBat
-        ? 26.0
+        ? (widget.orientation == Axis.vertical ? 46.0 : 26.0)
         : (widget.orientation == Axis.vertical ? 30.0 : 20.0);
 
     final effectiveW = widget.width ?? defaultW;
@@ -126,6 +126,7 @@ class _SkeuomorphicHardwareSwitchState extends State<SkeuomorphicHardwareSwitch>
               ? _VintageBatSwitchPainter(
                   animationValue: _animation.value,
                   isEnabled: isEnabled,
+                  orientation: widget.orientation,
                   activeColor: activeCol,
                   ledColor: ledCol,
                   showLed: widget.showLed,
@@ -190,6 +191,33 @@ class _SkeuomorphicHardwareSwitchState extends State<SkeuomorphicHardwareSwitch>
     }
 
     if (widget.label != null) {
+      final labelWidget = Text(
+        widget.label!,
+        style: EatsTheme.getDisplayFontStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: isEnabled
+              ? (widget.value ? (widget.activeColor ?? EatsTheme.primaryCyan) : EatsTheme.textMuted)
+              : EatsTheme.textMuted,
+        ),
+      );
+
+      if (widget.orientation == Axis.vertical) {
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: isEnabled ? _toggle : null,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              labelWidget,
+              const SizedBox(height: 3),
+              interactive,
+            ],
+          ),
+        );
+      }
+
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: isEnabled ? _toggle : null,
@@ -199,16 +227,7 @@ class _SkeuomorphicHardwareSwitchState extends State<SkeuomorphicHardwareSwitch>
           children: [
             interactive,
             const SizedBox(width: 8),
-            Text(
-              widget.label!,
-              style: EatsTheme.getPrimaryFontStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isEnabled
-                    ? (widget.value ? EatsTheme.textPrimary : EatsTheme.textSecondary)
-                    : EatsTheme.textMuted,
-              ),
-            ),
+            labelWidget,
           ],
         ),
       );
@@ -459,6 +478,7 @@ class _ModernPillSwitchPainter extends CustomPainter {
 class _VintageBatSwitchPainter extends CustomPainter {
   final double animationValue; // 0.0 (OFF) -> 1.0 (ON)
   final bool isEnabled;
+  final Axis orientation;
   final Color activeColor;
   final Color ledColor;
   final bool showLed;
@@ -468,6 +488,7 @@ class _VintageBatSwitchPainter extends CustomPainter {
   _VintageBatSwitchPainter({
     required this.animationValue,
     required this.isEnabled,
+    this.orientation = Axis.horizontal,
     required this.activeColor,
     required this.ledColor,
     required this.showLed,
@@ -477,6 +498,19 @@ class _VintageBatSwitchPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (orientation == Axis.vertical) {
+      canvas.save();
+      canvas.translate(size.width / 2, size.height / 2);
+      canvas.rotate(-math.pi / 2);
+      canvas.translate(-size.height / 2, -size.width / 2);
+      _paintHorizontal(canvas, Size(size.height, size.width));
+      canvas.restore();
+    } else {
+      _paintHorizontal(canvas, size);
+    }
+  }
+
+  void _paintHorizontal(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
     final rect = Rect.fromLTWH(0, 0, w, h);
@@ -706,6 +740,7 @@ class _VintageBatSwitchPainter extends CustomPainter {
   bool shouldRepaint(covariant _VintageBatSwitchPainter oldDelegate) {
     return oldDelegate.animationValue != animationValue ||
         oldDelegate.isEnabled != isEnabled ||
+        oldDelegate.orientation != orientation ||
         oldDelegate.activeColor != activeColor ||
         oldDelegate.ledColor != ledColor ||
         oldDelegate.showLed != showLed ||

@@ -1,5 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import '../../audio/convolver_engine.dart';
+import '../../audio/procedural_ir_generator.dart';
 import '../../audio/snes_dsp_engine.dart';
 import '../../audio/soundfont_engine.dart';
 import '../../audio/soundfont_decoder.dart';
@@ -19,7 +21,9 @@ import 'skeuomorphic_hardware_button.dart';
 import 'skeuomorphic_hardware_knob.dart';
 import 'skeuomorphic_hardware_slider.dart';
 import 'skeuomorphic_hardware_switch.dart';
+import 'space_visualizer_widget.dart';
 import 'stereo_meter_widget.dart';
+import 'waveshaper_canvas_widget.dart';
 
 class DynamicInstrumentGuiWidget extends StatelessWidget {
   final DawState dawState;
@@ -347,28 +351,91 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         final rawVal = (track.luaParams[node.param] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
         final currentVal = paramDef.isInteger ? rawVal.roundToDouble() : rawVal;
 
-        return SkeuomorphicHardwareSlider(
-          label: node.label ?? paramDef.name.toUpperCase(),
-          value: currentVal,
-          min: paramDef.min,
-          max: paramDef.max,
-          defaultValue: paramDef.defaultValue,
-          orientation: node.orientation == 'horizontal' ? Axis.horizontal : Axis.vertical,
-          length: node.size ?? 140.0,
-          activeColor: accent,
-          onChanged: (val) {
-            final snapped = paramDef.isInteger ? val.roundToDouble() : val;
-            _setParam(paramDef.name, snapped);
-          },
-          onChangeStart: () => dawState.beginHistoryTransaction(
-            '${paramDef.name} (${track.name})',
-            icon: Icons.linear_scale,
+        final isVert = node.orientation == 'vertical';
+        if (isVert) {
+          return SkeuomorphicHardwareSlider(
+            label: node.label ?? paramDef.name.toUpperCase(),
+            value: currentVal,
+            min: paramDef.min,
+            max: paramDef.max,
+            defaultValue: paramDef.defaultValue,
+            orientation: Axis.vertical,
+            length: node.size ?? 120.0,
+            activeColor: accent,
+            onChanged: (val) {
+              final snapped = paramDef.isInteger ? val.roundToDouble() : val;
+              _setParam(paramDef.name, snapped);
+            },
+            onChangeStart: () => dawState.beginHistoryTransaction(
+              '${paramDef.name} (${track.name})',
+              icon: Icons.linear_scale,
+            ),
+            onChangeEnd: () => dawState.commitHistoryTransaction(),
+            formatValue: (v) {
+              final f = paramDef.getFormattedValue(v);
+              return node.unit != null ? '$f ${node.unit}' : f;
+            },
+          );
+        }
+
+        // Horizontal Slider (matching Track Volume and Track Inspector layout)
+        final displayFormatted = () {
+          final f = paramDef.getFormattedValue(currentVal);
+          return node.unit != null ? '$f ${node.unit}' : f;
+        }();
+
+        return SizedBox(
+          width: node.width ?? 235.0,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    node.label ?? paramDef.name.toUpperCase(),
+                    style: EatsTheme.getDisplayFontStyle(
+                      color: EatsTheme.textMuted,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    displayFormatted,
+                    style: EatsTheme.getDisplayFontStyle(
+                      color: accent,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 3),
+              SizedBox(
+                height: 24,
+                child: EatsBitsSlider(
+                  value: currentVal,
+                  min: paramDef.min,
+                  max: paramDef.max,
+                  defaultValue: paramDef.defaultValue,
+                  label: node.label ?? paramDef.name,
+                  activeColor: accent,
+                  style: node.sliderStyle,
+                  showTooltip: false,
+                  onChanged: (val) {
+                    final snapped = paramDef.isInteger ? val.roundToDouble() : val;
+                    _setParam(paramDef.name, snapped);
+                  },
+                  onChangeStart: () => dawState.beginHistoryTransaction(
+                    '${paramDef.name} (${track.name})',
+                    icon: Icons.linear_scale,
+                  ),
+                  onChangeEnd: () => dawState.commitHistoryTransaction(),
+                ),
+              ),
+            ],
           ),
-          onChangeEnd: () => dawState.commitHistoryTransaction(),
-          formatValue: (v) {
-            final f = paramDef.getFormattedValue(v);
-            return node.unit != null ? '$f ${node.unit}' : f;
-          },
         );
 
       case LuaGuiNodeType.switchToggle:
@@ -379,15 +446,18 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         final isEats303 = track.name.toLowerCase().contains('303') ||
             track.luaScriptCode.contains('Eats303') ||
             track.luaScriptCode.contains('JC303');
-        final switchStyle = isEats303 ? SwitchStyle.vintageBat : SwitchStyle.modernPill;
+        final isOpenBack = paramDef.name.toLowerCase().contains('openback') || (node.param ?? '').toLowerCase().contains('openback');
+        final switchStyle = (isEats303 || isOpenBack) ? SwitchStyle.vintageBat : SwitchStyle.modernPill;
+        final effectiveLabel = node.label ?? (isOpenBack ? 'OPEN' : paramDef.name.toUpperCase());
 
         return SkeuomorphicHardwareSwitch(
           style: switchStyle,
-          label: node.label ?? paramDef.name.toUpperCase(),
+          label: effectiveLabel,
           value: isChecked,
+          orientation: isOpenBack || node.orientation == 'vertical' ? Axis.vertical : Axis.horizontal,
           activeColor: accent,
           ledColor: accent,
-          showText: !isEats303,
+          showText: switchStyle != SwitchStyle.vintageBat,
           onChanged: (bool val) {
             dawState.beginHistoryTransaction('Toggle ${paramDef.name} (${track.name})', icon: Icons.toggle_on);
             _setParam(paramDef.name, val ? 1.0 : 0.0);
@@ -538,6 +608,31 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             );
           };
         }
+        // 4. IRSample ListBox dynamic handling
+        else if (paramNameLower == 'irsample' || paramNameLower == 'space' || paramNameLower == 'impulseresponse') {
+          final allIrs = ConvolverEngine.instance.getAvailableIrNames();
+          if (allIrs.isNotEmpty) {
+            effectiveOptions = allIrs;
+          }
+
+          final currentIr = track.sampleName.isNotEmpty ? track.sampleName : 'Great Hall';
+          final irIdx = effectiveOptions.indexWhere((opt) =>
+              opt.toLowerCase() == currentIr.toLowerCase() ||
+              opt.toLowerCase().startsWith(currentIr.toLowerCase()) ||
+              currentIr.toLowerCase().startsWith(opt.toLowerCase()));
+          if (irIdx != -1) {
+            track.luaParams[paramDef.name] = irIdx.toDouble();
+          }
+
+          onSelectionChanged = (newIdx) {
+            if (newIdx >= 0 && newIdx < effectiveOptions.length) {
+              final chosenName = effectiveOptions[newIdx];
+              track.luaParams[paramDef.name] = newIdx.toDouble();
+              track.sampleName = chosenName;
+              _setParam(paramDef.name, newIdx.toDouble());
+            }
+          };
+        }
 
         return HardwareListBoxWidget(
           dawState: dawState,
@@ -649,6 +744,65 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             fontSize: 11,
             fontWeight: FontWeight.bold,
           ),
+        );
+
+      case LuaGuiNodeType.spaceVisualizer:
+        final isCab = (track.luaParams['isCabinet'] == 1.0) ||
+            (node.canvasMode == 'cabinet') ||
+            (track.name.toLowerCase().contains('cab'));
+        final matIdx = (track.luaParams['Material'] ?? 0.0).toInt().clamp(0, AcousticMaterialType.values.length - 1);
+        final currentSpace = AcousticSpaceParams(
+          name: '${track.name}_space',
+          width: track.luaParams['Width'] ?? (isCab ? 0.76 : 8.0),
+          length: track.luaParams['Length'] ?? (isCab ? 0.76 : 12.0),
+          height: track.luaParams['Height'] ?? (isCab ? 0.36 : 4.0),
+          material: AcousticMaterialType.values[matIdx],
+          rt60: isCab ? 0.035 : (track.luaParams['RT60'] ?? (track.luaParams['Decay'] ?? 1.8)),
+          damping: track.luaParams['Damping'] ?? (isCab ? 0.55 : 0.40),
+          isCabinetMode: isCab,
+          micDistance: track.luaParams['MicDistance'] ?? 0.05,
+          micAngleDeg: track.luaParams['MicAngle'] ?? (track.luaParams['OffAxis'] ?? 0.0),
+          isOpenBack: (track.luaParams['OpenBack'] ?? 0.0) == 1.0,
+        );
+
+        return SpaceVisualizerWidget(
+          params: currentSpace,
+          height: node.height ?? 150.0,
+          onParamsChanged: (newP) {
+            track.luaParams['Width'] = newP.width;
+            track.luaParams['Length'] = newP.length;
+            track.luaParams['Height'] = newP.height;
+            _setParam('Width', newP.width);
+            _setParam('Length', newP.length);
+            _setParam('Height', newP.height);
+          },
+        );
+
+      case LuaGuiNodeType.waveshaperCanvas:
+        final shapeVal = (track.luaParams['Shape'] ?? (track.luaParams['Curve'] ?? 0.0)).round().toInt();
+        final tensionVal = (track.luaParams['Tension'] ?? 0.0);
+        final preVal = (track.luaParams['Pre'] ?? (track.luaParams['Drive'] ?? 1.0));
+        final postVal = (track.luaParams['Post'] ?? (track.luaParams['OutGain'] ?? 1.0));
+        final dcFilterVal = (track.luaParams['DCFilter'] ?? 1.0) > 0.5;
+
+        return WaveshaperCanvasWidget(
+          shapeType: shapeVal,
+          tension: tensionVal,
+          preGain: preVal,
+          postGain: postVal,
+          dcFilter: dcFilterVal,
+          height: node.height ?? 160.0,
+          onShapeChanged: (newShape) {
+            dawState.beginHistoryTransaction('WaveShaper Shape', icon: Icons.show_chart);
+            _setParam('Shape', newShape.toDouble());
+            _setParam('Curve', newShape.toDouble());
+            dawState.commitHistoryTransaction();
+          },
+          onTensionChanged: (newTension) {
+            dawState.beginHistoryTransaction('WaveShaper Tension', icon: Icons.gesture);
+            _setParam('Tension', newTension);
+            dawState.commitHistoryTransaction();
+          },
         );
 
       case LuaGuiNodeType.canvas:

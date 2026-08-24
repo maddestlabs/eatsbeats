@@ -135,7 +135,11 @@ class LuaGuiParser {
     final unit = m['unit'] as String?;
     final size = (m['size'] as num?)?.toDouble();
     final accentColor = LuaGuiNode.parseColor(m['accent'] ?? m['accentColor'] ?? m['color']);
-    final orientation = (m['orientation'] as String?) ?? 'vertical';
+    final cleanType = (rawType ?? '').toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
+    final isExplicitHSlider = cleanType == 'hslider' || cleanType == 'horizontalslider' || cleanType == 'hslider';
+    final isExplicitVSlider = cleanType == 'vslider' || cleanType == 'verticalslider' || cleanType == 'fader';
+    final defaultOrientation = isExplicitHSlider ? 'horizontal' : (isExplicitVSlider ? 'vertical' : (type == LuaGuiNodeType.slider ? 'horizontal' : 'vertical'));
+    final orientation = (m['orientation'] as String?) ?? defaultOrientation;
     final align = (m['align'] as String?) ?? 'space_around';
     final leftText = m['left'] as String? ?? m['leftText'] as String?;
     final rightText = m['right'] as String? ?? m['rightText'] as String?;
@@ -144,6 +148,7 @@ class LuaGuiParser {
     final knobStyle = m['knobStyle'] != null || m['style'] != null
         ? LuaGuiNode.parseKnobStyle((m['knobStyle'] ?? m['style']) as String?)
         : defaultKnobStyle;
+    final sliderStyle = LuaGuiNode.parseSliderStyle((m['sliderStyle'] ?? m['style']) as String?);
 
     final width = (m['width'] is num) ? (m['width'] as num).toDouble() : null;
     final height = (m['height'] is num) ? (m['height'] as num).toDouble() : null;
@@ -195,6 +200,7 @@ class LuaGuiParser {
       text: text,
       action: action,
       knobStyle: knobStyle,
+      sliderStyle: sliderStyle,
       canvasMode: canvasMode,
       cols: cols,
       rows: rows,

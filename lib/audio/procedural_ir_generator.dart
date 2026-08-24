@@ -248,7 +248,7 @@ class ProceduralIRGenerator {
       length: 25.0,
       height: 10.0,
       material: AcousticMaterialType.studioWood,
-      rt60: 2.2,
+      rt60: 1.6,
       damping: 0.25,
       isCabinetMode: false,
     ),

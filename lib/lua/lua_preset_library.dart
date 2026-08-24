@@ -235,6 +235,12 @@ class LuaPresetLibrary {
     if (luaCode.contains('Compressor') || luaCode.contains('dynamics_compressor') || luaCode.contains('Dynamics Compressor')) {
       return getPresetById('dynamics_compressor');
     }
+    if (luaCode.contains('RoomDesigner') || luaCode.contains('room_designer') || luaCode.contains('Room Designer')) {
+      return getPresetById('room_designer');
+    }
+    if (luaCode.contains('CabDesigner') || luaCode.contains('cab_designer') || luaCode.contains('Cab Designer')) {
+      return getPresetById('cab_designer');
+    }
     if (luaCode.contains('ConvReverb') || luaCode.contains('convolution_reverb') || luaCode.contains('Convolution Reverb')) {
       return getPresetById('convolution_reverb');
     }
@@ -1480,135 +1486,104 @@ return OPL3
 ''',
     ),
 
-    // 10. Lua Stereo Delay Effect
+    // 8. 8-Bit Crusher FX
     LuaPreset(
-      id: 'lua_delay',
-      name: 'Lua Stereo Delay FX',
+      id: 'bitcrusher',
+      name: '8-Bit Crusher',
       category: LuaPresetCategory.audioFx,
-      description: 'Feedback delay line effect module with dampening and dry/wet mix controls.',
+      description: 'Hardware bit-depth and sample-rate reduction for authentic 8-bit crunch and lo-fi textures.',
       code: '''
--- @name: Lua Stereo Delay FX
+-- @name: 8-Bit Crusher
 -- @category: audioFx
-local StereoDelayFX = {}
+-- @description: Hardware bit-depth and sample-rate reduction for authentic 8-bit crunch and lo-fi textures
+local Bitcrusher = {}
 
-function StereoDelayFX.init()
-  Param.add("TimeMs", 50.0, 800.0, 250.0)
-  Param.add("Feedback", 0.0, 0.9, 0.45)
-  Param.add("Dampening", 1000.0, 12000.0, 4500.0)
-  Param.add("Mix", 0.0, 1.0, 0.4)
+function Bitcrusher.init()
+  Param.add("Bits", 1.0, 16.0, 8.0, 1.0)
+  Param.add("Downsample", 1.0, 32.0, 1.0, 1.0)
+  Param.add("Drive", 0.5, 4.0, 1.0, 0.05)
+  Param.add("Mix", 0.0, 1.0, 1.0, 0.05)
 end
 
-function StereoDelayFX.processSignal(inputSample, time, params)
-  local timeMs = params["TimeMs"] or 250.0
-  local fb = params["Feedback"] or 0.45
-  local damp = params["Dampening"] or 4500.0
-  local mix = params["Mix"] or 0.4
-
-  local delayed = DSP.delay(inputSample, timeMs, fb)
-  local dampened = DSP.lowpass(delayed, damp, 1.0)
-
-  return (inputSample * (1.0 - mix)) + (dampened * mix)
+function Bitcrusher.process(input_l, input_r, params)
+  return input_l, input_r
 end
 
-return StereoDelayFX
+function Bitcrusher.gui()
+  return {
+    panel = {
+      title = "8-Bit Crusher",
+      subtitle = "Hardware Bit-Depth & Sample-Rate Reduction",
+      background = "snes",
+      accent = "#FFD700",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Bits", label = "BITS", unit = "bit", knobStyle = "snes", size = 60 },
+            { type = "knob", param = "Downsample", label = "CRUSH", unit = "x", knobStyle = "snes" },
+            { type = "knob", param = "Drive", label = "DRIVE", unit = "x", knobStyle = "snes" },
+            { type = "knob", param = "Mix", label = "MIX", knobStyle = "snes" },
+          }
+        }
+      }
+    }
+  }
+end
+
+return Bitcrusher
 ''',
     ),
 
-    // 8. Lua Stereo Chorus Effect
+    // 9. WaveShaper Distortion FX
     LuaPreset(
-      id: 'lua_chorus',
-      name: 'Lua Stereo Chorus FX',
+      id: 'waveshaper',
+      name: 'WaveShaper',
       category: LuaPresetCategory.audioFx,
-      description: 'LFO modulated short delay lines creating lush stereo chorus and ensemble thickness.',
+      description: 'Interactive multi-curve transfer function distortion, asymmetric tube saturation and wavefolder with DC offset filtering.',
       code: '''
--- @name: Lua Stereo Chorus FX
+-- @name: WaveShaper
 -- @category: audioFx
-local StereoChorusFX = {}
+-- @description: Interactive multi-curve distortion and wavefolder with DC offset filtering
+local WaveShaper = {}
 
-function StereoChorusFX.init()
-  Param.add("RateHz", 0.1, 5.0, 1.2)
-  Param.add("DepthMs", 1.0, 15.0, 6.0)
-  Param.add("Mix", 0.0, 1.0, 0.5)
+function WaveShaper.init()
+  Param.add("Shape", 0.0, 4.0, 0.0, 1.0)
+  Param.add("Tension", -1.0, 1.0, 0.0, 0.02)
+  Param.add("Pre", 0.1, 4.0, 1.0, 0.05)
+  Param.add("Post", 0.0, 4.0, 1.0, 0.05)
+  Param.toggle("DCFilter", 1.0)
+  Param.add("Mix", 0.0, 1.0, 1.0, 0.05)
 end
 
-function StereoChorusFX.processSignal(inputSample, time, params)
-  local rate = params["RateHz"] or 1.2
-  local depth = params["DepthMs"] or 6.0
-  local mix = params["Mix"] or 0.5
-
-  local lfo = math.sin(2.0 * math.pi * rate * time)
-  local modulatedTime = 12.0 + (lfo * depth)
-
-  local wet = DSP.delay(inputSample, modulatedTime, 0.2)
-  return (inputSample * (1.0 - mix)) + (wet * mix)
+function WaveShaper.process(input_l, input_r, params)
+  return input_l, input_r
 end
 
-return StereoChorusFX
-''',
-    ),
-
-    // 9. 8-Bit Retro Crusher FX
-    LuaPreset(
-      id: 'bitcrusher_fx',
-      name: '8-Bit Retro Crusher FX',
-      category: LuaPresetCategory.audioFx,
-      description: 'Bit-depth and sample-rate reduction effect for lo-fi chiptune textures.',
-      code: '''
--- @name: 8-Bit Retro Crusher FX
--- @category: audioFx
-local BitcrusherFX = {}
-
-function BitcrusherFX.init()
-  Param.add("Bits", 2.0, 16.0, 6.0)
-  Param.add("Downsample", 1.0, 16.0, 4.0)
-  Param.add("Mix", 0.0, 1.0, 0.8)
+function WaveShaper.gui()
+  return {
+    panel = {
+      title = "WaveShaper",
+      subtitle = "Interactive Transfer Function & Wavefolder",
+      background = "grunge",
+      accent = "#21F4E8",
+      layout = {
+        { type = "waveshaper_canvas", height = 150 },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Pre", label = "PRE / DRIVE", unit = "x" },
+            { type = "switch", param = "DCFilter", label = "DC FILTER", leftText = "OFF", rightText = "ON" },
+            { type = "knob", param = "Post", label = "POST GAIN", unit = "x" },
+            { type = "knob", param = "Mix", label = "MIX" },
+          }
+        }
+      }
+    }
+  }
 end
 
-function BitcrusherFX.processSignal(inputSample, time, params)
-  local bits = params["Bits"] or 6.0
-  local downsample = params["Downsample"] or 4.0
-  local mix = params["Mix"] or 0.8
-
-  local steps = math.pow(2.0, bits)
-  local quantized = math.floor(inputSample * steps) / steps
-  local crushed = DSP.sampleHold(quantized, downsample)
-
-  return (inputSample * (1.0 - mix)) + (crushed * mix)
-end
-
-return BitcrusherFX
-''',
-    ),
-
-    // 10. Warm Tube Distortion
-    LuaPreset(
-      id: 'tube_distortion',
-      name: 'Warm Tube Distortion',
-      category: LuaPresetCategory.audioFx,
-      description: 'Non-linear soft-clipping saturation and warmth.',
-      code: '''
--- @name: Warm Tube Distortion
--- @category: audioFx
-local TubeDistortion = {}
-
-function TubeDistortion.init()
-  Param.add("Drive", 1.0, 20.0, 6.0)
-  Param.add("Tone", 200.0, 8000.0, 3500.0)
-  Param.add("OutGain", 0.1, 1.5, 0.7)
-end
-
-function TubeDistortion.processSignal(inputSample, time, params)
-  local drive = params["Drive"] or 6.0
-  local tone = params["Tone"] or 3500.0
-  local outGain = params["OutGain"] or 0.7
-
-  local driven = inputSample * drive
-  local clipped = math.tanh(driven)
-  local filtered = DSP.lowpass(clipped, tone, 1.0)
-  return filtered * outGain
-end
-
-return TubeDistortion
+return WaveShaper
 ''',
     ),
 
@@ -2591,7 +2566,7 @@ return Compressor
 local ConvReverb = {}
 
 function ConvReverb.init()
-  Param.choice("IRSample", {"Great Hall", "Cathedral", "Plate Reverb", "Spring Reverb", "Warm Chamber", "Studio Room"}, 0.0)
+  Param.choice("IRSample", {"Great Hall", "Stone Cathedral", "Plate Reverb", "Spring Tank", "Warm Room", "Studio Live Room", "Tile Bathroom", "Small Vocal Booth", "4x12 Vintage Stack", "2x12 British Celestion", "1x12 Tweed Combo", "Bass 8x10 Fridge", "Small Radio Speaker"}, 0.0)
   Param.add("DryLevel", 0.0, 1.5, 1.0, 0.05)
   Param.add("WetLevel", 0.0, 1.5, 0.5, 0.05)
   Param.add("PreDelayMs", 0.0, 100.0, 10.0, 1.0)
@@ -2613,7 +2588,7 @@ function ConvReverb.gui()
         {
           type = "row",
           children = {
-            { type = "listbox", param = "IRSample", label = "SPACE / IMPULSE", width = 140, height = 80 },
+            { type = "listbox", param = "IRSample", label = "SPACE / IMPULSE", width = 160, height = 85 },
             { type = "knob", param = "DryLevel", label = "DRY" },
             { type = "knob", param = "WetLevel", label = "WET" },
             { type = "knob", param = "HighCut", label = "HI-CUT", unit = "Hz" },
@@ -2625,6 +2600,145 @@ function ConvReverb.gui()
 end
 
 return ConvReverb
+''',
+    ),
+
+    // 34a. Procedural Room Designer FX
+    LuaPreset(
+      id: 'room_designer',
+      name: 'Room Designer',
+      category: LuaPresetCategory.audioFx,
+      description: 'Interactive 3D Room Acoustic Synthesizer with Image Source & Velvet Noise physics.',
+      code: '''
+-- @name: Room Designer
+-- @category: audioFx
+-- @description: Interactive 3D Room Acoustic Synthesizer with Image Source & Velvet Noise physics
+local RoomDesigner = {}
+
+function RoomDesigner.init()
+  Param.add("Width", 1.0, 30.0, 15.0, 0.5)
+  Param.add("Length", 1.0, 40.0, 25.0, 0.5)
+  Param.add("Height", 1.0, 18.0, 10.0, 0.5)
+  Param.choice("Material", {"Wood Paneling", "Pine Wood", "Acoustic Foam", "Hard Concrete", "Birch Plywood", "Velvet Drapes", "Sheet Metal", "Carpet"}, 0.0)
+  Param.add("RT60", 0.1, 5.0, 2.2, 0.05)
+  Param.add("Damping", 0.0, 1.0, 0.25, 0.05)
+  Param.add("DryLevel", 0.0, 1.5, 1.0, 0.05)
+  Param.add("WetLevel", 0.0, 1.5, 0.5, 0.05)
+end
+
+function RoomDesigner.process(input_l, input_r, params)
+  return input_l, input_r
+end
+
+function RoomDesigner.gui()
+  return {
+    panel = {
+      title = "Room Designer",
+      subtitle = "3D Image Source & Velvet Noise Acoustic Engine",
+      background = "grunge",
+      accent = "#21F4E8",
+      layout = {
+        { type = "space_visualizer", height = 140 },
+        {
+          type = "row",
+          children = {
+            { type = "listbox", param = "Material", label = "MATERIAL", width = 130, height = 70 },
+            { type = "knob", param = "Width", label = "WIDTH", unit = "m" },
+            { type = "knob", param = "Length", label = "LENGTH", unit = "m" },
+            { type = "knob", param = "Height", label = "HEIGHT", unit = "m" },
+            { type = "knob", param = "RT60", label = "DECAY", unit = "s" },
+            { type = "knob", param = "Damping", label = "DAMP" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "hslider", param = "DryLevel", label = "DRY LEVEL", width = 480, style = "capsule" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "hslider", param = "WetLevel", label = "WET LEVEL", width = 480, style = "capsule" },
+          }
+        }
+      }
+    }
+  }
+end
+
+return RoomDesigner
+''',
+    ),
+
+    // 34b. Procedural Amp Cabinet Designer FX
+    LuaPreset(
+      id: 'cab_designer',
+      name: 'Cab Designer',
+      category: LuaPresetCategory.audioFx,
+      description: 'Physical modeling amplifier cabinet simulator with modal standing waves and speaker resonance.',
+      code: '''
+-- @name: Cab Designer
+-- @category: audioFx
+-- @description: Physical modeling amplifier cabinet simulator with modal standing waves and speaker resonance
+local CabDesigner = {}
+
+function CabDesigner.init()
+  Param.choice("Material", {"Birch Plywood", "Pine Wood", "Wood Paneling"}, 0.0)
+  Param.add("Width", 0.20, 1.50, 0.76, 0.02)
+  Param.add("Length", 0.20, 1.50, 0.76, 0.02)
+  Param.add("Height", 0.15, 1.00, 0.36, 0.02)
+  Param.add("MicDistance", 0.01, 0.30, 0.05, 0.01)
+  Param.add("MicAngle", 0.0, 60.0, 0.0, 1.0)
+  Param.toggle("OpenBack", 0.0)
+  Param.add("DryLevel", 0.0, 1.5, 0.0, 0.05)
+  Param.add("WetLevel", 0.0, 1.5, 1.0, 0.05)
+  Param.add("isCabinet", 0.0, 1.0, 1.0, 1.0)
+end
+
+function CabDesigner.process(input_l, input_r, params)
+  return input_l, input_r
+end
+
+function CabDesigner.gui()
+  return {
+    panel = {
+      title = "Cab Designer",
+      subtitle = "Modal Enclosure & Speaker Physical Modeling",
+      background = "grunge",
+      accent = "#FF6B00",
+      layout = {
+        { type = "space_visualizer", height = 140 },
+        {
+          type = "row",
+          children = {
+            { type = "listbox", param = "Material", label = "WOOD", width = 120, height = 70 },
+            { type = "knob", param = "Width", label = "WIDTH", unit = "m" },
+            { type = "knob", param = "Length", label = "LENGTH", unit = "m" },
+            { type = "knob", param = "Height", label = "HEIGHT", unit = "m" },
+            { type = "knob", param = "MicDistance", label = "MIC DIST", unit = "m" },
+            { type = "knob", param = "MicAngle", label = "OFF-AXIS", unit = "°" },
+            { type = "switch", param = "OpenBack", label = "OPEN", orientation = "vertical" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "hslider", param = "DryLevel", label = "DRY LEVEL", width = 480, style = "capsule" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "hslider", param = "WetLevel", label = "WET LEVEL", width = 480, style = "capsule" },
+          }
+        }
+      }
+    }
+  }
+end
+
+return CabDesigner
 ''',
     ),
 

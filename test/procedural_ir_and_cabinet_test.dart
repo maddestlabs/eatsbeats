@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_wren_daw/audio/convolver_engine.dart';
 import 'package:mobile_wren_daw/audio/procedural_ir_generator.dart';
+import 'package:mobile_wren_daw/lua/lua_preset_library.dart';
 import 'package:mobile_wren_daw/models/daw_state.dart';
 import 'package:mobile_wren_daw/models/track_model.dart';
 import 'package:mobile_wren_daw/ui/widgets/space_visualizer_widget.dart';
@@ -195,11 +196,59 @@ void main() {
           ),
         ),
       );
-
       expect(find.text('AMP CABINET'), findsOneWidget);
       expect(find.text('Source'), findsOneWidget);
       expect(find.text('Mic'), findsOneWidget);
       expect(find.text('18mm Birch Plywood (Cab)'), findsOneWidget);
+    });
+  });
+
+  group('Room Designer & Cab Designer Lua Presets & DawState Tests', () {
+    test('LuaPresetLibrary contains convolution_reverb, room_designer, and cab_designer presets', () {
+      final convPreset = LuaPresetLibrary.getPresetById('convolution_reverb');
+      expect(convPreset, isNotNull);
+      expect(convPreset!.name, equals('Convolution Reverb'));
+
+      final roomPreset = LuaPresetLibrary.getPresetById('room_designer');
+      expect(roomPreset, isNotNull);
+      expect(roomPreset!.name, equals('Room Designer'));
+
+      final cabPreset = LuaPresetLibrary.getPresetById('cab_designer');
+      expect(cabPreset, isNotNull);
+      expect(cabPreset!.name, equals('Cab Designer'));
+    });
+
+    test('DawState adds Room Designer and Cab Designer as convolutionReverb FX and syncs parameters', () {
+      final state = DawState();
+      final track = state.activeTrack;
+      track.fxRack.clear();
+
+      final roomPreset = LuaPresetLibrary.getPresetById('room_designer')!;
+      state.addAudioFXFromPreset(track, roomPreset);
+
+      expect(track.fxRack.length, equals(1));
+      final roomFx = track.fxRack.first;
+      expect(roomFx.type, equals(FXType.convolutionReverb));
+      expect(roomFx.name, equals('Room Designer'));
+
+      // Update room width
+      state.updateFXParam(track, roomFx.id, 'Width', 20.0);
+      expect(roomFx.params['Width'], equals(20.0));
+      expect(roomFx.irSampleName, contains('Room:'));
+
+      // Add Cab Designer
+      final cabPreset = LuaPresetLibrary.getPresetById('cab_designer')!;
+      state.addAudioFXFromPreset(track, cabPreset);
+
+      expect(track.fxRack.length, equals(2));
+      final cabFx = track.fxRack.last;
+      expect(cabFx.type, equals(FXType.convolutionReverb));
+      expect(cabFx.name, equals('Cab Designer'));
+
+      // Change Cab Designer Width parameter
+      state.updateFXParam(track, cabFx.id, 'Width', 0.85);
+      expect(cabFx.params['Width'], equals(0.85));
+      expect(cabFx.irSampleName, contains('Cab:'));
     });
   });
 }

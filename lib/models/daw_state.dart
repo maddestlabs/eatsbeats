@@ -10,6 +10,8 @@ import '../utils/platform_env_helper.dart';
 import '../utils/eats_storage_helper.dart';
 
 import '../audio/audio_engine.dart';
+import '../audio/convolver_engine.dart';
+import '../audio/procedural_ir_generator.dart';
 import '../audio/sampler_engine.dart';
 import '../audio/soundfont_engine.dart';
 import '../audio/wav_exporter.dart';
@@ -320,20 +322,21 @@ class DawState extends ChangeNotifier {
     );
   }
 
-  void openFloatingInstrumentWindow(TrackChannel track, {Size? workspaceSize}) {
+  void openFloatingInstrumentWindow([TrackChannel? track, Size? workspaceSize]) {
+    final target = track ?? activeTrack;
     _floatingFxTrackId = null;
     _floatingFxInsertId = null;
-    _floatingInstrumentTrackId = track.id;
+    _floatingInstrumentTrackId = target.id;
     _isFloatingWindowVisible = true;
-    final trackIdx = activePattern.tracks.indexOf(track);
+    final trackIdx = activePattern.tracks.indexOf(target);
     if (trackIdx != -1) {
       activeTrackIndex = trackIdx;
     }
     if (workspaceSize != null) {
-      fitFloatingWindowToWorkspace(workspaceSize, track);
+      fitFloatingWindowToWorkspace(workspaceSize, target);
     } else {
-      final naturalH = getTrackNaturalGuiHeight(track);
-      _floatingWindowSize = Size(520, naturalH + 38.0);
+      final naturalH = getTrackNaturalGuiHeight(target);
+      _floatingWindowSize = Size(540, (naturalH + 38.0).clamp(240.0, 680.0));
       notifyListeners();
     }
   }
@@ -351,6 +354,7 @@ class DawState extends ChangeNotifier {
       color: EatsTheme.secondaryMagenta,
       luaScriptCode: fx.luaScriptCode ?? '',
       luaParams: fx.luaParams,
+      sampleName: fx.irSampleName ?? 'Great Hall',
     );
 
     if (workspaceSize != null) {
@@ -367,15 +371,40 @@ class DawState extends ChangeNotifier {
     _isFloatingWindowMaximized = false;
     _floatingFxTrackId = null;
     _floatingFxInsertId = null;
+    _floatingInstrumentTrackId = null;
     notifyListeners();
+  }
+
+  void setFloatingInstrumentTrack(TrackChannel track, {Size? workspaceSize}) {
+    final prevId = _floatingInstrumentTrackId;
+    _floatingFxTrackId = null;
+    _floatingFxInsertId = null;
+    _floatingInstrumentTrackId = track.id;
+    _isFloatingWindowVisible = true;
+
+    if (workspaceSize != null) {
+      fitFloatingWindowToWorkspace(workspaceSize, track);
+    } else if (prevId != track.id) {
+      final naturalH = getTrackNaturalGuiHeight(track);
+      _floatingWindowSize = Size(540, (naturalH + 38.0).clamp(240.0, 680.0));
+      notifyListeners();
+    }
   }
 
   void toggleFloatingInstrumentWindow([TrackChannel? track, Size? workspaceSize]) {
     final target = track ?? activeTrack;
-    if (_isFloatingWindowVisible && _floatingInstrumentTrackId == target.id) {
+    if (_isFloatingWindowVisible && _floatingInstrumentTrackId == target.id && _floatingFxInsertId == null) {
       closeFloatingInstrumentWindow();
     } else {
-      openFloatingInstrumentWindow(target, workspaceSize: workspaceSize);
+      openFloatingInstrumentWindow(target, workspaceSize);
+    }
+  }
+
+  void toggleFloatingWindowForTrack(TrackChannel target, {Size? workspaceSize}) {
+    if (_isFloatingWindowVisible && _floatingInstrumentTrackId == target.id && _floatingFxInsertId == null) {
+      closeFloatingInstrumentWindow();
+    } else {
+      openFloatingInstrumentWindow(target, workspaceSize);
     }
   }
 
@@ -393,10 +422,13 @@ class DawState extends ChangeNotifier {
         double nodeH = 70.0;
         if (node.type == LuaGuiNodeType.row || node.type == LuaGuiNodeType.column) {
           final hasListBox = node.children.any((c) => c.type == LuaGuiNodeType.listBox);
+          final onlyHorizontalSliders = node.children.isNotEmpty && node.children.every((c) => (c.type == LuaGuiNodeType.slider) && c.orientation != 'vertical');
           final hasKnobOrSlider = node.children.any((c) => c.type == LuaGuiNodeType.knob || c.type == LuaGuiNodeType.slider || c.type == LuaGuiNodeType.fader);
           final onlyDisplays = node.children.every((c) => c.type == LuaGuiNodeType.nixie || c.type == LuaGuiNodeType.lcd || c.type == LuaGuiNodeType.label || c.type == LuaGuiNodeType.button);
 
-          if (hasListBox) {
+          if (onlyHorizontalSliders) {
+            nodeH = 40.0;
+          } else if (hasListBox) {
             nodeH = 76.0;
           } else if (hasKnobOrSlider) {
             nodeH = 70.0;
@@ -409,6 +441,8 @@ class DawState extends ChangeNotifier {
           nodeH = 42.0;
         } else if (node.type == LuaGuiNodeType.listBox) {
           nodeH = 76.0;
+        } else if (node.type == LuaGuiNodeType.spaceVisualizer || node.type == LuaGuiNodeType.waveshaperCanvas) {
+          nodeH = node.height ?? 160.0;
         }
         totalHeight += nodeH + 8.0;
       }
@@ -2425,6 +2459,7 @@ class DawState extends ChangeNotifier {
     if (track.id == masterTrack.id || track == masterTrack) {
       audioEngine.updateMasterFx(masterTrack.fxRack);
     } else {
+      audioEngine.updateTrackFx(track.id, track.fxRack, volume: track.volume, pan: track.pan);
       audioEngine.invalidateLuaCache(track.id);
     }
   }
@@ -2443,15 +2478,15 @@ class DawState extends ChangeNotifier {
       type = FXType.limiter;
     } else if (lowerId == 'compressor' || lowerName.contains('compressor')) {
       type = FXType.compressor;
-    } else if (lowerId.contains('reverb') || lowerName.contains('reverb')) {
+    } else if (lowerId.contains('reverb') || lowerName.contains('reverb') || lowerId == 'room_designer' || lowerId == 'cab_designer' || lowerName.contains('designer')) {
       type = FXType.convolutionReverb;
     } else if (lowerId == 'biquad_filter' || lowerId == 'lowpass_filter') {
       type = FXType.biquadFilter;
-    } else if (lowerId == 'tube_distortion') {
+    } else if (lowerId.contains('shaper') || lowerName.contains('shaper') || lowerId == 'tube_distortion' || lowerName.contains('distortion')) {
       type = FXType.distortion;
-    } else if (lowerId == 'bitcrusher_8bit') {
+    } else if (lowerId.contains('bitcrush') || lowerName.contains('bitcrush') || lowerName.contains('crusher')) {
       type = FXType.bitcrusher;
-    } else if (lowerId == 'stereo_delay') {
+    } else if (lowerId == 'stereo_delay' || lowerId.contains('delay')) {
       type = FXType.delay;
     }
 
@@ -2462,6 +2497,36 @@ class DawState extends ChangeNotifier {
       presetId: preset.id,
       luaParams: initialParams,
     );
+    for (final e in initialParams.entries) {
+      fx.params[e.key] = e.value;
+    }
+    if (lowerId == 'cab_designer' || lowerId == 'room_designer') {
+      final isCab = lowerId == 'cab_designer';
+      final customName = isCab ? 'Cab: ${track.name}_${fx.id}' : 'Room: ${track.name}_${fx.id}';
+      final matIdx = (initialParams['Material'] ?? 0.0).toInt().clamp(0, AcousticMaterialType.values.length - 1);
+      final spaceParams = AcousticSpaceParams(
+        name: customName,
+        width: initialParams['Width'] ?? (isCab ? 0.76 : 15.0),
+        length: initialParams['Length'] ?? (isCab ? 0.76 : 25.0),
+        height: initialParams['Height'] ?? (isCab ? 0.36 : 10.0),
+        material: AcousticMaterialType.values[matIdx],
+        rt60: isCab ? 0.035 : (initialParams['RT60'] ?? 2.2),
+        damping: initialParams['Damping'] ?? (isCab ? 0.55 : 0.25),
+        isCabinetMode: isCab,
+        micDistance: initialParams['MicDistance'] ?? 0.05,
+        micAngleDeg: initialParams['MicAngle'] ?? 0.0,
+        isOpenBack: (initialParams['OpenBack'] ?? 0.0) == 1.0,
+      );
+      ConvolverEngine.instance.bakeCustomSpace(spaceParams);
+      audioEngine.invalidateIrCache(customName);
+      fx.irSampleName = customName;
+      if (isCab) {
+        fx.params['DryLevel'] = 0.0;
+        fx.params['WetLevel'] = 1.0;
+        fx.luaParams['DryLevel'] = 0.0;
+        fx.luaParams['WetLevel'] = 1.0;
+      }
+    }
     track.fxRack.add(fx);
     _syncFxAudio(track);
     recordHistory('Add FX "${preset.name}" to ${track.name} FX rack', icon: Icons.tune);
@@ -2538,6 +2603,70 @@ class DawState extends ChangeNotifier {
     for (final f in track.fxRack) {
       if (f.id == fxId) {
         f.params[paramName] = val;
+        f.luaParams[paramName] = val;
+
+        // If this is an IRSample choice parameter in Convolution Reverb
+        if (paramName == 'IRSample') {
+          final allIrs = ConvolverEngine.instance.getAvailableIrNames();
+          final idx = val.toInt().clamp(0, allIrs.length - 1);
+          if (allIrs.isNotEmpty) {
+            f.irSampleName = allIrs[idx];
+            audioEngine.invalidateIrCache(f.irSampleName);
+          }
+        }
+
+        // If this is a Room or Cabinet Designer parameter
+        final isRoomDesigner = f.presetId == 'room_designer' || f.name.toLowerCase().contains('room designer');
+        final isCabDesigner = f.presetId == 'cab_designer' || f.name.toLowerCase().contains('cab');
+        if (isRoomDesigner || isCabDesigner) {
+          final customName = isCabDesigner ? 'Cab: ${track.name}_${f.id}' : 'Room: ${track.name}_${f.id}';
+
+          if (isCabDesigner && paramName == 'CabType') {
+            final cabPresetKeys = [
+              '4x12 Vintage Stack (Closed)',
+              '2x12 British Celestion',
+              '1x12 Tweed Combo (Open-Back)',
+              'Bass 8x10 Fridge',
+              'Small Radio Speaker',
+            ];
+            final cIdx = val.toInt().clamp(0, cabPresetKeys.length - 1);
+            final cabPreset = ProceduralIRGenerator.presets[cabPresetKeys[cIdx]];
+            if (cabPreset != null) {
+              f.params['Width'] = cabPreset.width;
+              f.params['Length'] = cabPreset.length;
+              f.params['Height'] = cabPreset.height;
+              f.params['MicDistance'] = cabPreset.micDistance;
+              f.params['MicAngle'] = cabPreset.micAngleDeg;
+              f.params['OpenBack'] = cabPreset.isOpenBack ? 1.0 : 0.0;
+              f.luaParams['Width'] = cabPreset.width;
+              f.luaParams['Length'] = cabPreset.length;
+              f.luaParams['Height'] = cabPreset.height;
+              f.luaParams['MicDistance'] = cabPreset.micDistance;
+              f.luaParams['MicAngle'] = cabPreset.micAngleDeg;
+              f.luaParams['OpenBack'] = cabPreset.isOpenBack ? 1.0 : 0.0;
+            }
+          }
+
+          final matIdx = (f.params['Material'] ?? 0.0).toInt().clamp(0, AcousticMaterialType.values.length - 1);
+          final spaceParams = AcousticSpaceParams(
+            name: customName,
+            width: f.params['Width'] ?? (isCabDesigner ? 0.76 : 8.0),
+            length: f.params['Length'] ?? (isCabDesigner ? 0.76 : 12.0),
+            height: f.params['Height'] ?? (isCabDesigner ? 0.36 : 4.0),
+            material: AcousticMaterialType.values[matIdx],
+            rt60: isCabDesigner ? 0.035 : (f.params['RT60'] ?? (f.params['Decay'] ?? 1.8)),
+            damping: f.params['Damping'] ?? (isCabDesigner ? 0.55 : 0.40),
+            isCabinetMode: isCabDesigner,
+            micDistance: f.params['MicDistance'] ?? 0.05,
+            micAngleDeg: f.params['MicAngle'] ?? 0.0,
+            isOpenBack: (f.params['OpenBack'] ?? 0.0) == 1.0,
+          );
+
+          ConvolverEngine.instance.bakeCustomSpace(spaceParams);
+          audioEngine.invalidateIrCache(customName);
+          f.irSampleName = customName;
+        }
+
         _syncFxAudio(track);
         notifyListeners();
         break;
@@ -2549,6 +2678,7 @@ class DawState extends ChangeNotifier {
     for (final f in track.fxRack) {
       if (f.id == fxId) {
         f.irSampleName = irName;
+        audioEngine.invalidateIrCache(irName);
         _syncFxAudio(track);
         notifyListeners();
         break;

@@ -17,6 +17,8 @@ enum LuaGuiNodeType {
   label,
   spacer,
   canvas,
+  spaceVisualizer,
+  waveshaperCanvas,
   dpad,
   gamepad,
   unknown,
@@ -27,6 +29,11 @@ enum KnobStyle {
   chrome,
   vintage,
   snes,
+}
+
+enum SliderStyle {
+  console,
+  capsule,
 }
 
 enum PanelBackgroundStyle {
@@ -54,6 +61,7 @@ class LuaGuiNode {
   final String? text;
   final String? action;
   final KnobStyle knobStyle;
+  final SliderStyle sliderStyle;
   final String canvasMode; // 'pixel', 'vector', 'grid'
   final int cols;
   final int rows;
@@ -80,6 +88,7 @@ class LuaGuiNode {
     this.text,
     this.action,
     this.knobStyle = KnobStyle.standard,
+    this.sliderStyle = SliderStyle.capsule,
     this.canvasMode = 'pixel',
     this.cols = 32,
     this.rows = 24,
@@ -98,6 +107,10 @@ class LuaGuiNode {
       case 'rotary':
         return LuaGuiNodeType.knob;
       case 'slider':
+      case 'hslider':
+      case 'horizontalslider':
+      case 'vslider':
+      case 'verticalslider':
         return LuaGuiNodeType.slider;
       case 'fader':
         return LuaGuiNodeType.fader;
@@ -125,6 +138,19 @@ class LuaGuiNode {
       case 'meter':
       case 'vumeter':
         return LuaGuiNodeType.meter;
+      case 'space':
+      case 'spacevisualizer':
+      case 'roomvisualizer':
+      case 'cabvisualizer':
+      case 'roomcanvas':
+      case 'cabcanvas':
+        return LuaGuiNodeType.spaceVisualizer;
+      case 'waveshaper':
+      case 'shaper':
+      case 'waveshapercanvas':
+      case 'shapercanvas':
+      case 'transfercanvas':
+        return LuaGuiNodeType.waveshaperCanvas;
       case 'canvas':
       case 'gamecanvas':
       case 'screen':
@@ -185,6 +211,15 @@ class LuaGuiNode {
       return KnobStyle.vintage;
     }
     return KnobStyle.standard;
+  }
+
+  static SliderStyle parseSliderStyle(String? raw) {
+    if (raw == null) return SliderStyle.capsule;
+    final clean = raw.toLowerCase().trim();
+    if (clean.contains('console') || clean.contains('mixer') || clean.contains('fader') || clean.contains('vintage')) {
+      return SliderStyle.console;
+    }
+    return SliderStyle.capsule;
   }
 
   static PanelBackgroundStyle parseBackgroundStyle(String? raw) {

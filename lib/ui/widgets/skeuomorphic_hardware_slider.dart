@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../lua/lua_gui_model.dart' show SliderStyle;
 import '../../theme/eats_theme.dart';
 import 'compact_value_dialog.dart';
 
@@ -17,6 +18,7 @@ class SkeuomorphicHardwareSlider extends StatefulWidget {
   final VoidCallback? onChangeEnd;
   final Color? activeColor;
   final Axis orientation;
+  final SliderStyle style;
   final double length;
   final String Function(double)? formatValue;
   final bool showLevelMarkings;
@@ -36,6 +38,7 @@ class SkeuomorphicHardwareSlider extends StatefulWidget {
     this.onChangeEnd,
     this.activeColor,
     this.orientation = Axis.horizontal,
+    this.style = SliderStyle.capsule,
     this.length = 160.0,
     this.formatValue,
     this.showLevelMarkings = true,
@@ -84,7 +87,7 @@ class _SkeuomorphicHardwareSliderState extends State<SkeuomorphicHardwareSlider>
             : (constraints.hasBoundedHeight && constraints.maxHeight.isFinite ? constraints.maxHeight : widget.length);
 
         final widgetWidth = isHoriz ? totalLength : 40.0;
-        final widgetHeight = isHoriz ? 36.0 : totalLength;
+        final widgetHeight = isHoriz ? (widget.style == SliderStyle.capsule ? 26.0 : 36.0) : totalLength;
 
         final content = SizedBox(
           width: widgetWidth,
@@ -95,6 +98,7 @@ class _SkeuomorphicHardwareSliderState extends State<SkeuomorphicHardwareSlider>
               accentColor: activeColor,
               isGrungyTheme: isGrungy,
               orientation: widget.orientation,
+              style: widget.style,
               showLevelMarkings: widget.showLevelMarkings,
             ),
           ),
@@ -156,6 +160,7 @@ class _FaderPainter extends CustomPainter {
   final Color accentColor;
   final bool isGrungyTheme;
   final Axis orientation;
+  final SliderStyle style;
   final bool showLevelMarkings;
 
   _FaderPainter({
@@ -163,6 +168,7 @@ class _FaderPainter extends CustomPainter {
     required this.accentColor,
     required this.isGrungyTheme,
     required this.orientation,
+    required this.style,
     required this.showLevelMarkings,
   });
 
@@ -171,8 +177,14 @@ class _FaderPainter extends CustomPainter {
     final isHoriz = orientation == Axis.horizontal;
     final trackLength = isHoriz ? size.width : size.height;
     final trackCross = isHoriz ? size.height : size.width;
-
     final centerCross = trackCross / 2;
+
+    // Capsule Style (Real-world tactile pill track + circular aluminum button thumb)
+    if (style == SliderStyle.capsule && isHoriz) {
+      _paintCapsuleSlider(canvas, size, trackLength, trackCross, centerCross);
+      return;
+    }
+
     final capBreadth = isHoriz ? 32.0 : 18.0;
     final capThickness = isHoriz ? 18.0 : 32.0;
 
@@ -442,11 +454,132 @@ class _FaderPainter extends CustomPainter {
     }
   }
 
+  void _paintCapsuleSlider(Canvas canvas, Size size, double trackLength, double trackCross, double centerCross) {
+    const margin = 10.0;
+    const trackHeight = 7.0;
+    const halfTrackH = trackHeight / 2.0;
+    final trackRadius = Radius.circular(halfTrackH);
+    final slotRect = Rect.fromLTRB(margin, centerCross - halfTrackH, trackLength - margin, centerCross + halfTrackH);
+    final slotRRect = RRect.fromRectAndRadius(slotRect, trackRadius);
+
+    // 1. Recessed Base Track Groove
+    final trackBasePaint = Paint()..color = const Color(0xFF12151B);
+    canvas.drawRRect(slotRRect, trackBasePaint);
+
+    // 2. Track Inner Shadow (dark top edge)
+    final innerShadowPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFF07090C), Color(0x0012151B)],
+        stops: [0.0, 0.70],
+      ).createShader(slotRect);
+    canvas.drawRRect(slotRRect, innerShadowPaint);
+
+    // 3. Track Outer Border / Bottom Specular Highlight
+    final trackBorderPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFF090A0E), Color(0xFF2B303C)],
+      ).createShader(slotRect);
+    canvas.drawRRect(slotRRect, trackBorderPaint);
+
+    // 4. Glowing Active Track Fill (from left edge to thumb position)
+    final thumbTravel = (trackLength - 2 * margin - 16.0);
+    final thumbCenterPos = margin + 8.0 + (normalizedValue.clamp(0.0, 1.0) * thumbTravel);
+
+    if (thumbCenterPos > margin + halfTrackH) {
+      final activeRect = Rect.fromLTRB(margin, centerCross - halfTrackH + 0.5, thumbCenterPos, centerCross + halfTrackH - 0.5);
+      final activeRRect = RRect.fromRectAndRadius(activeRect, Radius.circular(halfTrackH - 0.5));
+
+      final activeGradient = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          accentColor.withOpacity(0.95),
+          accentColor.withOpacity(0.70),
+        ],
+      );
+      canvas.drawRRect(activeRRect, Paint()..shader = activeGradient.createShader(activeRect));
+
+      // Specular Top Ridge inside active fill
+      final activeTopSpec = Paint()
+        ..color = Colors.white.withOpacity(0.35)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8;
+      canvas.drawLine(
+        Offset(margin + halfTrackH, centerCross - halfTrackH + 1.0),
+        Offset(thumbCenterPos - 1.0, centerCross - halfTrackH + 1.0),
+        activeTopSpec,
+      );
+    }
+
+    // 5. Circular Brushed Metallic Disc Thumb Button (as shown in reference image)
+    const thumbRadius = 9.0;
+    final thumbCenter = Offset(thumbCenterPos, centerCross);
+    final thumbRect = Rect.fromCircle(center: thumbCenter, radius: thumbRadius);
+
+    // Ambient Soft Drop Shadow
+    canvas.drawCircle(
+      thumbCenter.translate(0, 2.5),
+      thumbRadius + 0.5,
+      Paint()
+        ..color = Colors.black.withOpacity(0.60)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0),
+    );
+
+    // Tight Contact Shadow
+    canvas.drawCircle(
+      thumbCenter.translate(0, 1.2),
+      thumbRadius,
+      Paint()..color = Colors.black.withOpacity(0.75),
+    );
+
+    // Outer Beveled Dark Rim
+    canvas.drawCircle(
+      thumbCenter,
+      thumbRadius,
+      Paint()..color = const Color(0xFF4A4E58),
+    );
+
+    // Radial Metallic Brushed Face Gradient
+    final buttonGradient = RadialGradient(
+      center: const Alignment(-0.25, -0.35),
+      radius: 0.85,
+      colors: const [
+        Color(0xFFFFFFFF), // Specular light reflection on top-left
+        Color(0xFFE6E9EE), // Polished aluminum body
+        Color(0xFFB8BFC8), // Mid-tone metallic gradient
+        Color(0xFF7A808A), // Shaded bottom-right aluminum bevel
+      ],
+      stops: const [0.0, 0.35, 0.75, 1.0],
+    );
+    canvas.drawCircle(
+      thumbCenter,
+      thumbRadius - 0.9,
+      Paint()..shader = buttonGradient.createShader(thumbRect),
+    );
+
+    // Subtle Machined Center Concentric Ring
+    canvas.drawCircle(
+      thumbCenter,
+      3.0,
+      Paint()
+        ..color = const Color(0xFF888E99).withOpacity(0.55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.7,
+    );
+  }
+
   @override
   bool shouldRepaint(covariant _FaderPainter oldDelegate) {
     return oldDelegate.normalizedValue != normalizedValue ||
         oldDelegate.accentColor != accentColor ||
         oldDelegate.isGrungyTheme != isGrungyTheme ||
-        oldDelegate.orientation != orientation;
+        oldDelegate.orientation != orientation ||
+        oldDelegate.style != style;
   }
 }

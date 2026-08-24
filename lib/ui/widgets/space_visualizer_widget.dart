@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../audio/convolver_engine.dart';
 import '../../audio/procedural_ir_generator.dart';
 import '../../theme/eats_theme.dart';
 
@@ -22,6 +25,90 @@ class SpaceVisualizerWidget extends StatefulWidget {
 
 class _SpaceVisualizerWidgetState extends State<SpaceVisualizerWidget> {
   int _draggedTarget = 0; // 0 = none, 1 = source, 2 = listener
+
+  void _openSavePresetDialog(BuildContext context) {
+    final nameController = TextEditingController(
+      text: widget.params.name.startsWith('Room:') || widget.params.name.startsWith('Cab:')
+          ? (widget.params.isCabinetMode ? 'Custom 4x12 Cab' : 'Custom Live Space')
+          : widget.params.name,
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: EatsTheme.panelHeader,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(color: widget.params.isCabinetMode ? EatsTheme.accentOrange : EatsTheme.primaryCyan, width: 1.2),
+          ),
+          title: Row(
+            children: [
+              Icon(widget.params.isCabinetMode ? Icons.speaker : Icons.meeting_room, color: widget.params.isCabinetMode ? EatsTheme.accentOrange : EatsTheme.primaryCyan, size: 20),
+              const SizedBox(width: 8),
+              Text('Save Custom Preset', style: EatsTheme.getDisplayFontStyle(color: EatsTheme.textPrimary, fontSize: 14)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Preset will be saved to your library and made available in Convolution Reverb.', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 11)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameController,
+                style: EatsTheme.getPrimaryFontStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'PRESET NAME',
+                  labelStyle: EatsTheme.getDisplayFontStyle(color: EatsTheme.primaryCyan, fontSize: 10),
+                  filled: true,
+                  fillColor: const Color(0xFF0F121C),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: Color(0xFF353C52))),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: widget.params.isCabinetMode ? EatsTheme.accentOrange : EatsTheme.primaryCyan)),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton.icon(
+              icon: const Icon(Icons.copy, size: 14),
+              label: const Text('COPY JSON'),
+              onPressed: () {
+                final jsonStr = jsonEncode(widget.params.toJson());
+                Clipboard.setData(ClipboardData(text: jsonStr));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Preset JSON copied to clipboard! Share it with others!')),
+                );
+              },
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('CANCEL', style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted)),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.params.isCabinetMode ? EatsTheme.accentOrange : EatsTheme.primaryCyan,
+                foregroundColor: Colors.black,
+              ),
+              icon: const Icon(Icons.save, size: 14),
+              label: const Text('SAVE PRESET'),
+              onPressed: () {
+                final name = nameController.text.trim();
+                if (name.isNotEmpty) {
+                  final customPreset = widget.params.copyWith(name: name);
+                  ConvolverEngine.instance.saveUserPreset(customPreset);
+                  Navigator.of(ctx).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Saved "$name" to Convolution Reverb library!')),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -96,6 +183,41 @@ class _SpaceVisualizerWidgetState extends State<SpaceVisualizerWidget> {
                     ),
                   ),
                 ],
+              ),
+            ),
+
+            // Top Right: Save Preset Button
+            Positioned(
+              top: 6,
+              right: 8,
+              child: InkWell(
+                onTap: () => _openSavePresetDialog(context),
+                borderRadius: BorderRadius.circular(4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: widget.params.isCabinetMode ? EatsTheme.accentOrange.withOpacity(0.7) : EatsTheme.primaryCyan.withOpacity(0.7),
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.save_outlined, size: 11, color: widget.params.isCabinetMode ? EatsTheme.accentOrange : EatsTheme.primaryCyan),
+                      const SizedBox(width: 3),
+                      Text(
+                        'SAVE PRESET',
+                        style: EatsTheme.getDisplayFontStyle(
+                          fontSize: 9,
+                          color: widget.params.isCabinetMode ? EatsTheme.accentOrange : EatsTheme.primaryCyan,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
 

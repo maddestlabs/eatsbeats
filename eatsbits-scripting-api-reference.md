@@ -266,3 +266,58 @@ return MyTrackScript
 ### 2.10 Versioned API Namespace (`eatsbits.v1`)
 
 All track scripts target explicitly versioned namespaces (`eatsbits.v1`), guaranteeing backwards compatibility across engine upgrades.
+
+---
+
+### 2.11 Skeuomorphic Hardware GUI Declarations (`gui()`)
+
+Plugins, instruments, and effects export a declarative `gui()` table defining skeuomorphic panels and controls:
+
+```lua
+function MyPlugin.gui()
+  return {
+    panel = {
+      title = "My Plugin",
+      subtitle = "Stereo DSP Processor",
+      background = "dark", -- "dark", "silver", "grunge", "snes"
+      accent = "#00E5FF",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Cutoff", label = "CUTOFF", unit = "Hz" },
+            { type = "switch", param = "Enabled", label = "POWER", left = "OFF", right = "ON" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            -- Tactile Pill / Capsule Slider (Real-world hardware style with glowing fill & aluminum disc thumb)
+            { type = "hslider", param = "DryLevel", label = "DRY LEVEL", width = 480, style = "capsule" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "hslider", param = "WetLevel", label = "WET LEVEL", width = 480, style = "capsule" },
+          }
+        }
+      }
+    }
+  }
+end
+```
+
+#### Widget Types Reference:
+| Widget `type` | Description | Key Attributes |
+| :--- | :--- | :--- |
+| `"hslider"` / `"horizontal_slider"` | Horizontal Track Slider with label and live % readout | `param`, `label`, `width`, `unit`, `style` (`"capsule"` or `"console"`) |
+| `"vslider"` / `"vertical_slider"` / `"fader"` | Vertical Console Mixer Fader with decibel markings | `param`, `label`, `size`, `unit`, `style` |
+| `"slider"` | Defaults to horizontal slider (or vertical if `orientation = "vertical"`) | `param`, `label`, `width`, `orientation`, `style` |
+| `"knob"` | Skeuomorphic rotary potentiometer (300° arc, mouse wheel, double-tap numeric entry) | `param`, `label`, `unit`, `knobStyle` (`"standard"`, `"chrome"`, `"vintage"`, `"snes"`), `size` |
+| `"switch"` / `"toggle"` | Two-position hardware toggle switch with status indicator LED | `param`, `label`, `left`, `right`, `orientation` |
+| `"button"` | Skeuomorphic illuminated push button with click callback / trigger | `label`, `action`, `width`, `height` |
+| `"listbox"` | Hardware dropdown selector box | `param`, `label`, `options`, `width`, `height` |
+| `"waveshaper_canvas"` | Interactive 2D transfer curve display with drag tension & curve selector | `height` |
+| `"space_visualizer"` | 3D acoustic room/cabinet wireframe mesh visualizer with IR preview | `height`, `mode` |
+

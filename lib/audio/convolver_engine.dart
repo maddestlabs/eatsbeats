@@ -9,8 +9,23 @@ class ConvolverEngine {
   static List<String> get builtInIrNames => ProceduralIRGenerator.presets.keys.toList();
 
   final Map<String, List<double>> _irSamples = {};
+  final Map<String, AcousticSpaceParams> _userPresets = {};
 
   Map<String, List<double>> get irSamples => Map.unmodifiable(_irSamples);
+  Map<String, AcousticSpaceParams> get userPresets => Map.unmodifiable(_userPresets);
+
+  /// Saves a custom user-designed space or cabinet preset and makes it available in Convolution Reverb.
+  void saveUserPreset(AcousticSpaceParams params) {
+    final presetName = params.name.trim();
+    _userPresets[presetName] = params;
+    bakeCustomSpace(params);
+  }
+
+  /// Removes a custom user preset.
+  void deleteUserPreset(String name) {
+    _userPresets.remove(name);
+    unloadIr(name);
+  }
 
   /// Registers a newly decoded or procedurally baked IR PCM audio buffer.
   bool registerIrSample(String name, List<double> pcm) {
@@ -43,9 +58,11 @@ class ConvolverEngine {
 
   /// Returns list of all available Impulse Response names (both built-in procedural and imported/downloaded).
   List<String> getAvailableIrNames() {
-    final names = <String>{...builtInIrNames};
+    final names = <String>{...builtInIrNames, ..._userPresets.keys};
     for (final k in _irSamples.keys) {
-      if (!k.contains('/')) names.add(k);
+      if (!k.contains('/') && !k.startsWith('Room:') && !k.startsWith('Cab:')) {
+        names.add(k);
+      }
     }
     final list = names.toList();
     list.sort();
@@ -58,10 +75,22 @@ class ConvolverEngine {
     if (_irSamples.containsKey(name)) return _irSamples[name];
     if (_irSamples.containsKey(cleanName)) return _irSamples[cleanName];
 
-    // Check procedural preset library
+    // Check custom user presets
+    if (_userPresets.containsKey(cleanName)) {
+      final generated = ProceduralIRGenerator.generate(_userPresets[cleanName]!);
+      _irSamples[cleanName] = generated;
+      _irSamples[name] = generated;
+      return generated;
+    }
+
+    // Check procedural preset library with exact and substring matching
     for (final entry in ProceduralIRGenerator.presets.entries) {
-      if (entry.key.toLowerCase() == cleanName.toLowerCase() ||
-          entry.key.toLowerCase() == name.toLowerCase()) {
+      final entryKey = entry.key.toLowerCase();
+      final target = cleanName.toLowerCase();
+      if (entryKey == target ||
+          target == entry.value.name.toLowerCase() ||
+          entryKey.startsWith(target) ||
+          target.startsWith(entryKey.split(' (').first)) {
         final generated = ProceduralIRGenerator.generate(entry.value);
         _irSamples[cleanName] = generated;
         _irSamples[name] = generated;

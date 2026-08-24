@@ -60,6 +60,14 @@ class AudioEngine {
     _backend.updateMasterFx(fxRack);
   }
 
+  void updateTrackFx(String trackId, List<FXInsert> fxRack, {double volume = 1.0, double pan = 0.0}) {
+    _backend.updateTrackFx(trackId, fxRack, volume: volume, pan: pan);
+  }
+
+  void invalidateIrCache([String? irName]) {
+    _backend.invalidateIrCache(irName);
+  }
+
   /// Updates or modulates an automated parameter on a track's audio graph strip.
   void setTrackParam(String trackId, String targetId, double value) {
     _backend.setTrackParam(trackId, targetId, value);

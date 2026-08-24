@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../lua/lua_gui_model.dart' show SliderStyle;
 import '../../theme/eats_theme.dart';
 import 'skeuomorphic_hardware_slider.dart';
 
@@ -17,6 +18,8 @@ class EatsBitsSlider extends StatelessWidget {
   final double step;
   final String Function(double)? formatValue;
   final bool showTooltip;
+  final Axis orientation;
+  final SliderStyle style;
 
   const EatsBitsSlider({
     super.key,
@@ -34,6 +37,8 @@ class EatsBitsSlider extends StatelessWidget {
     this.step = 0.0,
     this.formatValue,
     this.showTooltip = true,
+    this.orientation = Axis.horizontal,
+    this.style = SliderStyle.capsule,
   });
 
   @override
@@ -48,6 +53,8 @@ class EatsBitsSlider extends StatelessWidget {
       onChangeStart: onChangeStart,
       onChangeEnd: onChangeEnd,
       activeColor: activeColor ?? EatsTheme.primaryCyan,
+      orientation: orientation,
+      style: style,
       divisions: divisions,
       step: step,
       formatValue: formatValue,
