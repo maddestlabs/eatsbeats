@@ -27,6 +27,7 @@ class HistoryEntry {
   final IconData icon;
   final DateTime timestamp;
   final String snapshotLua;
+  final int? stateFingerprint;
   final bool isMilestone;
   final String? milestoneName;
 
@@ -36,6 +37,7 @@ class HistoryEntry {
     required this.icon,
     required this.timestamp,
     required this.snapshotLua,
+    this.stateFingerprint,
     this.isMilestone = false,
     this.milestoneName,
   });
@@ -46,6 +48,7 @@ class HistoryEntry {
     IconData? icon,
     DateTime? timestamp,
     String? snapshotLua,
+    int? stateFingerprint,
     bool? isMilestone,
     String? milestoneName,
   }) {
@@ -55,6 +58,7 @@ class HistoryEntry {
       icon: icon ?? this.icon,
       timestamp: timestamp ?? this.timestamp,
       snapshotLua: snapshotLua ?? this.snapshotLua,
+      stateFingerprint: stateFingerprint ?? this.stateFingerprint,
       isMilestone: isMilestone ?? this.isMilestone,
       milestoneName: milestoneName ?? this.milestoneName,
     );
@@ -73,6 +77,7 @@ class HistoryManager extends ChangeNotifier {
   bool _inTransaction = false;
   String? _transactionDescription;
   IconData? _transactionIcon;
+  int? _transactionInitialFingerprint;
   String? _transactionInitialSnapshot;
 
   bool _isRestoring = false;
@@ -115,6 +120,7 @@ class HistoryManager extends ChangeNotifier {
   /// Initializes history with the initial DAW state snapshot.
   void init(DawState state, {String initialDescription = 'Initial Project State'}) {
     final snapshot = state.exportToEatsLua();
+    final fp = state.computeStateFingerprint();
     _past.clear();
     _future.clear();
     _current = HistoryEntry(
@@ -123,6 +129,7 @@ class HistoryManager extends ChangeNotifier {
       icon: Icons.flag,
       timestamp: DateTime.now(),
       snapshotLua: snapshot,
+      stateFingerprint: fp,
       isMilestone: true,
       milestoneName: 'Initial State',
     );
@@ -141,9 +148,16 @@ class HistoryManager extends ChangeNotifier {
     if (_isRestoring || _isPaused || _current == null) return;
     if (_inTransaction) return; // Coalesced into current transaction
 
+    final newFingerprint = state.computeStateFingerprint();
+
+    // Fast O(1) integer fingerprint equality check to skip identical states
+    if (!force && _current != null && _current!.stateFingerprint != null && _current!.stateFingerprint == newFingerprint) {
+      return;
+    }
+
     final newSnapshot = state.exportToEatsLua();
 
-    // Prevent duplicate entries if state hasn't changed
+    // Secondary string equality check
     if (!force && _current != null && _current!.snapshotLua == newSnapshot) {
       return;
     }
@@ -163,6 +177,7 @@ class HistoryManager extends ChangeNotifier {
       icon: icon,
       timestamp: DateTime.now(),
       snapshotLua: newSnapshot,
+      stateFingerprint: newFingerprint,
       isMilestone: isMilestone,
       milestoneName: milestoneName,
     );
@@ -176,7 +191,8 @@ class HistoryManager extends ChangeNotifier {
     _inTransaction = true;
     _transactionDescription = description;
     _transactionIcon = icon;
-    _transactionInitialSnapshot = state.exportToEatsLua();
+    _transactionInitialFingerprint = state.computeStateFingerprint();
+    _transactionInitialSnapshot = null;
   }
 
   /// Commits a continuous gesture transaction (e.g. knob/slider drag end).
@@ -184,14 +200,17 @@ class HistoryManager extends ChangeNotifier {
     if (!_inTransaction) return;
     _inTransaction = false;
 
-    final currentSnapshot = state.exportToEatsLua();
-    if (_transactionInitialSnapshot != null && _transactionInitialSnapshot == currentSnapshot) {
+    final curFp = state.computeStateFingerprint();
+    if (_transactionInitialFingerprint != null && _transactionInitialFingerprint == curFp) {
       // No actual value changed during drag
       _transactionDescription = null;
       _transactionIcon = null;
+      _transactionInitialFingerprint = null;
       _transactionInitialSnapshot = null;
       return;
     }
+
+    final currentSnapshot = state.exportToEatsLua();
 
     if (_current != null) {
       _past.add(_current!);
@@ -208,10 +227,12 @@ class HistoryManager extends ChangeNotifier {
       icon: _transactionIcon ?? Icons.tune,
       timestamp: DateTime.now(),
       snapshotLua: currentSnapshot,
+      stateFingerprint: curFp,
     );
 
     _transactionDescription = null;
     _transactionIcon = null;
+    _transactionInitialFingerprint = null;
     _transactionInitialSnapshot = null;
 
     notifyListeners();
@@ -222,6 +243,7 @@ class HistoryManager extends ChangeNotifier {
     _inTransaction = false;
     _transactionDescription = null;
     _transactionIcon = null;
+    _transactionInitialFingerprint = null;
     _transactionInitialSnapshot = null;
   }
 
@@ -423,5 +445,63 @@ class HistoryManager extends ChangeNotifier {
     }
 
     return diff;
+  }
+
+  /// Computes a high-performance hunk-based compact diff, collapsing unchanged
+  /// sections to highlight only specific lines where edits occurred.
+  static List<HistoryDiffLine> computeCompactDiff(
+    String oldText,
+    String newText, {
+    int contextLines = 2,
+  }) {
+    final fullDiff = computeDiff(oldText, newText);
+    if (fullDiff.isEmpty) return const [];
+
+    final hasChanges = fullDiff.any((l) => l.type != HistoryDiffType.unchanged);
+    if (!hasChanges) {
+      return [
+        const HistoryDiffLine(text: 'No changes between states', type: HistoryDiffType.unchanged),
+      ];
+    }
+
+    // Identify indices of changed lines
+    final changeIndices = <int>{};
+    for (int i = 0; i < fullDiff.length; i++) {
+      if (fullDiff[i].type != HistoryDiffType.unchanged) {
+        for (int c = -contextLines; c <= contextLines; c++) {
+          final idx = i + c;
+          if (idx >= 0 && idx < fullDiff.length) {
+            changeIndices.add(idx);
+          }
+        }
+      }
+    }
+
+    final result = <HistoryDiffLine>[];
+    int? skippedCount;
+
+    for (int i = 0; i < fullDiff.length; i++) {
+      if (changeIndices.contains(i)) {
+        if (skippedCount != null && skippedCount > 0) {
+          result.add(HistoryDiffLine(
+            text: '... $skippedCount unchanged lines hidden ...',
+            type: HistoryDiffType.unchanged,
+          ));
+          skippedCount = null;
+        }
+        result.add(fullDiff[i]);
+      } else {
+        skippedCount = (skippedCount ?? 0) + 1;
+      }
+    }
+
+    if (skippedCount != null && skippedCount > 0) {
+      result.add(HistoryDiffLine(
+        text: '... $skippedCount unchanged lines hidden ...',
+        type: HistoryDiffType.unchanged,
+      ));
+    }
+
+    return result;
   }
 }

@@ -224,7 +224,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(track.sampleName, equals('custom_gm.sf2'));
-      expect(track.name, equals('Custom GM Bank'));
+      // Track name should be preserved and not overwritten by the bank name
+      expect(track.name, equals('SoundFont Track'));
     });
   });
 

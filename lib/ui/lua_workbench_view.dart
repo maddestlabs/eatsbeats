@@ -31,6 +31,7 @@ class LuaWorkbenchView extends StatefulWidget {
 
 class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
   late TextEditingController _codeController;
+  late FocusNode _editorFocusNode;
   late ScrollController _editorScrollController;
   late ScrollController _gutterScrollController;
   late String _lastTargetId;
@@ -45,6 +46,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
     _lastTargetId = activeTarget.id;
     _codeController = TextEditingController(text: widget.dawState.getScriptCodeForTarget(activeTarget));
     _codeController.addListener(_onCodeChanged);
+    _editorFocusNode = FocusNode(debugLabel: 'LuaWorkbenchEditor');
 
     _editorScrollController = ScrollController();
     _gutterScrollController = ScrollController();
@@ -65,6 +67,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
   void dispose() {
     _codeController.removeListener(_onCodeChanged);
     _codeController.dispose();
+    _editorFocusNode.dispose();
     _editorScrollController.dispose();
     _gutterScrollController.dispose();
     super.dispose();
@@ -140,9 +143,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
         const SingleActivator(LogicalKeyboardKey.enter, control: true): _compileCurrentScript,
         const SingleActivator(LogicalKeyboardKey.enter, meta: true): _compileCurrentScript,
       },
-      child: Focus(
-        autofocus: true,
-        child: Column(
+      child: Column(
           children: [
             // Top Toolbar: Explorer Toggle, Target Selector, Mode Switcher, Compile Button
             Container(
@@ -322,7 +323,6 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
             ),
           ],
         ),
-      ),
     );
   }
 
@@ -584,6 +584,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
                           Expanded(
                             child: TextField(
                               controller: _codeController,
+                              focusNode: _editorFocusNode,
                               scrollController: _editorScrollController,
                               maxLines: null,
                               expands: true,

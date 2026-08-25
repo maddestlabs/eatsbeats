@@ -239,7 +239,7 @@ class TransportHeader extends StatelessWidget {
 
   void _handleLoad(BuildContext context) {
     EatsFileHelper.pickEatsFile((zipBytes, textContent, fileName) {
-      dawState.loadFromEatsZipOrLua(zipBytes: zipBytes, luaContent: textContent);
+      dawState.loadFromEatsZipOrLua(zipBytes: zipBytes, luaContent: textContent, fileName: fileName);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Loaded project "$fileName"'),

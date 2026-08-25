@@ -76,8 +76,25 @@ if (-not (Test-Path $windowsDir)) {
     }
 }
 
+# Ensure nuget.exe is available (required by plugins like flutter_tts)
+if (-not (Get-Command "nuget" -ErrorAction SilentlyContinue)) {
+    $nugetDir = Join-Path $env:LOCALAPPDATA "nuget"
+    $nugetExe = Join-Path $nugetDir "nuget.exe"
+    if (-not (Test-Path $nugetExe)) {
+        Write-Host "    Downloading nuget.exe (required for Windows C++ plugins)..." -ForegroundColor Gray
+        if (-not (Test-Path $nugetDir)) {
+            New-Item -ItemType Directory -Path $nugetDir -Force | Out-Null
+        }
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile $nugetExe -UseBasicParsing
+    }
+    if (Test-Path $nugetExe) {
+        $env:PATH = "$nugetDir;$env:PATH"
+    }
+}
+
 # Close any running instances of the app to prevent CMake file lock errors
-$runningProcesses = Get-Process | Where-Object { $_.ProcessName -eq "eatsbeats" -or $_.ProcessName -eq "eatsbeats" }
+$runningProcesses = Get-Process | Where-Object { $_.ProcessName -eq "eatsbeats" -or $_.ProcessName -eq "eatsbits" }
 if ($runningProcesses) {
     Write-Host "    Closing running application instances to release file locks..." -ForegroundColor Yellow
     $runningProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
@@ -89,6 +106,10 @@ if ($runningProcesses) {
 # ------------------------------------------------------------------
 if ($Clean) {
     Write-Host "`n[*] STEP 2: Cleaning previous build artifacts..." -ForegroundColor Yellow
+    $ephemeralDir = Join-Path $rootDir "windows\flutter\ephemeral"
+    if (Test-Path $ephemeralDir) {
+        Remove-Item -Recurse -Force $ephemeralDir -ErrorAction SilentlyContinue
+    }
     flutter clean
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to clean Flutter build."

@@ -1,4 +1,4 @@
-import 'dart:ui';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -144,20 +144,78 @@ class _DawMainShellState extends State<DawMainShell> {
     super.dispose();
   }
 
+  bool _isEditingText() {
+    final primaryFocus = FocusManager.instance.primaryFocus;
+    if (primaryFocus == null) return false;
+
+    // Check specific debugLabels for code editors or Flutter's default EditableText
+    final label = (primaryFocus.debugLabel ?? '').toLowerCase();
+    if (label.contains('editabletext') ||
+        label.contains('scriptviewcodeeditor') ||
+        label.contains('luaworkbencheditor') ||
+        label.contains('textfield') ||
+        label.contains('text') ||
+        label.contains('input')) {
+      return true;
+    }
+
+    final context = primaryFocus.context;
+    if (context != null && context.mounted) {
+      try {
+        if (context.findAncestorStateOfType<EditableTextState>() != null) return true;
+        if (context.findAncestorWidgetOfExactType<EditableText>() != null) return true;
+        if (context.findAncestorWidgetOfExactType<TextField>() != null) return true;
+        if (context.findAncestorWidgetOfExactType<TextFormField>() != null) return true;
+        if (context.widget is EditableText) return true;
+      } catch (_) {}
+    }
+
+    return false;
+  }
+
+  void _handleDelete() {
+    if (_isEditingText()) return;
+    if (widget.dawState.activeTabIndex != 0) return; // Only delete in Arranger tab
+
+    final activeClip = widget.dawState.activeClip;
+    if (activeClip != null) {
+      final track = widget.dawState.activePattern.tracks.firstWhere(
+        (t) => t.id == activeClip.trackId || t.clips.any((c) => c.id == activeClip.id),
+        orElse: () => widget.dawState.activeTrack,
+      );
+      widget.dawState.deleteClip(track, activeClip);
+    } else {
+      if (widget.dawState.activePattern.tracks.length > 1) {
+        widget.dawState.deleteTrack(widget.dawState.activeTrack);
+      }
+    }
+  }
+
   bool _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return false;
+
+    // Desktop Fullscreen Shortcuts (F11 or Alt+Enter)
+    if (event.logicalKey == LogicalKeyboardKey.f11) {
+      FullscreenHelper.toggleFullscreen();
+      return true;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter &&
+        (HardwareKeyboard.instance.isAltPressed ||
+         HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.altLeft) ||
+         HardwareKeyboard.instance.isLogicalKeyPressed(LogicalKeyboardKey.altRight))) {
+      FullscreenHelper.toggleFullscreen();
+      return true;
+    }
+
+    // Spacebar Play / Stop (respects text editing focus)
     if (event.logicalKey == LogicalKeyboardKey.space) {
-      final primaryFocus = FocusManager.instance.primaryFocus;
-      if (primaryFocus != null && primaryFocus.context != null) {
-        final editableState = primaryFocus.context!.findAncestorStateOfType<EditableTextState>();
-        if (editableState != null) {
-          // User is editing text (Script Editor, TextFields, manual dialogs). Do not interrupt typing.
-          return false;
-        }
+      if (_isEditingText()) {
+        return false; // Let text field receive space keystroke
       }
       widget.dawState.togglePlay();
       return true;
     }
+
     return false;
   }
   @override
@@ -167,19 +225,23 @@ class _DawMainShellState extends State<DawMainShell> {
       builder: (context, _) {
         final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
 
-        return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.space): () {
-          final primaryFocus = FocusManager.instance.primaryFocus;
-          if (primaryFocus != null && primaryFocus.context != null) {
-            final editableState = primaryFocus.context!.findAncestorStateOfType<EditableTextState>();
-            if (editableState != null) {
-              return; // User is editing text (Script Editor, TextFields, manual dialogs). Do not interrupt typing.
+        return DropTarget(
+          onDragDone: (detail) async {
+            for (final file in detail.files) {
+              try {
+                final bytes = await file.readAsBytes();
+                widget.dawState.addSampleTrackFromFile(
+                  fileName: file.name,
+                  fileBytes: bytes,
+                );
+              } catch (e) {
+                debugPrint('Desktop drop error on ${file.name}: $e');
+              }
             }
-          }
-          widget.dawState.togglePlay();
-        },
-        const SingleActivator(LogicalKeyboardKey.keyP, control: true): () {
+          },
+          child: CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.keyP, control: true): () {
           CommandPaletteDialog.show(context, widget.dawState);
         },
         const SingleActivator(LogicalKeyboardKey.keyP, control: true, shift: true): () {
@@ -198,80 +260,36 @@ class _DawMainShellState extends State<DawMainShell> {
           widget.dawState.toggleBrowser();
         },
         const SingleActivator(LogicalKeyboardKey.keyZ, control: true): () {
-          final primaryFocus = FocusManager.instance.primaryFocus;
-          if (primaryFocus != null && primaryFocus.context != null) {
-            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
-          }
+          if (_isEditingText()) return;
           widget.dawState.undo();
         },
         const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): () {
-          final primaryFocus = FocusManager.instance.primaryFocus;
-          if (primaryFocus != null && primaryFocus.context != null) {
-            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
-          }
+          if (_isEditingText()) return;
           widget.dawState.undo();
         },
         const SingleActivator(LogicalKeyboardKey.keyY, control: true): () {
-          final primaryFocus = FocusManager.instance.primaryFocus;
-          if (primaryFocus != null && primaryFocus.context != null) {
-            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
-          }
+          if (_isEditingText()) return;
           widget.dawState.redo();
         },
         const SingleActivator(LogicalKeyboardKey.keyY, meta: true): () {
-          final primaryFocus = FocusManager.instance.primaryFocus;
-          if (primaryFocus != null && primaryFocus.context != null) {
-            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
-          }
+          if (_isEditingText()) return;
           widget.dawState.redo();
         },
         const SingleActivator(LogicalKeyboardKey.keyZ, control: true, shift: true): () {
-          final primaryFocus = FocusManager.instance.primaryFocus;
-          if (primaryFocus != null && primaryFocus.context != null) {
-            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
-          }
+          if (_isEditingText()) return;
           widget.dawState.redo();
         },
         const SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true): () {
-          final primaryFocus = FocusManager.instance.primaryFocus;
-          if (primaryFocus != null && primaryFocus.context != null) {
-            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
-          }
+          if (_isEditingText()) return;
           widget.dawState.redo();
         },
         const SingleActivator(LogicalKeyboardKey.delete): () {
-          final primaryFocus = FocusManager.instance.primaryFocus;
-          if (primaryFocus != null && primaryFocus.context != null) {
-            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
-          }
-          final activeClip = widget.dawState.activeClip;
-          if (activeClip != null) {
-            final track = widget.dawState.activePattern.tracks.firstWhere(
-              (t) => t.id == activeClip.trackId || t.clips.any((c) => c.id == activeClip.id),
-              orElse: () => widget.dawState.activeTrack,
-            );
-            widget.dawState.deleteClip(track, activeClip);
-          }
-        },
-        const SingleActivator(LogicalKeyboardKey.backspace): () {
-          final primaryFocus = FocusManager.instance.primaryFocus;
-          if (primaryFocus != null && primaryFocus.context != null) {
-            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
-          }
-          final activeClip = widget.dawState.activeClip;
-          if (activeClip != null) {
-            final track = widget.dawState.activePattern.tracks.firstWhere(
-              (t) => t.id == activeClip.trackId || t.clips.any((c) => c.id == activeClip.id),
-              orElse: () => widget.dawState.activeTrack,
-            );
-            widget.dawState.deleteClip(track, activeClip);
-          }
+          if (_isEditingText()) return;
+          if (widget.dawState.activeTabIndex != 0) return;
+          _handleDelete();
         },
         const SingleActivator(LogicalKeyboardKey.keyD, control: true): () {
-          final primaryFocus = FocusManager.instance.primaryFocus;
-          if (primaryFocus != null && primaryFocus.context != null) {
-            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
-          }
+          if (_isEditingText()) return;
           final activeClip = widget.dawState.activeClip;
           if (activeClip != null) {
             final track = widget.dawState.activePattern.tracks.firstWhere(
@@ -287,10 +305,7 @@ class _DawMainShellState extends State<DawMainShell> {
           }
         },
         const SingleActivator(LogicalKeyboardKey.keyD, meta: true): () {
-          final primaryFocus = FocusManager.instance.primaryFocus;
-          if (primaryFocus != null && primaryFocus.context != null) {
-            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
-          }
+          if (_isEditingText()) return;
           final activeClip = widget.dawState.activeClip;
           if (activeClip != null) {
             final track = widget.dawState.activePattern.tracks.firstWhere(
@@ -308,18 +323,17 @@ class _DawMainShellState extends State<DawMainShell> {
           FullscreenHelper.toggleFullscreen();
         },
         const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () {
-          final primaryFocus = FocusManager.instance.primaryFocus;
-          if (primaryFocus != null && primaryFocus.context != null) {
-            if (primaryFocus.context!.findAncestorStateOfType<EditableTextState>() != null) return;
-          }
+          if (_isEditingText()) return;
           FullscreenHelper.toggleFullscreen();
         },
         const SingleActivator(LogicalKeyboardKey.keyF, control: true, meta: true): () {
           FullscreenHelper.toggleFullscreen();
         },
       },
-      child: Scaffold(
-        backgroundColor: EatsTheme.backgroundDark,
+      child: FocusScope(
+        autofocus: true,
+        child: Scaffold(
+          backgroundColor: EatsTheme.backgroundDark,
         body: SafeArea(
           child: Column(
             children: [
@@ -422,8 +436,10 @@ class _DawMainShellState extends State<DawMainShell> {
           ),
         ),
       ),
-    );
-  },
+    ),
+  ),
+);
+},
 );
 }
 

@@ -222,12 +222,16 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
           final isSelected = idx == state.activeTrackIndex;
 
           return Container(
-            margin: const EdgeInsets.only(bottom: 4),
+            margin: EdgeInsets.only(bottom: 4, left: track.isChildTrack ? 16 : 0),
             decoration: BoxDecoration(
-              color: isSelected ? EatsTheme.primaryCyan.withOpacity(0.15) : Colors.black.withOpacity(0.2),
+              color: isSelected
+                  ? EatsTheme.primaryCyan.withOpacity(0.15)
+                  : (track.isFolder ? const Color(0xFF141A24) : Colors.black.withOpacity(0.2)),
               borderRadius: BorderRadius.circular(4),
               border: Border.all(
-                color: isSelected ? EatsTheme.primaryCyan : Colors.transparent,
+                color: isSelected
+                    ? EatsTheme.primaryCyan
+                    : (track.isFolder ? track.color.withOpacity(0.4) : Colors.transparent),
                 width: 1,
               ),
             ),
@@ -236,20 +240,23 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
               child: ListTile(
                 dense: true,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                leading: CircleAvatar(
-                  radius: 6,
-                  backgroundColor: track.color,
+                leading: Icon(
+                  track.iconData,
+                  size: 14,
+                  color: track.color,
                 ),
                 title: Text(
                   track.name,
                   style: EatsTheme.getPrimaryFontStyle(
                     fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: (isSelected || track.isFolder) ? FontWeight.bold : FontWeight.normal,
                     color: isSelected ? Colors.white : EatsTheme.textLight,
                   ),
                 ),
                 subtitle: Text(
-                  '${track.type.name.toUpperCase()} • ${track.clips.length} clip(s)',
+                  track.isFolder
+                      ? 'FOLDER • ${state.getFolderChildren(track.id).length} track(s)'
+                      : '${track.type.name.toUpperCase()} • ${track.clips.length} clip(s)',
                   style: EatsTheme.getPrimaryFontStyle(fontSize: 10, color: EatsTheme.textMuted),
                 ),
                 trailing: isSelected
@@ -1548,108 +1555,136 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
   void _showDiffDialog(BuildContext context, HistoryEntry entry, HistoryEntry? prevEntry) {
     final oldText = prevEntry?.snapshotLua ?? '';
     final newText = entry.snapshotLua;
-    final diff = HistoryManager.computeDiff(oldText, newText);
+    bool showFull = false;
 
     showDialog(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: EatsTheme.backgroundDark,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.4), width: 1.5),
-          ),
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final diff = showFull
+                ? HistoryManager.computeDiff(oldText, newText)
+                : HistoryManager.computeCompactDiff(oldText, newText);
+
+            return AlertDialog(
+              backgroundColor: EatsTheme.backgroundDark,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.4), width: 1.5),
+              ),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.difference, color: EatsTheme.primaryCyan, size: 20),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
                     children: [
-                      Text(
-                        'LUA STATE DIFF',
-                        style: EatsTheme.getDisplayFontStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: EatsTheme.primaryCyan,
-                        ),
+                      Icon(Icons.difference, color: EatsTheme.primaryCyan, size: 20),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'LUA STATE DIFF',
+                            style: EatsTheme.getDisplayFontStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: EatsTheme.primaryCyan,
+                            ),
+                          ),
+                          Text(
+                            entry.description,
+                            style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10),
+                          ),
+                        ],
                       ),
-                      Text(
-                        entry.description,
-                        style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10),
+                    ],
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton.icon(
+                        icon: Icon(showFull ? Icons.compress : Icons.unfold_more, size: 14, color: EatsTheme.accentGold),
+                        label: Text(
+                          showFull ? 'COMPACT DIFF' : 'FULL DIFF',
+                          style: TextStyle(color: EatsTheme.accentGold, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: () {
+                          setDialogState(() {
+                            showFull = !showFull;
+                          });
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        color: EatsTheme.textMuted,
+                        onPressed: () => Navigator.of(ctx).pop(),
                       ),
                     ],
                   ),
                 ],
               ),
-              IconButton(
-                icon: const Icon(Icons.close, size: 18),
-                color: EatsTheme.textMuted,
-                onPressed: () => Navigator.of(ctx).pop(),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: 700,
-            height: 450,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: EatsTheme.controlBackground,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white.withOpacity(0.08)),
-              ),
-              child: ListView.builder(
-                itemCount: diff.length,
-                itemBuilder: (ctx, i) {
-                  final line = diff[i];
-                  Color textColor;
-                  Color? bgColor;
-                  String prefix;
+              content: SizedBox(
+                width: 700,
+                height: 450,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: EatsTheme.controlBackground,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white.withOpacity(0.08)),
+                  ),
+                  child: ListView.builder(
+                    itemCount: diff.length,
+                    itemBuilder: (ctx, i) {
+                      final line = diff[i];
+                      Color textColor;
+                      Color? bgColor;
+                      String prefix;
 
-                  switch (line.type) {
-                    case HistoryDiffType.added:
-                      textColor = const Color(0xFF00FF66);
-                      bgColor = const Color(0xFF00FF66).withOpacity(0.1);
-                      prefix = '+ ';
-                      break;
-                    case HistoryDiffType.removed:
-                      textColor = const Color(0xFFFF4040);
-                      bgColor = const Color(0xFFFF4040).withOpacity(0.1);
-                      prefix = '- ';
-                      break;
-                    case HistoryDiffType.unchanged:
-                      textColor = EatsTheme.textMuted;
-                      bgColor = null;
-                      prefix = '  ';
-                      break;
-                  }
+                      switch (line.type) {
+                        case HistoryDiffType.added:
+                          textColor = const Color(0xFF00FF66);
+                          bgColor = const Color(0xFF00FF66).withOpacity(0.1);
+                          prefix = '+ ';
+                          break;
+                        case HistoryDiffType.removed:
+                          textColor = const Color(0xFFFF4040);
+                          bgColor = const Color(0xFFFF4040).withOpacity(0.1);
+                          prefix = '- ';
+                          break;
+                        case HistoryDiffType.unchanged:
+                          final isHunkSummary = line.text.startsWith('... ') && line.text.endsWith(' ...');
+                          textColor = isHunkSummary ? EatsTheme.primaryCyan.withOpacity(0.7) : EatsTheme.textMuted;
+                          bgColor = isHunkSummary ? EatsTheme.primaryCyan.withOpacity(0.05) : null;
+                          prefix = isHunkSummary ? '  ' : '  ';
+                          break;
+                      }
 
-                  return Container(
-                    color: bgColor,
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    child: Text(
-                      '$prefix${line.text}',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 11,
-                        color: textColor,
-                      ),
-                    ),
-                  );
-                },
+                      return Container(
+                        color: bgColor,
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        child: Text(
+                          '$prefix${line.text}',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            fontWeight: (line.text.startsWith('... ') && line.text.endsWith(' ...')) ? FontWeight.bold : FontWeight.normal,
+                            fontStyle: (line.text.startsWith('... ') && line.text.endsWith(' ...')) ? FontStyle.italic : FontStyle.normal,
+                            color: textColor,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: Text('CLOSE', style: TextStyle(color: EatsTheme.primaryCyan)),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text('CLOSE', style: TextStyle(color: EatsTheme.primaryCyan)),
+                ),
+              ],
+            );
+          },
         );
       },
     );

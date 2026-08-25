@@ -8,6 +8,7 @@ import '../../theme/eats_theme.dart';
 import 'dynamic_instrument_gui_widget.dart';
 import 'eatsbeats_slider.dart';
 import 'fx_rack_dialog.dart';
+import 'preset_search_dialog.dart';
 import 'skeuomorphic_hardware_switch.dart';
 import 'space_visualizer_widget.dart';
 
@@ -86,7 +87,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.tune, color: EatsTheme.secondaryMagenta, size: 16),
+                      Icon(Icons.tune, color: EatsTheme.secondaryMagenta, size: 16),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -100,31 +101,32 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      PopupMenuButton<LuaPreset>(
-                        tooltip: 'Add FX Insert from Library',
-                        color: EatsTheme.panelHeader,
-                        popUpAnimationStyle: const AnimationStyle(
-                          duration: Duration(milliseconds: 100),
-                          curve: Curves.fastOutSlowIn,
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: EatsTheme.panelHeader,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: EatsTheme.secondaryMagenta),
+                      Tooltip(
+                        message: 'Search and Add FX from Library',
+                        child: InkWell(
+                          onTap: () => PresetSearchDialog.showAudioFx(
+                            context,
+                            dawState: dawState,
+                            track: track,
                           ),
-                          child: Text(
-                            '+ ADD FX',
-                            style: EatsTheme.getPrimaryFontStyle(
-                              color: EatsTheme.secondaryMagenta,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 10,
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: EatsTheme.panelHeader,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: EatsTheme.secondaryMagenta),
+                            ),
+                            child: Text(
+                              '+ ADD FX',
+                              style: EatsTheme.getPrimaryFontStyle(
+                                color: EatsTheme.secondaryMagenta,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                              ),
                             ),
                           ),
                         ),
-                        itemBuilder: (ctx) => _buildFxMenuItems(allAudioPresets),
-                        onSelected: (preset) => dawState.addAudioFXFromPreset(track, preset),
                       ),
                     ],
                   ),

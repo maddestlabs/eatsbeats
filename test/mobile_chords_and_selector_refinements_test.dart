@@ -27,7 +27,7 @@ void main() {
       expect(theme.popupMenuTheme.textStyle?.color, equals(EatsTheme.textPrimary));
     });
 
-    testWidgets('Audio FX and MIDI FX PopupMenuButtons render with fast animation and theme colors', (tester) async {
+    testWidgets('Audio FX and MIDI FX buttons render with search icon and theme colors', (tester) async {
       final dawState = DawState();
       final track = dawState.activeTrack;
 
@@ -48,13 +48,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final popupButtons = find.byType(PopupMenuButton<LuaPreset>);
-      expect(popupButtons, findsNWidgets(2));
-      final fxBtn = tester.widget<PopupMenuButton<LuaPreset>>(popupButtons.first);
-      expect(fxBtn.popUpAnimationStyle?.duration, equals(const Duration(milliseconds: 100)));
-
-      final midiBtn = tester.widget<PopupMenuButton<LuaPreset>>(popupButtons.last);
-      expect(midiBtn.popUpAnimationStyle?.duration, equals(const Duration(milliseconds: 100)));
+      expect(find.text('+ ADD FX'), findsOneWidget);
+      expect(find.text('+ ADD MIDI FX'), findsOneWidget);
+      expect(find.byIcon(Icons.search), findsNWidgets(2));
+      dawState.dispose();
     });
   });
 

@@ -54,7 +54,7 @@ void pickEatsFileWebImpl(
   try {
     final uploadInput = html.InputElement()
       ..type = 'file'
-      ..accept = '.eats.zip,.zip,.sf2,.wav,.mp3,.lua,.eats,.txt,application/zip,application/x-zip-compressed,application/octet-stream,text/plain'
+      ..accept = '.eats.zip,.zip,.sf2,.wav,.mp3,.mid,.midi,.lua,.eats,.txt,application/zip,application/x-zip-compressed,application/octet-stream,audio/midi,audio/x-midi,text/plain'
       ..style.display = 'none';
 
     // Must attach to body so iOS Safari / WebKit does not garbage-collect the node while file picker sheet is open
@@ -76,7 +76,9 @@ void pickEatsFileWebImpl(
             name.endsWith('.eats.zip') ||
             name.endsWith('.sf2') ||
             name.endsWith('.wav') ||
-            name.endsWith('.mp3');
+            name.endsWith('.mp3') ||
+            name.endsWith('.mid') ||
+            name.endsWith('.midi');
 
         final reader = html.FileReader();
 
@@ -167,6 +169,8 @@ void initGlobalAudioDropImpl(Function(String fileName, Uint8List bytes) onAudioD
         if (name.endsWith('.wav') ||
             name.endsWith('.mp3') ||
             name.endsWith('.sf2') ||
+            name.endsWith('.mid') ||
+            name.endsWith('.midi') ||
             name.endsWith('.ogg') ||
             name.endsWith('.flac')) {
           final reader = html.FileReader();

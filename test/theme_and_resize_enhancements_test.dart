@@ -91,9 +91,8 @@ void main() {
       );
 
       expect(find.text('+ ADD FX'), findsOneWidget);
-      // No duplicate plus icon inside the button
       final addIcons = find.descendant(
-        of: find.widgetWithText(PopupMenuButton<FXType>, '+ ADD FX'),
+        of: find.widgetWithText(InkWell, '+ ADD FX'),
         matching: find.byIcon(Icons.add),
       );
       expect(addIcons, findsNothing);
@@ -115,7 +114,7 @@ void main() {
 
       expect(find.text('+ ADD MIDI FX'), findsOneWidget);
       final addIcons = find.descendant(
-        of: find.widgetWithText(PopupMenuButton<String>, '+ ADD MIDI FX'),
+        of: find.widgetWithText(InkWell, '+ ADD MIDI FX'),
         matching: find.byIcon(Icons.add),
       );
       expect(addIcons, findsNothing);

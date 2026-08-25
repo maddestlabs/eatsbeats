@@ -847,7 +847,8 @@ class _TrackerViewState extends State<TrackerView> {
                                                   : null,
                                             ),
                                             child: Text(
-                                              '$noteStr  $volStr  $fxStr',
+                                              '$noteStr  $volStr  $fxStr${(hasNote && noteMatch.lyric != null && noteMatch.lyric!.isNotEmpty) ? '  "${noteMatch.lyric}"' : ''}',
+                                              overflow: TextOverflow.ellipsis,
                                               style: EatsTheme.getDisplayFontStyle(
                                                 color: (isInBlock || isSelectedCell)
                                                     ? Colors.white

@@ -48,7 +48,7 @@ Future<void> pickEatsFileWebImpl(
   try {
     final files = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['zip', 'lua', 'sf2', 'wav', 'mp3', 'txt', 'eats'],
+      allowedExtensions: ['zip', 'lua', 'sf2', 'wav', 'mp3', 'mid', 'midi', 'txt', 'eats'],
     );
 
     if (files.isNotEmpty) {
@@ -68,10 +68,10 @@ Future<void> pickEatsFileWebImpl(
             name.endsWith('.eats.zip') ||
             (bytes.length >= 2 && bytes[0] == 0x50 && bytes[1] == 0x4B);
 
-        final isAudioOrSf2 =
-            name.endsWith('.sf2') || name.endsWith('.wav') || name.endsWith('.mp3');
+        final isAudioOrSf2OrMidi =
+            name.endsWith('.sf2') || name.endsWith('.wav') || name.endsWith('.mp3') || name.endsWith('.mid') || name.endsWith('.midi');
 
-        if (isZip || isAudioOrSf2) {
+        if (isZip || isAudioOrSf2OrMidi) {
           onFileLoaded(bytes, null, pickedFile.name);
         } else {
           try {

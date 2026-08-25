@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'automation_model.dart';
+import 'lyric_model.dart';
 
 enum MusicViewType { pianoRoll, tracker, script, score }
-enum TrackType { sampler, synth, luaScript, bass;
+enum TrackType { sampler, synth, luaScript, bass, tts, folder;
   // Backward compatibility getter
   bool get isScript => this == TrackType.luaScript;
+  bool get isFolder => this == TrackType.folder;
 }
 
 enum ChordFollowMode {
@@ -55,6 +57,7 @@ class Note {
   String effectCommand; // Hex effect command (e.g., "00", "V90", "P12")
   bool isSlide;
   bool isAccent;
+  String? lyric; // Syllable or word text attached to this note
 
   Note({
     required this.id,
@@ -66,6 +69,7 @@ class Note {
     this.effectCommand = '00',
     this.isSlide = false,
     bool? isAccent,
+    this.lyric,
   }) : isAccent = isAccent ?? (velocity > 0.75);
 
   Note copyWith({
@@ -78,6 +82,7 @@ class Note {
     String? effectCommand,
     bool? isSlide,
     bool? isAccent,
+    String? lyric,
   }) {
     return Note(
       id: id ?? this.id,
@@ -89,6 +94,7 @@ class Note {
       effectCommand: effectCommand ?? this.effectCommand,
       isSlide: isSlide ?? this.isSlide,
       isAccent: isAccent ?? this.isAccent,
+      lyric: lyric ?? this.lyric,
     );
   }
 
@@ -102,6 +108,7 @@ class Note {
     'effectCommand': effectCommand,
     'isSlide': isSlide,
     'isAccent': isAccent,
+    if (lyric != null && lyric!.isNotEmpty) 'lyric': lyric,
   };
 
   factory Note.fromJson(Map<String, dynamic> json) {
@@ -120,6 +127,7 @@ class Note {
       effectCommand: json['effectCommand'] ?? '00',
       isSlide: slideBool,
       isAccent: accentBool,
+      lyric: json['lyric'] as String?,
     );
   }
 }
@@ -393,10 +401,13 @@ class TrackClip {
   int startBar; // 0, 1, 2, 3...
   int barLength; // 1, 2, 4, 8...
   List<Note> notes;
+  List<LyricCue> lyrics;
   String luaScriptCode;
   Map<String, double> luaParams;
   List<Note>? evaluatedNotesCache;
   List<AutomationLane> automationLanes;
+
+  bool get hasLyrics => lyrics.isNotEmpty || notes.any((n) => n.lyric != null && n.lyric!.isNotEmpty);
 
   bool get hasMidiScript {
     if (luaScriptCode.trim().isEmpty) return false;
@@ -420,11 +431,13 @@ class TrackClip {
     this.startBar = 0,
     this.barLength = 2,
     List<Note>? notes,
+    List<LyricCue>? lyrics,
     this.luaScriptCode = '',
     Map<String, double>? luaParams,
     this.evaluatedNotesCache,
     List<AutomationLane>? automationLanes,
   })  : notes = notes ?? [],
+        lyrics = lyrics ?? [],
         luaParams = luaParams ?? {},
         automationLanes = automationLanes ?? [];
 
@@ -435,6 +448,7 @@ class TrackClip {
     int? startBar,
     int? barLength,
     List<Note>? notes,
+    List<LyricCue>? lyrics,
     String? luaScriptCode,
     Map<String, double>? luaParams,
     List<Note>? evaluatedNotesCache,
@@ -447,6 +461,7 @@ class TrackClip {
       startBar: startBar ?? this.startBar,
       barLength: barLength ?? this.barLength,
       notes: notes ?? this.notes.map((n) => n.copyWith()).toList(),
+      lyrics: lyrics ?? this.lyrics.map((l) => l.copyWith()).toList(),
       luaScriptCode: luaScriptCode ?? this.luaScriptCode,
       luaParams: luaParams ?? Map.from(this.luaParams),
       evaluatedNotesCache: evaluatedNotesCache ?? (this.evaluatedNotesCache != null ? this.evaluatedNotesCache!.map((n) => n.copyWith()).toList() : null),
@@ -461,6 +476,7 @@ class TrackClip {
     'startBar': startBar,
     'barLength': barLength,
     'notes': notes.map((n) => n.toJson()).toList(),
+    'lyrics': lyrics.map((l) => l.toJson()).toList(),
     'luaScriptCode': luaScriptCode,
     'luaParams': luaParams,
     'automationLanes': automationLanes.map((a) => a.toJson()).toList(),
@@ -473,6 +489,7 @@ class TrackClip {
     startBar: json['startBar'] ?? 0,
     barLength: json['barLength'] ?? 2,
     notes: (json['notes'] as List?)?.map((n) => Note.fromJson(n)).toList() ?? [],
+    lyrics: (json['lyrics'] as List?)?.map((l) => LyricCue.fromJson(l)).toList() ?? [],
     luaScriptCode: json['luaScriptCode'] ?? '',
     luaParams: Map<String, double>.from(json['luaParams'] ?? {}),
     automationLanes: (json['automationLanes'] as List?)
@@ -500,6 +517,14 @@ class TrackChannel {
   double attack;
   double release;
 
+  // TTS & Lyrics Config
+  bool enableTts;
+  String? ttsVoice;
+  double ttsPitch;
+  double ttsRate;
+  double ttsVolume;
+  List<LyricCue> lyrics;
+
   // Lua engine plugin integration
   String luaScriptCode;
   Map<String, double> luaParams;
@@ -522,9 +547,24 @@ class TrackChannel {
   bool isMonophonic;
   ChordFollowMode chordFollowMode;
 
+  // Folder & Grouping Configuration
+  String? parentFolderId; // ID of parent folder track (null if top-level)
+  bool isCollapsed; // When true, child tracks are collapsed/hidden in Arranger/Mixer
+  bool isFolderBus; // If true, route child audio through folder's FX rack
+  bool syncColorWithChildren; // When true, changing folder color propagates to children
+
+  bool get isFolder => type == TrackType.folder;
+  bool get isChildTrack => parentFolderId != null && parentFolderId!.isNotEmpty;
+
+  bool get hasLyrics =>
+      lyrics.isNotEmpty ||
+      clips.any((c) => c.hasLyrics) ||
+      notes.any((n) => n.lyric != null && n.lyric!.isNotEmpty);
+
   bool get isMonophonicTrack =>
       isMonophonic ||
       type == TrackType.bass ||
+      type == TrackType.tts ||
       name.toLowerCase().contains('303') ||
       name.toLowerCase().contains('bass') ||
       luaScriptCode.contains('Eats303') ||
@@ -537,10 +577,14 @@ class TrackChannel {
       luaScriptCode.contains('polyphony = 1') ||
       luaScriptCode.contains('setPolyphony(1)');
 
-  String iconName; // e.g. 'synth', 'drums', 'bass', 'vocal', 'lead', 'fx', 'sampler', 'piano', 'guitar', 'waveform', 'code', 'music'
+  String iconName; // e.g. 'synth', 'drums', 'bass', 'vocal', 'lead', 'fx', 'sampler', 'piano', 'guitar', 'waveform', 'code', 'music', 'tts', 'folder'
 
   IconData get iconData {
     switch (iconName.toLowerCase()) {
+      case 'folder':
+      case 'folder_open':
+      case 'group':
+        return isCollapsed ? Icons.folder : Icons.folder_open;
       case 'synth':
       case 'piano':
         return Icons.piano;
@@ -548,6 +592,9 @@ class TrackChannel {
         return Icons.album;
       case 'bass':
         return Icons.waves;
+      case 'tts':
+      case 'speech':
+        return Icons.record_voice_over;
       case 'vocal':
       case 'mic':
         return Icons.mic;
@@ -572,7 +619,7 @@ class TrackChannel {
         return Icons.memory;
       case 'music':
       default:
-        return Icons.music_note;
+        return isFolder ? (isCollapsed ? Icons.folder : Icons.folder_open) : Icons.music_note;
     }
   }
 
@@ -591,12 +638,22 @@ class TrackChannel {
     this.resonance = 1.0,
     this.attack = 0.01,
     this.release = 0.3,
+    bool? enableTts,
+    this.ttsVoice,
+    this.ttsPitch = 1.0,
+    this.ttsRate = 1.0,
+    this.ttsVolume = 1.0,
+    List<LyricCue>? lyrics,
     String? iconName,
     this.luaScriptCode = '',
     this.trackerColumns = 4,
     this.activeView = MusicViewType.pianoRoll,
     this.isMonophonic = false,
     this.chordFollowMode = ChordFollowMode.off,
+    this.parentFolderId,
+    this.isCollapsed = false,
+    this.isFolderBus = true,
+    this.syncColorWithChildren = true,
     Map<String, double>? luaParams,
     List<StepEvent>? steps,
     List<Note>? notes,
@@ -604,7 +661,9 @@ class TrackChannel {
     List<AutomationLane>? automationLanes,
     List<FXInsert>? fxRack,
     List<MidiFXInsert>? midiFXRack,
-  })  : iconName = iconName ?? _defaultIconForType(type),
+  })  : enableTts = enableTts ?? (type == TrackType.tts),
+        lyrics = lyrics ?? [],
+        iconName = iconName ?? _defaultIconForType(type),
         luaParams = luaParams ?? {},
         steps = steps ?? List.generate(32, (_) => StepEvent()),
         notes = notes ?? [],
@@ -623,6 +682,10 @@ class TrackChannel {
         return 'bass';
       case TrackType.luaScript:
         return 'code';
+      case TrackType.tts:
+        return 'tts';
+      case TrackType.folder:
+        return 'folder';
     }
   }
 
@@ -641,12 +704,22 @@ class TrackChannel {
     double? resonance,
     double? attack,
     double? release,
+    bool? enableTts,
+    String? ttsVoice,
+    double? ttsPitch,
+    double? ttsRate,
+    double? ttsVolume,
+    List<LyricCue>? lyrics,
     String? iconName,
     String? luaScriptCode,
     int? trackerColumns,
     MusicViewType? activeView,
     bool? isMonophonic,
     ChordFollowMode? chordFollowMode,
+    String? parentFolderId,
+    bool? isCollapsed,
+    bool? isFolderBus,
+    bool? syncColorWithChildren,
     Map<String, double>? luaParams,
     List<StepEvent>? steps,
     List<Note>? notes,
@@ -670,12 +743,22 @@ class TrackChannel {
       resonance: resonance ?? this.resonance,
       attack: attack ?? this.attack,
       release: release ?? this.release,
+      enableTts: enableTts ?? this.enableTts,
+      ttsVoice: ttsVoice ?? this.ttsVoice,
+      ttsPitch: ttsPitch ?? this.ttsPitch,
+      ttsRate: ttsRate ?? this.ttsRate,
+      ttsVolume: ttsVolume ?? this.ttsVolume,
+      lyrics: lyrics ?? this.lyrics.map((l) => l.copyWith()).toList(),
       iconName: iconName ?? this.iconName,
       luaScriptCode: luaScriptCode ?? this.luaScriptCode,
       trackerColumns: trackerColumns ?? this.trackerColumns,
       activeView: activeView ?? this.activeView,
       isMonophonic: isMonophonic ?? this.isMonophonic,
       chordFollowMode: chordFollowMode ?? this.chordFollowMode,
+      parentFolderId: parentFolderId ?? this.parentFolderId,
+      isCollapsed: isCollapsed ?? this.isCollapsed,
+      isFolderBus: isFolderBus ?? this.isFolderBus,
+      syncColorWithChildren: syncColorWithChildren ?? this.syncColorWithChildren,
       luaParams: luaParams ?? Map.from(this.luaParams),
       steps: steps ?? this.steps.map((s) => s.copyWith()).toList(),
       notes: notes ?? this.notes.map((n) => n.copyWith()).toList(),
@@ -702,11 +785,21 @@ class TrackChannel {
     'resonance': resonance,
     'attack': attack,
     'release': release,
+    'enableTts': enableTts,
+    if (ttsVoice != null) 'ttsVoice': ttsVoice,
+    'ttsPitch': ttsPitch,
+    'ttsRate': ttsRate,
+    'ttsVolume': ttsVolume,
+    'lyrics': lyrics.map((l) => l.toJson()).toList(),
     'luaScriptCode': luaScriptCode,
     'trackerColumns': trackerColumns,
     'activeView': activeView.name,
     'isMonophonic': isMonophonic,
     'chordFollowMode': chordFollowMode.name,
+    if (parentFolderId != null) 'parentFolderId': parentFolderId,
+    'isCollapsed': isCollapsed,
+    'isFolderBus': isFolderBus,
+    'syncColorWithChildren': syncColorWithChildren,
     'luaParams': luaParams,
     'steps': steps.map((s) => s.toJson()).toList(),
     'notes': notes.map((n) => n.toJson()).toList(),
@@ -731,14 +824,25 @@ class TrackChannel {
     resonance: (json['resonance'] as num?)?.toDouble() ?? 1.0,
     attack: (json['attack'] as num?)?.toDouble() ?? 0.01,
     release: (json['release'] as num?)?.toDouble() ?? 0.3,
+    enableTts: json['enableTts'] ?? (json['type'] == 'tts'),
+    ttsVoice: json['ttsVoice'] as String?,
+    ttsPitch: (json['ttsPitch'] as num?)?.toDouble() ?? 1.0,
+    ttsRate: (json['ttsRate'] as num?)?.toDouble() ?? 1.0,
+    ttsVolume: (json['ttsVolume'] as num?)?.toDouble() ?? 1.0,
+    lyrics: (json['lyrics'] as List?)?.map((l) => LyricCue.fromJson(l)).toList() ?? [],
     luaScriptCode: json['luaScriptCode'] ?? '',
     trackerColumns: json['trackerColumns'] ?? 4,
     activeView: MusicViewType.values.firstWhere((e) => e.name == json['activeView'], orElse: () => MusicViewType.pianoRoll),
     isMonophonic: json['isMonophonic'] ?? false,
     chordFollowMode: ChordFollowMode.values.firstWhere((e) => e.name == json['chordFollowMode'], orElse: () => ChordFollowMode.off),
+    parentFolderId: json['parentFolderId'] as String?,
+    isCollapsed: json['isCollapsed'] ?? false,
+    isFolderBus: json['isFolderBus'] ?? true,
+    syncColorWithChildren: json['syncColorWithChildren'] ?? true,
     luaParams: Map<String, double>.from(json['luaParams'] ?? {}),
     steps: (json['steps'] as List?)?.map((s) => StepEvent.fromJson(s)).toList() ?? List.generate(32, (_) => StepEvent()),
     notes: (json['notes'] as List?)?.map((n) => Note.fromJson(n)).toList() ?? [],
+    clips: (json['clips'] as List?)?.map((c) => TrackClip.fromJson(c)).toList() ?? [],
     automationLanes: (json['automationLanes'] as List?)?.map((a) => AutomationLane.fromJson(a)).toList() ?? [],
     fxRack: (json['fxRack'] as List?)?.map((f) => FXInsert.fromJson(f)).toList() ?? [],
     midiFXRack: (json['midiFXRack'] as List?)?.map((f) => MidiFXInsert.fromJson(f)).toList() ?? [],

@@ -97,14 +97,22 @@ class AudioEngine {
     };
   }
 
+  final Uint8List _meterBuffer = Uint8List(128);
+
+  void disposeTrack(String trackId) {
+    _backend.disposeTrackStrip(trackId);
+    invalidateLuaCache(trackId);
+    _trackLeftPeaks.remove(trackId);
+    _trackRightPeaks.remove(trackId);
+  }
+
   void updateMeters() {
-    final u8 = Uint8List.fromList(_timeData);
-    _backend.updateMeters(u8, (l, r) {
+    _backend.updateMeters(_meterBuffer, (l, r) {
       _leftPeak = l;
       _rightPeak = r;
     });
-    for (int i = 0; i < _timeData.length && i < u8.length; i++) {
-      _timeData[i] = u8[i];
+    for (int i = 0; i < _timeData.length && i < _meterBuffer.length; i++) {
+      _timeData[i] = _meterBuffer[i];
     }
 
     // Smoothly decay CPU meter towards baseline when audio load drops
@@ -112,14 +120,14 @@ class AudioEngine {
       _cpuLoad = (_cpuLoad * 0.90) + (0.015 * 0.10);
     }
 
-    for (final id in _trackLeftPeaks.keys.toList()) {
-      final dec = (_trackLeftPeaks[id] ?? 0.0) * 0.82;
-      _trackLeftPeaks[id] = dec < 0.001 ? 0.0 : dec;
-    }
-    for (final id in _trackRightPeaks.keys.toList()) {
-      final dec = (_trackRightPeaks[id] ?? 0.0) * 0.82;
-      _trackRightPeaks[id] = dec < 0.001 ? 0.0 : dec;
-    }
+    _trackLeftPeaks.updateAll((_, val) {
+      final dec = val * 0.82;
+      return dec < 0.001 ? 0.0 : dec;
+    });
+    _trackRightPeaks.updateAll((_, val) {
+      final dec = val * 0.82;
+      return dec < 0.001 ? 0.0 : dec;
+    });
   }
 
   /// Returns normalized real-time audio waveform samples (-1.0 to 1.0)

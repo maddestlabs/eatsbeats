@@ -2349,6 +2349,65 @@ return CyberRunner
 ''',
     ),
 
+    // 30. TTS Voice Synth (Musical Speech & Syllable Synthesizer)
+    LuaPreset(
+      id: 'tts_voice_synth',
+      name: 'TTS Voice Synth',
+      category: LuaPresetCategory.instrument,
+      description: 'Text-to-speech voice synthesizer instrument. Produces synchronized spoken syllables, phonemes, and lyric phrases driven by track and clip lyric cues.',
+      code: '''
+-- @name: TTS Voice Synth
+-- @category: instrument
+-- @description: Musical text-to-speech voice synthesizer instrument
+local TtsSynth = {}
+
+function TtsSynth.init()
+  Param.add("Pitch", 0.5, 2.0, 1.0, 0.05)
+  Param.add("Rate", 0.5, 2.0, 1.0, 0.05)
+  Param.add("Volume", 0.0, 1.0, 1.0, 0.05)
+  Param.choice("VoiceStyle", {"Default", "Neutral", "Bright", "Deep", "Robotic"}, 0.0)
+end
+
+function TtsSynth.process(time, freq, note, params)
+  -- Real-time spoken vocal synthesis driven by timeline lyric cues
+  return 0.0
+end
+
+function TtsSynth.gui()
+  return {
+    panel = {
+      title = "TTS VOICE SYNTH",
+      subtitle = "Musical Speech & Syllable Synthesizer",
+      background = "rack",
+      accent = "track",
+      knobStyle = "vintage",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "nixie", param = "Pitch", label = "PITCH SCALE", unit = "x" },
+            { type = "nixie", param = "Rate", label = "SPEECH RATE", unit = "x" },
+            { type = "nixie", param = "Volume", label = "VOCAL GAIN", unit = "" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Pitch", label = "PITCH", size = 56, knobStyle = "vintage" },
+            { type = "knob", param = "Rate", label = "RATE", size = 56, knobStyle = "vintage" },
+            { type = "knob", param = "Volume", label = "GAIN", size = 56, knobStyle = "vintage" },
+            { type = "listbox", param = "VoiceStyle", label = "VOICE STYLE", width = 130, height = 75 }
+          }
+        }
+      }
+    }
+  }
+end
+
+return TtsSynth
+''',
+    ),
+
     // 30. Eats-Scope (Vector Oscilloscope Audio Visualizer FX)
     LuaPreset(
       id: 'eats_scope',
@@ -2832,6 +2891,104 @@ function FilterFX.gui()
 end
 
 return FilterFX
+''',
+    ),
+
+    // 37. Kinetic Lyric Visualizer
+    LuaPreset(
+      id: 'kinetic_lyric_visualizer',
+      name: 'Kinetic Lyric Video',
+      category: LuaPresetCategory.utility,
+      description: 'Audio-reactive kinetic typography visualizer with glowing beat-synced lyrics and spectrum bloom.',
+      code: '''
+-- @name: Kinetic Lyric Video
+-- @category: utility
+-- @description: Time-synced audio-reactive lyric typography visualizer
+local LyricVis = {}
+
+function LyricVis.init()
+  Param.add("GlowSize", 0.0, 100.0, 40.0, 1.0)
+  Param.add("TextScale", 0.5, 3.0, 1.4, 0.1)
+  Param.add("KineticShake", 0.0, 1.0, 0.5, 0.05)
+end
+
+function LyricVis.gui()
+  return {
+    panel = {
+      title = "Kinetic Lyric Video",
+      subtitle = "Audio-Reactive Time-Synced Visualizer",
+      background = "cyberpunk",
+      accent = "#00FFE0",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "TextScale", label = "SCALE", knobStyle = "cyber" },
+            { type = "knob", param = "GlowSize", label = "GLOW", knobStyle = "cyber" },
+            { type = "knob", param = "KineticShake", label = "SHAKE", knobStyle = "cyber" },
+          }
+        },
+        {
+          type = "canvas",
+          canvasType = "vector",
+          height = 200,
+          label = "LIVE LYRIC RENDERER"
+        }
+      }
+    }
+  }
+end
+
+return LyricVis
+''',
+    ),
+
+    // 38. Retro CRT Teleprompter
+    LuaPreset(
+      id: 'retro_crt_teleprompter',
+      name: 'Retro CRT Teleprompter',
+      category: LuaPresetCategory.utility,
+      description: 'Cyberpunk green-phosphor CRT teleprompter with rolling line cues and syllable highlight.',
+      code: '''
+-- @name: Retro CRT Teleprompter
+-- @category: utility
+-- @description: Cyberpunk terminal teleprompter with upcoming lyric roll
+local Teleprompter = {}
+
+function Teleprompter.init()
+  Param.add("Scanlines", 0.0, 1.0, 0.8, 0.1)
+  Param.add("PhosphorGlow", 0.0, 1.0, 0.9, 0.1)
+  Param.add("CrtCurvature", 0.0, 1.0, 0.3, 0.05)
+end
+
+function Teleprompter.gui()
+  return {
+    panel = {
+      title = "CRT Teleprompter",
+      subtitle = "Vocalist Cues & Lyric Roll",
+      background = "arcade",
+      accent = "#39FF14",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Scanlines", label = "SCANLINES", knobStyle = "arcade" },
+            { type = "knob", param = "PhosphorGlow", label = "PHOSPHOR", knobStyle = "arcade" },
+            { type = "knob", param = "CrtCurvature", label = "CURVE", knobStyle = "arcade" },
+          }
+        },
+        {
+          type = "canvas",
+          canvasType = "vector",
+          height = 180,
+          label = "TERMINAL PROMPTER"
+        }
+      }
+    }
+  }
+end
+
+return Teleprompter
 ''',
     ),
   ];

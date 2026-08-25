@@ -278,7 +278,106 @@ Future<void> showTrackPropertiesDialog(BuildContext context, DawState dawState, 
 
                     const SizedBox(height: 16),
 
-                    // 4. Quick Mute / Solo Toggles
+                    // 4. Track Folder / Group Section
+                    Text(
+                      'TRACK FOLDER / GROUP',
+                      style: EatsTheme.getPrimaryFontStyle(
+                        color: EatsTheme.textMuted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    if (track.isFolder) ...[
+                      Row(
+                        children: [
+                          Icon(track.isCollapsed ? Icons.folder : Icons.folder_open, size: 14, color: selectedColor),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Contains ${dawState.getFolderChildren(track.id).length} tracks',
+                            style: TextStyle(color: EatsTheme.textPrimary, fontSize: 11),
+                          ),
+                          const Spacer(),
+                          OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: selectedColor,
+                              side: BorderSide(color: selectedColor.withOpacity(0.5)),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            ),
+                            onPressed: () {
+                              dawState.toggleFolderCollapsed(track);
+                              setState(() {});
+                            },
+                            child: Text(
+                              track.isCollapsed ? 'EXPAND' : 'COLLAPSE',
+                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: Checkbox(
+                              value: track.syncColorWithChildren,
+                              activeColor: selectedColor,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                              onChanged: (val) {
+                                dawState.toggleFolderColorSync(track);
+                                setState(() {});
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text('Sync folder color to children', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10)),
+                        ],
+                      ),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: EatsTheme.controlBackground,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: EatsTheme.panelHeader),
+                        ),
+                        child: DropdownButton<String?>(
+                          value: track.parentFolderId,
+                          dropdownColor: EatsTheme.panelBackground,
+                          underline: const SizedBox(),
+                          isDense: true,
+                          isExpanded: true,
+                          style: TextStyle(color: EatsTheme.textPrimary, fontSize: 11),
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('(No Folder / Root)'),
+                            ),
+                            ...dawState.folderTracks.map((f) => DropdownMenuItem<String?>(
+                              value: f.id,
+                              child: Row(
+                                children: [
+                                  Icon(Icons.folder, size: 12, color: f.color),
+                                  const SizedBox(width: 6),
+                                  Text(f.name),
+                                ],
+                              ),
+                            )),
+                          ],
+                          onChanged: (val) {
+                            dawState.setTrackFolder(track.id, val);
+                            setState(() {});
+                          },
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 16),
+
+                    // 5. Quick Mute / Solo Toggles
                     Row(
                       children: [
                         Text(

@@ -7,6 +7,7 @@ import '../../models/script_target_model.dart';
 import '../../theme/eats_theme.dart';
 import 'dynamic_instrument_gui_widget.dart';
 import 'eatsbeats_slider.dart';
+import 'preset_search_dialog.dart';
 import 'skeuomorphic_hardware_switch.dart';
 
 class MidiFxRackWidget extends StatelessWidget {
@@ -24,119 +25,95 @@ class MidiFxRackWidget extends StatelessWidget {
     return DragTarget<LuaPreset>(
       onWillAcceptWithDetails: (details) => details.data.isMidiFx,
       onAcceptWithDetails: (details) {
-        final preset = details.data;
-        dawState.applyPreset(preset, targetTrack: track);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Added MIDI FX "${preset.name}" to ${track.name}'),
-            backgroundColor: EatsTheme.panelHeader,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        dawState.addMidiFXFromPreset(track, details.data);
       },
       builder: (context, candidateData, rejectedData) {
-        final isHovering = candidateData.isNotEmpty;
+        final isHovered = candidateData.isNotEmpty;
 
         return Container(
-          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: isHovering ? EatsTheme.primaryCyan.withOpacity(0.15) : EatsTheme.panelBackground,
+            color: isHovered ? EatsTheme.primaryCyan.withOpacity(0.08) : EatsTheme.panelBackground,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isHovering ? EatsTheme.primaryCyan : EatsTheme.primaryCyan.withOpacity(0.4),
-              width: isHovering ? 2 : 1,
+              color: isHovered ? EatsTheme.primaryCyan : const Color(0xFF2B3245),
+              width: isHovered ? 2.0 : 1.5,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: EatsTheme.primaryCyan.withOpacity(isHovering ? 0.25 : 0.08),
-                blurRadius: isHovering ? 12 : 8,
-              ),
-            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
               // Header
-              Row(
-                children: [
-                  Icon(Icons.piano, color: EatsTheme.primaryCyan, size: 16),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'MIDI FX RACK (${track.midiFXRack.length})',
-                      overflow: TextOverflow.ellipsis,
-                      style: EatsTheme.getPrimaryFontStyle(
-                        color: EatsTheme.primaryCyan,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  if (track.midiFXRack.isNotEmpty)
-                    TextButton.icon(
-                      onPressed: () {
-                        dawState.bakeTrackMidiFX(track);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Baked MIDI FX notes into clips for "${track.name}"'),
-                            backgroundColor: EatsTheme.panelHeader,
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: EatsTheme.accentGold,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      ),
-                      icon: const Icon(Icons.auto_fix_high, size: 14),
-                      label: const Text('Bake to MIDI', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
-                    ),
-                  const SizedBox(width: 4),
-                  PopupMenuButton<LuaPreset>(
-                    tooltip: 'Add MIDI FX Module',
-                    color: EatsTheme.panelHeader,
-                    popUpAnimationStyle: const AnimationStyle(
-                      duration: Duration(milliseconds: 100),
-                      curve: Curves.fastOutSlowIn,
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: EatsTheme.panelHeader,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: EatsTheme.primaryCyan),
-                      ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: EatsTheme.panelHeader,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.piano, color: EatsTheme.primaryCyan, size: 16),
+                    const SizedBox(width: 6),
+                    Expanded(
                       child: Text(
-                        '+ ADD MIDI FX',
+                        'MIDI FX RACK (${track.midiFXRack.length})',
+                        overflow: TextOverflow.ellipsis,
                         style: EatsTheme.getPrimaryFontStyle(
                           color: EatsTheme.primaryCyan,
                           fontWeight: FontWeight.bold,
-                          fontSize: 10,
+                          fontSize: 11,
                         ),
                       ),
                     ),
-                    itemBuilder: (ctx) {
-                      final presets = LuaPresetLibrary.presets.where((p) => p.isMidiFx).toList();
-                      return presets.map((p) {
-                        return PopupMenuItem<LuaPreset>(
-                          value: p,
-                          child: Row(
-                            children: [
-                              Icon(Icons.bolt, color: EatsTheme.accentGold, size: 16),
-                              const SizedBox(width: 8),
-                              Text(p.name, style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12)),
-                            ],
+                    const SizedBox(width: 4),
+                    if (track.midiFXRack.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: () {
+                          dawState.bakeTrackMidiFX(track);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Baked MIDI FX notes into clips for "${track.name}"'),
+                              backgroundColor: EatsTheme.panelHeader,
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: EatsTheme.accentGold,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        ),
+                        icon: const Icon(Icons.auto_fix_high, size: 14),
+                        label: const Text('Bake to MIDI', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
+                      ),
+                    const SizedBox(width: 4),
+                    Tooltip(
+                      message: 'Search and Add MIDI FX from Library',
+                      child: InkWell(
+                        onTap: () => PresetSearchDialog.showMidiFx(
+                          context,
+                          dawState: dawState,
+                          track: track,
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: EatsTheme.panelHeader,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: EatsTheme.primaryCyan),
                           ),
-                        );
-                      }).toList();
-                    },
-                    onSelected: (preset) {
-                      dawState.addMidiFXFromPreset(track, preset);
-                    },
-                  ),
-                ],
+                          child: Text(
+                            '+ ADD MIDI FX',
+                            style: EatsTheme.getPrimaryFontStyle(
+                              color: EatsTheme.primaryCyan,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
 
               if (track.midiFXRack.isNotEmpty) ...[

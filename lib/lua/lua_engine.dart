@@ -74,11 +74,10 @@ class LuaEngine {
   }
 
   static double _tanh(double x) {
-    if (x > 20.0) return 1.0;
-    if (x < -20.0) return -1.0;
-    final ex = math.exp(x);
-    final enx = math.exp(-x);
-    return (ex - enx) / (ex + enx);
+    if (x > 3.0) return 1.0;
+    if (x < -3.0) return -1.0;
+    final x2 = x * x;
+    return x * (27.0 + x2) / (27.0 + 9.0 * x2);
   }
 
   /// Evaluates a 4-stage ADSR envelope at [time] seconds.

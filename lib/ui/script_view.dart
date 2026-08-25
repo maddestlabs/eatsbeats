@@ -87,7 +87,7 @@ end''',
 
     clip.luaScriptCode = initialCode;
     _codeController = TextEditingController(text: initialCode);
-    _focusNode = FocusNode();
+    _focusNode = FocusNode(debugLabel: 'ScriptViewCodeEditor');
     _recompile(initialCode);
   }
 
@@ -151,9 +151,7 @@ end''',
         const SingleActivator(LogicalKeyboardKey.enter, control: true): _executeScript,
         const SingleActivator(LogicalKeyboardKey.enter, meta: true): _executeScript,
       },
-      child: Focus(
-        autofocus: true,
-        child: Column(
+      child: Column(
           children: [
             // Top Toolbar: Presets & Execute Button
             Container(
@@ -338,7 +336,6 @@ end''',
             ),
           ],
         ),
-      ),
     );
   }
 }

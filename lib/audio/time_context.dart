@@ -18,6 +18,11 @@ class TimeContext {
   final int songKeyRoot; // 0..11
   final bool isSongKeyMinor;
 
+  final Map<String, dynamic>? activeLyricWord;
+  final Map<String, dynamic>? activeLyricLine;
+  final List<Map<String, dynamic>> upcomingLyrics;
+  final List<Map<String, dynamic>> allLyrics;
+
   const TimeContext({
     required this.bpm,
     this.timeSignatureNumerator = 4,
@@ -31,6 +36,10 @@ class TimeContext {
     this.songKey = 'C Major',
     this.songKeyRoot = 0,
     this.isSongKeyMinor = false,
+    this.activeLyricWord,
+    this.activeLyricLine,
+    this.upcomingLyrics = const [],
+    this.allLyrics = const [],
   });
 
   /// Derived 60fps video/visual frame index based on absolute audio time.
@@ -66,6 +75,10 @@ class TimeContext {
     String songKey = 'C Major',
     int songKeyRoot = 0,
     bool isSongKeyMinor = false,
+    Map<String, dynamic>? activeLyricWord,
+    Map<String, dynamic>? activeLyricLine,
+    List<Map<String, dynamic>> upcomingLyrics = const [],
+    List<Map<String, dynamic>> allLyrics = const [],
   }) {
     final secPerBeat = 60.0 / math.max(1.0, bpm);
     final audioSec = beat * secPerBeat;
@@ -84,6 +97,10 @@ class TimeContext {
       songKey: songKey,
       songKeyRoot: songKeyRoot,
       isSongKeyMinor: isSongKeyMinor,
+      activeLyricWord: activeLyricWord,
+      activeLyricLine: activeLyricLine,
+      upcomingLyrics: upcomingLyrics,
+      allLyrics: allLyrics,
     );
   }
 
@@ -101,6 +118,16 @@ class TimeContext {
       'songKey': songKey,
       'songKeyRoot': songKeyRoot,
       'isSongKeyMinor': isSongKeyMinor,
+      'activeLyricWord': activeLyricWord,
+      'activeLyricLine': activeLyricLine,
+      'upcomingLyrics': upcomingLyrics,
+      'allLyrics': allLyrics,
+      'lyrics': {
+        'currentWord': activeLyricWord,
+        'currentLine': activeLyricLine,
+        'upcoming': upcomingLyrics,
+        'all': allLyrics,
+      },
     };
 
     if (activeChord != null) {
@@ -153,6 +180,10 @@ class TimeContext {
     String? songKey,
     int? songKeyRoot,
     bool? isSongKeyMinor,
+    Map<String, dynamic>? activeLyricWord,
+    Map<String, dynamic>? activeLyricLine,
+    List<Map<String, dynamic>>? upcomingLyrics,
+    List<Map<String, dynamic>>? allLyrics,
   }) {
     return TimeContext(
       bpm: bpm ?? this.bpm,
@@ -167,6 +198,10 @@ class TimeContext {
       songKey: songKey ?? this.songKey,
       songKeyRoot: songKeyRoot ?? this.songKeyRoot,
       isSongKeyMinor: isSongKeyMinor ?? this.isSongKeyMinor,
+      activeLyricWord: activeLyricWord ?? this.activeLyricWord,
+      activeLyricLine: activeLyricLine ?? this.activeLyricLine,
+      upcomingLyrics: upcomingLyrics ?? this.upcomingLyrics,
+      allLyrics: allLyrics ?? this.allLyrics,
     );
   }
 }

@@ -676,6 +676,13 @@ class WajuceAudioBackend {
     }
   }
 
+  void disposeTrackStrip(String trackId) {
+    final strip = _channelStrips.remove(trackId);
+    strip?.dispose();
+    final src = _activeSources.remove(trackId);
+    try { src?.stop(); src?.dispose(); } catch (_) {}
+  }
+
   void dispose() {
     for (final strip in _channelStrips.values) {
       strip.dispose();
@@ -781,6 +788,9 @@ class WajuceAudioBackend {
           channels: [samples],
         );
         if (bufferCacheKey != null) {
+          if (_bufferCache.length >= 128) {
+            _bufferCache.remove(_bufferCache.keys.first);
+          }
           _bufferCache[bufferCacheKey] = buf;
         }
       }

@@ -142,6 +142,7 @@ void main() {
 
       // Tap Unscrew Screw to Close Panel
       await tester.tap(find.byTooltip('Unscrew Panel (Close VSTi - Esc)'));
+      await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
       expect(state.isFloatingWindowVisible, isFalse);
     });

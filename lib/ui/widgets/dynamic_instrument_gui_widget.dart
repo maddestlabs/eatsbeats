@@ -540,7 +540,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             if (newIdx >= 0 && newIdx < fontKeys.length) {
               final fontId = fontKeys[newIdx];
               final displayName = fontNames[newIdx];
-              dawState.changeTrackSoundFont(track, fontId, displayName: displayName);
+              dawState.changeTrackSoundFont(track, fontId, displayName: displayName, renameTrack: false);
               track.luaParams[paramDef.name] = newIdx.toDouble();
               track.luaParams['Preset'] = 0.0;
               track.luaParams['PresetNum'] = 0.0;

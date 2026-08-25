@@ -8,12 +8,14 @@ import 'package:flutter/services.dart';
 
 import '../utils/platform_env_helper.dart';
 import '../utils/eats_storage_helper.dart';
+import '../utils/midi_file_parser.dart';
 
 import '../audio/audio_engine.dart';
 import '../audio/convolver_engine.dart';
 import '../audio/procedural_ir_generator.dart';
 import '../audio/sampler_engine.dart';
 import '../audio/soundfont_engine.dart';
+import '../audio/tts_engine.dart';
 import '../audio/wav_exporter.dart';
 import '../theme/eats_theme.dart';
 import '../lua/lua_engine.dart';
@@ -27,6 +29,7 @@ import '../lua/default_song.dart';
 import 'track_model.dart';
 import 'chord_model.dart';
 import 'history_manager.dart';
+import 'lyric_model.dart';
 import 'script_target_model.dart';
 import 'automation_model.dart';
 import '../audio/easing.dart';
@@ -199,15 +202,86 @@ class DawState extends ChangeNotifier {
   void notifyState() => notifyListeners();
 
   TimeContext get timeContext {
-    final curStep = (_currentBar * 16 + _currentStep).toInt();
+    final curStep = (_currentBar * 16 + _currentStep).toDouble();
+
+    Map<String, dynamic>? activeWord;
+    Map<String, dynamic>? activeLine;
+    final List<Map<String, dynamic>> upcoming = [];
+    final List<Map<String, dynamic>> allLyricsList = [];
+
+    final activeTracksWithLyrics = activePattern.tracks.where((t) => t.hasLyrics).toList();
+    for (final track in activeTracksWithLyrics) {
+      final List<LyricCue> allCues = [];
+      if (track.clips.isNotEmpty) {
+        for (final clip in track.clips) {
+          final clipStart = clip.startBar * 16.0;
+          for (final cue in clip.lyrics) {
+            allCues.add(cue.copyWith(startStep: clipStart + cue.startStep));
+          }
+          for (final note in clip.notes) {
+            if (note.lyric != null && note.lyric!.isNotEmpty) {
+              allCues.add(LyricCue(
+                id: 'note_${note.id}',
+                startStep: clipStart + note.startStep,
+                durationSteps: note.durationSteps,
+                text: note.lyric!,
+              ));
+            }
+          }
+        }
+      } else {
+        allCues.addAll(track.lyrics);
+        for (final note in track.notes) {
+          if (note.lyric != null && note.lyric!.isNotEmpty) {
+            allCues.add(LyricCue(
+              id: 'note_${note.id}',
+              startStep: note.startStep,
+              durationSteps: note.durationSteps,
+              text: note.lyric!,
+            ));
+          }
+        }
+      }
+
+      allCues.sort((a, b) => a.startStep.compareTo(b.startStep));
+
+      for (final cue in allCues) {
+        final map = {
+          'id': cue.id,
+          'trackId': track.id,
+          'trackName': track.name,
+          'text': cue.text,
+          'startStep': cue.startStep,
+          'durationSteps': cue.durationSteps,
+          'pitch': cue.pitch,
+          'rate': cue.rate,
+        };
+        allLyricsList.add(map);
+
+        if (curStep >= cue.startStep && curStep < (cue.startStep + cue.durationSteps)) {
+          final prog = ((curStep - cue.startStep) / math.max(0.1, cue.durationSteps)).clamp(0.0, 1.0);
+          activeWord = {
+            ...map,
+            'progress': prog,
+          };
+        } else if (cue.startStep > curStep && upcoming.length < 5) {
+          upcoming.add(map);
+        }
+      }
+    }
+
     return TimeContext.fromBeat(
       beat: (_currentBar * 4 + _currentStep / 4).toDouble(),
       bpm: _bpm,
-      activeChord: getActiveChordAtStep(curStep),
+      activeChord: getActiveChordAtStep(curStep.toInt()),
       chordTrack: List.unmodifiable(chordTrack),
       songKey: songKey,
       songKeyRoot: songKeyRoot,
       isSongKeyMinor: isSongKeyMinor,
+      activeLyricWord: activeWord,
+      activeLyricLine: activeLine,
+      upcomingLyrics: upcoming,
+      allLyrics: allLyricsList,
     );
   }
 
@@ -575,6 +649,18 @@ class DawState extends ChangeNotifier {
     });
   }
 
+  Future<void> saveSessionNow() async {
+    if (_isDisposed || !_autoSaveEnabled) return;
+    _autoSaveDebounceTimer?.cancel();
+    try {
+      final luaScript = exportToEatsLua();
+      await EatsStorageHelper.saveSessionLua(luaScript);
+      debugPrint('DawState: Immediate saved session (${luaScript.length} chars)');
+    } catch (e) {
+      debugPrint('DawState: Immediate save error: $e');
+    }
+  }
+
   Future<void> loadPersistedSettings() async {
     try {
       final themeName = await EatsStorageHelper.getString(EatsStorageHelper.keyThemePreset);
@@ -803,9 +889,9 @@ class DawState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void changeTrackSoundFont(TrackChannel track, String fontId, {String? displayName}) {
+  void changeTrackSoundFont(TrackChannel track, String fontId, {String? displayName, bool renameTrack = false}) {
     track.sampleName = fontId;
-    if (displayName != null && displayName.isNotEmpty) {
+    if (renameTrack && displayName != null && displayName.isNotEmpty) {
       track.name = displayName;
     }
     track.luaParams['PresetNum'] = 0.0;
@@ -819,9 +905,9 @@ class DawState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void applySoundFont(String fontId, {String? displayName, TrackChannel? targetTrack}) {
+  void applySoundFont(String fontId, {String? displayName, TrackChannel? targetTrack, bool renameTrack = false}) {
     final track = targetTrack ?? activeTrack;
-    changeTrackSoundFont(track, fontId, displayName: displayName);
+    changeTrackSoundFont(track, fontId, displayName: displayName, renameTrack: renameTrack);
   }
 
   void addNewSoundFontTrack(String fontId, {String? displayName}) {
@@ -959,6 +1045,7 @@ class DawState extends ChangeNotifier {
   // Playback & Clock State
   bool _isPlaying = false;
   bool get isPlaying => _isPlaying;
+  final ValueNotifier<bool> isPlayingNotifier = ValueNotifier<bool>(false);
 
   bool _isRecording = false;
   bool get isRecording => _isRecording;
@@ -980,9 +1067,11 @@ class DawState extends ChangeNotifier {
 
   int _currentStep = 0;
   int get currentStep => _currentStep;
+  final ValueNotifier<int> currentStepNotifier = ValueNotifier<int>(0);
 
   int _currentBar = 0;
   int get currentBar => _currentBar;
+  final ValueNotifier<int> currentBarNotifier = ValueNotifier<int>(0);
 
   double _masterVolume = 0.85;
   double get masterVolume => _masterVolume;
@@ -1004,6 +1093,31 @@ class DawState extends ChangeNotifier {
     return EatsLuaSerializer.serialize(this, projectName: projectName);
   }
 
+  /// Computes a fast O(N) integer fingerprint of active song state
+  /// to eliminate expensive full-string serializations on duplicate history triggers.
+  int computeStateFingerprint() {
+    int h = _bpm.hashCode ^ _songKey.hashCode ^ _masterVolume.hashCode ^ projectName.hashCode ^ authorName.hashCode;
+    for (final pattern in patterns) {
+      h = (h * 31) ^ pattern.id.hashCode;
+      for (final track in pattern.tracks) {
+        h = (h * 31) ^ track.id.hashCode ^ (track.volume * 100).round() ^ (track.pan * 100).round() ^ (track.isMuted ? 1 : 0) ^ (track.isSoloed ? 2 : 0) ^ track.color.value;
+        for (final entry in track.luaParams.entries) {
+          h = (h * 31) ^ entry.key.hashCode ^ (entry.value * 100).round();
+        }
+        for (final clip in track.clips) {
+          h = (h * 31) ^ clip.id.hashCode ^ clip.startBar ^ clip.barLength;
+          for (final note in clip.notes) {
+            h = (h * 31) ^ note.id.hashCode ^ note.pitch ^ (note.startStep * 100).round() ^ (note.durationSteps * 100).round() ^ (note.velocity * 100).round() ^ (note.isSlide ? 1 : 0) ^ (note.isAccent ? 2 : 0);
+          }
+        }
+      }
+    }
+    for (final chord in chordTrack) {
+      h = (h * 31) ^ chord.id.hashCode ^ chord.rootPitchClass ^ chord.quality.index ^ (chord.startBar * 10).round() ^ (chord.barLength * 10).round();
+    }
+    return h;
+  }
+
   void loadFromEatsLua(String eatsLuaCode) {
     history.pauseRecording();
     try {
@@ -1012,6 +1126,7 @@ class DawState extends ChangeNotifier {
     } finally {
       history.resumeRecording();
     }
+    triggerAutoSave();
   }
 
   Timer? _playbackTimer;
@@ -1131,8 +1246,18 @@ class DawState extends ChangeNotifier {
   void dispose() {
     _isDisposed = true;
     _autoSaveDebounceTimer?.cancel();
+    if (_autoSaveEnabled && !isTestEnvironment) {
+      try {
+        final luaScript = exportToEatsLua();
+        EatsStorageHelper.saveSessionLua(luaScript);
+      } catch (_) {}
+    }
     _meterTimer?.cancel();
     _playbackTimer?.cancel();
+    isPlayingNotifier.dispose();
+    currentStepNotifier.dispose();
+    currentBarNotifier.dispose();
+    arrangerStepNotifier.dispose();
     history.dispose();
     audioEngine.setMasterVolume(0.0);
     super.dispose();
@@ -1443,7 +1568,7 @@ class DawState extends ChangeNotifier {
   }
 
   void deleteClip(TrackChannel track, TrackClip clip) {
-    final idx = track.clips.indexOf(clip);
+    final idx = track.clips.indexWhere((c) => c.id == clip.id);
     if (idx != -1) {
       track.clips.removeAt(idx);
       if (activeClip?.id == clip.id) {
@@ -1661,6 +1786,7 @@ class DawState extends ChangeNotifier {
 
   int _arrangerStep = 0;
   int get arrangerStep => _arrangerStep;
+  final ValueNotifier<int> arrangerStepNotifier = ValueNotifier<int>(0);
 
   void setLoopPoints(int startBar, int endBar) {
     _loopStartBar = math.max(0, math.min(startBar, endBar - 1));
@@ -1684,6 +1810,20 @@ class DawState extends ChangeNotifier {
     _currentStep = targetBar * 16;
     _arrangerStep = targetBar * 16;
     _currentBar = targetBar;
+    currentStepNotifier.value = _currentStep;
+    arrangerStepNotifier.value = _arrangerStep;
+    currentBarNotifier.value = _currentBar;
+    notifyListeners();
+  }
+
+  void seekToArrangerStep(double step) {
+    final clamped = step.clamp(0.0, (32 * 16.0) - 1.0);
+    _arrangerStep = clamped.toInt();
+    _currentStep = clamped.toInt();
+    _currentBar = _arrangerStep ~/ 16;
+    currentStepNotifier.value = _currentStep;
+    arrangerStepNotifier.value = _arrangerStep;
+    currentBarNotifier.value = _currentBar;
     notifyListeners();
   }
 
@@ -1694,6 +1834,7 @@ class DawState extends ChangeNotifier {
   void togglePlay() {
     audioEngine.ensureContextRunning();
     _isPlaying = !_isPlaying;
+    isPlayingNotifier.value = _isPlaying;
     if (_isPlaying) {
       // Pre-warm the PCM cache for every non-slide note in the active pattern
       // BEFORE starting the scheduler. This guarantees the first loop runs
@@ -1714,12 +1855,17 @@ class DawState extends ChangeNotifier {
   /// clears synthesized note audio caches, and resets playback position.
   void stop() {
     _isPlaying = false;
+    isPlayingNotifier.value = false;
     _playbackTimer?.cancel();
     _currentStep = _isLooping ? _loopStartBar * 16 : 0;
     _arrangerStep = _currentStep;
     _currentBar = _currentStep ~/ 16;
+    currentStepNotifier.value = _currentStep;
+    arrangerStepNotifier.value = _arrangerStep;
+    currentBarNotifier.value = _currentBar;
     audioEngine.stopAllSound();
     audioEngine.clearPcmCache();
+    TtsEngine().stop();
     notifyListeners();
   }
 
@@ -1748,7 +1894,6 @@ class DawState extends ChangeNotifier {
     const int maxSteps = 32 * 16;
 
     int loopGuard = 0;
-    bool stepsScheduled = false;
     while (_nextNoteTime < audioEngine.currentTime + _scheduleAheadTime) {
       if (++loopGuard > 32) {
         _nextNoteTime = audioEngine.currentTime + 0.02;
@@ -1756,7 +1901,6 @@ class DawState extends ChangeNotifier {
       }
       _scheduleStep(_currentStep, _nextNoteTime, stepDurationSec);
       _nextNoteTime += stepDurationSec;
-      stepsScheduled = true;
 
       _currentStep++;
       if (_isLooping && _currentStep >= _loopEndBar * 16) {
@@ -1767,14 +1911,9 @@ class DawState extends ChangeNotifier {
 
       _arrangerStep = _currentStep;
       _currentBar = _currentStep ~/ 16;
-    }
-
-    if (stepsScheduled) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_isDisposed) {
-          notifyListeners();
-        }
-      });
+      currentStepNotifier.value = _currentStep;
+      arrangerStepNotifier.value = _arrangerStep;
+      currentBarNotifier.value = _currentBar;
     }
   }
 
@@ -1822,6 +1961,64 @@ class DawState extends ChangeNotifier {
                 (track.midiFXRack.any((f) => f.enabled)
                     ? pipeline.processClip(clip: clip, track: track, timeContext: timeContext)
                     : clip.notes);
+
+            // Trigger TTS speech ONLY if track is a TTS Voice Synth instrument or enabled
+            final isTtsInstrument = track.type == TrackType.tts ||
+                track.enableTts ||
+                track.luaScriptCode.contains('TtsSynth') ||
+                track.sampleName.toLowerCase().contains('tts');
+
+            if (isTtsInstrument) {
+              final double effPitch = track.luaParams['Pitch'] ?? track.ttsPitch;
+              final double effRate = track.luaParams['Rate'] ?? track.ttsRate;
+              final double effVol = (track.luaParams['Volume'] ?? track.ttsVolume) * track.volume;
+
+              // 1. Check track-level lyric cues
+              final matchingTrackLyrics = track.lyrics.where(
+                (l) => l.startStep >= stepIdx && l.startStep < (stepIdx + 1.0),
+              );
+              for (final cue in matchingTrackLyrics) {
+                TtsEngine().speak(
+                  cue.phoneticOverride ?? cue.text,
+                  voice: track.ttsVoice,
+                  pitch: (cue.pitch * effPitch).clamp(0.5, 2.0),
+                  rate: (cue.rate * effRate).clamp(0.1, 2.0),
+                  volume: effVol.clamp(0.0, 1.0),
+                );
+              }
+
+              // 2. Check clip-level lyric cues
+              final matchingClipLyrics = clip.lyrics.where(
+                (l) => l.startStep >= localStep && l.startStep < (localStep + 1.0),
+              );
+              for (final cue in matchingClipLyrics) {
+                TtsEngine().speak(
+                  cue.phoneticOverride ?? cue.text,
+                  voice: track.ttsVoice,
+                  pitch: (cue.pitch * effPitch).clamp(0.5, 2.0),
+                  rate: (cue.rate * effRate).clamp(0.1, 2.0),
+                  volume: effVol.clamp(0.0, 1.0),
+                );
+              }
+
+              // 3. Check note-attached lyric syllables
+              for (final note in effectiveNotes) {
+                if (note.lyric != null &&
+                    note.lyric!.isNotEmpty &&
+                    note.startStep >= localStep &&
+                    note.startStep < (localStep + 1.0)) {
+                  final semitoneOffset = (note.pitch - 60) / 12.0;
+                  final notePitchMult = math.pow(2.0, semitoneOffset).toDouble();
+                  TtsEngine().speak(
+                    note.lyric!,
+                    voice: track.ttsVoice,
+                    pitch: (notePitchMult * effPitch).clamp(0.5, 2.0),
+                    rate: effRate.clamp(0.1, 2.0),
+                    volume: (note.velocity * effVol).clamp(0.0, 1.0),
+                  );
+                }
+              }
+            }
 
             if (effectiveNotes.isNotEmpty) {
               // Find all notes starting within this 16th step window: [localStep, localStep + 1.0)
@@ -1931,6 +2128,47 @@ class DawState extends ChangeNotifier {
         // Pattern Sequencer Playback without clips (EDIT pane / Pattern Mode)
         final int localStep = stepIdx % 16;
         final List<Note> effectiveNotes = track.notes;
+
+        final isTtsInstrument = track.type == TrackType.tts ||
+            track.enableTts ||
+            track.luaScriptCode.contains('TtsSynth') ||
+            track.sampleName.toLowerCase().contains('tts');
+
+        if (isTtsInstrument) {
+          final double effPitch = track.luaParams['Pitch'] ?? track.ttsPitch;
+          final double effRate = track.luaParams['Rate'] ?? track.ttsRate;
+          final double effVol = (track.luaParams['Volume'] ?? track.ttsVolume) * track.volume;
+
+          final matchingLyrics = track.lyrics.where(
+            (l) => l.startStep >= localStep && l.startStep < (localStep + 1.0),
+          );
+          for (final cue in matchingLyrics) {
+            TtsEngine().speak(
+              cue.phoneticOverride ?? cue.text,
+              voice: track.ttsVoice,
+              pitch: (cue.pitch * effPitch).clamp(0.5, 2.0),
+              rate: (cue.rate * effRate).clamp(0.1, 2.0),
+              volume: effVol.clamp(0.0, 1.0),
+            );
+          }
+
+          for (final note in effectiveNotes) {
+            if (note.lyric != null &&
+                note.lyric!.isNotEmpty &&
+                note.startStep >= localStep &&
+                note.startStep < (localStep + 1.0)) {
+              final semitoneOffset = (note.pitch - 60) / 12.0;
+              final notePitchMult = math.pow(2.0, semitoneOffset).toDouble();
+              TtsEngine().speak(
+                note.lyric!,
+                voice: track.ttsVoice,
+                pitch: (notePitchMult * effPitch).clamp(0.5, 2.0),
+                rate: effRate.clamp(0.1, 2.0),
+                volume: (note.velocity * effVol).clamp(0.0, 1.0),
+              );
+            }
+          }
+        }
 
         if (effectiveNotes.isNotEmpty) {
           final matchingNotes = effectiveNotes.where(
@@ -2084,11 +2322,19 @@ class DawState extends ChangeNotifier {
     }
   }
 
-  // Quantization Snap Setting (0.0 = No Snap, 0.5 = 1/32, 1.0 = 1/16, 2.0 = 1/8, 4.0 = 1/4)
+  // Quantization Snap Setting for Piano Roll (0.0 = No Snap, 0.5 = 1/32, 1.0 = 1/16, 2.0 = 1/8, 4.0 = 1/4)
   double _quantizeSnap = 1.0;
   double get quantizeSnap => _quantizeSnap;
   void setQuantizeSnap(double val) {
     _quantizeSnap = val;
+    notifyListeners();
+  }
+
+  // Arranger Timeline & Playhead Snap (16.0 = 1 Bar, 8.0 = 1/2 Bar, 4.0 = 1/4 Bar (Beat), 2.0 = 1/8 Bar, 1.0 = 1/16 Step, 0.0 = Off / Freeform)
+  double _arrangerSnap = 16.0;
+  double get arrangerSnap => _arrangerSnap;
+  void setArrangerSnap(double val) {
+    _arrangerSnap = val;
     notifyListeners();
   }
 
@@ -2344,18 +2590,192 @@ class DawState extends ChangeNotifier {
 
   void setTrackColor(TrackChannel track, Color color) {
     track.color = color;
+    if (track.isFolder && track.syncColorWithChildren) {
+      for (final child in getFolderChildren(track.id)) {
+        child.color = color;
+      }
+    }
+    notifyListeners();
+  }
+
+  List<TrackChannel> get folderTracks => activePattern.tracks.where((t) => t.isFolder).toList();
+
+  List<TrackChannel> getFolderChildren(String folderId) {
+    return activePattern.tracks.where((t) => t.parentFolderId == folderId).toList();
+  }
+
+  bool isTrackEffectivelyMuted(TrackChannel track) {
+    if (track.isMuted) return true;
+    if (track.parentFolderId != null && track.parentFolderId!.isNotEmpty) {
+      final parent = activePattern.tracks.where((t) => t.id == track.parentFolderId).firstOrNull;
+      if (parent != null && parent.isMuted) return true;
+    }
+    return false;
+  }
+
+  bool isTrackEffectivelySoloed(TrackChannel track) {
+    if (track.isSoloed) return true;
+    if (track.parentFolderId != null && track.parentFolderId!.isNotEmpty) {
+      final parent = activePattern.tracks.where((t) => t.id == track.parentFolderId).firstOrNull;
+      if (parent != null && parent.isSoloed) return true;
+    }
+    return false;
+  }
+
+  /// Returns the list of tracks visible in Arranger / Mixer taking folded state into account.
+  List<TrackChannel> get visibleTracks {
+    final result = <TrackChannel>[];
+    final allTracks = activePattern.tracks;
+    final folderMap = {for (final t in allTracks.where((t) => t.isFolder)) t.id: t};
+
+    for (final track in allTracks) {
+      if (track.parentFolderId == null || track.parentFolderId!.isEmpty) {
+        result.add(track);
+      } else {
+        final parent = folderMap[track.parentFolderId];
+        // Only visible if parent folder exists and is NOT collapsed
+        if (parent != null && !parent.isCollapsed) {
+          result.add(track);
+        } else if (parent == null) {
+          // Parent no longer exists; include track as orphaned top-level
+          result.add(track);
+        }
+      }
+    }
+    return result;
+  }
+
+  TrackChannel createTrackFolder({
+    String? name,
+    List<String>? initialTrackIds,
+    Color? color,
+  }) {
+    final folderId = 'folder_${DateTime.now().millisecondsSinceEpoch}';
+    final folderColors = [
+      const Color(0xFF4A90E2),
+      const Color(0xFF00FFC2),
+      const Color(0xFFFF8C00),
+      const Color(0xFFE91E63),
+      const Color(0xFF9C27B0),
+      const Color(0xFFFFEB3B),
+    ];
+    final folderColor = color ?? folderColors[folderTracks.length % folderColors.length];
+
+    final folderTrack = TrackChannel(
+      id: folderId,
+      name: name ?? 'Folder ${folderTracks.length + 1}',
+      type: TrackType.folder,
+      color: folderColor,
+      iconName: 'folder',
+      isCollapsed: false,
+      isFolderBus: true,
+      syncColorWithChildren: true,
+    );
+
+    beginHistoryTransaction('Create Folder "${folderTrack.name}"', icon: Icons.create_new_folder);
+
+    // Determine insertion position
+    int insertIndex = activePattern.tracks.length;
+    if (initialTrackIds != null && initialTrackIds.isNotEmpty) {
+      final firstIdx = activePattern.tracks.indexWhere((t) => initialTrackIds.contains(t.id));
+      if (firstIdx != -1) {
+        insertIndex = firstIdx;
+      }
+    }
+
+    activePattern.tracks.insert(insertIndex, folderTrack);
+
+    if (initialTrackIds != null && initialTrackIds.isNotEmpty) {
+      for (final trk in activePattern.tracks) {
+        if (initialTrackIds.contains(trk.id) && trk.id != folderId) {
+          trk.parentFolderId = folderId;
+          if (folderTrack.syncColorWithChildren) {
+            trk.color = folderColor;
+          }
+        }
+      }
+    }
+
+    _activeTrackIndex = activePattern.tracks.indexOf(folderTrack);
+    commitHistoryTransaction();
+    triggerAutoSave();
+    notifyListeners();
+    return folderTrack;
+  }
+
+  void groupTracks(List<String> trackIds, {String? folderName, Color? color}) {
+    if (trackIds.isEmpty) return;
+    createTrackFolder(name: folderName, initialTrackIds: trackIds, color: color);
+  }
+
+  void ungroupTrack(String trackId) {
+    final track = activePattern.tracks.where((t) => t.id == trackId).firstOrNull;
+    if (track == null || track.parentFolderId == null) return;
+
+    track.parentFolderId = null;
+    recordHistory('Ungroup Track "${track.name}"', icon: Icons.folder_off);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void setTrackFolder(String trackId, String? folderId) {
+    final track = activePattern.tracks.where((t) => t.id == trackId).firstOrNull;
+    if (track == null) return;
+    if (track.isFolder) return; // Prevent nested folders for 1-level simplicity
+
+    final oldFolderId = track.parentFolderId;
+    if (oldFolderId == folderId) return;
+
+    track.parentFolderId = folderId;
+    if (folderId != null) {
+      final folder = activePattern.tracks.where((t) => t.id == folderId).firstOrNull;
+      if (folder != null && folder.syncColorWithChildren) {
+        track.color = folder.color;
+      }
+      recordHistory('Move "${track.name}" to Folder "${folder?.name ?? "Folder"}"', icon: Icons.drive_file_move);
+    } else {
+      recordHistory('Remove "${track.name}" from Folder', icon: Icons.folder_off);
+    }
+
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void toggleFolderCollapsed(TrackChannel folderTrack) {
+    if (!folderTrack.isFolder) return;
+    folderTrack.isCollapsed = !folderTrack.isCollapsed;
+    notifyListeners();
+  }
+
+  void toggleFolderColorSync(TrackChannel folderTrack) {
+    if (!folderTrack.isFolder) return;
+    folderTrack.syncColorWithChildren = !folderTrack.syncColorWithChildren;
+    if (folderTrack.syncColorWithChildren) {
+      for (final child in getFolderChildren(folderTrack.id)) {
+        child.color = folderTrack.color;
+      }
+    }
     notifyListeners();
   }
 
   void deleteTrack(TrackChannel track) {
     if (activePattern.tracks.length <= 1) return;
-    final index = activePattern.tracks.indexOf(track);
+    final index = activePattern.tracks.indexWhere((t) => t.id == track.id);
     if (index != -1) {
+      beginHistoryTransaction('Delete Track "${track.name}"', icon: Icons.delete);
+      if (track.isFolder) {
+        // Unparent child tracks so user does not lose them
+        for (final child in getFolderChildren(track.id)) {
+          child.parentFolderId = null;
+        }
+      }
       activePattern.tracks.removeAt(index);
+      audioEngine.disposeTrack(track.id);
       if (_activeTrackIndex >= activePattern.tracks.length) {
         _activeTrackIndex = activePattern.tracks.length - 1;
       }
-      recordHistory('Delete Track "${track.name}"', icon: Icons.delete);
+      commitHistoryTransaction();
+      triggerAutoSave();
       notifyListeners();
     }
   }
@@ -2389,9 +2809,21 @@ class DawState extends ChangeNotifier {
     if (newIndex < 0 || newIndex >= activePattern.tracks.length) return;
     if (oldIndex == newIndex) return;
 
-    final track = activePattern.tracks.removeAt(oldIndex);
-    activePattern.tracks.insert(newIndex, track);
-    _activeTrackIndex = newIndex;
+    final track = activePattern.tracks[oldIndex];
+    if (track.isFolder) {
+      final children = getFolderChildren(track.id);
+      final tracksToMove = [track, ...children];
+      for (final t in tracksToMove) {
+        activePattern.tracks.remove(t);
+      }
+      final safeNewIdx = newIndex.clamp(0, activePattern.tracks.length);
+      activePattern.tracks.insertAll(safeNewIdx, tracksToMove);
+      _activeTrackIndex = safeNewIdx;
+    } else {
+      final item = activePattern.tracks.removeAt(oldIndex);
+      activePattern.tracks.insert(newIndex, item);
+      _activeTrackIndex = newIndex;
+    }
     recordHistory('Reorder Track "${track.name}" to position ${newIndex + 1}', icon: Icons.swap_vert);
     triggerAutoSave();
     notifyListeners();
@@ -2921,8 +3353,24 @@ class DawState extends ChangeNotifier {
     return Uint8List.fromList(zipData ?? []);
   }
 
-  void loadFromEatsZipOrLua({Uint8List? zipBytes, String? luaContent}) {
-    if (zipBytes != null) {
+  void loadFromEatsZipOrLua({Uint8List? zipBytes, String? luaContent, String? fileName}) {
+    if (zipBytes != null && zipBytes.isNotEmpty) {
+      // 1. Check for MIDI File (MThd signature: 0x4D, 0x54, 0x68, 0x64)
+      if (zipBytes.length >= 4 &&
+          zipBytes[0] == 0x4D &&
+          zipBytes[1] == 0x54 &&
+          zipBytes[2] == 0x68 &&
+          zipBytes[3] == 0x64) {
+        importMidiFileBytes(zipBytes, fileName: fileName ?? 'imported.mid');
+        return;
+      }
+
+      // 2. Check for SoundFont File (.sf2)
+      if (fileName != null && fileName.toLowerCase().endsWith('.sf2')) {
+        SoundFontEngine.instance.registerSoundFont(fileName, zipBytes);
+        return;
+      }
+
       try {
         final archive = ZipDecoder().decodeBytes(zipBytes);
         ArchiveFile? luaFile;
@@ -2960,7 +3408,15 @@ class DawState extends ChangeNotifier {
     int barLength = 4,
   }) {
     final cleanName = fileName.replaceAll('\\', '/').split('/').last;
-    final isLua = cleanName.toLowerCase().endsWith('.lua');
+    final lowerName = cleanName.toLowerCase();
+
+    // 1. Standard MIDI File (.mid / .midi)
+    if (lowerName.endsWith('.mid') || lowerName.endsWith('.midi')) {
+      importMidiFileBytes(fileBytes, fileName: cleanName);
+      return;
+    }
+
+    final isLua = lowerName.endsWith('.lua');
 
     if (isLua) {
       final luaCode = utf8.decode(fileBytes);
@@ -3069,6 +3525,231 @@ class DawState extends ChangeNotifier {
     activePattern.tracks.add(newTrack);
     activeTrackIndex = activePattern.tracks.length - 1;
     notifyListeners();
+  }
+
+  /// Imports a Standard MIDI File (.mid / .midi) bytes into the project.
+  /// Matches MIDI tracks against existing tracks in the active pattern by name
+  /// (e.g. SongGen tracks: 'Track 1', 'Drums', 'Bass', 'Chords', 'Lead') and replaces their notes.
+  /// Unmatched tracks with notes are appended as new tracks using appropriate SoundFont/GM presets.
+  /// Also synchronizes project BPM from the MIDI tempo track.
+  bool importMidiFileBytes(Uint8List midiBytes, {String fileName = 'imported.mid'}) {
+    final parsedSong = MidiFileParser.parse(midiBytes);
+    if (parsedSong == null || parsedSong.tracks.isEmpty) {
+      debugPrint('importMidiFileBytes: Failed to parse MIDI from $fileName');
+      return false;
+    }
+
+    final cleanName = fileName
+        .replaceAll('\\', '/')
+        .split('/')
+        .last
+        .replaceAll(RegExp(r'\.(mid|midi)$', caseSensitive: false), '');
+    beginHistoryTransaction('Import MIDI: $cleanName', icon: Icons.album);
+
+    // 1. Sync BPM if specified
+    if (parsedSong.bpm != null && parsedSong.bpm! > 0) {
+      final roundedBpm = ((parsedSong.bpm! * 100).round()) / 100.0;
+      setBpm(roundedBpm);
+    }
+
+    final tracksToProcess = parsedSong.tracks.where((t) => t.notes.isNotEmpty).toList();
+    final matchedTrackIds = <String>{};
+    int replacedCount = 0;
+    int createdCount = 0;
+
+    for (final midiTrack in tracksToProcess) {
+      final midiNameLower = midiTrack.name.toLowerCase().trim();
+
+      // Match against existing project tracks
+      TrackChannel? targetTrack;
+
+      // 1. Exact or normalized match
+      for (final track in activePattern.tracks) {
+        if (matchedTrackIds.contains(track.id)) continue;
+        final trackNameLower = track.name.toLowerCase().trim();
+
+        if (trackNameLower == midiNameLower) {
+          targetTrack = track;
+          break;
+        }
+      }
+
+      // 2. Fuzzy / SongGen semantic matching if exact match not found
+      if (targetTrack == null) {
+        for (final track in activePattern.tracks) {
+          if (matchedTrackIds.contains(track.id)) continue;
+          final trackNameLower = track.name.toLowerCase().trim();
+
+          final isDrumsMatch = (midiNameLower.contains('drum') || midiTrack.channel == 9) &&
+              (trackNameLower.contains('drum') || track.iconName == 'drums');
+          final isBassMatch = midiNameLower.contains('bass') &&
+              (trackNameLower.contains('bass') || track.iconName == 'bass');
+          final isChordsMatch = (midiNameLower.contains('chord') ||
+                  midiNameLower.contains('key') ||
+                  midiNameLower.contains('piano') ||
+                  midiNameLower.contains('harmony')) &&
+              (trackNameLower.contains('chord') ||
+                  trackNameLower.contains('key') ||
+                  trackNameLower.contains('piano') ||
+                  trackNameLower.contains('rhodes') ||
+                  trackNameLower.contains('harmony'));
+          final isLeadMatch = (midiNameLower.contains('lead') ||
+                  midiNameLower.contains('solo') ||
+                  midiNameLower.contains('melody')) &&
+              (trackNameLower.contains('lead') ||
+                  trackNameLower.contains('solo') ||
+                  trackNameLower.contains('melody') ||
+                  trackNameLower.contains('synth'));
+          final isTrack1Match = (midiNameLower == 'track 1' || midiNameLower == 'track1') &&
+              (trackNameLower == 'track 1' ||
+                  trackNameLower == 'track1' ||
+                  trackNameLower.contains('intro') ||
+                  trackNameLower.contains('melody'));
+
+          if (isDrumsMatch || isBassMatch || isChordsMatch || isLeadMatch || isTrack1Match) {
+            targetTrack = track;
+            break;
+          }
+        }
+      }
+
+      if (targetTrack != null) {
+        // Target track found: replace contents!
+        matchedTrackIds.add(targetTrack.id);
+        replacedCount++;
+        _replaceTrackNotesWithMidi(targetTrack, midiTrack);
+      } else {
+        // Unmatched track: create new track with appropriate preset
+        createdCount++;
+        _createNewTrackFromMidi(midiTrack);
+      }
+    }
+
+    commitHistoryTransaction();
+    triggerAutoSave();
+    notifyListeners();
+    debugPrint(
+        'Successfully imported MIDI "$fileName": Replaced $replacedCount tracks, created $createdCount tracks, BPM: $bpm');
+    return true;
+  }
+
+  void _replaceTrackNotesWithMidi(TrackChannel track, ParsedMidiTrack midiTrack) {
+    final totalBars = midiTrack.totalBars;
+    track.clips.clear();
+    track.notes.clear();
+
+    final clip = TrackClip(
+      id: 'clip_${track.id}_${DateTime.now().millisecondsSinceEpoch}_${midiTrack.trackIndex}',
+      name: '${track.name} Clip',
+      trackId: track.id,
+      startBar: 0,
+      barLength: totalBars,
+      notes: midiTrack.notes.map((n) => n.copyWith()).toList(),
+    );
+
+    track.clips.add(clip);
+    track.notes = clip.notes.map((n) => n.copyWith()).toList();
+
+    // Populate step sequencer grid for the first 16 steps
+    for (int i = 0; i < track.steps.length; i++) {
+      final notesAtStep = midiTrack.notes.where((n) => n.startStep.toInt() == i).toList();
+      if (notesAtStep.isNotEmpty) {
+        track.steps[i] = StepEvent(
+          active: true,
+          pitch: notesAtStep.first.pitch,
+          velocity: notesAtStep.first.velocity,
+        );
+      } else {
+        track.steps[i] = StepEvent(active: false);
+      }
+    }
+  }
+
+  void _createNewTrackFromMidi(ParsedMidiTrack midiTrack) {
+    final trackId = 'track_${DateTime.now().millisecondsSinceEpoch}_${midiTrack.trackIndex}';
+    final trackColors = [
+      const Color(0xFF21F4E8),
+      const Color(0xFFFF8C00),
+      const Color(0xFF00FF66),
+      const Color(0xFFFF0055),
+      const Color(0xFFBD00FF),
+    ];
+    final color = trackColors[activePattern.tracks.length % trackColors.length];
+    final lowerName = midiTrack.name.toLowerCase();
+
+    String iconName = 'synth';
+    TrackType trackType = TrackType.luaScript;
+    String presetId = 'soundfont_sampler';
+    String sampleName = 'super_small_font.sf2';
+    double presetNum = (midiTrack.programNumber ?? 0).toDouble();
+
+    if (midiTrack.channel == 9 || lowerName.contains('drum')) {
+      iconName = 'drums';
+      trackType = TrackType.sampler;
+      sampleName = 'super_small_font.sf2';
+      presetNum = 0.0;
+    } else if (lowerName.contains('bass')) {
+      iconName = 'bass';
+      presetNum = 33.0; // Electric Bass (finger)
+    } else if (lowerName.contains('chord') ||
+        lowerName.contains('piano') ||
+        lowerName.contains('key')) {
+      iconName = 'piano';
+      presetNum = 0.0; // Acoustic Grand Piano
+    } else if (lowerName.contains('lead') ||
+        lowerName.contains('melody') ||
+        lowerName.contains('solo')) {
+      iconName = 'synth';
+      presetNum = 80.0; // Lead 1 (square)
+    }
+
+    final sfPreset = LuaPresetLibrary.presets.firstWhere(
+      (p) => p.id == presetId,
+      orElse: () => LuaPresetLibrary.presets.first,
+    );
+
+    final newTrack = TrackChannel(
+      id: trackId,
+      name: midiTrack.name,
+      type: trackType,
+      color: color,
+      sampleName: sampleName,
+      iconName: iconName,
+      luaScriptCode: sfPreset.code,
+      luaParams: {
+        'PresetNum': presetNum,
+        'BankNum': (midiTrack.channel == 9) ? 128.0 : 0.0,
+      },
+    );
+
+    final totalBars = midiTrack.totalBars;
+    final clip = TrackClip(
+      id: 'clip_${trackId}_0',
+      name: '${midiTrack.name} Clip',
+      trackId: trackId,
+      startBar: 0,
+      barLength: totalBars,
+      notes: midiTrack.notes.map((n) => n.copyWith()).toList(),
+    );
+
+    newTrack.clips.add(clip);
+    newTrack.notes = clip.notes.map((n) => n.copyWith()).toList();
+
+    // Step sequencer grid
+    for (int i = 0; i < newTrack.steps.length; i++) {
+      final notesAtStep = midiTrack.notes.where((n) => n.startStep.toInt() == i).toList();
+      if (notesAtStep.isNotEmpty) {
+        newTrack.steps[i] = StepEvent(
+          active: true,
+          pitch: notesAtStep.first.pitch,
+          velocity: notesAtStep.first.velocity,
+        );
+      } else {
+        newTrack.steps[i] = StepEvent(active: false);
+      }
+    }
+
+    activePattern.tracks.add(newTrack);
   }
 
   void loadLuaPreset(LuaPreset preset) {
@@ -3226,5 +3907,106 @@ class DawState extends ChangeNotifier {
     );
 
     WavExporter.saveWavFile(wavBytes, 'eatsbeats_song.wav');
+  }
+
+  // ==========================================
+  // Lyrics & TTS Management API
+  // ==========================================
+
+  void addLyricCue(TrackChannel track, LyricCue cue, {TrackClip? clip}) {
+    if (clip != null) {
+      clip.lyrics.removeWhere((c) => c.id == cue.id);
+      clip.lyrics.add(cue);
+      clip.lyrics.sort((a, b) => a.startStep.compareTo(b.startStep));
+    } else {
+      track.lyrics.removeWhere((c) => c.id == cue.id);
+      track.lyrics.add(cue);
+      track.lyrics.sort((a, b) => a.startStep.compareTo(b.startStep));
+    }
+    recordHistory('Add Lyric "${cue.text}" to ${track.name}', icon: Icons.short_text);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void updateLyricCue(TrackChannel track, LyricCue cue, {TrackClip? clip}) {
+    if (clip != null) {
+      final idx = clip.lyrics.indexWhere((c) => c.id == cue.id);
+      if (idx != -1) {
+        clip.lyrics[idx] = cue;
+      }
+    } else {
+      final idx = track.lyrics.indexWhere((c) => c.id == cue.id);
+      if (idx != -1) {
+        track.lyrics[idx] = cue;
+      }
+    }
+    recordHistory('Edit Lyric "${cue.text}"', icon: Icons.edit);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void removeLyricCue(TrackChannel track, String cueId, {TrackClip? clip}) {
+    if (clip != null) {
+      clip.lyrics.removeWhere((c) => c.id == cueId);
+    } else {
+      track.lyrics.removeWhere((c) => c.id == cueId);
+    }
+    recordHistory('Remove Lyric Cue', icon: Icons.delete_outline);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void clearTrackLyrics(TrackChannel track, {TrackClip? clip}) {
+    if (clip != null) {
+      clip.lyrics.clear();
+    } else {
+      track.lyrics.clear();
+    }
+    recordHistory('Clear Lyrics for ${track.name}', icon: Icons.clear_all);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void importLrcToTrack(TrackChannel track, String lrcContent, {TrackClip? clip}) {
+    final parsed = LrcParser.parse(lrcContent, bpm: _bpm);
+    if (clip != null) {
+      clip.lyrics = parsed;
+    } else {
+      track.lyrics = parsed;
+    }
+    recordHistory('Import LRC Lyrics (${parsed.length} cues)', icon: Icons.file_upload);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  String exportTrackLrc(TrackChannel track, {TrackClip? clip}) {
+    final cues = clip != null ? clip.lyrics : track.lyrics;
+    return LrcParser.exportToLrc(cues, bpm: _bpm, title: projectName, artist: authorName);
+  }
+
+  void setTrackTts(
+    TrackChannel track, {
+    bool? enableTts,
+    String? voice,
+    double? pitch,
+    double? rate,
+    double? volume,
+  }) {
+    if (enableTts != null) track.enableTts = enableTts;
+    if (voice != null) track.ttsVoice = voice;
+    if (pitch != null) track.ttsPitch = pitch;
+    if (rate != null) track.ttsRate = rate;
+    if (volume != null) track.ttsVolume = volume;
+    recordHistory('Update TTS Config for ${track.name}', icon: Icons.record_voice_over);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  void setNoteLyric(TrackChannel track, Note note, String? lyric) {
+    note.lyric = lyric?.trim().isEmpty == true ? null : lyric?.trim();
+    _syncClipNotes(track);
+    recordHistory('Set Note Lyric: "${note.lyric ?? ''}"', icon: Icons.short_text);
+    triggerAutoSave();
+    notifyListeners();
   }
 }

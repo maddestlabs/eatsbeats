@@ -54,21 +54,23 @@ class _EatsbeatsLoadingScreenState extends State<EatsbeatsLoadingScreen> with Si
   }
 
   void _startInitializationSequence() {
-    SoundFontEngine.instance.loadDefaultBundledFont();
-    SoundFontPackManager.instance.restoreCachedPacks();
-    if (widget.dawState != null) {
-      widget.dawState!.loadPersistedSettings().then((_) {
+    final initFuture = () async {
+      SoundFontEngine.instance.loadDefaultBundledFont();
+      await SoundFontPackManager.instance.restoreCachedPacks();
+      if (widget.dawState != null) {
+        await widget.dawState!.loadPersistedSettings();
         if (widget.dawState!.autoRestoreSession) {
-          widget.dawState!.restoreSavedSession();
+          await widget.dawState!.restoreSavedSession();
         }
-      });
-    }
+      }
+    }();
+
     const totalDurationMs = 1500;
     const intervalMs = 60;
     const totalTicks = totalDurationMs ~/ intervalMs;
     int tickCount = 0;
 
-    _stepTimer = Timer.periodic(const Duration(milliseconds: intervalMs), (timer) {
+    _stepTimer = Timer.periodic(const Duration(milliseconds: intervalMs), (timer) async {
       if (!mounted) {
         timer.cancel();
         return;
@@ -82,11 +84,14 @@ class _EatsbeatsLoadingScreenState extends State<EatsbeatsLoadingScreen> with Si
 
       if (tickCount >= totalTicks) {
         timer.cancel();
-        Future.delayed(const Duration(milliseconds: 200), () {
-          if (mounted) {
-            widget.onInitializationComplete();
-          }
-        });
+        try {
+          await initFuture;
+        } catch (e) {
+          debugPrint('Startup init error: $e');
+        }
+        if (mounted) {
+          widget.onInitializationComplete();
+        }
       }
     });
   }

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
+import '../../models/lyric_model.dart';
 import '../../theme/eats_theme.dart';
 import 'midi_fx_rack_widget.dart';
 import 'modular_fx_rack_widget.dart';
 import 'eats_color_picker_dialog.dart';
+import 'compact_value_dialog.dart';
 
 enum InspectorTab { track, clip }
 
@@ -149,7 +151,11 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
         const SizedBox(height: 8),
         _buildTrackIdentityCard(track),
         const SizedBox(height: 10),
+        _buildFolderGroupCard(context, track),
+        const SizedBox(height: 10),
         _buildTrackColorCard(context, track),
+        const SizedBox(height: 10),
+        _buildLyricsAndTtsCard(context, track),
         const SizedBox(height: 10),
         MidiFxRackWidget(
           dawState: widget.dawState,
@@ -190,6 +196,191 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFolderGroupCard(BuildContext context, TrackChannel track) {
+    final folderTracks = widget.dawState.folderTracks.where((f) => f.id != track.id).toList();
+
+    if (track.isFolder) {
+      final children = widget.dawState.getFolderChildren(track.id);
+      return Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: EatsTheme.controlBackground,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: track.color.withOpacity(0.5), width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(track.isCollapsed ? Icons.folder : Icons.folder_open, size: 13, color: track.color),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    'TRACK FOLDER (${children.length} TRACKS)',
+                    style: TextStyle(color: track.color, fontSize: 9, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                InkWell(
+                  onTap: () => widget.dawState.toggleFolderCollapsed(track),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: EatsTheme.panelBackground,
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(color: track.color.withOpacity(0.4)),
+                    ),
+                    child: Text(
+                      track.isCollapsed ? 'EXPAND' : 'COLLAPSE',
+                      style: TextStyle(color: track.color, fontSize: 7.5, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            // Color sync toggle
+            Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: Checkbox(
+                    value: track.syncColorWithChildren,
+                    activeColor: track.color,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    onChanged: (_) => widget.dawState.toggleFolderColorSync(track),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Sync folder color to children',
+                    style: TextStyle(color: EatsTheme.textSecondary, fontSize: 8.5),
+                  ),
+                ),
+              ],
+            ),
+            if (children.isNotEmpty) ...[
+              const Divider(color: Colors.white10, height: 10),
+              ...children.map((c) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Icon(c.iconData, size: 11, color: c.color),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(c.name, style: TextStyle(color: EatsTheme.textPrimary, fontSize: 8.5), overflow: TextOverflow.ellipsis),
+                    ),
+                    InkWell(
+                      onTap: () => widget.dawState.ungroupTrack(c.id),
+                      child: Tooltip(
+                        message: 'Remove from folder',
+                        child: Icon(Icons.close, size: 12, color: EatsTheme.textMuted),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+            ],
+          ],
+        ),
+      );
+    }
+
+    // For Regular Non-Folder Tracks:
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: EatsTheme.controlBackground,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: EatsTheme.panelHeader),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.folder_open, size: 12, color: EatsTheme.textMuted),
+              const SizedBox(width: 4),
+              Text(
+                'FOLDER ORGANIZATION',
+                style: TextStyle(color: EatsTheme.textMuted, fontSize: 8.5, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: EatsTheme.panelBackground,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: EatsTheme.panelHeader),
+                  ),
+                  child: DropdownButton<String?>(
+                    value: track.parentFolderId,
+                    dropdownColor: EatsTheme.panelBackground,
+                    underline: const SizedBox(),
+                    isDense: true,
+                    isExpanded: true,
+                    style: TextStyle(color: EatsTheme.textPrimary, fontSize: 9),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('(No Folder / Root)'),
+                      ),
+                      ...folderTracks.map((f) => DropdownMenuItem<String?>(
+                        value: f.id,
+                        child: Row(
+                          children: [
+                            Icon(Icons.folder, size: 11, color: f.color),
+                            const SizedBox(width: 4),
+                            Text(f.name),
+                          ],
+                        ),
+                      )),
+                    ],
+                    onChanged: (folderId) => widget.dawState.setTrackFolder(track.id, folderId),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: () {
+                  widget.dawState.createTrackFolder(
+                    name: '${track.name} Group',
+                    initialTrackIds: [track.id],
+                    color: track.color,
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: EatsTheme.primaryCyan.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.create_new_folder, size: 11, color: EatsTheme.primaryCyan),
+                      const SizedBox(width: 3),
+                      Text('GROUP', style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 8, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -547,6 +738,8 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
         const SizedBox(height: 8),
         _buildClipTitleCard(track, clip),
         const SizedBox(height: 10),
+        _buildLyricsAndTtsCard(context, track, clip: clip),
+        const SizedBox(height: 10),
         _buildClipActionsCard(context, track, clip, hasTrackMidiFx),
       ],
     );
@@ -789,6 +982,210 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildLyricsAndTtsCard(BuildContext context, TrackChannel track, {TrackClip? clip}) {
+    final List<LyricCue> cues = clip != null ? clip.lyrics : track.lyrics;
+    final isTtsActive = track.type == TrackType.tts || track.luaScriptCode.contains('TtsSynth') || track.enableTts;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: EatsTheme.panelHeader,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: track.color.withOpacity(0.5), width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.mic, size: 14, color: track.color),
+              const SizedBox(width: 6),
+              Text(
+                clip != null ? 'CLIP LYRICS' : 'TRACK LYRICS',
+                style: TextStyle(
+                  color: EatsTheme.textPrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: track.color.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${cues.length} Cues',
+                  style: TextStyle(color: track.color, fontSize: 8.5, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Lyric Cues List Preview
+          if (cues.isNotEmpty) ...[
+            Container(
+              constraints: const BoxConstraints(maxHeight: 120),
+              padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
+              decoration: BoxDecoration(
+                color: EatsTheme.controlBackground.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFF2B3245)),
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.only(right: 6),
+                itemCount: cues.length,
+                separatorBuilder: (_, __) => const Divider(height: 6, color: Color(0xFF1E2230)),
+                itemBuilder: (context, idx) {
+                  final cue = cues[idx];
+                  return Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: track.color.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: Text(
+                          'S${cue.startStep.toStringAsFixed(1)}',
+                          style: TextStyle(color: track.color, fontSize: 8.5, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          cue.text,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10.5, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 12),
+                        color: EatsTheme.textMuted,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                        onPressed: () {
+                          showCompactValueEditDialog(
+                            context: context,
+                            title: 'EDIT LYRIC TEXT',
+                            initialValue: cue.text,
+                            accentColor: track.color,
+                            onSubmit: (val) {
+                              if (val.trim().isNotEmpty) {
+                                widget.dawState.updateLyricCue(track, cue.copyWith(text: val.trim()), clip: clip);
+                                setState(() {});
+                              }
+                            },
+                          );
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 12),
+                        color: Colors.redAccent.withOpacity(0.7),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                        onPressed: () {
+                          widget.dawState.removeLyricCue(track, cue.id, clip: clip);
+                          setState(() {});
+                        },
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          // Action Buttons: Add Cue & Import LRC
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(4),
+                  onTap: () {
+                    showCompactValueEditDialog(
+                      context: context,
+                      title: 'ADD LYRIC CUE',
+                      initialValue: 'Hello',
+                      minMaxHint: 'Enter word or phrase',
+                      accentColor: track.color,
+                      onSubmit: (val) {
+                        if (val.trim().isNotEmpty) {
+                          final double initialStep = clip != null
+                              ? (widget.dawState.arrangerStep - (clip.startBar * 16)).clamp(0, clip.barLength * 16 - 2).toDouble()
+                              : widget.dawState.arrangerStep.toDouble();
+                          widget.dawState.addLyricCue(
+                            track,
+                            LyricCue(
+                              id: 'cue_${DateTime.now().millisecondsSinceEpoch}',
+                              startStep: initialStep,
+                              durationSteps: 2.0,
+                              text: val.trim(),
+                            ),
+                            clip: clip,
+                          );
+                          setState(() {});
+                        }
+                      },
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    decoration: BoxDecoration(
+                      color: track.color.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: track.color.withOpacity(0.6)),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '+ ADD CUE',
+                      style: TextStyle(color: track.color, fontSize: 9.5, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              InkWell(
+                borderRadius: BorderRadius.circular(4),
+                onTap: () {
+                  showCompactValueEditDialog(
+                    context: context,
+                    title: 'IMPORT LRC LYRICS',
+                    initialValue: '[00:00.00] Line 1\\n[00:02.00] Line 2',
+                    minMaxHint: 'Paste standard or enhanced LRC',
+                    accentColor: EatsTheme.accentGold,
+                    onSubmit: (val) {
+                      if (val.trim().isNotEmpty) {
+                        widget.dawState.importLrcToTrack(track, val, clip: clip);
+                        setState(() {});
+                      }
+                    },
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: EatsTheme.controlBackground,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFF2B3245)),
+                  ),
+                  child: Text('IMPORT LRC', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 9, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

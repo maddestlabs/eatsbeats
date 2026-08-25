@@ -927,6 +927,55 @@ class _PianoRollViewState extends State<PianoRollView> {
                       },
                     ),
                   ),
+                  const SizedBox(height: 12),
+
+                  // Section 5: Lyric Syllable
+                  _buildSidebarSectionHeader('LYRIC / SYLLABLE'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 30,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: EatsTheme.controlBackground,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: EatsTheme.textMuted.withOpacity(0.3)),
+                          ),
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            note.lyric != null && note.lyric!.isNotEmpty ? note.lyric! : '(No syllable)',
+                            style: TextStyle(
+                              color: note.lyric != null && note.lyric!.isNotEmpty ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      _buildCompactButton('EDIT', () {
+                        showCompactValueEditDialog(
+                          context: context,
+                          title: 'NOTE LYRIC SYLLABLE',
+                          initialValue: note.lyric ?? '',
+                          minMaxHint: 'Enter syllable (e.g. "Wel-", "come", "yeah")',
+                          accentColor: EatsTheme.primaryCyan,
+                          onSubmit: (val) {
+                            widget.dawState.setNoteLyric(track, note, val);
+                            setState(() {});
+                          },
+                        );
+                      }),
+                      if (note.lyric != null && note.lyric!.isNotEmpty) ...[
+                        const SizedBox(width: 4),
+                        _buildCompactButton('CLEAR', () {
+                          widget.dawState.setNoteLyric(track, note, null);
+                          setState(() {});
+                        }),
+                      ],
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -1889,14 +1938,21 @@ class _PianoRollViewState extends State<PianoRollView> {
                                 ),
 
                                 // Playhead Position Line
-                                Positioned(
-                                  left: widget.dawState.currentStep * _stepWidth,
-                                  top: 0,
-                                  bottom: 0,
-                                  child: Container(
-                                    width: 2,
-                                    color: EatsTheme.primaryCyan,
-                                  ),
+                                ValueListenableBuilder<int>(
+                                  valueListenable: widget.dawState.currentStepNotifier,
+                                  builder: (context, curStep, _) {
+                                    return Positioned(
+                                      left: curStep * _stepWidth,
+                                      top: 0,
+                                      bottom: 0,
+                                      child: RepaintBoundary(
+                                        child: Container(
+                                          width: 2,
+                                          color: EatsTheme.primaryCyan,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
 
                                 // Render Real-Time MIDI FX Ghost / Arpeggiator Notes Layer
@@ -2140,7 +2196,9 @@ class _PianoRollViewState extends State<PianoRollView> {
                                             ),
                                             child: Center(
                                               child: Text(
-                                                _getNoteName(note.pitch),
+                                                note.lyric != null && note.lyric!.isNotEmpty
+                                                    ? '"${note.lyric}"'
+                                                    : _getNoteName(note.pitch),
                                                 overflow: TextOverflow.ellipsis,
                                                 style: TextStyle(
                                                   color: isSelected

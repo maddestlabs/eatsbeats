@@ -1,5 +1,5 @@
 # Eatsbeats
-Mobile-first and web-first, totally unprofessional digital audio workstation (DAW) built around a core of Lua scripting with a multimedia focused API. Made with Flutter and Lua, relying on WebAudio API for audio features.
+Mobile-first and web-first, totally unprofessional digital audio workstation (DAW) built around a core of Lua scripting with a multimedia focused API. Made with Flutter (using wajuce for native Web Audio) and Lua, relying on WebAudio API.
 
 ---
 
@@ -39,6 +39,7 @@ flutter run -d chrome
 ### Building Web Release
 ```bash
 flutter build web --release --base-href "/" --pwa-strategy=none
+```
 
 ---
 

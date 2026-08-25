@@ -121,6 +121,13 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
               onPanUpdate: (details) {
                 widget.dawState.updateFloatingWindowPosition(details.delta, parentBounds: wsBounds);
               },
+              onDoubleTap: () {
+                if (isMaximized) {
+                  widget.dawState.fitFloatingWindowToWorkspace(wsBounds, effectiveTrack);
+                } else {
+                  widget.dawState.toggleMaximizeFloatingWindow(wsBounds);
+                }
+              },
               child: Container(
                 height: 38,
                 padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -294,19 +301,29 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: Container(
-                      color: isGrungy ? const Color(0xFF221E19) : EatsTheme.panelBackground,
-                      padding: EdgeInsets.zero,
-                      child: FittedBox(
-                        fit: BoxFit.contain,
-                        alignment: Alignment.center,
-                        child: SizedBox(
-                          width: 520,
-                          child: DynamicInstrumentGuiWidget(
-                            dawState: widget.dawState,
-                            track: effectiveTrack,
-                            hideHeader: true,
-                            onParamChanged: onParamChanged,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onDoubleTap: () {
+                        if (isMaximized) {
+                          widget.dawState.fitFloatingWindowToWorkspace(wsBounds, effectiveTrack);
+                        } else {
+                          widget.dawState.toggleMaximizeFloatingWindow(wsBounds);
+                        }
+                      },
+                      child: Container(
+                        color: isGrungy ? const Color(0xFF221E19) : EatsTheme.panelBackground,
+                        padding: EdgeInsets.zero,
+                        child: FittedBox(
+                          fit: BoxFit.contain,
+                          alignment: Alignment.center,
+                          child: SizedBox(
+                            width: 520,
+                            child: DynamicInstrumentGuiWidget(
+                              dawState: widget.dawState,
+                              track: effectiveTrack,
+                              hideHeader: true,
+                              onParamChanged: onParamChanged,
+                            ),
                           ),
                         ),
                       ),

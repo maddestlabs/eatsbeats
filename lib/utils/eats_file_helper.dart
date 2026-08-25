@@ -23,7 +23,7 @@ class EatsFileHelper {
     }
   }
 
-  /// Triggers file open dialog for `.eats.zip`, `.zip`, `.eats.lua`, `.sf2`, `.wav`, or `.txt` files.
+  /// Triggers file open dialog for `.eats.zip`, `.zip`, `.eats.lua`, `.sf2`, `.wav`, `.mid`, `.midi`, or `.txt` files.
   /// Works across Web, iOS, Android, and Desktop (Windows, macOS, Linux).
   static void pickEatsFile(
       Function(Uint8List? zipBytes, String? textContent, String fileName) onFileLoaded) {
