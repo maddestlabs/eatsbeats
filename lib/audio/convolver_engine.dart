@@ -1,10 +1,18 @@
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
+import '../utils/eats_storage_helper.dart';
 import 'procedural_ir_generator.dart';
 
-class ConvolverEngine {
+/// Central Audio Engine for Impulse Response management, convolution reverb processing,
+/// and bi-directional acoustic room & amplifier cabinet preset synchronization.
+class ConvolverEngine extends ChangeNotifier {
   static final ConvolverEngine instance = ConvolverEngine._internal();
-  ConvolverEngine._internal();
+  ConvolverEngine._internal() {
+    _loadUserPresetsFromStorage();
+  }
+
+  static const String _storageKey = 'eatsbeats_user_space_presets';
 
   static List<String> get builtInIrNames => ProceduralIRGenerator.presets.keys.toList();
 
@@ -14,17 +22,63 @@ class ConvolverEngine {
   Map<String, List<double>> get irSamples => Map.unmodifiable(_irSamples);
   Map<String, AcousticSpaceParams> get userPresets => Map.unmodifiable(_userPresets);
 
+  /// Returns all available Room presets (both stock and user created).
+  List<AcousticSpaceParams> getRoomPresets() {
+    final list = <AcousticSpaceParams>[];
+    // Stock rooms
+    for (final p in ProceduralIRGenerator.presets.values) {
+      if (!p.isCabinetMode) list.add(p);
+    }
+    // User rooms
+    for (final p in _userPresets.values) {
+      if (!p.isCabinetMode) list.add(p);
+    }
+    return list;
+  }
+
+  /// Returns all available Cabinet presets (both stock and user created).
+  List<AcousticSpaceParams> getCabPresets() {
+    final list = <AcousticSpaceParams>[];
+    // Stock cabs
+    for (final p in ProceduralIRGenerator.presets.values) {
+      if (p.isCabinetMode) list.add(p);
+    }
+    // User cabs
+    for (final p in _userPresets.values) {
+      if (p.isCabinetMode) list.add(p);
+    }
+    return list;
+  }
+
+  /// Finds an AcousticSpaceParams preset by name.
+  AcousticSpaceParams? getSpacePreset(String name) {
+    final clean = name.trim();
+    if (_userPresets.containsKey(clean)) return _userPresets[clean];
+    if (ProceduralIRGenerator.presets.containsKey(clean)) return ProceduralIRGenerator.presets[clean];
+    for (final entry in _userPresets.entries) {
+      if (entry.key.toLowerCase() == clean.toLowerCase()) return entry.value;
+    }
+    for (final entry in ProceduralIRGenerator.presets.entries) {
+      if (entry.key.toLowerCase() == clean.toLowerCase()) return entry.value;
+    }
+    return null;
+  }
+
   /// Saves a custom user-designed space or cabinet preset and makes it available in Convolution Reverb.
   void saveUserPreset(AcousticSpaceParams params) {
     final presetName = params.name.trim();
     _userPresets[presetName] = params;
     bakeCustomSpace(params);
+    _saveUserPresetsToStorage();
+    notifyListeners();
   }
 
   /// Removes a custom user preset.
   void deleteUserPreset(String name) {
     _userPresets.remove(name);
     unloadIr(name);
+    _saveUserPresetsToStorage();
+    notifyListeners();
   }
 
   /// Registers a newly decoded or procedurally baked IR PCM audio buffer.
@@ -145,5 +199,31 @@ class ConvolverEngine {
 
     return output;
   }
-}
 
+  Future<void> _saveUserPresetsToStorage() async {
+    try {
+      final encoded = jsonEncode(_userPresets.map((k, v) => MapEntry(k, v.toJson())));
+      await EatsStorageHelper.setString(_storageKey, encoded);
+    } catch (e) {
+      debugPrint('ConvolverEngine: Error saving user space presets: $e');
+    }
+  }
+
+  Future<void> _loadUserPresetsFromStorage() async {
+    try {
+      final raw = await EatsStorageHelper.getString(_storageKey);
+      if (raw != null && raw.isNotEmpty) {
+        final Map<String, dynamic> decoded = jsonDecode(raw);
+        _userPresets.clear();
+        for (final entry in decoded.entries) {
+          if (entry.value is Map<String, dynamic>) {
+            _userPresets[entry.key] = AcousticSpaceParams.fromJson(entry.value as Map<String, dynamic>);
+          }
+        }
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('ConvolverEngine: Error loading user space presets: $e');
+    }
+  }
+}

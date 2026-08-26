@@ -9,85 +9,8 @@ import 'modular_theme.dart';
 import 'modular_faceplate_widget.dart';
 import 'modular_jack_widget.dart';
 import 'patch_cable_painter.dart';
-
-/// Module Model for Dynamic Modular Rack Editing
-class DynamicModuleDefinition {
-  final String id;
-  final String title;
-  final String subtitle;
-  final int hpWidth;
-  final Color accentColor;
-  final String category; // 'VCO', 'VCF', 'MOD', 'FX', 'CORE', 'OUT'
-  final List<String> inputJacks;
-  final List<String> outputJacks;
-
-  const DynamicModuleDefinition({
-    required this.id,
-    required this.title,
-    required this.subtitle,
-    required this.hpWidth,
-    required this.accentColor,
-    required this.category,
-    required this.inputJacks,
-    required this.outputJacks,
-  });
-}
-
-/// Identifies a physical jack on a module in the rack
-class JackKey {
-  final int row;
-  final int moduleIndex;
-  final int jackIndex;
-  final String label;
-
-  const JackKey({
-    required this.row,
-    required this.moduleIndex,
-    required this.jackIndex,
-    required this.label,
-  });
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is JackKey &&
-          runtimeType == other.runtimeType &&
-          row == other.row &&
-          moduleIndex == other.moduleIndex &&
-          jackIndex == other.jackIndex;
-
-  @override
-  int get hashCode => row.hashCode ^ moduleIndex.hashCode ^ jackIndex.hashCode;
-}
-
-/// Dynamic Connection between two jacks
-class DynamicPatchConnection {
-  final JackKey fromKey;
-  final JackKey toKey;
-  final Color color;
-  final double tension;
-
-  const DynamicPatchConnection({
-    required this.fromKey,
-    required this.toKey,
-    this.color = ModularTheme.cableAudio,
-    this.tension = 0.5,
-  });
-
-  DynamicPatchConnection copyWith({
-    JackKey? fromKey,
-    JackKey? toKey,
-    Color? color,
-    double? tension,
-  }) {
-    return DynamicPatchConnection(
-      fromKey: fromKey ?? this.fromKey,
-      toKey: toKey ?? this.toKey,
-      color: color ?? this.color,
-      tension: tension ?? this.tension,
-    );
-  }
-}
+import 'modular_module_search_dialog.dart';
+import 'modular_rack_dsl.dart';
 
 /// Interactive Multi-Row Modular Synthesizer Canvas (VCV Rack-Style Infinite Studio).
 /// Features:
@@ -235,135 +158,35 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
   void _rebuildDefaultConnections() {
     _connections.clear();
 
-    switch (_instrumentSignature) {
-      case 'ym2612_synth':
-        _connections.addAll([
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 1, moduleIndex: 0, jackIndex: 2, label: 'FM Out'),
-            toKey: JackKey(row: 1, moduleIndex: 2, jackIndex: 0, label: 'Carrier In'),
-            color: ModularTheme.cableModulation,
-            tension: 0.55,
-          ),
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 1, moduleIndex: 2, jackIndex: 1, label: 'DAC Out'),
-            toKey: JackKey(row: 2, moduleIndex: 0, jackIndex: 0, label: 'DAC In'),
-            color: ModularTheme.cableAudio,
-            tension: 0.45,
-          ),
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 2, moduleIndex: 0, jackIndex: 1, label: 'Analog Out'),
-            toKey: JackKey(row: 2, moduleIndex: 1, jackIndex: 0, label: 'L In'),
-            color: ModularTheme.cableAudio,
-            tension: 0.65,
-          ),
-        ]);
-        break;
+    final parsed = ModularRackDsl.parse(widget.track.luaScriptCode);
+    if (parsed != null) {
+      _totalRowCount = math.max(_totalRowCount, parsed.totalRows);
+      _connections.addAll(parsed.cables);
+      for (final entry in parsed.modulesByRow.entries) {
+        _customModulesByRow[entry.key] = List.from(entry.value);
+      }
+      return;
+    }
 
-      case 'eats_sfxr':
-      case 'snes_console_synth':
-        _connections.addAll([
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 1, moduleIndex: 0, jackIndex: 2, label: 'DSP Out'),
-            toKey: JackKey(row: 1, moduleIndex: 1, jackIndex: 0, label: 'In'),
-            color: ModularTheme.cableDigital,
-            tension: 0.6,
-          ),
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 1, moduleIndex: 1, jackIndex: 1, label: 'Gaussian Out'),
-            toKey: JackKey(row: 2, moduleIndex: 0, jackIndex: 0, label: 'In'),
-            color: ModularTheme.cableAudio,
-            tension: 0.45,
-          ),
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 2, moduleIndex: 0, jackIndex: 1, label: 'Echo Out'),
-            toKey: JackKey(row: 2, moduleIndex: 1, jackIndex: 0, label: 'DSP In'),
-            color: ModularTheme.cableAudio,
-            tension: 0.65,
-          ),
-        ]);
-        break;
+    final defaultRack = ModularRackDsl.generateDefault(
+      _instrumentSignature,
+      params: widget.track.luaParams,
+      trackName: widget.track.name,
+    );
+    _connections.addAll(defaultRack.cables);
+  }
 
-      case 'acid_303':
-        _connections.addAll([
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 1, moduleIndex: 0, jackIndex: 1, label: 'Saw Out'),
-            toKey: JackKey(row: 1, moduleIndex: 1, jackIndex: 0, label: 'Audio In'),
-            color: ModularTheme.cableAudio,
-            tension: 0.6,
-          ),
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 1, moduleIndex: 1, jackIndex: 2, label: 'VCF Out'),
-            toKey: JackKey(row: 1, moduleIndex: 2, jackIndex: 0, label: 'In'),
-            color: ModularTheme.cableAudio,
-            tension: 0.65,
-          ),
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 2, moduleIndex: 0, jackIndex: 1, label: 'Env Out'),
-            toKey: JackKey(row: 1, moduleIndex: 1, jackIndex: 1, label: 'Env In'),
-            color: ModularTheme.cableModulation,
-            tension: 0.45,
-          ),
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 1, moduleIndex: 2, jackIndex: 1, label: 'Out'),
-            toKey: JackKey(row: 2, moduleIndex: 1, jackIndex: 0, label: 'Audio In'),
-            color: ModularTheme.cableAudio,
-            tension: 0.4,
-          ),
-        ]);
-        break;
-
-      case 'fm_acoustic_snare':
-        _connections.addAll([
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 1, moduleIndex: 0, jackIndex: 1, label: 'Tone Out'),
-            toKey: JackKey(row: 2, moduleIndex: 0, jackIndex: 1, label: 'Tone In'),
-            color: ModularTheme.cableAudio,
-            tension: 0.5,
-          ),
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 1, moduleIndex: 1, jackIndex: 1, label: 'Wire Out'),
-            toKey: JackKey(row: 2, moduleIndex: 0, jackIndex: 0, label: 'Wire In'),
-            color: ModularTheme.cableAudio,
-            tension: 0.5,
-          ),
-        ]);
-        break;
-
-      case 'fm_acoustic_kick':
-      default:
-        _connections.addAll([
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 1, moduleIndex: 0, jackIndex: 1, label: 'FM Out'),
-            toKey: JackKey(row: 1, moduleIndex: 1, jackIndex: 0, label: 'FM In'),
-            color: ModularTheme.cableModulation,
-            tension: 0.6,
-          ),
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 1, moduleIndex: 1, jackIndex: 2, label: 'Audio Out'),
-            toKey: JackKey(row: 1, moduleIndex: 2, jackIndex: 0, label: 'Audio In'),
-            color: ModularTheme.cableAudio,
-            tension: 0.55,
-          ),
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 1, moduleIndex: 2, jackIndex: 1, label: 'EQ Out'),
-            toKey: JackKey(row: 2, moduleIndex: 2, jackIndex: 0, label: 'Near In'),
-            color: ModularTheme.cableAudio,
-            tension: 0.4,
-          ),
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 2, moduleIndex: 0, jackIndex: 1, label: 'Room Out'),
-            toKey: JackKey(row: 2, moduleIndex: 1, jackIndex: 0, label: 'In'),
-            color: ModularTheme.cablePitchCv,
-            tension: 0.65,
-          ),
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 2, moduleIndex: 1, jackIndex: 1, label: 'Delayed Out'),
-            toKey: JackKey(row: 2, moduleIndex: 2, jackIndex: 1, label: 'Far In'),
-            color: ModularTheme.cablePitchCv,
-            tension: 0.5,
-          ),
-        ]);
-        break;
+  void _syncRackToScript() {
+    final serialized = ModularRackDsl.serialize(
+      totalRows: _totalRowCount,
+      customModulesByRow: _customModulesByRow,
+      cables: _connections,
+      existingScriptCode: widget.track.luaScriptCode,
+      instrumentName: widget.track.name.replaceAll(RegExp(r'[^A-Za-z0-9_]'), ''),
+    );
+    if (widget.track.luaScriptCode != serialized) {
+      widget.track.luaScriptCode = serialized;
+      widget.dawState.notifyListeners();
     }
   }
 
@@ -371,6 +194,9 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
     List<int> hpList = [];
     if (row == 1) {
       switch (_instrumentSignature) {
+        case 'generic':
+          hpList = [18, 14];
+          break;
         case 'ym2612_synth':
           hpList = [15, 15, 15];
           break;
@@ -396,6 +222,9 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
       }
     } else if (row == 2) {
       switch (_instrumentSignature) {
+        case 'generic':
+          hpList = [16, 14];
+          break;
         case 'ym2612_synth':
           hpList = [15, 12];
           break;
@@ -430,50 +259,61 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
   }
 
   int _getModuleJackCount(int row, int moduleIndex) {
-    if (row == 1) {
-      switch (_instrumentSignature) {
-        case 'ym2612_synth':
-          return [3, 2, 2][moduleIndex.clamp(0, 2)];
-        case 'eats_sfxr':
-        case 'snes_console_synth':
-          return [3, 2][moduleIndex.clamp(0, 1)];
-        case 'soundfont_sampler':
-        case 'sampler_instrument':
-        case 'drum_kit_sampler':
-          return [2, 2][moduleIndex.clamp(0, 1)];
-        case 'acid_303':
-          return [2, 3, 2][moduleIndex.clamp(0, 2)];
-        case 'fm_acoustic_snare':
-          return [2, 2][moduleIndex.clamp(0, 1)];
-        case 'fm_acoustic_kick':
-        default:
-          return [2, 3, 2][moduleIndex.clamp(0, 2)];
-      }
-    } else if (row == 2) {
-      switch (_instrumentSignature) {
-        case 'ym2612_synth':
-          return [2, 3][moduleIndex.clamp(0, 1)];
-        case 'eats_sfxr':
-        case 'snes_console_synth':
-          return [2, 2][moduleIndex.clamp(0, 1)];
-        case 'soundfont_sampler':
-        case 'sampler_instrument':
-        case 'drum_kit_sampler':
-          return [2, 2][moduleIndex.clamp(0, 1)];
-        case 'acid_303':
-          return [2, 2][moduleIndex.clamp(0, 1)];
-        case 'fm_acoustic_snare':
-          return [2, 2][moduleIndex.clamp(0, 1)];
-        case 'fm_acoustic_kick':
-        default:
-          return [2, 2, 3][moduleIndex.clamp(0, 2)];
+    final baseCount = _getBaseModuleCount(row);
+    if (moduleIndex < baseCount) {
+      if (row == 1) {
+        switch (_instrumentSignature) {
+          case 'generic':
+            return [4, 4][moduleIndex.clamp(0, 1)];
+          case 'ym2612_synth':
+            return [3, 2, 2][moduleIndex.clamp(0, 2)];
+          case 'eats_sfxr':
+          case 'snes_console_synth':
+            return [3, 2][moduleIndex.clamp(0, 1)];
+          case 'soundfont_sampler':
+          case 'sampler_instrument':
+          case 'drum_kit_sampler':
+            return [2, 2][moduleIndex.clamp(0, 1)];
+          case 'acid_303':
+            return [2, 3, 2][moduleIndex.clamp(0, 2)];
+          case 'fm_acoustic_snare':
+            return [2, 2][moduleIndex.clamp(0, 1)];
+          case 'fm_acoustic_kick':
+          default:
+            return [2, 3, 2][moduleIndex.clamp(0, 2)];
+        }
+      } else if (row == 2) {
+        switch (_instrumentSignature) {
+          case 'generic':
+            return [3, 4][moduleIndex.clamp(0, 1)];
+          case 'ym2612_synth':
+            return [2, 3][moduleIndex.clamp(0, 1)];
+          case 'eats_sfxr':
+          case 'snes_console_synth':
+            return [2, 2][moduleIndex.clamp(0, 1)];
+          case 'soundfont_sampler':
+          case 'sampler_instrument':
+          case 'drum_kit_sampler':
+            return [2, 2][moduleIndex.clamp(0, 1)];
+          case 'acid_303':
+            return [2, 2][moduleIndex.clamp(0, 1)];
+          case 'fm_acoustic_snare':
+            return [2, 2][moduleIndex.clamp(0, 1)];
+          case 'fm_acoustic_kick':
+          default:
+            return [2, 2, 3][moduleIndex.clamp(0, 2)];
+        }
       }
     }
+
     // Custom modules
     final custom = _customModulesByRow[row] ?? [];
-    if (moduleIndex < custom.length) {
-      final mod = custom[moduleIndex];
-      return mod.inputJacks.length + mod.outputJacks.length;
+    final customIdx = moduleIndex - baseCount;
+    if (customIdx >= 0 && customIdx < custom.length) {
+      final mod = custom[customIdx];
+      final inCount = math.min(mod.inputJacks.length, 2);
+      final outCount = math.min(mod.outputJacks.length, 2);
+      return inCount + outCount;
     }
     return 2;
   }
@@ -553,6 +393,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
                       final nextColor = ModularTheme.cablePalette[(currentIdx + 1) % ModularTheme.cablePalette.length];
                       _connections[existingIdx] = conn.copyWith(color: nextColor);
                     });
+                    _syncRackToScript();
                   },
                 ),
                 ListTile(
@@ -563,6 +404,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
                     setState(() {
                       _connections.removeAt(existingIdx);
                     });
+                    _syncRackToScript();
                   },
                 ),
               ],
@@ -617,6 +459,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
           ),
         );
       });
+      _syncRackToScript();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Connected ${_dragSourceJack!.label} → ${_hoveredTargetJack!.label}'),
@@ -634,247 +477,96 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
     });
   }
 
-  void _openAddModuleDialog(int targetRow) {
-    showModalBottomSheet(
+  Future<void> _openAddModuleDialog(int targetRow) async {
+    final selectedModule = await ModularModuleSearchDialog.show(
+      context,
+      targetRow: targetRow,
+    );
+    if (selectedModule != null && mounted) {
+      _addModuleToRow(targetRow, selectedModule);
+    }
+  }
+
+  void _openScriptEditorDialog(DynamicModuleDefinition mod) {
+    showDialog(
       context: context,
-      backgroundColor: ModularTheme.caseBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
       builder: (ctx) {
-        return Container(
-          height: 380,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.add_circle, color: ModularTheme.cablePitchCv, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'ADD MODULE TO ROW $targetRow',
-                        style: const TextStyle(
-                          fontFamily: 'Courier',
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white60),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: GridView.count(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: 1.8,
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            width: 520,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: ModularTheme.caseBackground,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: mod.accentColor.withOpacity(0.6), width: 1.5),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildModuleLibraryCard(
-                      ctx,
-                      title: 'ANALOG VCO',
-                      subtitle: 'Saw/Square Core',
-                      category: 'VCO',
-                      color: const Color(0xFFFF5722),
-                      onSelect: () => _addModuleToRow(
-                        targetRow,
-                        const DynamicModuleDefinition(
-                          id: 'vco_saw_sqr',
-                          title: 'ANALOG VCO',
-                          subtitle: 'Saw/Square Core',
-                          hpWidth: 10,
-                          accentColor: Color(0xFFFF5722),
-                          category: 'VCO',
-                          inputJacks: ['1V/Oct', 'Sync In'],
-                          outputJacks: ['Saw Out', 'Sqr Out'],
+                    Row(
+                      children: [
+                        Icon(Icons.code, color: mod.accentColor, size: 18),
+                        const SizedBox(width: 6),
+                        Text(
+                          'SCRIPT: ${mod.title}',
+                          style: const TextStyle(
+                            fontFamily: 'Courier',
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                    _buildModuleLibraryCard(
-                      ctx,
-                      title: 'DIODE LADDER VCF',
-                      subtitle: '24dB Resonant Filter',
-                      category: 'VCF',
-                      color: const Color(0xFFFF9800),
-                      onSelect: () => _addModuleToRow(
-                        targetRow,
-                        const DynamicModuleDefinition(
-                          id: 'vcf_ladder',
-                          title: 'DIODE LADDER',
-                          subtitle: '24dB Resonant',
-                          hpWidth: 12,
-                          accentColor: Color(0xFFFF9800),
-                          category: 'VCF',
-                          inputJacks: ['Audio In', 'Cutoff CV'],
-                          outputJacks: ['VCF Out'],
-                        ),
-                      ),
-                    ),
-                    _buildModuleLibraryCard(
-                      ctx,
-                      title: 'ADSR ENVELOPE',
-                      subtitle: '4-Stage Modulator',
-                      category: 'MOD',
-                      color: const Color(0xFF00E676),
-                      onSelect: () => _addModuleToRow(
-                        targetRow,
-                        const DynamicModuleDefinition(
-                          id: 'mod_adsr',
-                          title: 'ADSR ENVELOPE',
-                          subtitle: '4-Stage Mod',
-                          hpWidth: 11,
-                          accentColor: Color(0xFF00E676),
-                          category: 'MOD',
-                          inputJacks: ['Gate In', 'Retrig'],
-                          outputJacks: ['Env Out', 'Inv Out'],
-                        ),
-                      ),
-                    ),
-                    _buildModuleLibraryCard(
-                      ctx,
-                      title: 'TAPE DELAY FX',
-                      subtitle: 'Analog Bucket Echo',
-                      category: 'FX',
-                      color: const Color(0xFF00BCD4),
-                      onSelect: () => _addModuleToRow(
-                        targetRow,
-                        const DynamicModuleDefinition(
-                          id: 'fx_tape_delay',
-                          title: 'TAPE DELAY',
-                          subtitle: 'Bucket Echo',
-                          hpWidth: 12,
-                          accentColor: Color(0xFF00BCD4),
-                          category: 'FX',
-                          inputJacks: ['Audio In', 'Time CV'],
-                          outputJacks: ['Wet Out', 'Direct'],
-                        ),
-                      ),
-                    ),
-                    _buildModuleLibraryCard(
-                      ctx,
-                      title: 'TANH OVERDRIVE',
-                      subtitle: 'Tube Saturation VCA',
-                      category: 'FX',
-                      color: const Color(0xFFE91E63),
-                      onSelect: () => _addModuleToRow(
-                        targetRow,
-                        const DynamicModuleDefinition(
-                          id: 'fx_drive',
-                          title: 'TANH DRIVE',
-                          subtitle: 'Tube Saturation',
-                          hpWidth: 10,
-                          accentColor: Color(0xFFE91E63),
-                          category: 'FX',
-                          inputJacks: ['In', 'Drive CV'],
-                          outputJacks: ['Clipped Out'],
-                        ),
-                      ),
-                    ),
-                    _buildModuleLibraryCard(
-                      ctx,
-                      title: 'STEREO OUT VCA',
-                      subtitle: 'Master Summing Bus',
-                      category: 'OUT',
-                      color: const Color(0xFFFFD600),
-                      onSelect: () => _addModuleToRow(
-                        targetRow,
-                        const DynamicModuleDefinition(
-                          id: 'out_vca',
-                          title: 'STEREO OUT',
-                          subtitle: 'Master Bus',
-                          hpWidth: 10,
-                          accentColor: Color(0xFFFFD600),
-                          category: 'OUT',
-                          inputJacks: ['L In', 'R In'],
-                          outputJacks: ['Out L', 'Out R'],
-                        ),
-                      ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white60, size: 18),
+                      onPressed: () => Navigator.pop(ctx),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildModuleLibraryCard(
-    BuildContext ctx, {
-    required String title,
-    required String subtitle,
-    required String category,
-    required Color color,
-    required VoidCallback onSelect,
-  }) {
-    return InkWell(
-      onTap: () {
-        Navigator.pop(ctx);
-        onSelect();
-      },
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: ModularTheme.faceplateDarkBg,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.5), width: 1.2),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  category,
-                  style: TextStyle(
-                    fontFamily: 'Courier',
-                    fontSize: 8.5,
-                    fontWeight: FontWeight.bold,
-                    color: color,
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF070C11),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Text(
+                    mod.scriptCode ?? '-- Custom Lua DSP Module\n-- Ready for live audio processing',
+                    style: const TextStyle(
+                      fontFamily: 'Courier',
+                      fontSize: 11,
+                      color: Color(0xFF00E5FF),
+                      height: 1.4,
+                    ),
                   ),
                 ),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: mod.accentColor.withOpacity(0.2),
+                      foregroundColor: mod.accentColor,
+                      side: BorderSide(color: mod.accentColor),
+                    ),
+                    icon: const Icon(Icons.check, size: 14),
+                    label: const Text('CLOSE', style: TextStyle(fontFamily: 'Courier', fontSize: 11, fontWeight: FontWeight.bold)),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
                 ),
               ],
             ),
-            Text(
-              title,
-              style: const TextStyle(
-                fontFamily: 'Courier',
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontFamily: 'Courier',
-                fontSize: 8,
-                color: Colors.white54,
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -882,6 +574,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
     setState(() {
       _customModulesByRow.putIfAbsent(row, () => []).add(mod);
     });
+    _syncRackToScript();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Added ${mod.title} to Row $row'),
@@ -926,6 +619,27 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
                   ),
                 ),
                 const SizedBox(width: 6),
+
+                // Lua Sync Status
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  margin: const EdgeInsets.only(right: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00E676).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFF00E676).withOpacity(0.5)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.sync, size: 11, color: Color(0xFF00E676)),
+                      SizedBox(width: 4),
+                      Text(
+                        'LUA SYNC: OK',
+                        style: TextStyle(fontFamily: 'Courier', fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFF00E676)),
+                      ),
+                    ],
+                  ),
+                ),
 
                 // Reset Camera Zoom/Pan
                 IconButton(
@@ -1042,6 +756,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
                                 _totalRowCount++;
                                 _customModulesByRow[_totalRowCount] = [];
                               });
+                              _syncRackToScript();
                             },
                             borderRadius: BorderRadius.circular(6),
                             child: Container(
@@ -1181,6 +896,16 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
   }
 
   Widget _buildCustomModuleWidget(int row, int moduleIndex, DynamicModuleDefinition mod) {
+    final paramEntries = mod.defaultParams?.entries.toList() ?? [];
+    final isScript = mod.category == 'SCRIPT';
+
+    final double moduleWidth = mod.hpWidth * ModularTheme.standardHpUnit;
+    final double innerWidth = moduleWidth - 24.0;
+    final inCount = math.min(mod.inputJacks.length, 2);
+    final outCount = math.min(mod.outputJacks.length, 2);
+    final totalJacks = math.max(inCount + outCount, 1);
+    final jackWidth = math.min(innerWidth / totalJacks, 42.0);
+
     return ModularFaceplateWidget(
       title: mod.title,
       subtitle: mod.subtitle,
@@ -1189,54 +914,130 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          if (isScript)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF071217),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: mod.accentColor.withOpacity(0.4)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: mod.accentColor,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'DSP ACTIVE',
+                        style: TextStyle(
+                          fontFamily: 'Courier',
+                          fontSize: 7,
+                          fontWeight: FontWeight.bold,
+                          color: mod.accentColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  InkWell(
+                    onTap: () => _openScriptEditorDialog(mod),
+                    borderRadius: BorderRadius.circular(3),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: mod.accentColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: Text(
+                        'EDIT',
+                        style: TextStyle(
+                          fontFamily: 'Courier',
+                          fontSize: 6.5,
+                          fontWeight: FontWeight.bold,
+                          color: mod.accentColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                SkeuomorphicHardwareKnob(
-                  label: 'PARAM 1',
-                  value: 0.5,
-                  min: 0.0,
-                  max: 1.0,
-                  defaultValue: 0.5,
-                  size: 40,
-                  accentColor: mod.accentColor,
-                  onChanged: (v) {},
-                ),
-                SkeuomorphicHardwareKnob(
-                  label: 'PARAM 2',
-                  value: 0.5,
-                  min: 0.0,
-                  max: 1.0,
-                  defaultValue: 0.5,
-                  size: 40,
-                  accentColor: mod.accentColor,
-                  onChanged: (v) {},
-                ),
-              ],
+              children: paramEntries.isEmpty
+                  ? [
+                      SkeuomorphicHardwareKnob(
+                        label: 'PARAM 1',
+                        value: 0.5,
+                        min: 0.0,
+                        max: 1.0,
+                        defaultValue: 0.5,
+                        size: 30,
+                        accentColor: mod.accentColor,
+                        onChanged: (v) {},
+                      ),
+                      SkeuomorphicHardwareKnob(
+                        label: 'PARAM 2',
+                        value: 0.5,
+                        min: 0.0,
+                        max: 1.0,
+                        defaultValue: 0.5,
+                        size: 30,
+                        accentColor: mod.accentColor,
+                        onChanged: (v) {},
+                      ),
+                    ]
+                  : paramEntries.take(3).map((e) {
+                      return SkeuomorphicHardwareKnob(
+                        label: e.key.toUpperCase().length > 6 ? e.key.toUpperCase().substring(0, 6) : e.key.toUpperCase(),
+                        value: e.value,
+                        min: 0.0,
+                        max: e.value > 1.0 ? e.value * 2.0 : 1.0,
+                        defaultValue: e.value,
+                        size: 30,
+                        accentColor: mod.accentColor,
+                        onChanged: (v) {
+                          if (mod.defaultParams != null) {
+                            mod.defaultParams![e.key] = v;
+                          }
+                        },
+                      );
+                    }).toList(),
             ),
           ),
           SizedBox(
             height: 38,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                ...mod.inputJacks.asMap().entries.map(
+                ...mod.inputJacks.take(2).toList().asMap().entries.map(
                       (e) => _buildInteractiveJack(
                         row: row,
                         moduleIndex: moduleIndex,
                         jackIndex: e.key,
                         label: e.value,
                         type: JackType.input,
+                        width: jackWidth,
                       ),
                     ),
-                ...mod.outputJacks.asMap().entries.map(
+                ...mod.outputJacks.take(2).toList().asMap().entries.map(
                       (e) => _buildInteractiveJack(
                         row: row,
                         moduleIndex: moduleIndex,
-                        jackIndex: mod.inputJacks.length + e.key,
+                        jackIndex: math.min(mod.inputJacks.length, 2) + e.key,
                         label: e.value,
                         type: JackType.output,
+                        width: jackWidth,
                       ),
                     ),
               ],
@@ -1254,6 +1055,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
     required String label,
     JackType type = JackType.input,
     JackSignalType signalType = JackSignalType.audio,
+    double? width,
   }) {
     final key = JackKey(row: row, moduleIndex: moduleIndex, jackIndex: jackIndex, label: label);
     final isConnected = _connections.any((c) => c.fromKey == key || c.toKey == key);
@@ -1265,6 +1067,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
       signalType: signalType,
       isConnected: isConnected,
       isHovered: _hoveredTargetJack == key,
+      width: width,
       onTap: () => _onJackTap(key),
       onDragStart: (details) => _onJackDragStart(key, details),
       onDragUpdate: (details) => _onJackDragUpdate(key, details),
@@ -1661,6 +1464,168 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
           ),
         ];
 
+      case 'generic':
+        final luaParamKeys = widget.track.luaParams.keys.take(4).toList();
+        return [
+          ModularFaceplateWidget(
+            title: 'LUA SCRIPT DSP CORE',
+            subtitle: widget.track.name.toUpperCase(),
+            hpWidth: 18,
+            accentColor: const Color(0xFF00E5FF),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF071217),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.4)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Color(0xFF00E5FF),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'DSP ACTIVE',
+                            style: TextStyle(
+                              fontFamily: 'Courier',
+                              fontSize: 7.5,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF00E5FF),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        '${widget.track.luaParams.length} PARAMS',
+                        style: const TextStyle(
+                          fontFamily: 'Courier',
+                          fontSize: 7,
+                          color: Colors.white54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: luaParamKeys.isEmpty
+                        ? [
+                            SkeuomorphicHardwareKnob(
+                              label: 'PARAM 1',
+                              value: _getParam('Param 1', 0.5),
+                              min: 0.0,
+                              max: 1.0,
+                              defaultValue: 0.5,
+                              size: 30,
+                              accentColor: const Color(0xFF00E5FF),
+                              onChanged: (v) => _setParam('Param 1', v),
+                            ),
+                            SkeuomorphicHardwareKnob(
+                              label: 'PARAM 2',
+                              value: _getParam('Param 2', 0.5),
+                              min: 0.0,
+                              max: 1.0,
+                              defaultValue: 0.5,
+                              size: 30,
+                              accentColor: const Color(0xFF00E5FF),
+                              onChanged: (v) => _setParam('Param 2', v),
+                            ),
+                          ]
+                        : luaParamKeys.take(3).map((key) {
+                            return SkeuomorphicHardwareKnob(
+                              label: key.toUpperCase().length > 7 ? key.toUpperCase().substring(0, 7) : key.toUpperCase(),
+                              value: _getParam(key, 0.5),
+                              min: 0.0,
+                              max: 1.0,
+                              defaultValue: 0.5,
+                              size: 30,
+                              accentColor: const Color(0xFF00E5FF),
+                              onChanged: (v) => _setParam(key, v),
+                            );
+                          }).toList(),
+                  ),
+                ),
+                SizedBox(
+                  height: 38,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildInteractiveJack(row: 1, moduleIndex: 0, jackIndex: 0, label: 'Gate In', signalType: JackSignalType.gate),
+                      _buildInteractiveJack(row: 1, moduleIndex: 0, jackIndex: 1, label: 'Pitch In', signalType: JackSignalType.pitchCv),
+                      _buildInteractiveJack(row: 1, moduleIndex: 0, jackIndex: 2, label: 'Audio L', type: JackType.output),
+                      _buildInteractiveJack(row: 1, moduleIndex: 0, jackIndex: 3, label: 'Audio R', type: JackType.output),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ModularFaceplateWidget(
+            title: 'Multi-Mode VCF',
+            subtitle: 'Resonant Filter',
+            hpWidth: 14,
+            accentColor: const Color(0xFFFF9800),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      SkeuomorphicHardwareKnob(
+                        label: 'CUTOFF',
+                        value: _getParam('Cutoff', 0.65),
+                        min: 0.0,
+                        max: 1.0,
+                        defaultValue: 0.65,
+                        size: 38,
+                        accentColor: const Color(0xFFFF9800),
+                        onChanged: (v) => _setParam('Cutoff', v),
+                      ),
+                      SkeuomorphicHardwareKnob(
+                        label: 'RESO',
+                        value: _getParam('Resonance', 0.4),
+                        min: 0.0,
+                        max: 1.0,
+                        defaultValue: 0.4,
+                        size: 38,
+                        accentColor: const Color(0xFFFF9800),
+                        onChanged: (v) => _setParam('Resonance', v),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  height: 38,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildInteractiveJack(row: 1, moduleIndex: 1, jackIndex: 0, label: 'Audio In', type: JackType.input),
+                      _buildInteractiveJack(row: 1, moduleIndex: 1, jackIndex: 1, label: 'Cutoff CV', signalType: JackSignalType.modulation),
+                      _buildInteractiveJack(row: 1, moduleIndex: 1, jackIndex: 2, label: 'LP Out', type: JackType.output),
+                      _buildInteractiveJack(row: 1, moduleIndex: 1, jackIndex: 3, label: 'HP Out', type: JackType.output),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ];
+
       case 'fm_acoustic_kick':
       default:
         return [
@@ -2008,6 +1973,96 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
                     children: [
                       _buildInteractiveJack(row: 2, moduleIndex: 1, jackIndex: 0, label: 'Audio In', type: JackType.input),
                       _buildInteractiveJack(row: 2, moduleIndex: 1, jackIndex: 1, label: 'Out L/R', type: JackType.output),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ];
+
+      case 'generic':
+        return [
+          ModularFaceplateWidget(
+            title: 'Script Modulation',
+            subtitle: 'Envelope & LFO',
+            hpWidth: 16,
+            accentColor: const Color(0xFF00E676),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      SkeuomorphicHardwareKnob(
+                        label: 'ATTACK',
+                        value: _getParam('Attack', 0.05),
+                        min: 0.01,
+                        max: 1.0,
+                        defaultValue: 0.05,
+                        size: 38,
+                        accentColor: const Color(0xFF00E676),
+                        onChanged: (v) => _setParam('Attack', v),
+                      ),
+                      SkeuomorphicHardwareKnob(
+                        label: 'DECAY',
+                        value: _getParam('Decay', 0.3),
+                        min: 0.05,
+                        max: 2.0,
+                        defaultValue: 0.3,
+                        size: 38,
+                        accentColor: const Color(0xFF00E676),
+                        onChanged: (v) => _setParam('Decay', v),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  height: 38,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildInteractiveJack(row: 2, moduleIndex: 0, jackIndex: 0, label: 'Gate In', signalType: JackSignalType.gate),
+                      _buildInteractiveJack(row: 2, moduleIndex: 0, jackIndex: 1, label: 'Env Out', type: JackType.output, signalType: JackSignalType.modulation),
+                      _buildInteractiveJack(row: 2, moduleIndex: 0, jackIndex: 2, label: 'LFO Out', type: JackType.output, signalType: JackSignalType.modulation),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ModularFaceplateWidget(
+            title: 'Master Stereo Out',
+            subtitle: 'Summing & VCA',
+            hpWidth: 14,
+            accentColor: const Color(0xFFFFD600),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Center(
+                    child: SkeuomorphicHardwareKnob(
+                      label: 'VOLUME',
+                      value: _getParam('MasterVol', 0.8),
+                      min: 0.0,
+                      max: 1.0,
+                      defaultValue: 0.8,
+                      size: 40,
+                      accentColor: const Color(0xFFFFD600),
+                      onChanged: (v) => _setParam('MasterVol', v),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  height: 38,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildInteractiveJack(row: 2, moduleIndex: 1, jackIndex: 0, label: 'L In', type: JackType.input),
+                      _buildInteractiveJack(row: 2, moduleIndex: 1, jackIndex: 1, label: 'R In', type: JackType.input),
+                      _buildInteractiveJack(row: 2, moduleIndex: 1, jackIndex: 2, label: 'Out L', type: JackType.output),
+                      _buildInteractiveJack(row: 2, moduleIndex: 1, jackIndex: 3, label: 'Out R', type: JackType.output),
                     ],
                   ),
                 ),

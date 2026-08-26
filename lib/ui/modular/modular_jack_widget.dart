@@ -24,6 +24,7 @@ class ModularJackWidget extends StatelessWidget {
   final bool isConnected;
   final bool isHovered;
   final double signalActivity; // 0.0 to 1.0 for LED brightness
+  final double? width;
   final VoidCallback? onTap;
   final Function(DragStartDetails details)? onDragStart;
   final Function(DragUpdateDetails details)? onDragUpdate;
@@ -38,6 +39,7 @@ class ModularJackWidget extends StatelessWidget {
     this.isConnected = false,
     this.isHovered = false,
     this.signalActivity = 0.0,
+    this.width,
     this.onTap,
     this.onDragStart,
     this.onDragUpdate,
@@ -67,7 +69,7 @@ class ModularJackWidget extends StatelessWidget {
       onPanUpdate: onDragUpdate,
       onPanEnd: onDragEnd,
       child: Container(
-        width: 48,
+        width: width ?? 48,
         height: 38,
         alignment: Alignment.center,
         child: Column(

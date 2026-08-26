@@ -24,6 +24,7 @@ import '../lua/eats_lua_serializer.dart';
 import '../lua/eats_lua_parser.dart';
 import '../audio/time_context.dart';
 import '../lua/lua_preset_library.dart';
+import '../lua/lua_script_library.dart';
 import '../lua/midi_pipeline_engine.dart';
 import '../lua/default_song.dart';
 import 'track_model.dart';
@@ -31,6 +32,7 @@ import 'chord_model.dart';
 import 'history_manager.dart';
 import 'lyric_model.dart';
 import 'script_target_model.dart';
+import 'script_preset_model.dart';
 import 'automation_model.dart';
 import '../audio/easing.dart';
 
@@ -722,44 +724,98 @@ class DawState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void applyPreset(LuaPreset preset, {TrackChannel? targetTrack}) {
+  void applyScript(LuaScriptDef script, {TrackChannel? targetTrack}) {
     final track = targetTrack ?? activeTrack;
-    if (preset.isInstrument) {
-      track.name = preset.name;
+    if (script.isInstrument) {
+      track.name = script.name;
       track.type = TrackType.luaScript;
-      track.luaScriptCode = preset.code;
-      final compiled = LuaEngine.compile(preset.code);
+      track.luaScriptCode = script.code;
+      final compiled = LuaEngine.compile(script.code);
       track.luaParams.clear();
       for (final p in compiled.params) {
         track.luaParams[p.name] = p.defaultValue;
       }
       if (track.id == activeTrack.id) {
-        luaCode = preset.code;
+        luaCode = script.code;
         compilationResult = compiled;
       }
       audioEngine.invalidateLuaCache(track.id);
-      recordHistory('Applied instrument "${preset.name}" to ${track.name}', icon: Icons.piano);
-    } else if (preset.isAudioFx) {
-      addAudioFXFromPreset(track, preset);
+      recordHistory('Applied instrument "${script.name}" to ${track.name}', icon: Icons.piano);
+    } else if (script.isAudioFx) {
+      addAudioFXFromPreset(track, script);
       return;
-    } else if (preset.isMidiFx) {
+    } else if (script.isMidiFx) {
       addMidiFXInsert(
         track,
-        name: preset.name,
-        luaScriptCode: preset.code,
+        name: script.name,
+        luaScriptCode: script.code,
       );
-      recordHistory('Add MIDI FX "${preset.name}" to ${track.name}', icon: Icons.music_note);
-    } else if (preset.isMidiSeq) {
+      recordHistory('Add MIDI FX "${script.name}" to ${track.name}', icon: Icons.music_note);
+    } else if (script.isMidiSeq) {
       if (activeClip != null && activeClip!.trackId == track.id) {
-        applyPresetToClip(track, activeClip!, preset);
+        applyScriptToClip(track, activeClip!, script);
       } else if (track.clips.isNotEmpty) {
-        applyPresetToClip(track, track.clips.first, preset);
+        applyScriptToClip(track, track.clips.first, script);
       }
     } else {
-      track.luaScriptCode = preset.code;
-      compileLuaCode(preset.code);
+      track.luaScriptCode = script.code;
+      compileLuaCode(script.code);
     }
     notifyListeners();
+  }
+
+  void applyPreset(LuaPreset preset, {TrackChannel? targetTrack}) => applyScript(preset, targetTrack: targetTrack);
+
+  /// Applies a saved sound patch / parameter snapshot to a track.
+  void applyScriptPreset(TrackChannel track, ScriptPreset preset) {
+    final currentScript = LuaScriptLibrary.findMatchingScript(track.luaScriptCode, fallbackName: track.name);
+    if (currentScript == null || currentScript.id != preset.scriptId) {
+      final targetScript = LuaScriptLibrary.getScriptById(preset.scriptId);
+      if (targetScript != null) {
+        track.luaScriptCode = targetScript.code;
+        track.type = TrackType.luaScript;
+      }
+    }
+
+    for (final entry in preset.params.entries) {
+      track.luaParams[entry.key] = entry.value;
+    }
+
+    if (track.id == activeTrack.id) {
+      luaCode = track.luaScriptCode;
+      compilationResult = LuaEngine.compile(track.luaScriptCode);
+    }
+
+    audioEngine.invalidateLuaCache(track.id);
+    recordHistory('Loaded preset "${preset.name}" on ${track.name}', icon: Icons.tune);
+    notifyListeners();
+  }
+
+  /// Saves the current track's parameter configuration as a user preset.
+  void saveTrackScriptPreset(TrackChannel track, String presetName, String category, {String? author}) {
+    final script = LuaScriptLibrary.findMatchingScript(track.luaScriptCode, fallbackName: track.name);
+    final scriptId = script?.id ?? track.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
+    
+    final newPreset = ScriptPreset(
+      id: 'user_${DateTime.now().millisecondsSinceEpoch}_${presetName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')}',
+      scriptId: scriptId,
+      name: presetName.trim(),
+      category: category.trim(),
+      author: author ?? 'User',
+      isStock: false,
+      params: Map<String, double>.from(track.luaParams),
+    );
+
+    ScriptPresetLibrary.instance.saveUserPreset(newPreset);
+    recordHistory('Saved custom preset "$presetName"', icon: Icons.save);
+    notifyListeners();
+  }
+
+  /// Returns all presets applicable to the given track's current script/instrument.
+  List<ScriptPreset> getPresetsForTrack(TrackChannel track) {
+    final script = LuaScriptLibrary.findMatchingScript(track.luaScriptCode, fallbackName: track.name);
+    if (script == null) return [];
+    return ScriptPresetLibrary.instance.getPresetsForScript(script.id);
   }
 
   bool isPresetUpgradeAvailable(TrackChannel track) {
@@ -1629,23 +1685,23 @@ class DawState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void applyPresetToClip(TrackChannel track, TrackClip clip, LuaPreset preset) {
-    if (preset.isMidiFx) {
+  void applyScriptToClip(TrackChannel track, TrackClip clip, LuaScriptDef script) {
+    if (script.isMidiFx) {
       addMidiFXInsert(
         track,
-        name: preset.name,
-        luaScriptCode: preset.code,
+        name: script.name,
+        luaScriptCode: script.code,
       );
-      recordHistory('Add MIDI FX "${preset.name}" to ${track.name}', icon: Icons.music_note);
+      recordHistory('Add MIDI FX "${script.name}" to ${track.name}', icon: Icons.music_note);
       notifyListeners();
       return;
     }
 
-    clip.name = preset.name;
+    clip.name = script.name;
     clip.luaScriptCode = '';
 
     // Parse notes from sequence script if present
-    final parsedNotes = MidiPipelineEngine.parseNotesFromLuaTable(preset.code);
+    final parsedNotes = MidiPipelineEngine.parseNotesFromLuaTable(script.code);
     if (parsedNotes.isNotEmpty) {
       if (clip.barLength > 1) {
         // Tile 1-bar (16 steps) sequence across multi-bar clips
@@ -1678,9 +1734,11 @@ class DawState extends ChangeNotifier {
       timeContext: timeContext,
     );
 
-    recordHistory('Apply Sequence "${preset.name}" to Clip', icon: Icons.tune);
+    recordHistory('Apply Sequence "${script.name}" to Clip', icon: Icons.tune);
     notifyListeners();
   }
+
+  void applyPresetToClip(TrackChannel track, TrackClip clip, LuaPreset preset) => applyScriptToClip(track, clip, preset);
 
   void addClipWithPresetToTrack(TrackChannel track, int startBar, LuaPreset preset, {int barLength = 1}) {
     final parsedNotes = MidiPipelineEngine.parseNotesFromLuaTable(preset.code);
@@ -1828,6 +1886,8 @@ class DawState extends ChangeNotifier {
   }
 
   double _nextNoteTime = 0.0;
+  final Stopwatch _playbackStopwatch = Stopwatch();
+  double _playbackBaseAudioTime = 0.0;
   // Lookahead window: 80ms unified lookahead for tight, responsive audio scheduling.
   double get _scheduleAheadTime => 0.080;
 
@@ -1843,9 +1903,13 @@ class DawState extends ChangeNotifier {
       final double stepDurationSec = 60.0 / _bpm / 4.0;
       audioEngine.prewarmPatternCache(activePattern.tracks, stepDurationSec);
 
-      _nextNoteTime = audioEngine.currentTime + 0.02;
+      _playbackStopwatch.reset();
+      _playbackStopwatch.start();
+      _playbackBaseAudioTime = audioEngine.currentTime;
+      _nextNoteTime = _playbackBaseAudioTime + 0.02;
       _startSchedulerTimer();
     } else {
+      _playbackStopwatch.stop();
       _playbackTimer?.cancel();
     }
     notifyListeners();
@@ -1856,6 +1920,8 @@ class DawState extends ChangeNotifier {
   void stop() {
     _isPlaying = false;
     isPlayingNotifier.value = false;
+    _playbackStopwatch.stop();
+    _playbackStopwatch.reset();
     _playbackTimer?.cancel();
     _currentStep = _isLooping ? _loopStartBar * 16 : 0;
     _arrangerStep = _currentStep;
@@ -1890,13 +1956,24 @@ class DawState extends ChangeNotifier {
   void _schedulerLoop() {
     if (!_isPlaying) return;
 
+    final double hardwareTime = audioEngine.currentTime;
+    final double elapsedHardware = hardwareTime - _playbackBaseAudioTime;
+    final double elapsedWall = _playbackStopwatch.elapsedMicroseconds / 1000000.0;
+    // Guaranteed monotonic clock progression anchored to the playback base audio timeline
+    final double currentAudioTime = _playbackBaseAudioTime + math.max(elapsedHardware > 0 ? elapsedHardware : 0.0, elapsedWall);
     final double stepDurationSec = 60.0 / _bpm / 4.0; // 16th note step length in seconds
     const int maxSteps = 32 * 16;
 
+    // Safety: If nextNoteTime fell behind or drifted far ahead of current audio time, re-anchor cleanly
+    if (_nextNoteTime < currentAudioTime - 0.1 || _nextNoteTime > currentAudioTime + 0.5) {
+      _nextNoteTime = currentAudioTime + 0.02;
+    }
+
     int loopGuard = 0;
-    while (_nextNoteTime < audioEngine.currentTime + _scheduleAheadTime) {
+    bool stepAdvanced = false;
+    while (_nextNoteTime < currentAudioTime + _scheduleAheadTime) {
       if (++loopGuard > 32) {
-        _nextNoteTime = audioEngine.currentTime + 0.02;
+        _nextNoteTime = currentAudioTime + 0.02;
         break;
       }
       _scheduleStep(_currentStep, _nextNoteTime, stepDurationSec);
@@ -1914,6 +1991,11 @@ class DawState extends ChangeNotifier {
       currentStepNotifier.value = _currentStep;
       arrangerStepNotifier.value = _arrangerStep;
       currentBarNotifier.value = _currentBar;
+      stepAdvanced = true;
+    }
+
+    if (stepAdvanced) {
+      notifyListeners();
     }
   }
 

@@ -117,13 +117,20 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(color: EatsTheme.secondaryMagenta),
                             ),
-                            child: Text(
-                              '+ ADD FX',
-                              style: EatsTheme.getPrimaryFontStyle(
-                                color: EatsTheme.secondaryMagenta,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 10,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.search, size: 12, color: EatsTheme.secondaryMagenta),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '+ ADD FX',
+                                  style: EatsTheme.getPrimaryFontStyle(
+                                    color: EatsTheme.secondaryMagenta,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),

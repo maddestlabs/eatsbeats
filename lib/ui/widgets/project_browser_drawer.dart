@@ -3,6 +3,9 @@ import '../../lua/lua_preset_library.dart';
 import '../../models/daw_state.dart';
 import '../../theme/eats_theme.dart';
 import '../../audio/soundfont_engine.dart';
+import '../../audio/convolver_engine.dart';
+import '../../audio/procedural_ir_generator.dart';
+import '../../models/script_preset_model.dart';
 import '../../utils/soundfont_pack_manager.dart';
 import '../../utils/ir_pack_manager.dart';
 import '../../models/history_manager.dart';
@@ -10,6 +13,7 @@ import '../../models/track_model.dart';
 import '../../models/script_target_model.dart';
 import 'command_palette_dialog.dart';
 import 'fx_rack_dialog.dart';
+import 'preset_browser_dialog.dart';
 
 class SoundFontDragItem {
   final String fontId;
@@ -37,30 +41,32 @@ class ProjectBrowserDrawer extends StatefulWidget {
 
 class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final TextEditingController _scriptSearchController = TextEditingController();
   final TextEditingController _presetSearchController = TextEditingController();
   LuaPresetCategory? _selectedCategoryFilter;
+  String _selectedSoundCategory = 'ALL';
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 5,
+      length: 6,
       vsync: this,
-      initialIndex: widget.dawState.browserTabIndex.clamp(0, 4),
+      initialIndex: widget.dawState.browserTabIndex.clamp(0, 5),
     );
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) {
         widget.dawState.browserTabIndex = _tabController.index;
       }
     });
-    _presetSearchController.addListener(() {
-      setState(() {});
-    });
+    _scriptSearchController.addListener(() => setState(() {}));
+    _presetSearchController.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _scriptSearchController.dispose();
     _presetSearchController.dispose();
     super.dispose();
   }
@@ -157,32 +163,38 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
               tabs: const [
                 Tab(
                   icon: Tooltip(
-                    message: 'Project Assets (Tracks & SoundFonts)',
-                    child: Icon(Icons.inventory_2_outlined, size: 20),
+                    message: 'Project Assets (Tracks & Clips)',
+                    child: Icon(Icons.inventory_2_outlined, size: 18),
                   ),
                 ),
                 Tab(
                   icon: Tooltip(
-                    message: 'Preset Library (Synths & Sequences)',
-                    child: Icon(Icons.library_music_outlined, size: 20),
+                    message: 'Script & Engine Library (Synths, FX & Sequences)',
+                    child: Icon(Icons.code, size: 18),
+                  ),
+                ),
+                Tab(
+                  icon: Tooltip(
+                    message: 'Preset Library (Sound Patches & Spaces)',
+                    child: Icon(Icons.library_music_outlined, size: 18),
                   ),
                 ),
                 Tab(
                   icon: Tooltip(
                     message: 'Expansion Packs (SoundFonts & IRs)',
-                    child: Icon(Icons.cloud_download_outlined, size: 20),
+                    child: Icon(Icons.cloud_download_outlined, size: 18),
                   ),
                 ),
                 Tab(
                   icon: Tooltip(
                     message: 'UI Themes & Visual Styles',
-                    child: Icon(Icons.palette_outlined, size: 20),
+                    child: Icon(Icons.palette_outlined, size: 18),
                   ),
                 ),
                 Tab(
                   icon: Tooltip(
                     message: 'History & Time Travel (Undo/Redo)',
-                    child: Icon(Icons.history, size: 20),
+                    child: Icon(Icons.history, size: 18),
                   ),
                 ),
               ],
@@ -195,7 +207,8 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
               controller: _tabController,
               children: [
                 _buildProjectAssetsTab(),
-                _buildPresetsTab(),
+                _buildScriptsTab(),
+                _buildSoundPresetsTab(),
                 _buildPacksTab(),
                 _buildThemesTab(),
                 _buildHistoryTab(),
@@ -548,9 +561,9 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
     }).toList();
   }
 
-  // --- TAB 2: PRESET LIBRARY (WITH DRAG & DROP) ---
-  Widget _buildPresetsTab() {
-    final query = _presetSearchController.text.trim().toLowerCase();
+  // --- TAB 2: SCRIPT LIBRARY (WITH DRAG & DROP) ---
+  Widget _buildScriptsTab() {
+    final query = _scriptSearchController.text.trim().toLowerCase();
     List<LuaPreset> presets = LuaPresetLibrary.presets;
 
     if (_selectedCategoryFilter != null) {
@@ -567,14 +580,14 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
 
     return Column(
       children: [
-        // Preset Search Input
+        // Script Search Input
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: TextField(
-            controller: _presetSearchController,
+            controller: _scriptSearchController,
             style: EatsTheme.getDisplayFontStyle(fontSize: 12, color: EatsTheme.textLight),
             decoration: InputDecoration(
-              hintText: 'Filter presets...',
+              hintText: 'Filter scripts & DSP engines...',
               hintStyle: EatsTheme.getPrimaryFontStyle(fontSize: 11, color: EatsTheme.textMuted),
               isDense: true,
               prefixIcon: const Icon(Icons.search, size: 16, color: Colors.grey),
@@ -858,7 +871,263 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
     );
   }
 
-  // --- TAB 3: DOWNLOAD & EXPANSION PACKS ---
+  // --- TAB 3: PRESET LIBRARY (SOUND PATCHES & SPACES) ---
+  Widget _buildSoundPresetsTab() {
+    return ListenableBuilder(
+      listenable: Listenable.merge([ScriptPresetLibrary.instance, ConvolverEngine.instance]),
+      builder: (context, _) {
+        final query = _presetSearchController.text.trim().toLowerCase();
+        final allScriptPresets = ScriptPresetLibrary.instance.allPresets;
+        final allRoomPresets = ConvolverEngine.instance.getRoomPresets();
+        final allCabPresets = ConvolverEngine.instance.getCabPresets();
+
+        final categories = ['ALL', 'BASS', 'LEAD', 'PAD', 'PLUCK', 'FX', 'SPACE', 'CAB'];
+
+        final filteredScriptPresets = allScriptPresets.where((p) {
+          if (_selectedSoundCategory != 'ALL' && p.category.toUpperCase() != _selectedSoundCategory) return false;
+          if (query.isNotEmpty) {
+            final matchesName = p.name.toLowerCase().contains(query);
+            final matchesCat = p.category.toLowerCase().contains(query);
+            final matchesDesc = (p.description ?? '').toLowerCase().contains(query);
+            if (!matchesName && !matchesCat && !matchesDesc) return false;
+          }
+          return true;
+        }).toList();
+
+        final filteredRoomPresets = (_selectedSoundCategory == 'ALL' || _selectedSoundCategory == 'SPACE')
+            ? allRoomPresets.where((r) => query.isEmpty || r.name.toLowerCase().contains(query)).toList()
+            : <AcousticSpaceParams>[];
+
+        final filteredCabPresets = (_selectedSoundCategory == 'ALL' || _selectedSoundCategory == 'CAB')
+            ? allCabPresets.where((c) => query.isEmpty || c.name.toLowerCase().contains(query)).toList()
+            : <AcousticSpaceParams>[];
+
+        return Column(
+          children: [
+            // Preset Search Input
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                controller: _presetSearchController,
+                style: EatsTheme.getDisplayFontStyle(fontSize: 12, color: EatsTheme.textLight),
+                decoration: InputDecoration(
+                  hintText: 'Search sound patches & spaces...',
+                  hintStyle: EatsTheme.getPrimaryFontStyle(fontSize: 11, color: EatsTheme.textMuted),
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search, size: 16, color: Colors.grey),
+                  filled: true,
+                  fillColor: Colors.black.withOpacity(0.3),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: EatsTheme.panelHeader),
+                  ),
+                ),
+              ),
+            ),
+
+            // Sound Category Chips
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                children: categories.map((cat) {
+                  final isSel = _selectedSoundCategory == cat;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6.0),
+                    child: ChoiceChip(
+                      label: Text(cat,
+                          style: EatsTheme.getPrimaryFontStyle(
+                              color: isSel ? Colors.black : EatsTheme.textMuted,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.bold)),
+                      selected: isSel,
+                      selectedColor: EatsTheme.primaryCyan,
+                      backgroundColor: Colors.black.withOpacity(0.3),
+                      onSelected: (sel) {
+                        if (sel) setState(() => _selectedSoundCategory = cat);
+                      },
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 4),
+
+            // Presets List
+            Expanded(
+              child: (filteredScriptPresets.isEmpty && filteredRoomPresets.isEmpty && filteredCabPresets.isEmpty)
+                  ? Center(
+                      child: Text('No matching sound presets',
+                          style: EatsTheme.getPrimaryFontStyle(fontSize: 12, color: EatsTheme.textMuted)),
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      children: [
+                        if (filteredScriptPresets.isNotEmpty) ...[
+                          _buildSectionHeader('INSTRUMENT & FX PATCHES (${filteredScriptPresets.length})', Icons.piano),
+                          ...filteredScriptPresets.map((p) {
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.25),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: EatsTheme.panelHeader.withOpacity(0.4)),
+                              ),
+                              child: ListTile(
+                                dense: true,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                leading: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: EatsTheme.primaryCyan.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.3)),
+                                  ),
+                                  child: Text(
+                                    p.category.toUpperCase(),
+                                    style: EatsTheme.getDisplayFontStyle(
+                                        color: EatsTheme.primaryCyan, fontSize: 8, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                title: Text(p.name,
+                                    style: EatsTheme.getPrimaryFontStyle(
+                                        color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11.5)),
+                                subtitle: Text('${p.scriptId} • ${p.author}',
+                                    style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9.5)),
+                                trailing: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: EatsTheme.primaryCyan.withOpacity(0.2),
+                                    foregroundColor: EatsTheme.primaryCyan,
+                                    side: BorderSide(color: EatsTheme.primaryCyan),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    minimumSize: Size.zero,
+                                  ),
+                                  onPressed: () {
+                                    widget.dawState.applyScriptPreset(widget.dawState.activeTrack, p);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'Loaded preset "${p.name}" onto ${widget.dawState.activeTrack.name}'),
+                                        backgroundColor: EatsTheme.panelHeader,
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text('LOAD',
+                                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold)),
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                        if (filteredRoomPresets.isNotEmpty) ...[
+                          _buildSectionHeader(
+                              'ROOM ACOUSTIC SPACES (${filteredRoomPresets.length})', Icons.meeting_room),
+                          ...filteredRoomPresets.map((r) {
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.25),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.3)),
+                              ),
+                              child: ListTile(
+                                dense: true,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                leading: Icon(Icons.meeting_room, size: 16, color: EatsTheme.primaryCyan),
+                                title: Text(r.name,
+                                    style: EatsTheme.getPrimaryFontStyle(
+                                        color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11.5)),
+                                subtitle: Text('${r.width}m × ${r.length}m • RT60: ${r.rt60}s',
+                                    style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9.5)),
+                                trailing: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: EatsTheme.primaryCyan.withOpacity(0.2),
+                                    foregroundColor: EatsTheme.primaryCyan,
+                                    side: BorderSide(color: EatsTheme.primaryCyan),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    minimumSize: Size.zero,
+                                  ),
+                                  onPressed: () {
+                                    final roomScript = LuaScriptLibrary.getScriptById('room_designer');
+                                    if (roomScript != null) {
+                                      widget.dawState.applyScript(roomScript);
+                                    }
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'Applied Room Space "${r.name}" to Convolution Reverb & Track'),
+                                        backgroundColor: EatsTheme.panelHeader,
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text('LOAD',
+                                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold)),
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                        if (filteredCabPresets.isNotEmpty) ...[
+                          _buildSectionHeader(
+                              'AMP CABINET PRESETS (${filteredCabPresets.length})', Icons.speaker),
+                          ...filteredCabPresets.map((c) {
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.25),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: EatsTheme.accentOrange.withOpacity(0.3)),
+                              ),
+                              child: ListTile(
+                                dense: true,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                leading: Icon(Icons.speaker, size: 16, color: EatsTheme.accentOrange),
+                                title: Text(c.name,
+                                    style: EatsTheme.getPrimaryFontStyle(
+                                        color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11.5)),
+                                subtitle: Text(
+                                    'Cab Simulator • Mic: ${(c.micDistance * 100).toInt()}cm',
+                                    style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9.5)),
+                                trailing: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: EatsTheme.accentOrange.withOpacity(0.2),
+                                    foregroundColor: EatsTheme.accentOrange,
+                                    side: BorderSide(color: EatsTheme.accentOrange),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    minimumSize: Size.zero,
+                                  ),
+                                  onPressed: () {
+                                    final cabScript = LuaScriptLibrary.getScriptById('cab_designer');
+                                    if (cabScript != null) {
+                                      widget.dawState.applyScript(cabScript);
+                                    }
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Applied Cab Preset "${c.name}" to Track'),
+                                        backgroundColor: EatsTheme.panelHeader,
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text('LOAD',
+                                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold)),
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ],
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // --- TAB 4: DOWNLOAD & EXPANSION PACKS ---
   Widget _buildPacksTab() {
     return AnimatedBuilder(
       animation: SoundFontPackManager.instance,

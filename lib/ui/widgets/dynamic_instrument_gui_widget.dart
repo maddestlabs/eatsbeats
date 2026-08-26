@@ -21,6 +21,8 @@ import 'skeuomorphic_hardware_button.dart';
 import 'skeuomorphic_hardware_knob.dart';
 import 'skeuomorphic_hardware_slider.dart';
 import 'skeuomorphic_hardware_switch.dart';
+import '../../models/script_preset_model.dart';
+import 'preset_browser_dialog.dart';
 import 'space_visualizer_widget.dart';
 import 'stereo_meter_widget.dart';
 import 'waveshaper_canvas_widget.dart';
@@ -171,6 +173,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                   ),
                 ),
               ],
+              _buildPresetStrip(context, baseAccent, isSilver),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
@@ -209,6 +212,113 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     ),
   );
 }
+
+  Widget _buildPresetStrip(BuildContext context, Color baseAccent, bool isSilver) {
+    final trackPresets = dawState.getPresetsForTrack(track);
+    final fgColor = isSilver ? const Color(0xFF141416) : baseAccent;
+
+    String activeName = 'Custom';
+    int activeIndex = -1;
+
+    for (int i = 0; i < trackPresets.length; i++) {
+      final p = trackPresets[i];
+      bool isMatch = true;
+      for (final e in p.params.entries) {
+        if ((track.luaParams[e.key] ?? -999.0) != e.value) {
+          isMatch = false;
+          break;
+        }
+      }
+      if (isMatch) {
+        activeName = p.name;
+        activeIndex = i;
+        break;
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(right: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Previous [<]
+          if (trackPresets.isNotEmpty)
+            InkWell(
+              onTap: () {
+                final targetIdx = activeIndex <= 0 ? trackPresets.length - 1 : activeIndex - 1;
+                dawState.applyScriptPreset(track, trackPresets[targetIdx]);
+              },
+              borderRadius: BorderRadius.circular(3),
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: (isSilver ? Colors.black : Colors.white).withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: fgColor.withOpacity(0.35)),
+                ),
+                child: Icon(Icons.chevron_left, size: 13, color: fgColor),
+              ),
+            ),
+          if (trackPresets.isNotEmpty) const SizedBox(width: 3),
+
+          // Preset Name Dropdown / Modal Button
+          InkWell(
+            onTap: () => PresetBrowserDialog.show(context, dawState, track),
+            borderRadius: BorderRadius.circular(4),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: (isSilver ? Colors.black : Colors.white).withOpacity(0.06),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: fgColor.withOpacity(0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.tune, size: 11, color: fgColor),
+                  const SizedBox(width: 4),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 110),
+                    child: Text(
+                      activeName.toUpperCase(),
+                      overflow: TextOverflow.ellipsis,
+                      style: EatsTheme.getDisplayFontStyle(
+                        color: fgColor,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 3),
+                  Icon(Icons.arrow_drop_down, size: 12, color: fgColor),
+                ],
+              ),
+            ),
+          ),
+          if (trackPresets.isNotEmpty) const SizedBox(width: 3),
+
+          // Next [>]
+          if (trackPresets.isNotEmpty)
+            InkWell(
+              onTap: () {
+                final targetIdx = activeIndex >= trackPresets.length - 1 ? 0 : activeIndex + 1;
+                dawState.applyScriptPreset(track, trackPresets[targetIdx]);
+              },
+              borderRadius: BorderRadius.circular(3),
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: (isSilver ? Colors.black : Colors.white).withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: fgColor.withOpacity(0.35)),
+                ),
+                child: Icon(Icons.chevron_right, size: 13, color: fgColor),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildNode(
     BuildContext context,
@@ -769,12 +879,17 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           params: currentSpace,
           height: node.height ?? 150.0,
           onParamsChanged: (newP) {
-            track.luaParams['Width'] = newP.width;
-            track.luaParams['Length'] = newP.length;
-            track.luaParams['Height'] = newP.height;
             _setParam('Width', newP.width);
             _setParam('Length', newP.length);
             _setParam('Height', newP.height);
+            _setParam('Material', newP.material.index.toDouble());
+            _setParam('RT60', newP.rt60);
+            _setParam('Decay', newP.rt60);
+            _setParam('Damping', newP.damping);
+            _setParam('MicDistance', newP.micDistance);
+            _setParam('MicAngle', newP.micAngleDeg);
+            _setParam('OffAxis', newP.micAngleDeg);
+            _setParam('OpenBack', newP.isOpenBack ? 1.0 : 0.0);
           },
         );
 

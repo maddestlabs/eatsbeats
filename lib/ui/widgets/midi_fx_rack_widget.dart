@@ -101,13 +101,20 @@ class MidiFxRackWidget extends StatelessWidget {
                             borderRadius: BorderRadius.circular(4),
                             border: Border.all(color: EatsTheme.primaryCyan),
                           ),
-                          child: Text(
-                            '+ ADD MIDI FX',
-                            style: EatsTheme.getPrimaryFontStyle(
-                              color: EatsTheme.primaryCyan,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 10,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.search, size: 12, color: EatsTheme.primaryCyan),
+                              const SizedBox(width: 4),
+                              Text(
+                                '+ ADD MIDI FX',
+                                style: EatsTheme.getPrimaryFontStyle(
+                                  color: EatsTheme.primaryCyan,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),

@@ -300,11 +300,17 @@ class TrackChannelStrip {
       final samples = ConvolverEngine.instance.getIrSample(irName);
       if (samples != null && samples.isNotEmpty) {
         Float32List irData;
-        if (!kIsWeb && samples.length > 2048) {
-          irData = Float32List(2048);
-          for (int i = 0; i < 2048; i++) {
-            final fade = 1.0 - (i / 2048.0);
-            irData[i] = (samples[i] * fade).toDouble();
+        const int maxNativeIrLength = 384;
+        if (!kIsWeb && samples.length > maxNativeIrLength) {
+          irData = Float32List(maxNativeIrLength);
+          const int fadeLen = 64;
+          final int nonFadeLen = maxNativeIrLength - fadeLen;
+          for (int i = 0; i < nonFadeLen; i++) {
+            irData[i] = samples[i].toDouble();
+          }
+          for (int i = 0; i < fadeLen; i++) {
+            final double fade = 0.5 * (1.0 + math.cos(math.pi * i / fadeLen));
+            irData[nonFadeLen + i] = (samples[nonFadeLen + i] * fade).toDouble();
           }
         } else {
           irData = Float32List.fromList(samples);
@@ -350,47 +356,47 @@ class TrackChannelStrip {
       wetSource = filter;
     }
 
-    // On Native desktop for non-cabinet spaces:
-    // Add lightweight prime-spaced diffuser feedback tail for medium-to-large spaces (RT60 > 0.70s).
-    // Small rooms and booths (RT60 <= 0.70s) already fit entirely into the 2048-sample pristine FIR!
+    // On Native desktop for non-cabinet acoustic spaces:
+    // Generate lush, dense, multi-second decay tails using linear feedforward prime-spaced delay lines
+    // powered by wajuce's native internal C++ feedback loop (100% acyclic graph, zero CPU overhead).
     if (!kIsWeb && !isCab) {
       final presetRt60 = ProceduralIRGenerator.presets[irName]?.rt60;
-      final rt60 = (fx.params['RT60'] ?? (presetRt60 ?? (irName.toLowerCase().contains('cathedral') ? 3.8 : (irName.toLowerCase().contains('hall') ? 1.6 : (irName.toLowerCase().contains('plate') ? 1.5 : 1.1))))).clamp(0.1, 5.0);
+      final rt60 = (fx.params['RT60'] ?? (presetRt60 ?? (irName.toLowerCase().contains('cathedral') ? 3.8 : (irName.toLowerCase().contains('hall') ? 1.6 : (irName.toLowerCase().contains('plate') ? 1.8 : 1.2))))).clamp(0.2, 8.0);
       final damping = (fx.params['Damping'] ?? (ProceduralIRGenerator.presets[irName]?.damping ?? 0.35)).clamp(0.0, 1.0);
 
-      if (rt60 > 0.70) {
-        // Tail injection scales smoothly with space size:
-        // rt60 = 0.8s -> tailMix = 0.08
-        // rt60 = 1.6s (Great Hall) -> tailMix = 0.35
-        // rt60 = 3.8s (Cathedral) -> tailMix = 0.70
-        final tailMix = ((rt60 - 0.70) / 4.0).clamp(0.05, 0.70);
-        final tailBus = ctx.createGain()..gain.value = 1.0 - (tailMix * 0.5);
-        wetSource.connect(tailBus);
+      // Tail blend scales smoothly with room RT60 (longer spaces receive deeper tail diffusion)
+      final tailMix = (rt60 / 3.5).clamp(0.30, 0.90);
+      final tailBus = ctx.createGain()..gain.value = 1.0;
+      final dampCutoff = (18000.0 * (1.0 - damping * 0.70)).clamp(1000.0, 18000.0);
 
-        final tailWet = ctx.createGain()..gain.value = tailMix;
-        final fb = math.exp(-6.907 * 0.039 / rt60).clamp(0.1, 0.93);
-        final dampCutoff = (16000.0 * (1.0 - damping * 0.75)).clamp(800.0, 16000.0);
+      final delays = [0.0297, 0.0371, 0.0433, 0.0531];
+      final gains = [0.30, 0.28, 0.24, 0.20];
 
-        final delays = [0.027, 0.039, 0.053];
-        for (int d = 0; d < delays.length; d++) {
-          final del = ctx.createDelay(1.0)..delayTime.value = delays[d];
-          final fbg = ctx.createGain()..gain.value = fb;
-          final dampFilter = ctx.createBiquadFilter()
-            ..type = WABiquadFilterType.lowpass
-            ..frequency.value = dampCutoff;
+      for (int d = 0; d < delays.length; d++) {
+        final dt = delays[d];
+        final fb = math.exp(-6.9077 * dt / rt60).clamp(0.1, 0.96);
+        final del = ctx.createDelay(1.0)
+          ..delayTime.value = dt
+          ..feedback.value = fb;
+        final dampFilter = ctx.createBiquadFilter()
+          ..type = WABiquadFilterType.lowpass
+          ..frequency.value = dampCutoff;
+        final tapGain = ctx.createGain()..gain.value = gains[d] * tailMix;
 
-          _fxNodes.addAll([del, fbg, dampFilter]);
+        _fxNodes.addAll([del, dampFilter, tapGain]);
 
-          wetSource.connect(del);
-          del.connect(dampFilter);
-          dampFilter.connect(fbg);
-          fbg.connect(del);
-          del.connect(tailWet);
-        }
-        tailWet.connect(tailBus);
-        _fxNodes.addAll([tailBus, tailWet]);
-        wetSource = tailBus;
+        wetSource.connect(del);
+        del.connect(dampFilter);
+        dampFilter.connect(tapGain);
+        tapGain.connect(tailBus);
       }
+
+      // Blend pristine early reflections with diffuse tail
+      final directWet = ctx.createGain()..gain.value = (1.0 - (tailMix * 0.25)).clamp(0.2, 1.0);
+      _fxNodes.addAll([directWet, tailBus]);
+      wetSource.connect(directWet);
+      directWet.connect(tailBus);
+      wetSource = tailBus;
     }
 
     input.connect(convolver);
@@ -574,7 +580,20 @@ class WajuceAudioBackend {
 
   late final Future<void> _readyFuture;
 
-  double get currentTime => _ctx?.currentTime ?? 0.0;
+  final Stopwatch _fallbackClock = Stopwatch();
+
+  double get currentTime {
+    final ctx = _ctx;
+    if (ctx != null) {
+      try {
+        return ctx.currentTime;
+      } catch (_) {}
+    }
+    if (!_fallbackClock.isRunning) {
+      _fallbackClock.start();
+    }
+    return _fallbackClock.elapsedMicroseconds / 1000000.0;
+  }
 
   // ── Init ───────────────────────────────────────────────────────────────────
 
@@ -595,7 +614,13 @@ class WajuceAudioBackend {
       // Optimal configuration: Standardize 44.1 kHz sample rate across all platforms
       // to match internal synth/soundfont/sampler/Lua buffer generation and eliminate real-time
       // resampling overhead in iPlug2. Use 512 buffer size for crisp, low-latency audio response.
-      final ctx = WAContext(sampleRate: 44100, bufferSize: 512);
+      // Explicitly set inputChannels: 0, outputChannels: 2 to avoid Windows audio device init failure on systems without a mic.
+      final ctx = WAContext(
+        sampleRate: 44100,
+        bufferSize: 512,
+        inputChannels: 0,
+        outputChannels: 2,
+      );
       final masterInputBus = ctx.createGain();
       masterInputBus.gain.value = 1.0;
       final masterGain = ctx.createGain();
@@ -626,6 +651,9 @@ class WajuceAudioBackend {
   }
 
   void ensureContextRunning() {
+    if (!_fallbackClock.isRunning) {
+      _fallbackClock.start();
+    }
     final ctx = _ctx;
     if (ctx != null && ctx.state == WAAudioContextState.suspended) {
       ctx.resume();
@@ -742,13 +770,19 @@ class WajuceAudioBackend {
     try {
       final effectiveTrackId = trackId ?? 'default_track';
 
+      final now = ctx.currentTime;
+      double startTime = now;
+      if (scheduledTime != null && scheduledTime > now && scheduledTime < now + 0.3) {
+        startTime = scheduledTime;
+      }
+
       // 1. Stop previous note if monophonic
       if (isMonophonic) {
         final prev = _activeSources[effectiveTrackId];
         if (prev != null) {
           try {
-            if (scheduledTime != null && scheduledTime > 0) {
-              prev.stop(scheduledTime);
+            if (startTime > now) {
+              prev.stop(startTime);
             } else {
               prev.stop();
             }
@@ -816,9 +850,6 @@ class WajuceAudioBackend {
         } catch (_) {}
       };
 
-      final startTime = (scheduledTime != null && scheduledTime > ctx.currentTime)
-          ? scheduledTime
-          : ctx.currentTime;
       source.start(startTime);
     } catch (e) {
       debugPrint('[WajuceAudioBackend] playPcmBuffer error: $e');
@@ -858,11 +889,17 @@ class WajuceAudioBackend {
         final samples = ConvolverEngine.instance.getIrSample(irName);
         if (samples == null || samples.isEmpty) return null;
         Float32List irData;
-        if (!kIsWeb && samples.length > 2048) {
-          irData = Float32List(2048);
-          for (int i = 0; i < 2048; i++) {
-            final fade = 1.0 - (i / 2048.0);
-            irData[i] = (samples[i] * fade).toDouble();
+        const int maxNativeIrLength = 384;
+        if (!kIsWeb && samples.length > maxNativeIrLength) {
+          irData = Float32List(maxNativeIrLength);
+          const int fadeLen = 64;
+          final int nonFadeLen = maxNativeIrLength - fadeLen;
+          for (int i = 0; i < nonFadeLen; i++) {
+            irData[i] = samples[i].toDouble();
+          }
+          for (int i = 0; i < fadeLen; i++) {
+            final double fade = 0.5 * (1.0 + math.cos(math.pi * i / fadeLen));
+            irData[nonFadeLen + i] = (samples[nonFadeLen + i] * fade).toDouble();
           }
         } else {
           irData = Float32List.fromList(samples);

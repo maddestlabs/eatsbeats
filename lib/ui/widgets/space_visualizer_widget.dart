@@ -110,116 +110,293 @@ class _SpaceVisualizerWidgetState extends State<SpaceVisualizerWidget> {
     );
   }
 
+  Widget _buildPresetSelector(BuildContext context, List<AcousticSpaceParams> presets) {
+    if (presets.isEmpty) return const SizedBox.shrink();
+
+    final currentName = widget.params.name.trim();
+    int activeIdx = presets.indexWhere((p) => p.name.toLowerCase() == currentName.toLowerCase());
+    if (activeIdx < 0) {
+      activeIdx = presets.indexWhere((p) =>
+          (p.width - widget.params.width).abs() < 0.05 &&
+          (p.length - widget.params.length).abs() < 0.05 &&
+          (p.height - widget.params.height).abs() < 0.05);
+    }
+
+    final activePresetName = activeIdx >= 0
+        ? presets[activeIdx].name
+        : (widget.params.name.startsWith('Room:') || widget.params.name.startsWith('Cab:') || widget.params.name.endsWith('_space')
+            ? 'Custom'
+            : widget.params.name);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Previous [<] button
+        InkWell(
+          onTap: () {
+            final nextIdx = (activeIdx - 1 + presets.length) % presets.length;
+            widget.onParamsChanged?.call(presets[nextIdx]);
+          },
+          borderRadius: BorderRadius.circular(3),
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(
+                color: widget.params.isCabinetMode
+                    ? EatsTheme.accentOrange.withOpacity(0.4)
+                    : EatsTheme.primaryCyan.withOpacity(0.4),
+              ),
+            ),
+            child: Icon(Icons.chevron_left, size: 13, color: widget.params.isCabinetMode ? EatsTheme.accentOrange : EatsTheme.primaryCyan),
+          ),
+        ),
+        const SizedBox(width: 3),
+
+        // Dropdown Popup Pill
+        PopupMenuButton<AcousticSpaceParams>(
+          tooltip: 'Select ${widget.params.isCabinetMode ? "Cabinet" : "Room"} Preset',
+          color: const Color(0xFF141724),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(6),
+            side: BorderSide(
+              color: widget.params.isCabinetMode ? EatsTheme.accentOrange : EatsTheme.primaryCyan,
+              width: 1.2,
+            ),
+          ),
+          onSelected: (selected) {
+            widget.onParamsChanged?.call(selected);
+          },
+          itemBuilder: (ctx) {
+            return presets.map((p) {
+              final isUser = ConvolverEngine.instance.userPresets.containsKey(p.name);
+              final isSelected = p.name == activePresetName;
+              return PopupMenuItem<AcousticSpaceParams>(
+                value: p,
+                height: 32,
+                child: Row(
+                  children: [
+                    Icon(
+                      isSelected ? Icons.check_circle : (isUser ? Icons.person : Icons.speaker),
+                      size: 13,
+                      color: isSelected
+                          ? (widget.params.isCabinetMode ? EatsTheme.accentOrange : EatsTheme.primaryCyan)
+                          : EatsTheme.textMuted,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        p.name,
+                        style: EatsTheme.getPrimaryFontStyle(
+                          color: isSelected ? Colors.white : EatsTheme.textPrimary,
+                          fontSize: 11,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                    if (isUser)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: EatsTheme.accentGold.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: Text('USER',
+                            style: EatsTheme.getDisplayFontStyle(
+                                color: EatsTheme.accentGold, fontSize: 8, fontWeight: FontWeight.bold)),
+                      ),
+                  ],
+                ),
+              );
+            }).toList();
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: widget.params.isCabinetMode
+                    ? EatsTheme.accentOrange.withOpacity(0.6)
+                    : EatsTheme.primaryCyan.withOpacity(0.6),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 110),
+                  child: Text(
+                    activePresetName,
+                    overflow: TextOverflow.ellipsis,
+                    style: EatsTheme.getPrimaryFontStyle(
+                      color: Colors.white,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 3),
+                Icon(Icons.arrow_drop_down,
+                    size: 12, color: widget.params.isCabinetMode ? EatsTheme.accentOrange : EatsTheme.primaryCyan),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 3),
+
+        // Next [>] button
+        InkWell(
+          onTap: () {
+            final nextIdx = (activeIdx + 1) % presets.length;
+            widget.onParamsChanged?.call(presets[nextIdx]);
+          },
+          borderRadius: BorderRadius.circular(3),
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(
+                color: widget.params.isCabinetMode
+                    ? EatsTheme.accentOrange.withOpacity(0.4)
+                    : EatsTheme.primaryCyan.withOpacity(0.4),
+              ),
+            ),
+            child: Icon(Icons.chevron_right, size: 13, color: widget.params.isCabinetMode ? EatsTheme.accentOrange : EatsTheme.primaryCyan),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final mat = AcousticMaterial.get(widget.params.material);
+    final availablePresets = widget.params.isCabinetMode
+        ? ConvolverEngine.instance.getCabPresets()
+        : ConvolverEngine.instance.getRoomPresets();
 
-    return Container(
-      height: widget.height,
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F121C),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: widget.params.isCabinetMode
-              ? EatsTheme.accentOrange.withOpacity(0.6)
-              : EatsTheme.primaryCyan.withOpacity(0.5),
-          width: 1.5,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Stack(
-          children: [
-            // 3D Canvas
-            GestureDetector(
-              onPanStart: (details) => _handlePanStart(details.localPosition),
-              onPanUpdate: (details) => _handlePanUpdate(details.localPosition),
-              onPanEnd: (_) => setState(() => _draggedTarget = 0),
-              child: CustomPaint(
-                size: Size.infinite,
-                painter: _SpaceCanvasPainter(
-                  params: widget.params,
-                  material: mat,
+    return ListenableBuilder(
+      listenable: ConvolverEngine.instance,
+      builder: (context, _) {
+        return Container(
+          height: widget.height,
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F121C),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: widget.params.isCabinetMode
+                  ? EatsTheme.accentOrange.withOpacity(0.6)
+                  : EatsTheme.primaryCyan.withOpacity(0.5),
+              width: 1.5,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Stack(
+              children: [
+                // 3D Canvas
+                GestureDetector(
+                  onPanStart: (details) => _handlePanStart(details.localPosition),
+                  onPanUpdate: (details) => _handlePanUpdate(details.localPosition),
+                  onPanEnd: (_) => setState(() => _draggedTarget = 0),
+                  child: CustomPaint(
+                    size: Size.infinite,
+                    painter: _SpaceCanvasPainter(
+                      params: widget.params,
+                      material: mat,
+                    ),
+                  ),
                 ),
-              ),
-            ),
 
-            // Top Status Badges
-            Positioned(
-              top: 8,
-              left: 10,
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: widget.params.isCabinetMode
-                          ? EatsTheme.accentOrange.withOpacity(0.2)
-                          : EatsTheme.primaryCyan.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: widget.params.isCabinetMode
-                            ? EatsTheme.accentOrange
-                            : EatsTheme.primaryCyan,
-                      ),
-                    ),
-                    child: Text(
-                      widget.params.isCabinetMode ? 'AMP CABINET' : 'ROOM ACOUSTICS',
-                      style: EatsTheme.getPrimaryFontStyle(
-                        color: widget.params.isCabinetMode
-                            ? EatsTheme.accentOrange
-                            : EatsTheme.primaryCyan,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${widget.params.width.toStringAsFixed(2)}m × ${widget.params.length.toStringAsFixed(2)}m × ${widget.params.height.toStringAsFixed(2)}m',
-                    style: EatsTheme.getDisplayFontStyle(
-                      color: EatsTheme.textMuted,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Top Right: Save Preset Button
-            Positioned(
-              top: 6,
-              right: 8,
-              child: InkWell(
-                onTap: () => _openSavePresetDialog(context),
-                borderRadius: BorderRadius.circular(4),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: widget.params.isCabinetMode ? EatsTheme.accentOrange.withOpacity(0.7) : EatsTheme.primaryCyan.withOpacity(0.7),
-                      width: 1.0,
-                    ),
-                  ),
+                // Top Status Badges & Preset Bar
+                Positioned(
+                  top: 6,
+                  left: 8,
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.save_outlined, size: 11, color: widget.params.isCabinetMode ? EatsTheme.accentOrange : EatsTheme.primaryCyan),
-                      const SizedBox(width: 3),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: widget.params.isCabinetMode
+                              ? EatsTheme.accentOrange.withOpacity(0.2)
+                              : EatsTheme.primaryCyan.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: widget.params.isCabinetMode
+                                ? EatsTheme.accentOrange
+                                : EatsTheme.primaryCyan,
+                          ),
+                        ),
+                        child: Text(
+                          widget.params.isCabinetMode ? 'CAB' : 'ROOM',
+                          style: EatsTheme.getPrimaryFontStyle(
+                            color: widget.params.isCabinetMode
+                                ? EatsTheme.accentOrange
+                                : EatsTheme.primaryCyan,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      _buildPresetSelector(context, availablePresets),
+                      const SizedBox(width: 6),
                       Text(
-                        'SAVE PRESET',
+                        '${widget.params.width.toStringAsFixed(2)}×${widget.params.length.toStringAsFixed(2)}×${widget.params.height.toStringAsFixed(2)}m',
                         style: EatsTheme.getDisplayFontStyle(
-                          fontSize: 9,
-                          color: widget.params.isCabinetMode ? EatsTheme.accentOrange : EatsTheme.primaryCyan,
+                          color: EatsTheme.textMuted,
+                          fontSize: 9.5,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ),
+
+                // Top Right: Save Preset Button
+                Positioned(
+                  top: 6,
+                  right: 8,
+                  child: InkWell(
+                    onTap: () => _openSavePresetDialog(context),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: widget.params.isCabinetMode
+                              ? EatsTheme.accentOrange.withOpacity(0.7)
+                              : EatsTheme.primaryCyan.withOpacity(0.7),
+                          width: 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.save_outlined,
+                              size: 11,
+                              color: widget.params.isCabinetMode
+                                  ? EatsTheme.accentOrange
+                                  : EatsTheme.primaryCyan),
+                          const SizedBox(width: 3),
+                          Text(
+                            'SAVE PRESET',
+                            style: EatsTheme.getDisplayFontStyle(
+                              fontSize: 9,
+                              color: widget.params.isCabinetMode
+                                  ? EatsTheme.accentOrange
+                                  : EatsTheme.primaryCyan,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
 
             // Bottom Material / Info Badge
             Positioned(
@@ -281,7 +458,9 @@ class _SpaceVisualizerWidgetState extends State<SpaceVisualizerWidget> {
         ),
       ),
     );
-  }
+  },
+);
+}
 
   void _handlePanStart(Offset localPos) {
     if (widget.onParamsChanged == null) return;
