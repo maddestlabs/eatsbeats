@@ -70,7 +70,10 @@ class EatsLuaSerializer {
       buffer.writeln('  masterFx = {');
       for (final fx in dawState.masterTrack.fxRack) {
         final irStr = fx.irSampleName != null ? ', irSampleName = "${_escapeString(fx.irSampleName!)}"' : '';
-        buffer.writeln('    { id = "${_escapeString(fx.id)}", name = "${_escapeString(fx.name)}", type = "${fx.type.name}", enabled = ${fx.enabled}, mix = ${fx.mix.toStringAsFixed(2)}, params = ${_formatMap(fx.params)}$irStr },');
+        final presetStr = fx.presetId != null ? ', presetId = "${_escapeString(fx.presetId!)}"' : '';
+        final scriptStr = fx.luaScriptCode != null && fx.luaScriptCode!.isNotEmpty ? ', luaScriptCode = ${_formatLuaString(fx.luaScriptCode!, '  ')}' : '';
+        final luaParamsStr = fx.luaParams.isNotEmpty ? ', luaParams = ${_formatMap(fx.luaParams)}' : '';
+        buffer.writeln('    { id = "${_escapeString(fx.id)}", name = "${_escapeString(fx.name)}", type = "${fx.type.name}", enabled = ${fx.enabled}, mix = ${fx.mix.toStringAsFixed(2)}, params = ${_formatMap(fx.params)}$irStr$presetStr$scriptStr$luaParamsStr },');
       }
       buffer.writeln('  },');
     }
@@ -175,7 +178,11 @@ class EatsLuaSerializer {
     if (track.fxRack.isNotEmpty) {
       buffer.writeln('${childIndent}fxRack = {');
       for (final fx in track.fxRack) {
-        buffer.writeln('$childIndent  { id = "${_escapeString(fx.id)}", name = "${_escapeString(fx.name)}", type = "${fx.type.name}", enabled = ${fx.enabled}, mix = ${fx.mix.toStringAsFixed(2)}, params = ${_formatMap(fx.params)} },');
+        final irStr = fx.irSampleName != null ? ', irSampleName = "${_escapeString(fx.irSampleName!)}"' : '';
+        final presetStr = fx.presetId != null ? ', presetId = "${_escapeString(fx.presetId!)}"' : '';
+        final scriptStr = fx.luaScriptCode != null && fx.luaScriptCode!.isNotEmpty ? ', luaScriptCode = ${_formatLuaString(fx.luaScriptCode!, childIndent)}' : '';
+        final luaParamsStr = fx.luaParams.isNotEmpty ? ', luaParams = ${_formatMap(fx.luaParams)}' : '';
+        buffer.writeln('$childIndent  { id = "${_escapeString(fx.id)}", name = "${_escapeString(fx.name)}", type = "${fx.type.name}", enabled = ${fx.enabled}, mix = ${fx.mix.toStringAsFixed(2)}, params = ${_formatMap(fx.params)}$irStr$presetStr$scriptStr$luaParamsStr },');
       }
       buffer.writeln('${childIndent}},');
     }

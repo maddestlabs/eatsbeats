@@ -6,6 +6,7 @@ import '../models/script_target_model.dart';
 import '../theme/eats_theme.dart';
 import '../lua/lua_engine.dart';
 import '../lua/lua_preset_library.dart';
+import 'gui_designer/gui_designer_view.dart';
 import 'modular/eurorack_theme.dart';
 import 'modular/modular_rack_canvas.dart';
 import 'widgets/dynamic_instrument_gui_widget.dart';
@@ -38,6 +39,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
   bool _isExplorerOpen = true;
   String _scriptFilterQuery = '';
   DesignStudioViewMode _viewMode = DesignStudioViewMode.code;
+  bool _isGuiDesignMode = false;
 
   @override
   void initState() {
@@ -345,16 +347,119 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
         );
 
       case DesignStudioViewMode.guiPreview:
-        return Container(
-          color: EatsTheme.panelBackground,
-          padding: const EdgeInsets.all(16),
-          alignment: Alignment.center,
-          child: SingleChildScrollView(
-            child: DynamicInstrumentGuiWidget(
-              dawState: widget.dawState,
-              track: activeTrack,
+        return Column(
+          children: [
+            // Top Mode Switcher Bar for GUI tab: [● LIVE INTERACTION] vs [✏️ DESIGN MODE]
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              color: const Color(0xFF10131A),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.dashboard_outlined, size: 14, color: EatsTheme.primaryCyan),
+                      const SizedBox(width: 6),
+                      Text(
+                        'GUI INTERFACE: ${activeTarget.title.toUpperCase()}',
+                        style: EatsTheme.getDisplayFontStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: EatsTheme.textLight),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1B202C),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF2E384D)),
+                    ),
+                    child: Row(
+                      children: [
+                        InkWell(
+                          onTap: () => setState(() => _isGuiDesignMode = false),
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: !_isGuiDesignMode ? EatsTheme.primaryCyan.withOpacity(0.2) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(4),
+                              border: !_isGuiDesignMode ? Border.all(color: EatsTheme.primaryCyan) : null,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.play_circle_outline, size: 13, color: !_isGuiDesignMode ? EatsTheme.primaryCyan : EatsTheme.textMuted),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'LIVE INTERACTION',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: !_isGuiDesignMode ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        InkWell(
+                          onTap: () => setState(() => _isGuiDesignMode = true),
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _isGuiDesignMode ? EatsTheme.accentGreen.withOpacity(0.2) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(4),
+                              border: _isGuiDesignMode ? Border.all(color: EatsTheme.accentGreen) : null,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit_note, size: 13, color: _isGuiDesignMode ? EatsTheme.accentGreen : EatsTheme.textMuted),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'DESIGN MODE',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: _isGuiDesignMode ? EatsTheme.accentGreen : EatsTheme.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+
+            // Content Area
+            Expanded(
+              child: _isGuiDesignMode
+                  ? GuiDesignerCanvasView(
+                      dawState: widget.dawState,
+                      target: activeTarget,
+                      scriptCode: _codeController.text,
+                      onScriptCodeChanged: (updatedCode) {
+                        _codeController.text = updatedCode;
+                        widget.dawState.compileScriptTarget(activeTarget, updatedCode);
+                      },
+                    )
+                  : Container(
+                      color: EatsTheme.panelBackground,
+                      padding: const EdgeInsets.all(16),
+                      alignment: Alignment.center,
+                      child: SingleChildScrollView(
+                        child: DynamicInstrumentGuiWidget(
+                          dawState: widget.dawState,
+                          track: activeTrack,
+                        ),
+                      ),
+                    ),
+            ),
+          ],
         );
 
       case DesignStudioViewMode.split:
@@ -719,6 +824,9 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
     final audioFxTargets = allTargets.where((t) => t.type == ScriptTargetType.audioFx).where((t) => query.isEmpty || t.title.toLowerCase().contains(query)).toList();
     final midiFxTargets = allTargets.where((t) => t.type == ScriptTargetType.midiFx).where((t) => query.isEmpty || t.title.toLowerCase().contains(query)).toList();
     final clipTargets = allTargets.where((t) => t.type == ScriptTargetType.clipScript).where((t) => query.isEmpty || t.title.toLowerCase().contains(query)).toList();
+    final libraryPresets = LuaPresetLibrary.presets
+        .where((p) => query.isEmpty || p.name.toLowerCase().contains(query) || p.description.toLowerCase().contains(query))
+        .toList();
 
     return Column(
       children: [
@@ -818,12 +926,14 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
 
               const Divider(color: Color(0xFF2B3245), height: 12),
 
-              // 5. Preset Templates & Boilerplates
-              _buildExplorerCategoryHeader('QUICK TEMPLATES', Icons.bookmark_border, EatsTheme.accentGreen),
-              _buildTemplateTile('Acid 303 Synth', '-- Acid 303 DSP\nfunction Synth.render() end', EatsTheme.primaryCyan),
-              _buildTemplateTile('Pattern Arpeggiator', '-- Arpeggiator Script\nclip:registerParam("rate", 0.125, 1.0, 0.25)\nfunction process(notes, time_ctx)\n  return arpeggiate(notes, params.rate)\nend', EatsTheme.accentGold),
-              _buildTemplateTile('Scale Snap (C Major)', '-- Scale Snap\nclip:registerParam("key", 0, 11, 0)\nfunction process(notes, time_ctx)\n  return scale_snap(notes, params.key)\nend', EatsTheme.accentGreen),
-              _buildTemplateTile('Euclidean Rhythm', '-- Euclidean Generator\nclip:registerParam("pulses", 1, 16, 5)\nclip:registerParam("steps", 4, 32, 16)\nfunction process(notes, time_ctx)\n  return generate_euclidean(params.pulses, params.steps, 60)\nend', EatsTheme.secondaryMagenta),
+              // 5. Built-in Preset Library Reference
+              _buildExplorerCategoryHeader('BUILT-IN PRESETS (${libraryPresets.length})', Icons.menu_book, EatsTheme.accentGold),
+              ...libraryPresets.map((p) {
+                final color = p.isInstrument
+                    ? EatsTheme.primaryCyan
+                    : (p.isAudioFx ? EatsTheme.secondaryMagenta : (p.isMidiFx ? EatsTheme.accentGold : EatsTheme.accentGreen));
+                return _buildTemplateTile(p.name, p.code, color, subtitle: p.category.displayName);
+              }),
             ],
           ),
         ),
@@ -908,7 +1018,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
     );
   }
 
-  Widget _buildTemplateTile(String name, String code, Color color) {
+  Widget _buildTemplateTile(String name, String code, Color color, {String? subtitle}) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       child: Material(
@@ -923,10 +1033,21 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
                 Icon(Icons.insert_drive_file_outlined, size: 11, color: color),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text(
-                    name,
-                    style: TextStyle(fontSize: 10, color: EatsTheme.textMuted),
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(fontSize: 10, color: Colors.white70),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (subtitle != null)
+                        Text(
+                          subtitle,
+                          style: TextStyle(fontSize: 8, color: color.withOpacity(0.7)),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
                   ),
                 ),
                 Icon(Icons.file_download_outlined, size: 12, color: color.withOpacity(0.7)),

@@ -302,23 +302,10 @@ class AudioEngine {
     bool isSlide = false,
     bool isAccent = false,
   }) {
-    // Dynamic legato slides shouldn't use static cache
-    if (isSlide && targetMidiNote != null && targetMidiNote != midiNote) {
-      final buffer = _synthesizeTrackBuffer(
-        track: track,
-        midiNote: midiNote,
-        velocity: velocity,
-        durationSec: durationSec,
-        targetMidiNote: targetMidiNote,
-        isSlide: true,
-        isAccent: isAccent,
-      );
-      return (buffer, null);
-    }
-
     final durMs = (durationSec * 1000).round();
     final pHash = _computeParamsHash(track);
-    final cacheKey = '${track.id}_${midiNote}_${durMs}_${isAccent ? 1 : 0}_$pHash';
+    final targetPitchStr = (isSlide && targetMidiNote != null) ? '_tgt$targetMidiNote' : '';
+    final cacheKey = '${track.id}_${midiNote}${targetPitchStr}_${durMs}_${isAccent ? 1 : 0}_${isSlide ? 1 : 0}_$pHash';
 
     final cached = _pcmCache[cacheKey];
     if (cached != null) {
@@ -421,7 +408,7 @@ class AudioEngine {
   }
 
   static int _computeParamsHash(TrackChannel track) {
-    int h = track.sampleName.hashCode ^ track.synthWaveform.hashCode;
+    int h = track.sampleName.hashCode ^ track.synthWaveform.hashCode ^ track.luaScriptCode.hashCode;
     for (final e in track.luaParams.entries) {
       h = (h * 31) ^ (e.key.hashCode ^ (e.value * 100).round());
     }
@@ -446,25 +433,48 @@ class AudioEngine {
     _pcmCache.clear();
   }
 
+  /// Flushes backend channel strips, active sources, and PCM caches when changing songs.
+  void clearChannelStrips() {
+    _backend.clearChannelStrips();
+    clearPcmCache();
+  }
+
   /// Pre-warms the PCM cache and IR samples so playback has 0 latency.
   void prewarmPatternCache(List<TrackChannel> tracks, double stepDurationSec) {
-    final hasConvReverb = tracks.any((t) => !t.isMuted && t.fxRack.any((fx) => fx.enabled && fx.type == FXType.convolutionReverb));
-    if (hasConvReverb) {
-      _backend.preloadIrSamples();
+    final Set<String> activeIrNames = {};
+    for (final track in tracks) {
+      if (track.isMuted) continue;
+      for (final fx in track.fxRack) {
+        if (fx.enabled && fx.type == FXType.convolutionReverb && fx.irSampleName != null) {
+          activeIrNames.add(fx.irSampleName!);
+        }
+      }
+    }
+    if (activeIrNames.isNotEmpty) {
+      _backend.preloadIrSamples(activeIrNames);
     }
     for (final track in tracks) {
       if (track.isMuted) continue;
       for (final clip in track.clips) {
-        for (final note in clip.notes) {
+        final notes = clip.notes;
+        for (int nIdx = 0; nIdx < notes.length; nIdx++) {
+          final note = notes[nIdx];
           final dur = stepDurationSec * note.durationSteps;
+          int? targetPitch;
+          if (track.isMonophonicTrack) {
+            final nextNotes = notes.where((n) => n.startStep > note.startStep && n.startStep <= (note.startStep + math.max(1.5, note.durationSteps + 0.5))).toList();
+            if (nextNotes.isNotEmpty) {
+              targetPitch = nextNotes.first.pitch;
+            }
+          }
           _getOrCreateBuffer(
             track: track,
             midiNote: note.pitch,
             velocity: note.velocity,
             durationSec: dur,
-            isSlide: note.isSlide,
+            isSlide: note.isSlide || targetPitch != null,
             isAccent: note.isAccent,
-            targetMidiNote: null,
+            targetMidiNote: targetPitch,
           );
         }
       }

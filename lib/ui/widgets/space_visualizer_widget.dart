@@ -464,7 +464,6 @@ class _SpaceVisualizerWidgetState extends State<SpaceVisualizerWidget> {
 
   void _handlePanStart(Offset localPos) {
     if (widget.onParamsChanged == null) return;
-    // Simple hit check for dragging Source vs Listener
     final painter = _SpaceCanvasPainter(
       params: widget.params,
       material: AcousticMaterial.get(widget.params.material),
@@ -483,10 +482,19 @@ class _SpaceVisualizerWidgetState extends State<SpaceVisualizerWidget> {
       size,
     );
 
-    if ((localPos - srcPos).distance < 20) {
+    final distSrc = (localPos - srcPos).distance;
+    final distLis = (localPos - lisPos).distance;
+
+    if (distSrc < 24) {
       setState(() => _draggedTarget = 1);
-    } else if ((localPos - lisPos).distance < 20) {
+    } else if (distLis < 24) {
       setState(() => _draggedTarget = 2);
+    } else if (distSrc < distLis && distSrc < 50) {
+      setState(() => _draggedTarget = 1);
+      _handlePanUpdate(localPos);
+    } else if (distLis < 50) {
+      setState(() => _draggedTarget = 2);
+      _handlePanUpdate(localPos);
     }
   }
 
@@ -494,9 +502,27 @@ class _SpaceVisualizerWidgetState extends State<SpaceVisualizerWidget> {
     if (_draggedTarget == 0 || widget.onParamsChanged == null) return;
     final size = context.size ?? const Size(300, 180);
 
-    // Approximate inverse isometric projection
-    final normX = ((localPos.dx - size.width * 0.15) / (size.width * 0.7)).clamp(0.05, 0.95);
-    final normY = ((localPos.dy - size.height * 0.2) / (size.height * 0.6)).clamp(0.05, 0.95);
+    final cx = size.width * 0.5;
+    final cy = size.height * 0.52;
+
+    final aspectX = widget.params.width / math.max(1.0, math.max(widget.params.width, widget.params.length));
+    final aspectY = widget.params.length / math.max(1.0, math.max(widget.params.width, widget.params.length));
+    final aspectZ = widget.params.height / math.max(1.0, math.max(widget.params.width, widget.params.length));
+
+    final boxW = size.width * 0.45 * aspectX.clamp(0.6, 1.2);
+    final boxL = size.width * 0.35 * aspectY.clamp(0.6, 1.2);
+    final boxH = size.height * 0.45 * aspectZ.clamp(0.5, 1.1);
+
+    final currentZ = _draggedTarget == 1 ? widget.params.sourceZ : widget.params.listenerZ;
+    final xScreen = localPos.dx - cx;
+    final yScreen = (localPos.dy - cy) + (currentZ - 0.5) * boxH;
+
+    // Exact inverse isometric transformation
+    final u = (xScreen + 2.0 * yScreen) / (1.8 * boxW);
+    final v = (2.5 * yScreen - xScreen) / (1.8 * boxL);
+
+    final normX = (u + 0.5).clamp(0.05, 0.95);
+    final normY = (v + 0.5).clamp(0.05, 0.95);
 
     if (_draggedTarget == 1) {
       widget.onParamsChanged!(widget.params.copyWith(sourceX: normX, sourceY: normY));
@@ -607,6 +633,21 @@ class _SpaceCanvasPainter extends CustomPainter {
     final lisPos = projectPoint(params.listenerX, params.listenerY, params.listenerZ, size);
     final lisFloor = projectPoint(params.listenerX, params.listenerY, 0, size);
 
+    // Binaural Ear / Stereo Mic positions
+    final earOffsetNorm = (params.stereoWidth * 0.5) / math.max(1.0, params.width);
+    final lisPosL = projectPoint(
+      (params.listenerX - earOffsetNorm).clamp(0.01, 0.99),
+      params.listenerY,
+      params.listenerZ,
+      size,
+    );
+    final lisPosR = projectPoint(
+      (params.listenerX + earOffsetNorm).clamp(0.01, 0.99),
+      params.listenerY,
+      params.listenerZ,
+      size,
+    );
+
     // Vertical stalk from floor
     final stalkPaint = Paint()
       ..color = Colors.white.withOpacity(0.25)
@@ -617,24 +658,25 @@ class _SpaceCanvasPainter extends CustomPainter {
 
     // Reflection Rays (Visual ISM)
     final rayPaint = Paint()
-      ..color = EatsTheme.secondaryMagenta.withOpacity(0.4)
+      ..color = EatsTheme.secondaryMagenta.withOpacity(0.35)
       ..strokeWidth = 1.0
       ..style = PaintingStyle.stroke;
 
     final wallBounce1 = projectPoint(0, (params.sourceY + params.listenerY) / 2, params.sourceZ, size);
     canvas.drawLine(srcPos, wallBounce1, rayPaint);
-    canvas.drawLine(wallBounce1, lisPos, rayPaint);
+    canvas.drawLine(wallBounce1, lisPosL, rayPaint);
 
     final wallBounce2 = projectPoint((params.sourceX + params.listenerX) / 2, 0, params.sourceZ, size);
     canvas.drawLine(srcPos, wallBounce2, rayPaint);
-    canvas.drawLine(wallBounce2, lisPos, rayPaint);
+    canvas.drawLine(wallBounce2, lisPosR, rayPaint);
 
-    // Direct sound path
+    // Direct sound path to both ears
     final directPaint = Paint()
-      ..color = Colors.white.withOpacity(0.4)
-      ..strokeWidth = 1.2
+      ..color = Colors.white.withOpacity(0.35)
+      ..strokeWidth = 1.0
       ..style = PaintingStyle.stroke;
-    canvas.drawLine(srcPos, lisPos, directPaint);
+    canvas.drawLine(srcPos, lisPosL, directPaint);
+    canvas.drawLine(srcPos, lisPosR, directPaint);
 
     // 4. Source Marker (Orange Speaker / Sound Source)
     final srcPaint = Paint()
@@ -650,18 +692,25 @@ class _SpaceCanvasPainter extends CustomPainter {
         ..strokeWidth = 1.5,
     );
 
-    // 5. Listener Marker (Cyan Mic / Ears)
-    final lisPaint = Paint()
+    // 5. Listener Center Bar & Binaural Ear Markers (Cyan Mic / Ears)
+    final headBarPaint = Paint()
+      ..color = EatsTheme.primaryCyan.withOpacity(0.5)
+      ..strokeWidth = 2.0;
+    canvas.drawLine(lisPosL, lisPosR, headBarPaint);
+
+    final earPaint = Paint()
       ..color = EatsTheme.primaryCyan
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(lisPos, 6, lisPaint);
+    canvas.drawCircle(lisPosL, 4, earPaint);
+    canvas.drawCircle(lisPosR, 4, earPaint);
+    canvas.drawCircle(lisPos, 5, earPaint);
     canvas.drawCircle(
       lisPos,
-      10,
+      9,
       Paint()
         ..color = EatsTheme.primaryCyan.withOpacity(0.3)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
+        ..strokeWidth = 1.2,
     );
 
     // Mic angle pointer if in cabinet mode
@@ -672,7 +721,7 @@ class _SpaceCanvasPainter extends CustomPainter {
         lisPos,
         pointerEnd,
         Paint()
-          ..color = EatsTheme.primaryCyan
+          ..color = EatsTheme.accentOrange
           ..strokeWidth = 2.0,
       );
     }

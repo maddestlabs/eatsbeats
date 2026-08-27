@@ -155,6 +155,9 @@ class _InteractiveGameCanvasWidgetState extends State<InteractiveGameCanvasWidge
   }
 
   void _onTick() {
+    if (!mounted) return;
+    if (!TickerMode.of(context)) return;
+
     final dt = 0.0166; // approx 60fps frame delta
     _gameTime += dt;
     _scrollOffset += dt * 90.0;

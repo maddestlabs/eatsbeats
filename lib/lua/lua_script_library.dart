@@ -348,6 +348,32 @@ function FmAcousticKick.gui()
   }
 end
 
+function FmAcousticKick.rack()
+  return {
+    rows = {
+      -- ROW 1: Nearfield Physical Synthesis Chain
+      {
+        { id = "exciter", title = "NOISE FM EXCITER", hp = 11, row = 1, category = "MOD" },
+        { id = "carrier", title = "BATTER CARRIER VCO", hp = 15, row = 1, category = "VCO" },
+        { id = "sub_eq",  title = "SUB PEAKING EQ", hp = 11, row = 1, category = "VCF" },
+      },
+      -- ROW 2: Farfield Room Reflections & Summing Output
+      {
+        { id = "room_vco", title = "ROOM FARFIELD VCO", hp = 11, row = 2, category = "VCO" },
+        { id = "delay",    title = "ROOM DELAY LINE", hp = 14, row = 2, category = "FX" },
+        { id = "master",   title = "MASTER DUAL-MIC OUT", hp = 15, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "modulation" },
+      { from = "1:1:2", to = "1:2:0", color = "audio" },
+      { from = "1:2:1", to = "2:2:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "pitch" },
+      { from = "2:1:1", to = "2:2:1", color = "pitch" },
+    }
+  }
+end
+
 return FmAcousticKick
 ''',
     ),
@@ -398,6 +424,27 @@ function FmAcousticSnare.gui()
           }
         }
       }
+    }
+  }
+end
+
+function FmAcousticSnare.rack()
+  return {
+    rows = {
+      -- ROW 1: Dual-Shell & Snare Wire Oscillators
+      {
+        { id = "shell_osc", title = "DUAL SHELL VCO", hp = 14, row = 1, category = "VCO" },
+        { id = "wire_mod",  title = "SNARE WIRE NOISE", hp = 14, row = 1, category = "MOD" },
+      },
+      -- ROW 2: Snare Filter & Master Output
+      {
+        { id = "snare_vcf", title = "WIRE HPF VCF", hp = 14, row = 2, category = "VCF" },
+        { id = "master",    title = "STEREO OUT VCA", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "2:0:1", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
     }
   }
 end
@@ -459,6 +506,28 @@ function FmAcousticTom.gui()
   }
 end
 
+function FmAcousticTom.rack()
+  return {
+    rows = {
+      -- ROW 1: Physical Strike & Shell Membrane
+      {
+        { id = "stick_exciter", title = "STICK FM EXCITER", hp = 14, row = 1, category = "MOD" },
+        { id = "shell_vco",     title = "SHELL MEMBRANE VCO", hp = 16, row = 1, category = "VCO" },
+      },
+      -- ROW 2: Shell Tuning & Room Acoustic Delay
+      {
+        { id = "shell_eq",   title = "SHELL TUNING EQ", hp = 14, row = 2, category = "VCF" },
+        { id = "room_delay", title = "ROOM REFLECT DELAY", hp = 16, row = 2, category = "FX" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "modulation" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
 return FmAcousticTom
 ''',
     ),
@@ -505,6 +574,28 @@ function FmAcousticHiHat.gui()
           }
         }
       }
+    }
+  }
+end
+
+function FmAcousticHiHat.rack()
+  return {
+    rows = {
+      -- ROW 1: Metallic Inharmonic Cluster & Ping Transient
+      {
+        { id = "metal_cluster",  title = "6-OSC METAL CLUSTER", hp = 16, row = 1, category = "VCO" },
+        { id = "ping_transient", title = "STICK PING TRANSIENT", hp = 14, row = 1, category = "MOD" },
+      },
+      -- ROW 2: Sizzle High-Pass Filter & VCA
+      {
+        { id = "sizzle_hpf", title = "SIZZLE HIGH-PASS VCF", hp = 14, row = 2, category = "VCF" },
+        { id = "hat_vca",    title = "STEREO VCA OUT", hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "2:0:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:1", color = "modulation" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
     }
   }
 end
@@ -566,6 +657,30 @@ function Analog808Kick.gui()
   }
 end
 
+function Analog808Kick.rack()
+  return {
+    rows = {
+      -- ROW 1: Bridged-T Resonant Sine & Click
+      {
+        { id = "bridged_t", title = "BRIDGED-T SINE VCO", hp = 14, row = 1, category = "VCO" },
+        { id = "click_gen", title = "CLICK TRANSIENT", hp = 12, row = 1, category = "MOD" },
+        { id = "tone_lpf",  title = "TONE LOWPASS VCF", hp = 12, row = 1, category = "VCF" },
+      },
+      -- ROW 2: Saturation Overdrive & 808 Master Out
+      {
+        { id = "drive",  title = "DRIVE OVERLOAD", hp = 14, row = 2, category = "FX" },
+        { id = "master", title = "808 MASTER OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:2:0", color = "audio" },
+      { from = "1:1:1", to = "1:2:1", color = "modulation" },
+      { from = "1:2:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
 return Analog808Kick
 ''',
     ),
@@ -612,6 +727,28 @@ function Analog808Snare.gui()
           }
         }
       }
+    }
+  }
+end
+
+function Analog808Snare.rack()
+  return {
+    rows = {
+      -- ROW 1: Dual Bridged-T Tonal Body & Snappy Noise
+      {
+        { id = "body_vco",   title = "DUAL BRIDGED-T VCO", hp = 14, row = 1, category = "VCO" },
+        { id = "snappy_gen", title = "SNAPPY NOISE GEN", hp = 14, row = 1, category = "MOD" },
+      },
+      -- ROW 2: Snare Filter & Output
+      {
+        { id = "bandpass", title = "BANDPASS FILTER", hp = 14, row = 2, category = "VCF" },
+        { id = "master",   title = "808 MASTER OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "2:0:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:1", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
     }
   }
 end
@@ -664,6 +801,26 @@ function Analog808HiHat.gui()
   }
 end
 
+function Analog808HiHat.rack()
+  return {
+    rows = {
+      {
+        { id = "cluster_vco", title = "6-OSC SCHMITT CLUSTER", hp = 16, row = 1, category = "VCO" },
+        { id = "bandpass",    title = "7.5KHZ RESONANT BPF", hp = 14, row = 1, category = "VCF" },
+      },
+      {
+        { id = "decay_env", title = "VCA DECAY ENVELOPE", hp = 14, row = 2, category = "MOD" },
+        { id = "master",    title = "808 HI-HAT OUT", hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "2:0:1", to = "1:1:1", color = "modulation" },
+      { from = "1:1:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
 return Analog808HiHat
 ''',
     ),
@@ -706,6 +863,26 @@ function Analog808Cowbell.gui()
           }
         }
       }
+    }
+  }
+end
+
+function Analog808Cowbell.rack()
+  return {
+    rows = {
+      {
+        { id = "dual_sqr", title = "540HZ / 800HZ DUAL SQR", hp = 16, row = 1, category = "VCO" },
+        { id = "bpf_reso", title = "COWBELL 800HZ BPF", hp = 14, row = 1, category = "VCF" },
+      },
+      {
+        { id = "env_decay", title = "EXPONENTIAL DECAY", hp = 14, row = 2, category = "MOD" },
+        { id = "master",    title = "808 MASTER OUT", hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "2:0:1", to = "1:1:1", color = "modulation" },
+      { from = "1:1:1", to = "2:1:0", color = "audio" },
     }
   }
 end
@@ -760,6 +937,26 @@ function Analog808Tom.gui()
   }
 end
 
+function Analog808Tom.rack()
+  return {
+    rows = {
+      {
+        { id = "tank_vco",   title = "BRIDGED-T TANK VCO", hp = 14, row = 1, category = "VCO" },
+        { id = "pitch_sweep", title = "PITCH SWEEP MOD", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "env_decay", title = "RINGING DECAY VCA", hp = 14, row = 2, category = "MOD" },
+        { id = "master",    title = "808 TOM OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:1:1", to = "1:0:0", color = "pitch" },
+      { from = "1:0:1", to = "2:1:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:1", color = "modulation" },
+    }
+  }
+end
+
 return Analog808Tom
 ''',
     ),
@@ -805,6 +1002,26 @@ function Analog909Kick.gui()
           }
         }
       }
+    }
+  }
+end
+
+function Analog909Kick.rack()
+  return {
+    rows = {
+      {
+        { id = "wavetable_vco", title = "274HZ-53HZ 909 VCO", hp = 16, row = 1, category = "VCO" },
+        { id = "attack_click",  title = "ATTACK CLICK TRANSIENT", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "decay_hold", title = "60MS HOLD & DECAY VCA", hp = 16, row = 2, category = "MOD" },
+        { id = "master",     title = "909 KICK MASTER OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "2:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:1:1", color = "audio" },
+      { from = "2:0:1", to = "2:1:2", color = "modulation" },
     }
   }
 end
@@ -858,6 +1075,26 @@ function Analog909Snare.gui()
   }
 end
 
+function Analog909Snare.rack()
+  return {
+    rows = {
+      {
+        { id = "tone_vco",    title = "DUAL RESONANT TONE VCO", hp = 16, row = 1, category = "VCO" },
+        { id = "snappy_wire", title = "SNAPPY WIRE NOISE GEN", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "wire_hpf", title = "HIGH-PASS NOISE VCF", hp = 14, row = 2, category = "VCF" },
+        { id = "master",   title = "909 SNARE MASTER OUT", hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "2:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:1", color = "audio" },
+    }
+  }
+end
+
 return Analog909Snare
 ''',
     ),
@@ -900,6 +1137,26 @@ function Analog909ClosedHiHat.gui()
           }
         }
       }
+    }
+  }
+end
+
+function Analog909ClosedHiHat.rack()
+  return {
+    rows = {
+      {
+        { id = "pcm_rom",  title = "6-BIT COMPRESSED PCM ROM", hp = 16, row = 1, category = "VCO" },
+        { id = "tune_mod", title = "SAMPLE CLOCK TUNER", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "decay_vca", title = "ANALOG DECAY VCA", hp = 14, row = 2, category = "MOD" },
+        { id = "master",    title = "909 CLOSED HAT OUT", hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:1:1", to = "1:0:0", color = "pitch" },
+      { from = "1:0:1", to = "2:1:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:1", color = "modulation" },
     }
   }
 end
@@ -950,6 +1207,26 @@ function Analog909OpenHiHat.gui()
   }
 end
 
+function Analog909OpenHiHat.rack()
+  return {
+    rows = {
+      {
+        { id = "pcm_rom",   title = "6-BIT COMPRESSED PCM ROM", hp = 16, row = 1, category = "VCO" },
+        { id = "clock_mod", title = "CLOCK TUNING MODULATOR", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "ext_decay", title = "EXTENDED DECAY VCA", hp = 14, row = 2, category = "MOD" },
+        { id = "master",    title = "909 OPEN HAT OUT", hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:1:1", to = "1:0:0", color = "pitch" },
+      { from = "1:0:1", to = "2:1:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:1", color = "modulation" },
+    }
+  }
+end
+
 return Analog909OpenHiHat
 ''',
     ),
@@ -992,6 +1269,26 @@ function Analog909Clap.gui()
           }
         }
       }
+    }
+  }
+end
+
+function Analog909Clap.rack()
+  return {
+    rows = {
+      {
+        { id = "burst_rom",   title = "MULTI-BURST CLAP ROM", hp = 16, row = 1, category = "VCO" },
+        { id = "trigger_mod", title = "IMPULSE SPREAD TRIGGER", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "tail_reverb", title = "DIFFUSE REVERB TAIL", hp = 16, row = 2, category = "FX" },
+        { id = "master",      title = "909 CLAP MASTER OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:1:1", to = "1:0:0", color = "modulation" },
+      { from = "1:0:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
     }
   }
 end
@@ -1042,6 +1339,26 @@ function Analog909Rimshot.gui()
   }
 end
 
+function Analog909Rimshot.rack()
+  return {
+    rows = {
+      {
+        { id = "tank_rom",  title = "HIGH-Q TANK CIRCUIT ROM", hp = 16, row = 1, category = "VCO" },
+        { id = "click_mod", title = "STICK CLICK ATTACK", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "ring_decay", title = "METALLIC RING DECAY", hp = 14, row = 2, category = "MOD" },
+        { id = "master",     title = "909 RIMSHOT MASTER OUT", hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:1:1", to = "1:0:0", color = "modulation" },
+      { from = "1:0:1", to = "2:1:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:1", color = "modulation" },
+    }
+  }
+end
+
 return Analog909Rimshot
 ''',
     ),
@@ -1073,22 +1390,16 @@ function Eats303.init()
   Param.add("Slide", 0.0, 1.0, 0.0)               -- 60ms Portamento Legato Slide
 end
 
-function Eats303.process(time, freq, note, params, targetNote, isSlide, isAccent)
+--- Modular Module 1: 303 Leaky Integrator Oscillator Core with Portamento Slide
+function Eats303.oscillator(time, freq, params, isSlide, targetNote)
   local waveType = params["Waveform"] or 0.0
   local pitch = params["Pitch"] or 0.0
-  local cutoff = params["Cutoff"] or 1400.0
-  local res = params["Resonance"] or 9.2
-  local envMod = params["EnvMod"] or 0.75
-  local decay = params["Decay"] or 0.28
-  local accent = params["Accent"] or 0.78
-  local drive = params["Drive"] or params["Overdrive"] or 0.25
   local octave = math.floor((params["Octave"] or 0.0) + 0.5)
   local subWave = params["SubWaveform"] or 0.0
   local subVol = params["SubVolume"] or 0.0
   local slideParam = params["Slide"] or params["Portamento"] or 0.0
   local glideTime = slideParam > 0.01 and (0.010 + slideParam * 0.200) or 0.060
 
-  -- Pitch glide / Portamento logic for Eats-303 continuous monophonic voice
   local baseFreq = freq * (2.0 ^ (octave + pitch / 12.0))
   local currentFreq = baseFreq
   if targetNote and targetNote > 0 then
@@ -1099,7 +1410,6 @@ function Eats303.process(time, freq, note, params, targetNote, isSlide, isAccent
     currentFreq = targetFreq + (baseFreq - targetFreq) * math.exp(-time / glideTime)
   end
 
-  -- Eats-303 Oscillators: Leaky Integrator Sawtooth & Differentiated Square
   local phase = time * currentFreq
   local normPhase = phase - math.floor(phase)
   local sawRaw = 2.0 * normPhase - 1.0
@@ -1113,27 +1423,44 @@ function Eats303.process(time, freq, note, params, targetNote, isSlide, isAccent
     local subOsc = subWave > 0.5 and (subNorm < 0.5 and 0.7 or -0.7) or math.sin(6.283185 * subNorm)
     osc = osc * (1.0 - subVol * 0.4) + subOsc * (subVol * 0.6)
   end
+  return osc
+end
 
-  -- Dynamic Accent & VCF Envelope Decay Dynamics (TB-303 / Open303 Model)
+--- Modular Module 2: Dynamic Accent & VCF Envelope Generator
+function Eats303.envelope(time, params, isAccent, isSlide)
+  local decay = params["Decay"] or 0.28
+  local accent = params["Accent"] or 0.78
+  local envMod = params["EnvMod"] or 0.75
   local hasAccent = isAccent or (accent > 0.7 and not isSlide)
   local envBoost = hasAccent and (1.0 + accent * 1.25) or 1.0
   local activeDecay = hasAccent and 0.200 or (decay <= 1.0 and (0.200 + decay * 1.800) or decay)
   local softAttack = 1.0 - math.exp(-time / 0.003)
   local env = softAttack * math.exp(-time / activeDecay)
   local accentPulse = hasAccent and (accent * 0.55 * math.exp(-time / 0.035)) or 0.0
+  return (env + accentPulse) * envMod * 5.2 * envBoost, hasAccent
+end
 
-  -- 24dB 4-Pole Diode Ladder Filter with non-linear diode saturation
-  local modCutoff = (cutoff * (2.0 ^ ((env + accentPulse) * envMod * 5.2 * envBoost)))
-  local filtered = DSP.lowpass(osc, math.min(18000.0, math.max(30.0, modCutoff)), res)
+--- Modular Module 3: 24dB Diode Ladder VCF with 150Hz Feedback Highpass
+function Eats303.diode_filter(input_sample, cutoff, res, envModFactor)
+  local modCutoff = cutoff * (2.0 ^ envModFactor)
+  local filtered = DSP.lowpass(input_sample, math.min(18000.0, math.max(30.0, modCutoff)), res)
+  return filtered * 0.985
+end
 
-  -- Post-VCF 150Hz 1-Pole High-Pass filter & overdrive saturation
-  local highpassed = filtered * 0.985
-  local output = highpassed * (hasAccent and (1.35 + accent * 0.45) or 1.0)
+--- Modular Module 4: Analog Saturation Overdrive & VCA Output
+function Eats303.overdrive(input_sample, drive, hasAccent, accent)
+  local output = input_sample * (hasAccent and (1.35 + (accent or 0.78) * 0.45) or 1.0)
   if drive > 0.02 then
     output = math.tanh(output * (1.0 + drive * 3.5))
   end
-
   return output
+end
+
+function Eats303.process(time, freq, note, params, targetNote, isSlide, isAccent)
+  local osc = Eats303.oscillator(time, freq, params, isSlide, targetNote)
+  local envFactor, hasAccent = Eats303.envelope(time, params, isAccent, isSlide)
+  local filtered = Eats303.diode_filter(osc, params["Cutoff"] or 1400.0, params["Resonance"] or 9.2, envFactor)
+  return Eats303.overdrive(filtered, params["Drive"] or params["Overdrive"] or 0.25, hasAccent, params["Accent"] or 0.78)
 end
 
 function Eats303.gui()
@@ -1173,6 +1500,30 @@ function Eats303.gui()
           }
         }
       }
+    }
+  }
+end
+
+function Eats303.rack()
+  return {
+    rows = {
+      -- ROW 1: 303 Leaky Saw/Sqr VCO, Diode Ladder VCF & Drive
+      {
+        { id = "vco",   title = "TB-303 VCO", hp = 12, row = 1, category = "VCO" },
+        { id = "vcf",   title = "18DB RESO VCF", hp = 14, row = 1, category = "VCF" },
+        { id = "vca",   title = "ANALOG VCA", hp = 12, row = 1, category = "OUT" },
+      },
+      -- ROW 2: Accent Envelope Modulator & Master Summing Out
+      {
+        { id = "env",    title = "ACID ENVELOPE", hp = 14, row = 2, category = "MOD" },
+        { id = "master", title = "MASTER STEREO OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "2:0:0", to = "1:1:1", color = "modulation" },
+      { from = "1:1:2", to = "1:2:0", color = "audio" },
+      { from = "1:2:1", to = "2:1:0", color = "audio" },
     }
   }
 end
@@ -1230,6 +1581,48 @@ function PolyLeadSynth.process(time, freq, note, params)
   return filtered * env * 0.8
 end
 
+function PolyLeadSynth.gui()
+  return {
+    panel = {
+      title = "POLY LEAD SYNTH",
+      subtitle = "Dual Detuned Saw & Dynamic VCF Lead",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Cutoff", label = "CUTOFF", size = 56 },
+            { type = "knob", param = "Resonance", label = "RESO", size = 56 },
+            { type = "knob", param = "Detune", label = "DETUNE", size = 52 },
+            { type = "knob", param = "Attack", label = "ATTACK", size = 52 },
+            { type = "knob", param = "Release", label = "RELEASE", size = 52 },
+          }
+        }
+      }
+    }
+  }
+end
+
+function PolyLeadSynth.rack()
+  return {
+    rows = {
+      {
+        { id = "dual_saw", title = "DUAL DETUNED SAW VCO", hp = 16, row = 1, category = "VCO" },
+        { id = "lead_vcf", title = "24DB LADDER VCF", hp = 14, row = 1, category = "VCF" },
+      },
+      {
+        { id = "lead_env", title = "EXPONENTIAL ADSR", hp = 14, row = 2, category = "MOD" },
+        { id = "master",   title = "STEREO LEAD OUT", hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "2:0:1", to = "1:1:1", color = "modulation" },
+      { from = "1:1:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
 return PolyLeadSynth
 ''',
     ),
@@ -1258,8 +1651,38 @@ function YM2612.init()
   Param.add("Op4_TL", 0.0, 127.0, 0.0, 1.0)
 end
 
+function YM2612.operator(phase, totalLevel, mult)
+  local tlGain = math.exp(-((totalLevel or 0.0) / 127.0) * 4.0)
+  return math.sin(phase * (mult or 1.0)) * tlGain
+end
+
+function YM2612.ladder_dac(sample)
+  local steps = 512.0
+  return math.floor(sample * steps + 0.5) / steps
+end
+
 function YM2612.process(time, freq, note, params)
-  return 0.0
+  local algo = math.floor(params["Algorithm"] or 4.0)
+  local fb = (params["Feedback"] or 5.0) / 7.0
+  local op1M = params["Op1_Mult"] or 1.0
+  local op1TL = params["Op1_TL"] or 8.0
+  local op2M = params["Op2_Mult"] or 1.0
+  local op2TL = params["Op2_TL"] or 12.0
+  local op3M = params["Op3_Mult"] or 1.0
+  local op3TL = params["Op3_TL"] or 0.0
+  local op4M = params["Op4_Mult"] or 1.0
+  local op4TL = params["Op4_TL"] or 0.0
+
+  local basePhase = 2.0 * math.pi * freq * time
+  local op1Mod = math.sin(basePhase * op1M) * fb * 1.5
+  local op1 = YM2612.operator(basePhase + op1Mod, op1TL, op1M)
+  local op2 = YM2612.operator(basePhase + op1 * 2.0, op2TL, op2M)
+  local op3 = YM2612.operator(basePhase + op2 * 1.5, op3TL, op3M)
+  local op4 = YM2612.operator(basePhase + op3 * 2.0, op4TL, op4M)
+
+  local env = math.exp(-time * 1.5)
+  local rawOut = (op2 * 0.3 + op4 * 0.7) * env
+  return YM2612.ladder_dac(math.tanh(rawOut * 1.2))
 end
 
 function YM2612.gui()
@@ -1294,6 +1717,27 @@ function YM2612.gui()
   }
 end
 
+function YM2612.rack()
+  return {
+    rows = {
+      {
+        { id = "op12", title = "OP1-OP2 FM VCO", hp = 14, row = 1, category = "VCO" },
+        { id = "op34", title = "OP3-OP4 FM VCO", hp = 14, row = 1, category = "VCO" },
+        { id = "env",  title = "SSG-EG ENVELOPE", hp = 12, row = 1, category = "MOD" },
+      },
+      {
+        { id = "dac",    title = "YM2612 9-BIT DAC", hp = 14, row = 2, category = "FX" },
+        { id = "master", title = "MASTER STEREO OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:2", to = "1:1:0", color = "modulation" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
 return YM2612
 ''',
     ),
@@ -1314,22 +1758,96 @@ function SNESSFX.init()
   Param.add("Seed", 1.0, 9999.0, 42.0, 1.0)
   Param.choice("Waveform", {"Sine", "Square", "Pulse 25%", "Pulse 12%", "Sawtooth", "Triangle", "Organ", "Strings", "Flute", "Slap Bass", "Chime", "Noise"}, 1.0)
   Param.add("Attack", 0.001, 0.5, 0.005)
-  Param.add("Decay", 0.01, 2.0, 0.25)
-  Param.add("Sustain", 0.0, 1.0, 0.1)
+  Param.add("Decay", 0.01, 2.0, 0.35)
+  Param.add("Sustain", 0.0, 1.0, 0.2)
   Param.add("Release", 0.01, 2.0, 0.2)
-  Param.add("PitchSweep", -2.0, 2.0, 0.0)
-  Param.add("SweepSpeed", 0.01, 1.0, 0.16)
-  Param.add("VibratoRate", 0.0, 30.0, 0.0)
-  Param.add("VibratoDepth", 0.0, 2.0, 0.0)
-  Param.add("ArpSpeed", 0.02, 0.5, 0.05)
+  Param.add("PitchSweep", -2.0, 2.0, -0.45)
+  Param.add("VibratoRate", 0.0, 20.0, 0.0)
+  Param.add("VibratoDepth", 0.0, 1.0, 0.0)
   Param.add("EchoDelay", 16.0, 480.0, 120.0, 16.0)
   Param.add("EchoFeedback", 0.0, 0.95, 0.45)
   Param.add("EchoVolume", 0.0, 1.0, 0.35)
   Param.add("NoiseMix", 0.0, 1.0, 0.0)
 end
 
+function SNESSFX.oscillator(phase, waveIdx, noiseMix)
+  local normPos = (phase / (2.0 * math.pi)) % 1.0
+  local w = math.floor(waveIdx or 1)
+  local osc = 0.0
+  if w == 0 then
+    osc = math.sin(phase)
+  elseif w == 1 then
+    osc = normPos < 0.5 and 1.0 or -1.0
+  elseif w == 2 then
+    osc = normPos < 0.25 and 1.0 or -1.0
+  elseif w == 3 then
+    osc = normPos < 0.125 and 1.0 or -1.0
+  elseif w == 4 then
+    osc = (2.0 * normPos - 1.0) * 0.9
+  elseif w == 5 then
+    osc = (4.0 * math.abs(normPos - 0.5) - 1.0)
+  elseif w == 6 then
+    osc = (math.sin(phase) + math.sin(phase * 2.0) * 0.5 + math.sin(phase * 4.0) * 0.25) * 0.57
+  elseif w == 7 then
+    osc = (2.0 * normPos - 1.0) * 0.6 + (2.0 * ((normPos * 2.0) % 1.0) - 1.0) * 0.4
+  elseif w == 8 then
+    osc = math.sin(phase) * 0.85 + math.sin(phase * 3.0) * 0.15
+  elseif w == 9 then
+    osc = (math.sin(phase) + math.sin(phase * 3.0) * 0.4) * 0.75
+  elseif w == 10 then
+    osc = (math.sin(phase) + math.sin(phase * 2.76) * 0.4 + math.sin(phase * 5.4) * 0.25) * 0.6
+  else
+    osc = (math.random() * 2.0 - 1.0) * 0.8
+  end
+
+  if (noiseMix or 0.0) > 0.01 then
+    local n = (math.random() * 2.0 - 1.0) * noiseMix
+    osc = osc * (1.0 - noiseMix) + n
+  end
+  return osc
+end
+
+function SNESSFX.envelope(time, a, d, s)
+  local att = math.max(0.001, a or 0.005)
+  local dec = math.max(0.01, d or 0.35)
+  local sus = math.max(0.0, math.min(1.0, s or 0.2))
+  if time < att then
+    return time / att
+  else
+    return math.max(0.0, sus + (1.0 - sus) * math.exp(-(time - att) * 4.0 / dec))
+  end
+end
+
+function SNESSFX.echo(signal, time, delayMs, feedback, vol)
+  local dSec = math.max(0.016, (delayMs or 120.0) / 1000.0)
+  local fb = math.max(0.0, math.min(0.95, feedback or 0.45))
+  local ev = math.max(0.0, math.min(1.0, vol or 0.35))
+  local echoSignal = 0.0
+  if time > dSec then
+    local damp = math.exp(-(time - dSec) * 3.0) * fb
+    echoSignal = signal * damp * 0.5
+  end
+  return signal + echoSignal * ev
+end
+
 function SNESSFX.process(time, freq, note, params)
-  return 0.0
+  local wIdx = params["Waveform"] or 1.0
+  local sweep = params["PitchSweep"] or -0.45
+  local a = params["Attack"] or 0.005
+  local d = params["Decay"] or 0.35
+  local s = params["Sustain"] or 0.2
+  local nMix = params["NoiseMix"] or 0.0
+  local eDelay = params["EchoDelay"] or 120.0
+  local eFdbk = params["EchoFeedback"] or 0.45
+  local eVol = params["EchoVolume"] or 0.35
+
+  -- Pitch sweep
+  local sweepFreq = freq * math.max(0.05, 1.0 + sweep * math.min(1.5, time * 8.0))
+  local phase = 2.0 * math.pi * sweepFreq * time
+  local rawVoice = SNESSFX.oscillator(phase, wIdx, nMix)
+  local env = SNESSFX.envelope(time, a, d, s)
+  local dryOut = rawVoice * env
+  return math.tanh(SNESSFX.echo(dryOut, time, eDelay, eFdbk, eVol) * 1.3)
 end
 
 function SNESSFX.gui()
@@ -1374,6 +1892,26 @@ function SNESSFX.gui()
   }
 end
 
+function SNESSFX.rack()
+  return {
+    rows = {
+      {
+        { id = "sfx_vco",   title = "SFX GENERATOR VCO", hp = 16, row = 1, category = "VCO" },
+        { id = "sweep_env", title = "PITCH SWEEP ENV", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "echo_fir", title = "8-TAP FIR ECHO", hp = 16, row = 2, category = "FX" },
+        { id = "master",   title = "SFXR MASTER OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:1:1", to = "1:0:0", color = "pitch" },
+      { from = "1:0:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
 return SNESSFX
 ''',
     ),
@@ -1402,8 +1940,109 @@ function SNESConsole.init()
   Param.add("EchoVolume", 0.0, 1.0, 0.4)
 end
 
+function SNESConsole.wavetable(phase, waveIdx)
+  local normPos = (phase / (2.0 * math.pi)) % 1.0
+  local w = math.floor(waveIdx or 0)
+  if w == 0 then
+    local s = normPos < 0.5 and 1.0 or -1.0
+    return s * 0.9
+  elseif w == 1 then
+    local s = normPos < 0.25 and 1.0 or -1.0
+    return s * 0.85
+  elseif w == 2 then
+    local s = normPos < 0.125 and 1.0 or -1.0
+    return s * 0.85
+  elseif w == 3 then
+    return (2.0 * normPos - 1.0) * 0.85
+  elseif w == 4 then
+    local t = 4.0 * math.abs(normPos - 0.5) - 1.0
+    return t * 0.95
+  elseif w == 5 then
+    return math.sin(phase)
+  elseif w == 6 then
+    local s1 = math.sin(phase)
+    local s2 = math.sin(phase * 2.0) * 0.5
+    local s4 = math.sin(phase * 4.0) * 0.25
+    return (s1 + s2 + s4) * 0.57
+  elseif w == 7 then
+    local saw1 = 2.0 * normPos - 1.0
+    local saw2 = 2.0 * ((normPos * 2.0) % 1.0) - 1.0
+    return (saw1 * 0.6 + saw2 * 0.4) * 0.9
+  elseif w == 8 then
+    return math.sin(phase) * 0.85 + math.sin(phase * 3.0) * 0.15
+  elseif w == 9 then
+    local b1 = math.sin(phase)
+    local b2 = math.sin(phase * 3.0) * 0.4
+    return (b1 + b2) * 0.75
+  elseif w == 10 then
+    local c1 = math.sin(phase)
+    local c2 = math.sin(phase * 2.76) * 0.4
+    local c3 = math.sin(phase * 5.4) * 0.25
+    return (c1 + c2 + c3) * 0.6
+  else
+    return (math.random() * 2.0 - 1.0) * 0.7
+  end
+end
+
+function SNESConsole.adsr(time, a, d, s, r)
+  local att = math.max(0.001, a or 0.005)
+  local dec = math.max(0.01, d or 0.3)
+  local sus = math.max(0.0, math.min(1.0, s or 0.5))
+  if time < att then
+    return time / att
+  else
+    local tDec = time - att
+    return sus + (1.0 - sus) * math.exp(-tDec * 3.5 / dec)
+  end
+end
+
+function SNESConsole.echo(signal, time, delayMs, feedback, vol)
+  local dSec = math.max(0.016, (delayMs or 140.0) / 1000.0)
+  local fb = math.max(0.0, math.min(0.95, feedback or 0.55))
+  local ev = math.max(0.0, math.min(1.0, vol or 0.4))
+  local echoSignal = 0.0
+  if time > dSec then
+    local taps = { 0.34, 0.45, -0.12, 0.10 }
+    for i = 1, 4 do
+      local tTap = time - dSec * i
+      if tTap > 0 then
+        local damp = math.exp(-tTap * 2.5) * (fb ^ i)
+        echoSignal = echoSignal + signal * damp * taps[i]
+      end
+    end
+  end
+  return signal + echoSignal * ev
+end
+
 function SNESConsole.process(time, freq, note, params)
-  return 0.0
+  local wIdx = params["Waveform"] or 0.0
+  local a = params["Attack"] or 0.005
+  local d = params["Decay"] or 0.3
+  local s = params["Sustain"] or 0.5
+  local r = params["Release"] or 0.25
+  local vRate = params["VibratoRate"] or 5.5
+  local vDepth = params["VibratoDepth"] or 0.1
+  local eDelay = params["EchoDelay"] or 140.0
+  local eFdbk = params["EchoFeedback"] or 0.55
+  local eVol = params["EchoVolume"] or 0.4
+
+  -- 1. Vibrato Pitch Modulation
+  local vibOffset = 0.0
+  if vDepth > 0.001 and vRate > 0.1 then
+    vibOffset = math.sin(2.0 * math.pi * vRate * time) * (vDepth * 0.06)
+  end
+  local curFreq = freq * (1.0 + vibOffset)
+
+  -- 2. Wavetable Synthesis with S-DSP Gaussian curve
+  local phase = 2.0 * math.pi * curFreq * time
+  local rawVoice = SNESConsole.wavetable(phase, wIdx)
+
+  -- 3. ADSR / S-DSP Gain Envelope
+  local env = SNESConsole.adsr(time, a, d, s, r)
+  local dryOut = rawVoice * env
+
+  -- 4. 8-Tap FIR Echo Reverb Emulation
+  return math.tanh(SNESConsole.echo(dryOut, time, eDelay, eFdbk, eVol) * 1.2)
 end
 
 function SNESConsole.gui()
@@ -1440,6 +2079,28 @@ function SNESConsole.gui()
   }
 end
 
+function SNESConsole.rack()
+  return {
+    rows = {
+      -- ROW 1: Wavetable Sound Engine & ADSR
+      {
+        { id = "brr_vco", title = "BRR WAVETABLE VCO", hp = 16, row = 1, category = "VCO" },
+        { id = "snes_adsr", title = "ADSR / GAIN ENV", hp = 14, row = 1, category = "MOD" },
+      },
+      -- ROW 2: S-DSP Echo Processor & Output
+      {
+        { id = "echo", title = "8-TAP FIR ECHO", hp = 16, row = 2, category = "FX" },
+        { id = "master", title = "S-DSP MASTER OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:2", to = "2:0:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:1", color = "modulation" },
+      { from = "2:0:2", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
 return SNESConsole
 ''',
     ),
@@ -1464,8 +2125,25 @@ function OPL3.init()
   Param.add("Op2_TL", 0.0, 127.0, 0.0, 1.0)
 end
 
+function OPL3.operator(phase, totalLevel, mult)
+  local gain = math.exp(-((totalLevel or 0.0) / 127.0) * 3.5)
+  return math.sin(phase * (mult or 1.0)) * gain
+end
+
 function OPL3.process(time, freq, note, params)
-  return 0.0
+  local algo = params["Algorithm"] or 4.0
+  local fb = (params["Feedback"] or 4.0) / 7.0
+  local op1M = params["Op1_Mult"] or 1.0
+  local op1TL = params["Op1_TL"] or 12.0
+  local op2M = params["Op2_Mult"] or 2.0
+  local op2TL = params["Op2_TL"] or 0.0
+
+  local basePhase = 2.0 * math.pi * freq * time
+  local op1Out = OPL3.operator(basePhase, op1TL, op1M) * (1.0 + fb)
+  local op2Out = OPL3.operator(basePhase + op1Out * 2.5, op2TL, op2M)
+
+  local env = math.exp(-time * 2.0)
+  return math.tanh((op2Out * env) * 1.1)
 end
 
 function OPL3.gui()
@@ -1496,6 +2174,26 @@ function OPL3.gui()
   }
 end
 
+function OPL3.rack()
+  return {
+    rows = {
+      {
+        { id = "op1", title = "OPL3 OP1 MODULATOR", hp = 14, row = 1, category = "VCO" },
+        { id = "op2", title = "OPL3 OP2 CARRIER", hp = 14, row = 1, category = "VCO" },
+      },
+      {
+        { id = "dac",    title = "YMF262 16-BIT DAC", hp = 14, row = 2, category = "FX" },
+        { id = "master", title = "OPL3 MASTER OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "modulation" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
 return OPL3
 ''',
     ),
@@ -1520,7 +2218,21 @@ function Bitcrusher.init()
 end
 
 function Bitcrusher.process(input_l, input_r, params)
-  return input_l, input_r
+  local bits = params["Bits"] or 8.0
+  local down = math.floor(params["Downsample"] or 1.0)
+  local drive = params["Drive"] or 1.0
+  local mix = params["Mix"] or 1.0
+
+  local levels = 2.0 ^ math.max(1.0, math.min(16.0, bits))
+  local inL = math.tanh(input_l * drive)
+  local inR = math.tanh(input_r * drive)
+
+  local crushedL = math.floor(inL * levels + 0.5) / levels
+  local crushedR = math.floor(inR * levels + 0.5) / levels
+
+  local outL = input_l * (1.0 - mix) + crushedL * mix
+  local outR = input_r * (1.0 - mix) + crushedR * mix
+  return outL, outR
 end
 
 function Bitcrusher.gui()
@@ -1541,6 +2253,26 @@ function Bitcrusher.gui()
           }
         }
       }
+    }
+  }
+end
+
+function Bitcrusher.rack()
+  return {
+    rows = {
+      {
+        { id = "in_lr", title = "AUDIO INPUT L/R", hp = 14, row = 1, category = "OUT" },
+        { id = "crush", title = "8-BIT CRUSHER CORE", hp = 16, row = 1, category = "FX" },
+      },
+      {
+        { id = "mix",    title = "DRY / WET MIXER", hp = 14, row = 2, category = "MOD" },
+        { id = "out_lr", title = "AUDIO OUTPUT L/R", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
     }
   }
 end
@@ -1597,6 +2329,26 @@ function WaveShaper.gui()
   }
 end
 
+function WaveShaper.rack()
+  return {
+    rows = {
+      {
+        { id = "in_lr",  title = "AUDIO INPUT L/R", hp = 14, row = 1, category = "OUT" },
+        { id = "shaper", title = "WAVESHAPER SATURATION", hp = 16, row = 1, category = "FX" },
+      },
+      {
+        { id = "dc_flt", title = "DC FILTER & GAIN", hp = 14, row = 2, category = "VCF" },
+        { id = "out_lr", title = "AUDIO OUTPUT L/R", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
 return WaveShaper
 ''',
     ),
@@ -1635,6 +2387,49 @@ function SamplerInstrument.process(time, freq, note, params)
   local env = DSP.adsr(time, attack, decay, sustain, release)
   local filtered = DSP.lowpass(rawSample, cutoff, 1.0)
   return filtered * env
+end
+
+function SamplerInstrument.gui()
+  return {
+    panel = {
+      title = "MELODIC SAMPLER",
+      subtitle = "Pitch-Shifted ADSR Sample Player",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "RootKey", label = "ROOT KEY", size = 52 },
+            { type = "knob", param = "AttackSec", label = "ATTACK", size = 52 },
+            { type = "knob", param = "DecaySec", label = "DECAY", size = 52 },
+            { type = "knob", param = "Sustain", label = "SUSTAIN", size = 52 },
+            { type = "knob", param = "ReleaseSec", label = "RELEASE", size = 52 },
+            { type = "knob", param = "FilterCutoff", label = "CUTOFF", size = 56 },
+          }
+        }
+      }
+    }
+  }
+end
+
+function SamplerInstrument.rack()
+  return {
+    rows = {
+      {
+        { id = "sample_vco", title = "SAMPLE PLAYBACK CORE", hp = 16, row = 1, category = "VCO" },
+        { id = "sample_vcf", title = "MULTIMODE 24DB VCF", hp = 14, row = 1, category = "VCF" },
+      },
+      {
+        { id = "sample_env", title = "ADSR ENVELOPE", hp = 14, row = 2, category = "MOD" },
+        { id = "master",     title = "MASTER STEREO OUT", hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "2:0:1", to = "1:1:1", color = "modulation" },
+      { from = "1:1:1", to = "2:1:0", color = "audio" },
+    }
+  }
 end
 
 return SamplerInstrument
@@ -1678,6 +2473,46 @@ function DrumKitSampler.process(time, freq, note, params)
   end
 
   return sampleOut
+end
+
+function DrumKitSampler.gui()
+  return {
+    panel = {
+      title = "MULTI-SLOT DRUM SAMPLER",
+      subtitle = "4-Slot Velocity-Sensitive Trigger Rack",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "KickTune", label = "KICK TUNE", size = 52 },
+            { type = "knob", param = "SnareTune", label = "SNARE TUNE", size = 52 },
+            { type = "knob", param = "Drive", label = "SAT DRIVE", size = 52 },
+          }
+        }
+      }
+    }
+  }
+end
+
+function DrumKitSampler.rack()
+  return {
+    rows = {
+      {
+        { id = "multi_slot", title = "4-SLOT DRUM SAMPLER", hp = 16, row = 1, category = "VCO" },
+        { id = "slot_tune",  title = "PITCH TUNING MATRIX", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "drive_sat", title = "OVERDRIVE TANK", hp = 14, row = 2, category = "FX" },
+        { id = "master",    title = "DRUM MASTER OUT", hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:1:1", to = "1:0:0", color = "pitch" },
+      { from = "1:0:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
 end
 
 return DrumKitSampler
@@ -1745,6 +2580,25 @@ function SoundFontSampler.gui()
           }
         }
       }
+    }
+  }
+end
+
+function SoundFontSampler.rack()
+  return {
+    rows = {
+      {
+        { id = "sf2_engine", title = "SF2 SOUNDFONT ENGINE", hp = 16, row = 1, category = "VCO" },
+        { id = "zone_mod",   title = "VELOCITY KEY-ZONE MATRIX", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "adsr_env", title = "ADSR AMPLIFIER", hp = 14, row = 2, category = "MOD" },
+        { id = "master",   title = "SF2 MASTER OUT", hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
     }
   }
 end
@@ -2055,6 +2909,26 @@ function ChordFollower.gui()
   }
 end
 
+function ChordFollower.rack()
+  return {
+    rows = {
+      {
+        { id = "midi_in",     title = "MIDI NOTE IN", hp = 14, row = 1, category = "MOD" },
+        { id = "chord_track", title = "CHORD TRACK REF", hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "harmonizer", title = "HARMONIZER ENGINE", hp = 16, row = 2, category = "MOD" },
+        { id = "midi_out",   title = "MIDI NOTE OUT", hp = 14, row = 2, category = "MOD" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "2:0:0", color = "pitch" },
+      { from = "1:1:1", to = "2:0:1", color = "modulation" },
+      { from = "2:0:1", to = "2:1:0", color = "pitch" },
+    }
+  }
+end
+
 return ChordFollower
 ''',
     ),
@@ -2104,6 +2978,25 @@ function ChordArp.gui()
   }
 end
 
+function ChordArp.rack()
+  return {
+    rows = {
+      {
+        { id = "chord_ref",  title = "CHORD TRACK REF", hp = 14, row = 1, category = "MOD" },
+        { id = "arp_engine", title = "CHORD ARP ENGINE", hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "gate_clock", title = "GATE / SWING CLOCK", hp = 14, row = 2, category = "MOD" },
+        { id = "midi_out",   title = "MIDI NOTE OUT", hp = 14, row = 2, category = "MOD" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "pitch" },
+      { from = "1:1:1", to = "2:1:0", color = "pitch" },
+    }
+  }
+end
+
 return ChordArp
 ''',
     ),
@@ -2149,6 +3042,25 @@ function ScaleSnap.gui()
   }
 end
 
+function ScaleSnap.rack()
+  return {
+    rows = {
+      {
+        { id = "midi_in",     title = "MIDI NOTE IN", hp = 14, row = 1, category = "MOD" },
+        { id = "scale_quant", title = "SCALE QUANTIZER", hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "root_key", title = "ROOT KEY TRANSPOSE", hp = 14, row = 2, category = "MOD" },
+        { id = "midi_out", title = "QUANTIZED OUT", hp = 14, row = 2, category = "MOD" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "pitch" },
+      { from = "1:1:1", to = "2:1:0", color = "pitch" },
+    }
+  }
+end
+
 return ScaleSnap
 ''',
     ),
@@ -2190,6 +3102,25 @@ function Humanize.gui()
           }
         }
       }
+    }
+  }
+end
+
+function Humanize.rack()
+  return {
+    rows = {
+      {
+        { id = "midi_in",    title = "MIDI NOTE IN", hp = 14, row = 1, category = "MOD" },
+        { id = "jitter_mod", title = "MICRO-TIMING JITTER", hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "vel_human", title = "VELOCITY DYNAMICS", hp = 14, row = 2, category = "MOD" },
+        { id = "midi_out",  title = "GROOVE NOTE OUT", hp = 14, row = 2, category = "MOD" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "pitch" },
+      { from = "1:1:1", to = "2:1:0", color = "pitch" },
     }
   }
 end
@@ -2303,6 +3234,25 @@ function Nibbles.gui()
   }
 end
 
+function Nibbles.rack()
+  return {
+    rows = {
+      {
+        { id = "game_matrix", title = "FT2 GRID MATRIX", hp = 16, row = 1, category = "VCO" },
+        { id = "beat_clock",  title = "BEAT SYNC CLOCK", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "sfxr_synth", title = "SNES SFXR ENGINE", hp = 16, row = 2, category = "VCO" },
+        { id = "master",     title = "GAME MASTER OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "2:0:0", color = "modulation" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
 return Nibbles
 ''',
     ),
@@ -2355,6 +3305,25 @@ function CyberRunner.gui()
           }
         }
       }
+    }
+  }
+end
+
+function CyberRunner.rack()
+  return {
+    rows = {
+      {
+        { id = "pixel_engine", title = "16-BIT RUNNER CORE", hp = 16, row = 1, category = "VCO" },
+        { id = "jump_physics", title = "JUMP PHYSICS MOD", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "sfx_player", title = "SNES SFX ENGINE", hp = 16, row = 2, category = "VCO" },
+        { id = "master",     title = "RUNNER MASTER OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "2:0:0", color = "modulation" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
     }
   }
 end
@@ -2418,6 +3387,26 @@ function TtsSynth.gui()
   }
 end
 
+function TtsSynth.rack()
+  return {
+    rows = {
+      {
+        { id = "formant_vco", title = "FORMANT VOCAL VCO", hp = 16, row = 1, category = "VCO" },
+        { id = "phoneme_mod", title = "PHONEME ENVELOPE", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "vocal_eq", title = "SPEECH FORMANT VCF", hp = 14, row = 2, category = "VCF" },
+        { id = "master",   title = "VOCAL MASTER OUT", hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "2:0:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:1", color = "modulation" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
 return TtsSynth
 ''',
     ),
@@ -2467,6 +3456,24 @@ function Scope.gui()
           }
         }
       }
+    }
+  }
+end
+
+function Scope.rack()
+  return {
+    rows = {
+      {
+        { id = "in_lr",        title = "AUDIO INPUT L/R", hp = 14, row = 1, category = "OUT" },
+        { id = "vector_scope", title = "VECTOR OSCILLOSCOPE", hp = 16, row = 1, category = "FX" },
+      },
+      {
+        { id = "thru_out", title = "THRU AUDIO OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:0:1", to = "2:0:0", color = "audio" },
     }
   }
 end
@@ -2524,6 +3531,24 @@ function Spectrum.gui()
   }
 end
 
+function Spectrum.rack()
+  return {
+    rows = {
+      {
+        { id = "in_lr",        title = "AUDIO INPUT L/R", hp = 14, row = 1, category = "OUT" },
+        { id = "spectrum_fft", title = "16-BAND FFT ANALYZER", hp = 16, row = 1, category = "FX" },
+      },
+      {
+        { id = "thru_out", title = "THRU AUDIO OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:0:1", to = "2:0:0", color = "audio" },
+    }
+  }
+end
+
 return Spectrum
 ''',
     ),
@@ -2568,6 +3593,27 @@ function Limiter.gui()
           }
         }
       }
+    }
+  }
+end
+
+function Limiter.rack()
+  return {
+    rows = {
+      {
+        { id = "in_lr",     title = "AUDIO INPUT L/R", hp = 14, row = 1, category = "OUT" },
+        { id = "brickwall", title = "BRICKWALL PEAK DETECT", hp = 16, row = 1, category = "FX" },
+      },
+      {
+        { id = "ceiling_vca", title = "CEILING GAIN VCA", hp = 14, row = 2, category = "OUT" },
+        { id = "out_lr",      title = "MASTER PROTECT OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "modulation" },
+      { from = "1:0:1", to = "2:0:1", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
     }
   }
 end
@@ -2622,6 +3668,27 @@ function Compressor.gui()
   }
 end
 
+function Compressor.rack()
+  return {
+    rows = {
+      {
+        { id = "in_lr",     title = "AUDIO INPUT L/R", hp = 14, row = 1, category = "OUT" },
+        { id = "sidechain", title = "SIDECHAIN RMS DETECT", hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "gain_reduction", title = "VCA GAIN REDUCTION", hp = 14, row = 2, category = "FX" },
+        { id = "out_lr",         title = "COMPRESSED AUDIO OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "modulation" },
+      { from = "1:0:1", to = "2:0:1", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
 return Compressor
 ''',
     ),
@@ -2635,7 +3702,7 @@ return Compressor
       code: '''
 -- @name: Convolution Reverb
 -- @category: audioFx
--- @description: Impulse-response based acoustic space reverb simulator
+-- @description: Impulse-response based acoustic space reverb simulator with true stereo convolution
 local ConvReverb = {}
 
 function ConvReverb.init()
@@ -2644,6 +3711,13 @@ function ConvReverb.init()
   Param.add("WetLevel", 0.0, 1.5, 0.5, 0.05)
   Param.add("PreDelayMs", 0.0, 100.0, 10.0, 1.0)
   Param.add("HighCut", 1000.0, 20000.0, 8000.0, 100.0)
+  Param.add("SourceX", 0.05, 0.95, 0.50, 0.01)
+  Param.add("SourceY", 0.05, 0.95, 0.50, 0.01)
+  Param.add("SourceZ", 0.05, 0.95, 0.50, 0.01)
+  Param.add("ListenerX", 0.05, 0.95, 0.50, 0.01)
+  Param.add("ListenerY", 0.05, 0.95, 0.80, 0.01)
+  Param.add("ListenerZ", 0.05, 0.95, 0.50, 0.01)
+  Param.add("StereoWidth", 0.05, 1.00, 0.20, 0.01)
 end
 
 function ConvReverb.process(input_l, input_r, params)
@@ -2654,20 +3728,53 @@ function ConvReverb.gui()
   return {
     panel = {
       title = "Convolution Reverb",
-      subtitle = "True Stereo Acoustic Space Modeling",
+      subtitle = "True Stereo 3D Acoustic Space Modeling",
       background = "grunge",
       accent = "#21F4E8",
       layout = {
+        { type = "space_visualizer", height = 135 },
         {
           type = "row",
           children = {
-            { type = "listbox", param = "IRSample", label = "SPACE / IMPULSE", width = 160, height = 85 },
+            { type = "listbox", param = "IRSample", label = "SPACE / IMPULSE", width = 160, height = 75 },
             { type = "knob", param = "DryLevel", label = "DRY" },
             { type = "knob", param = "WetLevel", label = "WET" },
             { type = "knob", param = "HighCut", label = "HI-CUT", unit = "Hz" },
           }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "SourceX", label = "SRC X", size = 36 },
+            { type = "knob", param = "SourceY", label = "SRC Y", size = 36 },
+            { type = "knob", param = "SourceZ", label = "SRC Z", size = 36 },
+            { type = "knob", param = "ListenerX", label = "MIC X", size = 36 },
+            { type = "knob", param = "ListenerY", label = "MIC Y", size = 36 },
+            { type = "knob", param = "ListenerZ", label = "MIC Z", size = 36 },
+            { type = "knob", param = "StereoWidth", label = "SPREAD", unit = "m", size = 36 },
+          }
         }
       }
+    }
+  }
+end
+
+function ConvReverb.rack()
+  return {
+    rows = {
+      {
+        { id = "in_lr",     title = "AUDIO INPUT L/R", hp = 14, row = 1, category = "OUT" },
+        { id = "ir_engine", title = "STEREO CONV CORE", hp = 16, row = 1, category = "FX" },
+      },
+      {
+        { id = "predelay", title = "PREDELAY & HI-CUT", hp = 14, row = 2, category = "VCF" },
+        { id = "out_lr",   title = "REVERB OUTPUT L/R", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
     }
   }
 end
@@ -2695,6 +3802,13 @@ function RoomDesigner.init()
   Param.choice("Material", {"Wood Paneling", "Pine Wood", "Acoustic Foam", "Hard Concrete", "Birch Plywood", "Velvet Drapes", "Sheet Metal", "Carpet"}, 0.0)
   Param.add("RT60", 0.1, 5.0, 2.2, 0.05)
   Param.add("Damping", 0.0, 1.0, 0.25, 0.05)
+  Param.add("SourceX", 0.05, 0.95, 0.50, 0.01)
+  Param.add("SourceY", 0.05, 0.95, 0.50, 0.01)
+  Param.add("SourceZ", 0.05, 0.95, 0.50, 0.01)
+  Param.add("ListenerX", 0.05, 0.95, 0.50, 0.01)
+  Param.add("ListenerY", 0.05, 0.95, 0.80, 0.01)
+  Param.add("ListenerZ", 0.05, 0.95, 0.50, 0.01)
+  Param.add("StereoWidth", 0.05, 1.00, 0.20, 0.01)
   Param.add("DryLevel", 0.0, 1.5, 1.0, 0.05)
   Param.add("WetLevel", 0.0, 1.5, 0.5, 0.05)
 end
@@ -2711,7 +3825,7 @@ function RoomDesigner.gui()
       background = "grunge",
       accent = "#21F4E8",
       layout = {
-        { type = "space_visualizer", height = 140 },
+        { type = "space_visualizer", height = 135 },
         {
           type = "row",
           children = {
@@ -2721,6 +3835,18 @@ function RoomDesigner.gui()
             { type = "knob", param = "Height", label = "HEIGHT", unit = "m" },
             { type = "knob", param = "RT60", label = "DECAY", unit = "s" },
             { type = "knob", param = "Damping", label = "DAMP" },
+          }
+        },
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "SourceX", label = "SRC X", size = 36 },
+            { type = "knob", param = "SourceY", label = "SRC Y", size = 36 },
+            { type = "knob", param = "SourceZ", label = "SRC Z", size = 36 },
+            { type = "knob", param = "ListenerX", label = "MIC X", size = 36 },
+            { type = "knob", param = "ListenerY", label = "MIC Y", size = 36 },
+            { type = "knob", param = "ListenerZ", label = "MIC Z", size = 36 },
+            { type = "knob", param = "StereoWidth", label = "SPREAD", unit = "m", size = 36 },
           }
         },
         {
@@ -2736,6 +3862,26 @@ function RoomDesigner.gui()
           }
         }
       }
+    }
+  }
+end
+
+function RoomDesigner.rack()
+  return {
+    rows = {
+      {
+        { id = "in_lr",     title = "AUDIO INPUT L/R", hp = 14, row = 1, category = "OUT" },
+        { id = "early_ref", title = "3D IMAGE SOURCE CORE", hp = 16, row = 1, category = "FX" },
+      },
+      {
+        { id = "velvet_tail", title = "VELVET NOISE LATE TAIL", hp = 16, row = 2, category = "FX" },
+        { id = "out_lr",      title = "ACOUSTIC ROOM OUT", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
     }
   }
 end
@@ -2761,6 +3907,12 @@ function CabDesigner.init()
   Param.add("Width", 0.20, 1.50, 0.76, 0.02)
   Param.add("Length", 0.20, 1.50, 0.76, 0.02)
   Param.add("Height", 0.15, 1.00, 0.36, 0.02)
+  Param.add("SourceX", 0.05, 0.95, 0.50, 0.01)
+  Param.add("SourceY", 0.05, 0.95, 0.50, 0.01)
+  Param.add("SourceZ", 0.05, 0.95, 0.50, 0.01)
+  Param.add("ListenerX", 0.05, 0.95, 0.50, 0.01)
+  Param.add("ListenerY", 0.05, 0.95, 0.80, 0.01)
+  Param.add("ListenerZ", 0.05, 0.95, 0.50, 0.01)
   Param.add("MicDistance", 0.01, 0.30, 0.05, 0.01)
   Param.add("MicAngle", 0.0, 60.0, 0.0, 1.0)
   Param.toggle("OpenBack", 0.0)
@@ -2781,7 +3933,7 @@ function CabDesigner.gui()
       background = "grunge",
       accent = "#FF6B00",
       layout = {
-        { type = "space_visualizer", height = 140 },
+        { type = "space_visualizer", height = 135 },
         {
           type = "row",
           children = {
@@ -2797,6 +3949,17 @@ function CabDesigner.gui()
         {
           type = "row",
           children = {
+            { type = "knob", param = "SourceX", label = "CONE X", size = 36 },
+            { type = "knob", param = "SourceY", label = "CONE Y", size = 36 },
+            { type = "knob", param = "SourceZ", label = "CONE Z", size = 36 },
+            { type = "knob", param = "ListenerX", label = "MIC X", size = 36 },
+            { type = "knob", param = "ListenerY", label = "MIC Y", size = 36 },
+            { type = "knob", param = "ListenerZ", label = "MIC Z", size = 36 },
+          }
+        },
+        {
+          type = "row",
+          children = {
             { type = "hslider", param = "DryLevel", label = "DRY LEVEL", width = 480, style = "capsule" },
           }
         },
@@ -2807,6 +3970,26 @@ function CabDesigner.gui()
           }
         }
       }
+    }
+  }
+end
+
+function CabDesigner.rack()
+  return {
+    rows = {
+      {
+        { id = "in_lr",     title = "AMP SIGNAL IN", hp = 14, row = 1, category = "OUT" },
+        { id = "modal_box", title = "CAB MODAL ENCLOSURE", hp = 16, row = 1, category = "VCF" },
+      },
+      {
+        { id = "speaker_ir", title = "CONE & MIC PLACEMENT", hp = 16, row = 2, category = "FX" },
+        { id = "out_lr",     title = "CABINET OUT L/R", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
     }
   }
 end
@@ -2858,6 +4041,26 @@ function StereoDelay.gui()
   }
 end
 
+function StereoDelay.rack()
+  return {
+    rows = {
+      {
+        { id = "in_lr",     title = "AUDIO INPUT L/R", hp = 14, row = 1, category = "OUT" },
+        { id = "ping_pong", title = "STEREO DELAY LINE", hp = 16, row = 1, category = "FX" },
+      },
+      {
+        { id = "feedback_vcf", title = "FEEDBACK DAMP VCF", hp = 14, row = 2, category = "VCF" },
+        { id = "out_lr",       title = "DELAY OUTPUT L/R", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
 return StereoDelay
 ''',
     ),
@@ -2900,6 +4103,26 @@ function FilterFX.gui()
           }
         }
       }
+    }
+  }
+end
+
+function FilterFX.rack()
+  return {
+    rows = {
+      {
+        { id = "in_lr",    title = "AUDIO INPUT L/R", hp = 14, row = 1, category = "OUT" },
+        { id = "svf_core", title = "24DB SVF LOWPASS", hp = 16, row = 1, category = "VCF" },
+      },
+      {
+        { id = "drive_stage", title = "ANALOG DRIVE STAGE", hp = 14, row = 2, category = "FX" },
+        { id = "out_lr",      title = "FILTERED OUT L/R", hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
     }
   }
 end
@@ -2953,6 +4176,20 @@ function LyricVis.gui()
   }
 end
 
+function LyricVis.rack()
+  return {
+    rows = {
+      {
+        { id = "lyric_in",     title = "TIMELINE LYRIC STREAM", hp = 16, row = 1, category = "MOD" },
+        { id = "glow_render", title = "BLOOM GLOW RENDERER", hp = 16, row = 1, category = "FX" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "modulation" },
+    }
+  }
+end
+
 return LyricVis
 ''',
     ),
@@ -2998,6 +4235,20 @@ function Teleprompter.gui()
           label = "TERMINAL PROMPTER"
         }
       }
+    }
+  }
+end
+
+function Teleprompter.rack()
+  return {
+    rows = {
+      {
+        { id = "cue_in",      title = "VOCALIST CUE SYNC", hp = 16, row = 1, category = "MOD" },
+        { id = "crt_display", title = "GREEN CRT TERMINAL", hp = 16, row = 1, category = "FX" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "modulation" },
     }
   }
 end

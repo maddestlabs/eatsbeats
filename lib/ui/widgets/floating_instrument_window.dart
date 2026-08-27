@@ -116,58 +116,63 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
         child: Column(
           children: [
             // --- TOP TITLE BAR (DRAGGABLE WINDOW HEADER) ---
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onPanUpdate: (details) {
-                widget.dawState.updateFloatingWindowPosition(details.delta, parentBounds: wsBounds);
-              },
-              onDoubleTap: () {
-                if (isMaximized) {
-                  widget.dawState.fitFloatingWindowToWorkspace(wsBounds, effectiveTrack);
-                } else {
-                  widget.dawState.toggleMaximizeFloatingWindow(wsBounds);
-                }
-              },
-              child: Container(
-                height: 38,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                decoration: BoxDecoration(
-                  color: isGrungy ? const Color(0xFF2B241E) : EatsTheme.panelHeader,
-                  border: Border(
-                    bottom: BorderSide(color: accentColor.withOpacity(0.4), width: 1.2),
-                  ),
+            Container(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: isGrungy ? const Color(0xFF2B241E) : EatsTheme.panelHeader,
+                border: Border(
+                  bottom: BorderSide(color: accentColor.withOpacity(0.4), width: 1.2),
                 ),
-                child: Row(
-                  children: [
-                    // Track Color Dot
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: accentColor,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(color: accentColor.withOpacity(0.8), blurRadius: 5),
+              ),
+              child: Row(
+                children: [
+                  // Track Color Dot & Title Area (Draggable Window Header)
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onPanUpdate: (details) {
+                        widget.dawState.updateFloatingWindowPosition(details.delta, parentBounds: wsBounds);
+                      },
+                      onDoubleTap: () {
+                        if (isMaximized) {
+                          widget.dawState.fitFloatingWindowToWorkspace(wsBounds, effectiveTrack);
+                        } else {
+                          widget.dawState.toggleMaximizeFloatingWindow(wsBounds);
+                        }
+                      },
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: accentColor,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(color: accentColor.withOpacity(0.8), blurRadius: 5),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Tooltip(
+                              message: subtitleText,
+                              child: Text(
+                                titleText,
+                                style: EatsTheme.getPrimaryFontStyle(
+                                  color: EatsTheme.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-
-                    // Script-provided Window Title with Subtitle on Hover Tooltip
-                    Expanded(
-                      child: Tooltip(
-                        message: subtitleText,
-                        child: Text(
-                          titleText,
-                          style: EatsTheme.getPrimaryFontStyle(
-                            color: EatsTheme.textPrimary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
+                  ),
 
                     // Preset Update Available Button in Titlebar
                     if (hasUpgrade) ...[
@@ -229,7 +234,8 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                     // Fill Workspace / Fullscreen Mode Toggle
                     Tooltip(
                       message: isMaximized ? 'Restore Window Size' : 'Fill Workspace (Fullscreen)',
-                      child: InkWell(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: () => widget.dawState.toggleMaximizeFloatingWindow(wsBounds),
                         child: Container(
                           padding: const EdgeInsets.all(4),
@@ -252,7 +258,8 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                     // Open Code Editor Button
                     Tooltip(
                       message: 'Open in Script Editor (Tab 5)',
-                      child: InkWell(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: () {
                           if (isFxMode && fxInsert != null && fxParentTrack != null) {
                             final target = ScriptTarget(
@@ -268,9 +275,16 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                             widget.dawState.openScriptInEditor(target);
                             widget.dawState.closeFloatingInstrumentWindow();
                           } else {
-                            final idx = widget.dawState.activePattern.tracks.indexOf(effectiveTrack);
-                            if (idx != -1) widget.dawState.activeTrackIndex = idx;
-                            widget.dawState.activeTabIndex = 4;
+                            final target = ScriptTarget(
+                              id: 'track_${effectiveTrack.id}_dsp',
+                              type: ScriptTargetType.trackDsp,
+                              title: '${effectiveTrack.name} (Synth DSP)',
+                              subtitle: effectiveTrack.luaScriptCode.isNotEmpty ? 'Custom Lua Synth / DSP' : 'Instrument DSP Script',
+                              trackId: effectiveTrack.id,
+                              trackName: effectiveTrack.name,
+                              trackColor: effectiveTrack.color,
+                            );
+                            widget.dawState.openScriptInEditor(target);
                             widget.dawState.closeFloatingInstrumentWindow();
                           }
                         },
@@ -294,7 +308,6 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                   ],
                 ),
               ),
-            ),
 
             // --- WINDOW BODY (PROPORTIONALLY SCALED 1:1 TO FIT FLUSH WITH 0 PADDING) ---
             Expanded(

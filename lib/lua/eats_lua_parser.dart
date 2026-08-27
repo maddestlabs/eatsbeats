@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'lua_preset_library.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../models/chord_model.dart';
@@ -184,19 +185,7 @@ class EatsLuaParser {
       for (final f in rawMasterFx) {
         if (f is Map) {
           final fMap = Map<String, dynamic>.from(f);
-          dawState.masterTrack.fxRack.add(FXInsert(
-            id: fMap['id'] ?? 'fx_${dawState.masterTrack.fxRack.length}',
-            name: fMap['name'] ?? 'FX',
-            type: FXType.values.firstWhere((e) => e.name == fMap['type'], orElse: () => FXType.biquadFilter),
-            enabled: _parseBool(fMap['enabled'], true),
-            mix: (fMap['mix'] as num?)?.toDouble() ?? 1.0,
-            params: fMap['params'] is Map
-                ? Map<String, double>.from(
-                    (fMap['params'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
-                  )
-                : {},
-            irSampleName: fMap['irSampleName'] as String?,
-          ));
+          dawState.masterTrack.fxRack.add(_parseFxInsert(fMap, dawState.masterTrack.fxRack.length));
         }
       }
       dawState.audioEngine.updateMasterFx(dawState.masterTrack.fxRack);
@@ -204,6 +193,107 @@ class EatsLuaParser {
 
     dawState.notifyState();
     return title;
+  }
+
+  static FXInsert _parseFxInsert(Map<String, dynamic> fMap, int fallbackIndex) {
+    final fxName = fMap['name']?.toString() ?? 'FX';
+    final fxType = FXType.values.firstWhere((e) => e.name == fMap['type'], orElse: () => FXType.biquadFilter);
+    var luaScript = fMap['luaScriptCode'] as String?;
+    var presetId = fMap['presetId'] as String?;
+    final irSampleName = fMap['irSampleName'] as String?;
+    final luaParams = fMap['luaParams'] is Map
+        ? Map<String, double>.from((fMap['luaParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())))
+        : <String, double>{};
+    final params = fMap['params'] is Map
+        ? Map<String, double>.from((fMap['params'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())))
+        : <String, double>{};
+
+    // If luaScript is not provided in file, look up matching Audio FX in LuaPresetLibrary
+    if (luaScript == null || luaScript.trim().isEmpty) {
+      LuaPreset? match;
+      if (presetId != null && presetId.isNotEmpty) {
+        match = LuaPresetLibrary.getPresetById(presetId);
+      }
+      if (match == null) {
+        final lowerName = fxName.toLowerCase();
+        final lowerId = (fMap['id']?.toString() ?? '').toLowerCase();
+        if (lowerName.contains('room') || lowerName.contains('room designer') || lowerId.contains('room')) {
+          match = LuaPresetLibrary.getPresetById('room_designer');
+        } else if (lowerName.contains('cab') || lowerName.contains('cabinet') || lowerName.contains('cab designer') || lowerId.contains('cab')) {
+          match = LuaPresetLibrary.getPresetById('cab_designer');
+        } else if (lowerName.contains('conv') || lowerName.contains('convolution') || lowerId.contains('conv')) {
+          match = LuaPresetLibrary.getPresetById('convolution_reverb');
+        } else if (lowerName.contains('crush') || lowerName.contains('bitcrush') || lowerName.contains('8-bit') || lowerId.contains('crush')) {
+          match = LuaPresetLibrary.getPresetById('bitcrusher');
+        } else if (lowerName.contains('shaper') || lowerName.contains('waveshaper') || lowerId.contains('shaper')) {
+          match = LuaPresetLibrary.getPresetById('waveshaper');
+        } else if (lowerName.contains('delay') || lowerName.contains('stereo delay') || lowerId.contains('delay')) {
+          match = LuaPresetLibrary.getPresetById('stereo_delay');
+        } else if (lowerName.contains('lowpass') || lowerName.contains('filter') || lowerId.contains('filter')) {
+          match = LuaPresetLibrary.getPresetById('lowpass_filter');
+        } else if (lowerName.contains('limiter') || lowerId.contains('limiter')) {
+          match = LuaPresetLibrary.getPresetById('master_limiter');
+        } else if (lowerName.contains('compressor') || lowerId.contains('compressor')) {
+          match = LuaPresetLibrary.getPresetById('dynamics_compressor');
+        } else if (lowerName.contains('scope') || lowerName.contains('oscilloscope') || lowerId.contains('scope')) {
+          match = LuaPresetLibrary.getPresetById('eats_scope');
+        } else if (lowerName.contains('spectrum') || lowerName.contains('analyzer') || lowerId.contains('spectrum')) {
+          match = LuaPresetLibrary.getPresetById('eats_spectrum');
+        } else if (lowerName.contains('teleprompter') || lowerId.contains('teleprompter')) {
+          match = LuaPresetLibrary.getPresetById('retro_crt_teleprompter');
+        } else if (lowerName.contains('lyric') || lowerId.contains('lyric')) {
+          match = LuaPresetLibrary.getPresetById('kinetic_lyric_visualizer');
+        } else {
+          // Check by FXType enum fallback
+          switch (fxType) {
+            case FXType.bitcrusher:
+              match = LuaPresetLibrary.getPresetById('bitcrusher');
+              break;
+            case FXType.delay:
+              match = LuaPresetLibrary.getPresetById('stereo_delay');
+              break;
+            case FXType.convolutionReverb:
+              match = LuaPresetLibrary.getPresetById('convolution_reverb');
+              break;
+            case FXType.biquadFilter:
+              match = LuaPresetLibrary.getPresetById('lowpass_filter');
+              break;
+            case FXType.distortion:
+              match = LuaPresetLibrary.getPresetById('waveshaper');
+              break;
+            case FXType.limiter:
+              match = LuaPresetLibrary.getPresetById('master_limiter');
+              break;
+            case FXType.compressor:
+              match = LuaPresetLibrary.getPresetById('dynamics_compressor');
+              break;
+            default:
+              break;
+          }
+        }
+      }
+      if (match != null) {
+        luaScript = match.code;
+        presetId ??= match.id;
+      }
+    }
+
+    if (luaParams.isEmpty && params.isNotEmpty) {
+      luaParams.addAll(params);
+    }
+
+    return FXInsert(
+      id: fMap['id'] ?? 'fx_$fallbackIndex',
+      name: fxName,
+      type: fxType,
+      enabled: _parseBool(fMap['enabled'], true),
+      mix: (fMap['mix'] as num?)?.toDouble() ?? 0.5,
+      params: params,
+      irSampleName: irSampleName,
+      luaScriptCode: luaScript,
+      presetId: presetId,
+      luaParams: luaParams,
+    );
   }
 
   static bool _parseBool(dynamic val, [bool fallback = false]) {
@@ -333,16 +423,7 @@ class EatsLuaParser {
       for (final f in rawFx) {
         if (f is Map) {
           final fMap = Map<String, dynamic>.from(f);
-          fxRack.add(FXInsert(
-            id: fMap['id'] ?? 'fx_${fxRack.length}',
-            name: fMap['name'] ?? 'FX',
-            type: FXType.values.firstWhere((e) => e.name == fMap['type'], orElse: () => FXType.biquadFilter),
-            enabled: _parseBool(fMap['enabled'], true),
-            mix: (fMap['mix'] as num?)?.toDouble() ?? 0.5,
-            params: fMap['params'] is Map ? Map<String, double>.from(
-              (fMap['params'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
-            ) : {},
-          ));
+          fxRack.add(_parseFxInsert(fMap, fxRack.length));
         }
       }
     }

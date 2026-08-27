@@ -354,11 +354,26 @@ class _DawMainShellState extends State<DawMainShell> {
                             child: IndexedStack(
                               index: widget.dawState.activeTabIndex,
                               children: [
-                                ArrangerView(dawState: widget.dawState),
-                                EditView(dawState: widget.dawState),
-                                TrackInspectorView(dawState: widget.dawState),
-                                MixerView(dawState: widget.dawState),
-                                LuaWorkbenchView(dawState: widget.dawState),
+                                TickerMode(
+                                  enabled: widget.dawState.activeTabIndex == 0,
+                                  child: ArrangerView(dawState: widget.dawState),
+                                ),
+                                TickerMode(
+                                  enabled: widget.dawState.activeTabIndex == 1,
+                                  child: EditView(dawState: widget.dawState),
+                                ),
+                                TickerMode(
+                                  enabled: widget.dawState.activeTabIndex == 2,
+                                  child: TrackInspectorView(dawState: widget.dawState),
+                                ),
+                                TickerMode(
+                                  enabled: widget.dawState.activeTabIndex == 3,
+                                  child: MixerView(dawState: widget.dawState),
+                                ),
+                                TickerMode(
+                                  enabled: widget.dawState.activeTabIndex == 4,
+                                  child: LuaWorkbenchView(dawState: widget.dawState),
+                                ),
                               ],
                             ),
                           ),

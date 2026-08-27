@@ -12,6 +12,7 @@ class GlowingNixieDisplay extends StatelessWidget {
   final double fontSize;
   final double? width;
   final double? height;
+  final bool showLabel;
   final bool centerLabel;
   final String? tooltip;
   final VoidCallback? onTap;
@@ -28,6 +29,7 @@ class GlowingNixieDisplay extends StatelessWidget {
     this.fontSize = 18.0,
     this.width,
     this.height,
+    this.showLabel = true,
     this.centerLabel = false,
     this.tooltip,
     this.onTap,
@@ -41,7 +43,7 @@ class GlowingNixieDisplay extends StatelessWidget {
     final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
     final amberGlow = glowColor ?? EatsTheme.tempoGlowColor;
 
-    final hasLabel = label.trim().isNotEmpty;
+    final hasLabel = label.trim().isNotEmpty && showLabel;
     final displayBox = Container(
       width: width,
       height: height,

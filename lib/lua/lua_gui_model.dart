@@ -19,6 +19,8 @@ enum LuaGuiNodeType {
   canvas,
   spaceVisualizer,
   waveshaperCanvas,
+  oscilloscope,
+  spectrum,
   dpad,
   gamepad,
   unknown,
@@ -55,19 +57,22 @@ class LuaGuiNode {
   final Color? accentColor;
   final List<String> options;
   final String orientation; // 'horizontal' or 'vertical'
-  final String align; // 'space_around', 'space_between', 'center', 'start', 'end'
+  final String align; // 'space_around', 'space_between', 'center', 'left', 'right', 'top', 'bottom', 'start', 'end'
+  final String crossAlign; // 'center', 'top', 'bottom', 'left', 'right', 'start', 'end', 'stretch'
   final String? leftText;
   final String? rightText;
   final String? text;
   final String? action;
   final KnobStyle knobStyle;
   final SliderStyle sliderStyle;
-  final String canvasMode; // 'pixel', 'vector', 'grid'
+  final String canvasMode; // 'pixel', 'vector', 'grid', 'custom'
   final int cols;
   final int rows;
   final double scale;
   final bool showDpad;
   final bool showActionButtons;
+  final bool showLabel;
+  final bool showValue;
   final List<Color> palette;
   final List<LuaGuiNode> children;
 
@@ -83,6 +88,7 @@ class LuaGuiNode {
     this.options = const [],
     this.orientation = 'vertical',
     this.align = 'space_around',
+    this.crossAlign = 'center',
     this.leftText,
     this.rightText,
     this.text,
@@ -95,6 +101,8 @@ class LuaGuiNode {
     this.scale = 1.0,
     this.showDpad = false,
     this.showActionButtons = false,
+    this.showLabel = true,
+    this.showValue = true,
     this.palette = const [],
     this.children = const [],
   });
@@ -151,6 +159,17 @@ class LuaGuiNode {
       case 'shapercanvas':
       case 'transfercanvas':
         return LuaGuiNodeType.waveshaperCanvas;
+      case 'oscilloscope':
+      case 'scope':
+      case 'waveform':
+      case 'wavevisualizer':
+      case 'eatsscope':
+        return LuaGuiNodeType.oscilloscope;
+      case 'spectrum':
+      case 'fft':
+      case 'spectrumanalyzer':
+      case 'eatsspectrum':
+        return LuaGuiNodeType.spectrum;
       case 'canvas':
       case 'gamecanvas':
       case 'screen':
@@ -225,6 +244,9 @@ class LuaGuiNode {
   static PanelBackgroundStyle parseBackgroundStyle(String? raw) {
     if (raw == null) return PanelBackgroundStyle.dark;
     final clean = raw.toLowerCase().trim();
+    if (clean.startsWith('#') || clean.contains('custom') || clean.startsWith('0x') || clean.startsWith('rgba')) {
+      return PanelBackgroundStyle.custom;
+    }
     if (clean.contains('snes') || clean.contains('famicom') || clean.contains('offwhite') || clean.contains('console') || clean.contains('beige')) {
       return PanelBackgroundStyle.snes;
     }

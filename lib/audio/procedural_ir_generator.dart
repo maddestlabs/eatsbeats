@@ -121,6 +121,8 @@ class AcousticSpaceParams {
   final double micAngleDeg; // 0 to 90 degrees off-axis
   final bool isOpenBack;    // dipole cancellation for open combo cabs
 
+  final double stereoWidth; // meters (ear or mic spacing, default 0.20m)
+
   const AcousticSpaceParams({
     required this.name,
     this.width = 8.0,
@@ -139,6 +141,7 @@ class AcousticSpaceParams {
     this.micDistance = 0.05,
     this.micAngleDeg = 0.0,
     this.isOpenBack = false,
+    this.stereoWidth = 0.20,
   });
 
   AcousticSpaceParams copyWith({
@@ -159,6 +162,7 @@ class AcousticSpaceParams {
     double? micDistance,
     double? micAngleDeg,
     bool? isOpenBack,
+    double? stereoWidth,
   }) {
     return AcousticSpaceParams(
       name: name ?? this.name,
@@ -178,6 +182,7 @@ class AcousticSpaceParams {
       micDistance: micDistance ?? this.micDistance,
       micAngleDeg: micAngleDeg ?? this.micAngleDeg,
       isOpenBack: isOpenBack ?? this.isOpenBack,
+      stereoWidth: stereoWidth ?? this.stereoWidth,
     );
   }
 
@@ -199,6 +204,7 @@ class AcousticSpaceParams {
     'micDistance': micDistance,
     'micAngleDeg': micAngleDeg,
     'isOpenBack': isOpenBack,
+    'stereoWidth': stereoWidth,
   };
 
   factory AcousticSpaceParams.fromJson(Map<String, dynamic> json) {
@@ -220,6 +226,7 @@ class AcousticSpaceParams {
       micDistance: (json['micDistance'] as num?)?.toDouble() ?? 0.05,
       micAngleDeg: (json['micAngleDeg'] as num?)?.toDouble() ?? 0.0,
       isOpenBack: json['isOpenBack'] as bool? ?? false,
+      stereoWidth: (json['stereoWidth'] as num?)?.toDouble() ?? 0.20,
     );
   }
 }
@@ -383,26 +390,37 @@ class ProceduralIRGenerator {
 
   /// Generates a synthesized Impulse Response PCM buffer (`List<double>`) from acoustic parameters.
   static List<double> generate(AcousticSpaceParams p, {int sampleRate = 44100}) {
+    final stereo = generateStereo(p, sampleRate: sampleRate);
+    return stereo.left;
+  }
+
+  /// Generates a true stereo pair of synthesized Impulse Response buffers (`left` and `right`).
+  static ({List<double> left, List<double> right}) generateStereo(AcousticSpaceParams p, {int sampleRate = 44100}) {
     if (p.isCabinetMode) {
-      return _generateCabinetIR(p, sampleRate: sampleRate);
+      return _generateCabinetIRStereo(p, sampleRate: sampleRate);
     } else {
-      return _generateRoomIR(p, sampleRate: sampleRate);
+      return _generateRoomIRStereo(p, sampleRate: sampleRate);
     }
   }
 
-  /// Synthesizes room impulse responses using ISM early reflections + Velvet Noise late tail.
-  static List<double> _generateRoomIR(AcousticSpaceParams p, {required int sampleRate}) {
+  /// Synthesizes binaural room impulse responses using dual-ear ISM early reflections + decorrelated Velvet Noise.
+  static ({List<double> left, List<double> right}) _generateRoomIRStereo(AcousticSpaceParams p, {required int sampleRate}) {
     final totalSamples = math.max(512, (p.rt60 * sampleRate).toInt());
-    final ir = List<double>.filled(totalSamples, 0.0);
+    final irL = List<double>.filled(totalSamples, 0.0);
+    final irR = List<double>.filled(totalSamples, 0.0);
     final mat = AcousticMaterial.get(p.material);
 
-    final sx = p.sourceX * p.width;
-    final sy = p.sourceY * p.length;
-    final sz = p.sourceZ * p.height;
+    final sx = (p.sourceX * p.width).clamp(0.01, p.width - 0.01);
+    final sy = (p.sourceY * p.length).clamp(0.01, p.length - 0.01);
+    final sz = (p.sourceZ * p.height).clamp(0.01, p.height - 0.01);
 
-    final rx = p.listenerX * p.width;
-    final ry = p.listenerY * p.length;
-    final rz = p.listenerZ * p.height;
+    final earOffset = (p.stereoWidth * 0.5).clamp(0.02, p.width * 0.4);
+    final rxCenter = (p.listenerX * p.width).clamp(0.05, p.width - 0.05);
+    final ry = (p.listenerY * p.length).clamp(0.01, p.length - 0.01);
+    final rz = (p.listenerZ * p.height).clamp(0.01, p.height - 0.01);
+
+    final rxL = (rxCenter - earOffset).clamp(0.01, p.width - 0.01);
+    final rxR = (rxCenter + earOffset).clamp(0.01, p.width - 0.01);
 
     // --- Phase A: Early Reflections (Image Source Method, Order <= 3) ---
     const order = 3;
@@ -419,77 +437,99 @@ class ProceduralIRGenerator {
           final iy = (v.isEven ? v * p.length + sy : v * p.length + (p.length - sy));
           final iz = (w.isEven ? w * p.height + sz : w * p.height + (p.height - sz));
 
-          final dx = ix - rx;
-          final dy = iy - ry;
-          final dz = iz - rz;
-          final dist = math.sqrt(dx * dx + dy * dy + dz * dz);
+          final bounces = u.abs() + v.abs() + w.abs();
+          final sign = (bounces % 2 == 0) ? 1.0 : -1.0;
+          final bounceAtten = math.pow(avgReflect * userDampFactor, bounces);
 
-          final delaySec = dist / speedOfSound;
-          final delaySamples = (delaySec * sampleRate).toInt();
+          // Left Ear Ray
+          final dxL = ix - rxL;
+          final dyL = iy - ry;
+          final dzL = iz - rz;
+          final distL = math.sqrt(dxL * dxL + dyL * dyL + dzL * dzL);
+          final delaySamplesL = (distL / speedOfSound * sampleRate).toInt();
+          if (delaySamplesL < totalSamples) {
+            final attenL = (1.0 / (distL + 1.0)) * bounceAtten;
+            irL[delaySamplesL] += (sign * attenL).toDouble();
+          }
 
-          if (delaySamples < totalSamples) {
-            final bounces = u.abs() + v.abs() + w.abs();
-            final attenuation = (1.0 / (dist + 1.0)) * math.pow(avgReflect * userDampFactor, bounces);
-            final sign = (bounces % 2 == 0) ? 1.0 : -1.0;
-            ir[delaySamples] += (sign * attenuation).toDouble();
+          // Right Ear Ray
+          final dxR = ix - rxR;
+          final dyR = iy - ry;
+          final dzR = iz - rz;
+          final distR = math.sqrt(dxR * dxR + dyR * dyR + dzR * dzR);
+          final delaySamplesR = (distR / speedOfSound * sampleRate).toInt();
+          if (delaySamplesR < totalSamples) {
+            final attenR = (1.0 / (distR + 1.0)) * bounceAtten;
+            irR[delaySamplesR] += (sign * attenR).toDouble();
           }
         }
       }
     }
 
-    // Direct Arrival Spike
-    final directDist = math.sqrt(math.pow(sx - rx, 2) + math.pow(sy - ry, 2) + math.pow(sz - rz, 2));
-    final directDelay = (directDist / speedOfSound * sampleRate).toInt().clamp(0, totalSamples - 1);
-    ir[directDelay] += 1.0 / (directDist + 1.0);
+    // Direct Arrival Spikes for Left and Right Ears
+    final directDistL = math.sqrt(math.pow(sx - rxL, 2) + math.pow(sy - ry, 2) + math.pow(sz - rz, 2));
+    final directDelayL = (directDistL / speedOfSound * sampleRate).toInt().clamp(0, totalSamples - 1);
+    irL[directDelayL] += 1.0 / (directDistL + 1.0);
 
-    // --- Phase B: Velvet Noise Late Diffuse Tail ---
+    final directDistR = math.sqrt(math.pow(sx - rxR, 2) + math.pow(sy - ry, 2) + math.pow(sz - rz, 2));
+    final directDelayR = (directDistR / speedOfSound * sampleRate).toInt().clamp(0, totalSamples - 1);
+    irR[directDelayR] += 1.0 / (directDistR + 1.0);
+
+    // --- Phase B: Dual-Seed Velvet Noise Late Diffuse Tail (Stereo Decorrelation) ---
     final decayCoeff = 6.907755 / (p.rt60 * sampleRate); // ln(1000) / (rt60 * fs)
     const velvetGrid = 4; // Dense ternary pulse grid
-    final rng = math.Random(1337);
+    final rngL = math.Random(1337);
+    final rngR = math.Random(7331); // Decorrelated seed for Right Channel
 
-    // 1-pole Lowpass Filter for frequency-dependent material damping
     final lpAlpha = (1.0 - (p.damping * 0.6 + mat.alphaHigh * 0.3)).clamp(0.05, 0.98);
-    double lpState = 0.0;
+    double lpStateL = 0.0;
+    double lpStateR = 0.0;
 
     for (int n = 0; n < totalSamples; n++) {
       final env = math.exp(-decayCoeff * n);
 
-      // Sparse ternary pulse in velvet noise
-      double pulse = 0.0;
+      // Left Channel Pulse
+      double pulseL = 0.0;
       if (n % velvetGrid == 0) {
-        final r = rng.nextInt(3); // 0, 1, 2
-        pulse = (r == 1) ? 1.0 : (r == 2) ? -1.0 : 0.0;
+        final r = rngL.nextInt(3);
+        pulseL = (r == 1) ? 1.0 : (r == 2) ? -1.0 : 0.0;
       }
+      lpStateL = (1.0 - lpAlpha) * (pulseL * env) + lpAlpha * lpStateL;
+      irL[n] += lpStateL * 0.35;
 
-      lpState = (1.0 - lpAlpha) * (pulse * env) + lpAlpha * lpState;
-      ir[n] += lpState * 0.35;
+      // Right Channel Pulse
+      double pulseR = 0.0;
+      if (n % velvetGrid == 0) {
+        final r = rngR.nextInt(3);
+        pulseR = (r == 1) ? 1.0 : (r == 2) ? -1.0 : 0.0;
+      }
+      lpStateR = (1.0 - lpAlpha) * (pulseR * env) + lpAlpha * lpStateR;
+      irR[n] += lpStateR * 0.35;
     }
 
-    // --- Phase C: Peak Normalization ---
-    return _normalize(ir);
+    // --- Phase C: Peak Normalization across both stereo channels ---
+    _normalizeStereo(irL, irR);
+    return (left: irL, right: irR);
   }
 
-  /// Synthesizes tight-space amp cabinet impulse responses with speaker driver transfer curve,
-  /// standing wave modal comb filtering, mic off-axis shading, and open/closed dipole cancellation.
-  static List<double> _generateCabinetIR(AcousticSpaceParams p, {required int sampleRate}) {
-    // Cabinets have short impulse responses (20ms to 50ms)
+  /// Synthesizes tight-space amp cabinet stereo impulse responses.
+  static ({List<double> left, List<double> right}) _generateCabinetIRStereo(AcousticSpaceParams p, {required int sampleRate}) {
     final totalSamples = math.max(256, (p.rt60.clamp(0.015, 0.08) * sampleRate).toInt());
-    final ir = List<double>.filled(totalSamples, 0.0);
+    final irL = List<double>.filled(totalSamples, 0.0);
+    final irR = List<double>.filled(totalSamples, 0.0);
 
-    // 1. Speaker Driver Transfer Function (Impulse Response of Speaker Cone)
-    // Guitar speaker profiles: Resonant Bass bump (~85Hz), High-Cut (~5kHz), Presence peak (~3.2kHz)
     final bassFreq = p.name.contains('Bass') ? 55.0 : 85.0;
     final highCutFreq = p.name.contains('Radio') ? 3500.0 : 5000.0;
     final presenceFreq = 3200.0;
 
-    // Angle off-axis directivity damping (higher angle = softer treble)
-    final angleRad = (p.micAngleDeg.clamp(0.0, 90.0)) * (math.pi / 180.0);
-    final offAxisHighDamping = math.cos(angleRad).clamp(0.2, 1.0);
+    final angleRadL = (p.micAngleDeg.clamp(0.0, 90.0)) * (math.pi / 180.0);
+    final angleRadR = ((p.micAngleDeg + 8.0).clamp(0.0, 90.0)) * (math.pi / 180.0);
+    final offAxisHighDampingL = math.cos(angleRadL).clamp(0.2, 1.0);
+    final offAxisHighDampingR = math.cos(angleRadR).clamp(0.2, 1.0);
 
-    // Initial speaker excitation impulse
-    ir[0] = 1.0;
+    irL[0] = 1.0;
+    irR[0] = 1.0;
 
-    // 2. Sub-Meter Enclosure Image Source Reflections (Internal box resonances)
     final enclosureDims = [p.width, p.length, p.height];
     final mat = AcousticMaterial.get(p.material);
     final boxReflect = 1.0 - ((mat.alphaLow + mat.alphaMid) / 2.0);
@@ -500,39 +540,68 @@ class ProceduralIRGenerator {
       final roundTripSamples = (roundTripTime * sampleRate).toInt();
 
       if (roundTripSamples > 0 && roundTripSamples < totalSamples) {
-        // Enclosure standing wave bounce
-        ir[roundTripSamples] += 0.45 * boxReflect;
+        irL[roundTripSamples] += 0.45 * boxReflect;
+        irR[roundTripSamples] += 0.42 * boxReflect;
         if (roundTripSamples * 2 < totalSamples) {
-          ir[roundTripSamples * 2] -= 0.25 * boxReflect * boxReflect;
+          irL[roundTripSamples * 2] -= 0.25 * boxReflect * boxReflect;
+          irR[roundTripSamples * 2] -= 0.23 * boxReflect * boxReflect;
         }
       }
     }
 
-    // 3. Open-Back Dipole Cancellation (Phase-inverted rear wave)
     if (p.isOpenBack) {
       final rearPathDist = p.length + p.micDistance;
       final rearDelaySamples = (rearPathDist / speedOfSound * sampleRate).toInt();
       if (rearDelaySamples < totalSamples) {
-        ir[rearDelaySamples] -= 0.65; // Out-of-phase rear sound
+        irL[rearDelaySamples] -= 0.65;
+        irR[rearDelaySamples] -= 0.60;
       }
     }
 
-    // 4. Cascade Speaker Cone Bandpass & Presence Filters across the IR
-    final filtered = _applySpeakerFilter(
-      ir,
+    final filteredL = _applySpeakerFilter(
+      irL,
       sampleRate: sampleRate.toDouble(),
       bassFreq: bassFreq,
       presenceFreq: presenceFreq,
-      highCutFreq: highCutFreq * offAxisHighDamping,
+      highCutFreq: highCutFreq * offAxisHighDampingL,
     );
 
-    // 5. Exponential decay envelope to prevent truncation clicks
-    for (int i = 0; i < filtered.length; i++) {
+    final filteredR = _applySpeakerFilter(
+      irR,
+      sampleRate: sampleRate.toDouble(),
+      bassFreq: bassFreq * 1.02,
+      presenceFreq: presenceFreq * 0.98,
+      highCutFreq: highCutFreq * offAxisHighDampingR,
+    );
+
+    for (int i = 0; i < filteredL.length; i++) {
       final decay = math.exp(-i / (totalSamples * 0.4));
-      filtered[i] *= decay;
+      filteredL[i] *= decay;
+      filteredR[i] *= decay;
     }
 
-    return _normalize(filtered);
+    _normalizeStereo(filteredL, filteredR);
+    return (left: filteredL, right: filteredR);
+  }
+
+  static void _normalizeStereo(List<double> left, List<double> right) {
+    double peak = 0.0;
+    for (final s in left) {
+      final abs = s.abs();
+      if (abs > peak) peak = abs;
+    }
+    for (final s in right) {
+      final abs = s.abs();
+      if (abs > peak) peak = abs;
+    }
+
+    if (peak > 1e-6) {
+      final gain = 0.95 / peak;
+      for (int i = 0; i < left.length; i++) {
+        left[i] *= gain;
+        right[i] *= gain;
+      }
+    }
   }
 
   /// Digital Biquad filter chain applying speaker cone physical impedance & frequency response.

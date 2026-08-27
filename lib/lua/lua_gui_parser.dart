@@ -141,6 +141,7 @@ class LuaGuiParser {
     final defaultOrientation = isExplicitHSlider ? 'horizontal' : (isExplicitVSlider ? 'vertical' : (type == LuaGuiNodeType.slider ? 'horizontal' : 'vertical'));
     final orientation = (m['orientation'] as String?) ?? defaultOrientation;
     final align = (m['align'] as String?) ?? 'space_around';
+    final crossAlign = (m['crossAlign'] as String?) ?? (m['crossAxisAlignment'] as String?) ?? 'center';
     final leftText = m['left'] as String? ?? m['leftText'] as String?;
     final rightText = m['right'] as String? ?? m['rightText'] as String?;
     final text = m['text'] as String?;
@@ -159,6 +160,8 @@ class LuaGuiParser {
     final scale = (m['scale'] as num?)?.toDouble() ?? 1.0;
     final showDpad = (m['showDpad'] == true) || (m['dpad'] == true) || (m['touchControls'] == true);
     final showActionButtons = (m['showActionButtons'] == true) || (m['gamepad'] == true) || (m['buttons'] == true);
+    final showLabel = m['showLabel'] == false || m['hideLabel'] == true ? false : true;
+    final showValue = m['showValue'] == false || m['hideValue'] == true ? false : true;
 
     List<Color> palette = [];
     final rawPalette = m['palette'] ?? m['colors'];
@@ -195,6 +198,7 @@ class LuaGuiParser {
       options: options,
       orientation: orientation,
       align: align,
+      crossAlign: crossAlign,
       leftText: leftText,
       rightText: rightText,
       text: text,
@@ -207,6 +211,8 @@ class LuaGuiParser {
       scale: scale,
       showDpad: showDpad,
       showActionButtons: showActionButtons,
+      showLabel: showLabel,
+      showValue: showValue,
       palette: palette,
       children: children,
     );

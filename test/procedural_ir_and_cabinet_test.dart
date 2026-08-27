@@ -165,7 +165,7 @@ void main() {
         ),
       );
 
-      expect(find.text('ROOM ACOUSTICS'), findsOneWidget);
+      expect(find.text('ROOM'), findsOneWidget);
       expect(find.text('Source'), findsOneWidget);
       expect(find.text('Listener'), findsOneWidget);
       expect(find.byType(CustomPaint), findsWidgets);
@@ -196,7 +196,7 @@ void main() {
           ),
         ),
       );
-      expect(find.text('AMP CABINET'), findsOneWidget);
+      expect(find.text('CAB'), findsOneWidget);
       expect(find.text('Source'), findsOneWidget);
       expect(find.text('Mic'), findsOneWidget);
       expect(find.text('18mm Birch Plywood (Cab)'), findsOneWidget);
@@ -249,6 +249,71 @@ void main() {
       state.updateFXParam(track, cabFx.id, 'Width', 0.85);
       expect(cabFx.params['Width'], equals(0.85));
       expect(cabFx.irSampleName, contains('Cab:'));
+
+      // Serialize to Lua and reload
+      final exportedLua = state.exportToEatsLua();
+      expect(exportedLua, contains('room_designer'));
+      expect(exportedLua, contains('cab_designer'));
+
+      final reloadedState = DawState();
+      reloadedState.loadFromEatsLua(exportedLua);
+      final reloadedTrack = reloadedState.activeTrack;
+      expect(reloadedTrack.fxRack.length, equals(2));
+
+      final reloadedRoom = reloadedTrack.fxRack.first;
+      expect(reloadedRoom.luaScriptCode, isNotNull);
+      expect(reloadedRoom.luaScriptCode!.isNotEmpty, isTrue);
+      expect(reloadedRoom.presetId, equals('room_designer'));
+
+      final reloadedCab = reloadedTrack.fxRack.last;
+      expect(reloadedCab.luaScriptCode, isNotNull);
+      expect(reloadedCab.luaScriptCode!.isNotEmpty, isTrue);
+      expect(reloadedCab.presetId, equals('cab_designer'));
+    });
+
+    test('True Stereo IR generation produces decorrelated binaural Left and Right channels', () {
+      const space = AcousticSpaceParams(
+        name: 'Stereo Cathedral',
+        width: 15.0,
+        length: 25.0,
+        height: 8.0,
+        sourceX: 0.3, // Off-center to the left
+        sourceY: 0.5,
+        sourceZ: 0.5,
+        listenerX: 0.5,
+        listenerY: 0.8,
+        listenerZ: 0.5,
+        stereoWidth: 0.20,
+        rt60: 1.5,
+      );
+
+      final stereo = ProceduralIRGenerator.generateStereo(space, sampleRate: 44100);
+
+      expect(stereo.left.length, equals(stereo.right.length));
+      expect(stereo.left.isNotEmpty, isTrue);
+
+      // Left and Right channels must be decorrelated (not identical mono copies)
+      bool channelsAreDistinct = false;
+      for (int i = 0; i < stereo.left.length; i++) {
+        if ((stereo.left[i] - stereo.right[i]).abs() > 0.001) {
+          channelsAreDistinct = true;
+          break;
+        }
+      }
+      expect(channelsAreDistinct, isTrue, reason: 'Left and Right channels should have binaural stereo decorrelation');
+    });
+
+    test('Convolution Reverb preset includes 3D positioning parameters and space visualizer', () {
+      final convPreset = LuaPresetLibrary.getPresetById('convolution_reverb')!;
+      expect(convPreset.code, contains('SourceX'));
+      expect(convPreset.code, contains('SourceY'));
+      expect(convPreset.code, contains('SourceZ'));
+      expect(convPreset.code, contains('ListenerX'));
+      expect(convPreset.code, contains('ListenerY'));
+      expect(convPreset.code, contains('ListenerZ'));
+      expect(convPreset.code, contains('StereoWidth'));
+      expect(convPreset.code, contains('space_visualizer'));
     });
   });
 }
+

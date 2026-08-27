@@ -27,6 +27,7 @@ import '../lua/lua_preset_library.dart';
 import '../lua/lua_script_library.dart';
 import '../lua/midi_pipeline_engine.dart';
 import '../lua/default_song.dart';
+import '../ui/modular/modular_rack_dsl.dart';
 import 'track_model.dart';
 import 'chord_model.dart';
 import 'history_manager.dart';
@@ -1129,6 +1130,10 @@ class DawState extends ChangeNotifier {
   int get currentBar => _currentBar;
   final ValueNotifier<int> currentBarNotifier = ValueNotifier<int>(0);
 
+  final ValueNotifier<double> leftPeakNotifier = ValueNotifier<double>(0.0);
+  final ValueNotifier<double> rightPeakNotifier = ValueNotifier<double>(0.0);
+  final ValueNotifier<double> cpuLoadNotifier = ValueNotifier<double>(0.02);
+
   double _masterVolume = 0.85;
   double get masterVolume => _masterVolume;
 
@@ -1175,14 +1180,73 @@ class DawState extends ChangeNotifier {
   }
 
   void loadFromEatsLua(String eatsLuaCode) {
+    if (isPlaying) {
+      stop();
+    }
+    audioEngine.clearChannelStrips();
+    LuaEngine.resetVoiceStates();
     history.pauseRecording();
     try {
       projectName = EatsLuaParser.populateDawState(this, eatsLuaCode);
       resetActiveIndices();
+
+      // Re-bake any procedural Room / Cabinet IRs across all tracks & master bus
+      for (final p in patterns) {
+        for (final track in p.tracks) {
+          for (final fx in track.fxRack) {
+            _rebakeProceduralIrIfNeeded(track, fx);
+          }
+        }
+      }
+      for (final fx in masterTrack.fxRack) {
+        _rebakeProceduralIrIfNeeded(masterTrack, fx);
+      }
     } finally {
       history.resumeRecording();
     }
     triggerAutoSave();
+  }
+
+  void _rebakeProceduralIrIfNeeded(TrackChannel track, FXInsert fx) {
+    final isRoom = fx.presetId == 'room_designer' || fx.name.toLowerCase().contains('room designer');
+    final isCab = fx.presetId == 'cab_designer' || fx.name.toLowerCase().contains('cab');
+    final isConv = fx.presetId == 'convolution_reverb' || fx.name.toLowerCase().contains('convolution') || fx.type == FXType.convolutionReverb;
+    if (isRoom || isCab || isConv) {
+      final basePresetName = fx.params['IRSample'] != null
+          ? () {
+              final all = ConvolverEngine.builtInIrNames;
+              final idx = fx.params['IRSample']!.toInt().clamp(0, all.length - 1);
+              return all.isNotEmpty ? all[idx] : 'Great Hall';
+            }()
+          : null;
+      final baseParams = basePresetName != null ? ProceduralIRGenerator.presets[basePresetName] : null;
+
+      final customName = fx.irSampleName ?? (isCab ? 'Cab: ${track.name}_${fx.id}' : (isRoom ? 'Room: ${track.name}_${fx.id}' : 'Conv: ${track.name}_${fx.id}'));
+      final matIdx = (fx.params['Material'] ?? (fx.luaParams['Material'] ?? (baseParams?.material.index.toDouble() ?? 0.0))).toInt().clamp(0, AcousticMaterialType.values.length - 1);
+      final spaceParams = AcousticSpaceParams(
+        name: customName,
+        width: fx.params['Width'] ?? (fx.luaParams['Width'] ?? (baseParams?.width ?? (isCab ? 0.76 : 12.0))),
+        length: fx.params['Length'] ?? (fx.luaParams['Length'] ?? (baseParams?.length ?? (isCab ? 0.76 : 15.0))),
+        height: fx.params['Height'] ?? (fx.luaParams['Height'] ?? (baseParams?.height ?? (isCab ? 0.36 : 4.0))),
+        sourceX: fx.params['SourceX'] ?? (fx.luaParams['SourceX'] ?? (baseParams?.sourceX ?? 0.5)),
+        sourceY: fx.params['SourceY'] ?? (fx.luaParams['SourceY'] ?? (baseParams?.sourceY ?? 0.5)),
+        sourceZ: fx.params['SourceZ'] ?? (fx.luaParams['SourceZ'] ?? (baseParams?.sourceZ ?? 0.5)),
+        listenerX: fx.params['ListenerX'] ?? (fx.luaParams['ListenerX'] ?? (baseParams?.listenerX ?? 0.5)),
+        listenerY: fx.params['ListenerY'] ?? (fx.luaParams['ListenerY'] ?? (baseParams?.listenerY ?? 0.8)),
+        listenerZ: fx.params['ListenerZ'] ?? (fx.luaParams['ListenerZ'] ?? (baseParams?.listenerZ ?? 0.5)),
+        stereoWidth: fx.params['StereoWidth'] ?? (fx.luaParams['StereoWidth'] ?? (baseParams?.stereoWidth ?? (isCab ? 0.08 : 0.20))),
+        material: AcousticMaterialType.values[matIdx],
+        rt60: isCab ? 0.035 : (fx.params['RT60'] ?? (fx.luaParams['RT60'] ?? (baseParams?.rt60 ?? 1.8))),
+        damping: fx.params['Damping'] ?? (fx.luaParams['Damping'] ?? (baseParams?.damping ?? (isCab ? 0.55 : 0.30))),
+        isCabinetMode: isCab,
+        micDistance: fx.params['MicDistance'] ?? (fx.luaParams['MicDistance'] ?? (baseParams?.micDistance ?? 0.05)),
+        micAngleDeg: fx.params['MicAngle'] ?? (fx.luaParams['MicAngle'] ?? (baseParams?.micAngleDeg ?? 0.0)),
+        isOpenBack: (fx.params['OpenBack'] ?? (fx.luaParams['OpenBack'] ?? (baseParams?.isOpenBack == true ? 1.0 : 0.0))) == 1.0,
+      );
+      ConvolverEngine.instance.bakeCustomSpace(spaceParams);
+      audioEngine.invalidateIrCache(customName);
+      fx.irSampleName = customName;
+    }
   }
 
   Timer? _playbackTimer;
@@ -1293,7 +1357,9 @@ class DawState extends ChangeNotifier {
     _meterTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
       if (_isPlaying || audioEngine.hasActiveMeterActivity) {
         audioEngine.updateMeters();
-        notifyListeners();
+        leftPeakNotifier.value = audioEngine.leftPeak;
+        rightPeakNotifier.value = audioEngine.rightPeak;
+        cpuLoadNotifier.value = audioEngine.cpuLoad;
       }
     });
   }
@@ -1314,6 +1380,9 @@ class DawState extends ChangeNotifier {
     currentStepNotifier.dispose();
     currentBarNotifier.dispose();
     arrangerStepNotifier.dispose();
+    leftPeakNotifier.dispose();
+    rightPeakNotifier.dispose();
+    cpuLoadNotifier.dispose();
     history.dispose();
     audioEngine.setMasterVolume(0.0);
     super.dispose();
@@ -1369,20 +1438,18 @@ class DawState extends ChangeNotifier {
 
       // 2. Track Audio FX Scripts
       for (final fx in track.fxRack) {
-        if (fx.luaScriptCode?.isNotEmpty ?? false) {
-          list.add(
-            ScriptTarget(
-              id: 'fx_${track.id}_${fx.id}',
-              type: ScriptTargetType.audioFx,
-              title: '${fx.name} (${track.name})',
-              subtitle: 'Audio FX Insert Module',
-              trackId: track.id,
-              trackName: track.name,
-              trackColor: track.color,
-              secondaryId: fx.id,
-            ),
-          );
-        }
+        list.add(
+          ScriptTarget(
+            id: 'fx_${track.id}_${fx.id}',
+            type: ScriptTargetType.audioFx,
+            title: '${fx.name} (${track.name})',
+            subtitle: 'Audio FX Insert Module',
+            trackId: track.id,
+            trackName: track.name,
+            trackColor: track.color,
+            secondaryId: fx.id,
+          ),
+        );
       }
 
       // 3. Track MIDI FX Modules
@@ -1421,20 +1488,18 @@ class DawState extends ChangeNotifier {
 
     // 5. Master Bus Audio FX Scripts
     for (final fx in masterTrack.fxRack) {
-      if (fx.luaScriptCode?.isNotEmpty ?? false) {
-        list.add(
-          ScriptTarget(
-            id: 'fx_${masterTrack.id}_${fx.id}',
-            type: ScriptTargetType.audioFx,
-            title: '${fx.name} (Master)',
-            subtitle: 'Master Bus Audio FX',
-            trackId: masterTrack.id,
-            trackName: masterTrack.name,
-            trackColor: masterTrack.color,
-            secondaryId: fx.id,
-          ),
-        );
-      }
+      list.add(
+        ScriptTarget(
+          id: 'fx_${masterTrack.id}_${fx.id}',
+          type: ScriptTargetType.audioFx,
+          title: '${fx.name} (Master)',
+          subtitle: 'Master Bus Audio FX',
+          trackId: masterTrack.id,
+          trackName: masterTrack.name,
+          trackColor: masterTrack.color,
+          secondaryId: fx.id,
+        ),
+      );
     }
     return list;
   }
@@ -1448,16 +1513,143 @@ class DawState extends ChangeNotifier {
     final track = _getTrackForScriptTarget(target);
     switch (target.type) {
       case ScriptTargetType.trackDsp:
-        return track.luaScriptCode;
+        if (track.luaScriptCode.isNotEmpty) {
+          final codeWithRack = ModularRackDsl.ensureRackBlock(track.luaScriptCode, trackName: track.name);
+          if (codeWithRack != track.luaScriptCode) {
+            track.luaScriptCode = codeWithRack;
+          }
+          return track.luaScriptCode;
+        }
+        final matchingPreset = LuaPresetLibrary.findMatchingPreset(track.luaScriptCode, fallbackName: track.name);
+        if (matchingPreset != null) {
+          final codeWithRack = ModularRackDsl.ensureRackBlock(matchingPreset.code, trackName: track.name);
+          track.luaScriptCode = codeWithRack;
+          return codeWithRack;
+        }
+        final defaultTrackCode = '''-- @name: ${track.name}
+-- @category: instrument
+-- @description: ${track.name} Synthesizer DSP
+local TrackSynth = {}
+
+function TrackSynth.init()
+  Param.add("Gain", 0.0, 1.0, 0.8)
+end
+
+function TrackSynth.gui()
+  return {
+    panel = {
+      title = "${track.name.toUpperCase()}",
+      subtitle = "Channel Synthesizer",
+      accent = "track",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Gain", label = "GAIN", size = 56 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return TrackSynth
+''';
+        final defaultWithRack = ModularRackDsl.ensureRackBlock(defaultTrackCode, trackName: track.name);
+        track.luaScriptCode = defaultWithRack;
+        return defaultWithRack;
+
       case ScriptTargetType.audioFx:
         final fx = track.fxRack.where((f) => f.id == target.secondaryId).firstOrNull;
-        return fx?.luaScriptCode ?? '';
+        if (fx != null) {
+          if (fx.luaScriptCode != null && fx.luaScriptCode!.isNotEmpty) {
+            return fx.luaScriptCode!;
+          }
+          final matchingPreset = LuaPresetLibrary.findMatchingPreset(fx.name, fallbackName: fx.name);
+          if (matchingPreset != null) {
+            fx.luaScriptCode = matchingPreset.code;
+            return matchingPreset.code;
+          }
+          final defaultFxCode = '''-- @name: ${fx.name}
+-- @category: audioFx
+-- @description: ${fx.name} DSP insert effect
+local FxModule = {}
+
+function FxModule.init()
+  Param.add("Mix", 0.0, 1.0, 1.0)
+end
+
+function FxModule.process(input_l, input_r, params)
+  return input_l, input_r
+end
+
+function FxModule.gui()
+  return {
+    panel = {
+      title = "${fx.name.toUpperCase()}",
+      subtitle = "Audio FX Insert",
+      accent = "magenta",
+      layout = {
+        {
+          type = "row",
+          children = {
+            { type = "knob", param = "Mix", label = "DRY/WET", size = 52 },
+          }
+        }
+      }
+    }
+  }
+end
+
+return FxModule
+''';
+          fx.luaScriptCode = defaultFxCode;
+          return defaultFxCode;
+        }
+        return '';
+
       case ScriptTargetType.midiFx:
         final mfx = track.midiFXRack.where((f) => f.id == target.secondaryId).firstOrNull;
-        return mfx?.luaScriptCode ?? '';
+        if (mfx != null) {
+          if (mfx.luaScriptCode != null && mfx.luaScriptCode!.isNotEmpty) {
+            return mfx.luaScriptCode!;
+          }
+          final matchingPreset = LuaPresetLibrary.findMatchingPreset(mfx.name, fallbackName: mfx.name);
+          if (matchingPreset != null) {
+            mfx.luaScriptCode = matchingPreset.code;
+            return matchingPreset.code;
+          }
+          final defaultMfxCode = '''-- @name: ${mfx.name}
+-- @category: midiFx
+-- @description: ${mfx.name} MIDI transformer
+local MidiFx = {}
+
+function MidiFx.init()
+  Param.add("Enabled", 0.0, 1.0, 1.0)
+end
+
+function MidiFx.process(notes, time_ctx)
+  return notes
+end
+
+return MidiFx
+''';
+          mfx.luaScriptCode = defaultMfxCode;
+          return defaultMfxCode;
+        }
+        return '';
+
       case ScriptTargetType.clipScript:
         final clip = track.clips.where((c) => c.id == target.secondaryId).firstOrNull;
-        return clip?.luaScriptCode ?? '';
+        if (clip != null) {
+          if (clip.luaScriptCode.isNotEmpty) {
+            return clip.luaScriptCode;
+          }
+          final serialized = MidiPipelineEngine.serializeNotesToLua(clip.notes);
+          clip.luaScriptCode = serialized;
+          return serialized;
+        }
+        return '';
     }
   }
 
@@ -1991,11 +2183,6 @@ class DawState extends ChangeNotifier {
       currentStepNotifier.value = _currentStep;
       arrangerStepNotifier.value = _arrangerStep;
       currentBarNotifier.value = _currentBar;
-      stepAdvanced = true;
-    }
-
-    if (stepAdvanced) {
-      notifyListeners();
     }
   }
 
@@ -3010,22 +3197,42 @@ class DawState extends ChangeNotifier {
     for (final e in initialParams.entries) {
       fx.params[e.key] = e.value;
     }
-    if (lowerId == 'cab_designer' || lowerId == 'room_designer') {
+    if (lowerId == 'cab_designer' || lowerId == 'room_designer' || lowerId == 'convolution_reverb') {
       final isCab = lowerId == 'cab_designer';
-      final customName = isCab ? 'Cab: ${track.name}_${fx.id}' : 'Room: ${track.name}_${fx.id}';
-      final matIdx = (initialParams['Material'] ?? 0.0).toInt().clamp(0, AcousticMaterialType.values.length - 1);
+      final isRoom = lowerId == 'room_designer';
+      final customName = isCab
+          ? 'Cab: ${track.name}_${fx.id}'
+          : (isRoom ? 'Room: ${track.name}_${fx.id}' : 'Conv: ${track.name}_${fx.id}');
+
+      final basePresetName = initialParams['IRSample'] != null
+          ? () {
+              final all = ConvolverEngine.builtInIrNames;
+              final idx = (initialParams['IRSample'] ?? 0.0).toInt().clamp(0, all.length - 1);
+              return all.isNotEmpty ? all[idx] : 'Great Hall';
+            }()
+          : null;
+      final baseParams = basePresetName != null ? ProceduralIRGenerator.presets[basePresetName] : null;
+
+      final matIdx = (initialParams['Material'] ?? (baseParams?.material.index.toDouble() ?? 0.0)).toInt().clamp(0, AcousticMaterialType.values.length - 1);
       final spaceParams = AcousticSpaceParams(
         name: customName,
-        width: initialParams['Width'] ?? (isCab ? 0.76 : 15.0),
-        length: initialParams['Length'] ?? (isCab ? 0.76 : 25.0),
-        height: initialParams['Height'] ?? (isCab ? 0.36 : 10.0),
+        width: initialParams['Width'] ?? (baseParams?.width ?? (isCab ? 0.76 : 15.0)),
+        length: initialParams['Length'] ?? (baseParams?.length ?? (isCab ? 0.76 : 25.0)),
+        height: initialParams['Height'] ?? (baseParams?.height ?? (isCab ? 0.36 : 10.0)),
+        sourceX: initialParams['SourceX'] ?? (baseParams?.sourceX ?? 0.5),
+        sourceY: initialParams['SourceY'] ?? (baseParams?.sourceY ?? 0.5),
+        sourceZ: initialParams['SourceZ'] ?? (baseParams?.sourceZ ?? 0.5),
+        listenerX: initialParams['ListenerX'] ?? (baseParams?.listenerX ?? 0.5),
+        listenerY: initialParams['ListenerY'] ?? (baseParams?.listenerY ?? 0.8),
+        listenerZ: initialParams['ListenerZ'] ?? (baseParams?.listenerZ ?? 0.5),
+        stereoWidth: initialParams['StereoWidth'] ?? (baseParams?.stereoWidth ?? (isCab ? 0.08 : 0.20)),
         material: AcousticMaterialType.values[matIdx],
-        rt60: isCab ? 0.035 : (initialParams['RT60'] ?? 2.2),
-        damping: initialParams['Damping'] ?? (isCab ? 0.55 : 0.25),
+        rt60: isCab ? 0.035 : (initialParams['RT60'] ?? (baseParams?.rt60 ?? 2.2)),
+        damping: initialParams['Damping'] ?? (baseParams?.damping ?? (isCab ? 0.55 : 0.25)),
         isCabinetMode: isCab,
-        micDistance: initialParams['MicDistance'] ?? 0.05,
-        micAngleDeg: initialParams['MicAngle'] ?? 0.0,
-        isOpenBack: (initialParams['OpenBack'] ?? 0.0) == 1.0,
+        micDistance: initialParams['MicDistance'] ?? (baseParams?.micDistance ?? 0.05),
+        micAngleDeg: initialParams['MicAngle'] ?? (baseParams?.micAngleDeg ?? 0.0),
+        isOpenBack: (initialParams['OpenBack'] ?? (baseParams?.isOpenBack == true ? 1.0 : 0.0)) == 1.0,
       );
       ConvolverEngine.instance.bakeCustomSpace(spaceParams);
       audioEngine.invalidateIrCache(customName);
@@ -3125,11 +3332,14 @@ class DawState extends ChangeNotifier {
           }
         }
 
-        // If this is a Room or Cabinet Designer parameter
+        // If this is a Room, Cabinet Designer, or Convolution Reverb parameter
         final isRoomDesigner = f.presetId == 'room_designer' || f.name.toLowerCase().contains('room designer');
         final isCabDesigner = f.presetId == 'cab_designer' || f.name.toLowerCase().contains('cab');
-        if (isRoomDesigner || isCabDesigner) {
-          final customName = isCabDesigner ? 'Cab: ${track.name}_${f.id}' : 'Room: ${track.name}_${f.id}';
+        final isConv = f.presetId == 'convolution_reverb' || f.name.toLowerCase().contains('convolution') || f.type == FXType.convolutionReverb;
+        if (isRoomDesigner || isCabDesigner || isConv) {
+          final customName = isCabDesigner
+              ? 'Cab: ${track.name}_${f.id}'
+              : (isRoomDesigner ? 'Room: ${track.name}_${f.id}' : 'Conv: ${track.name}_${f.id}');
 
           if (isCabDesigner && paramName == 'CabType') {
             final cabPresetKeys = [
@@ -3157,19 +3367,35 @@ class DawState extends ChangeNotifier {
             }
           }
 
-          final matIdx = (f.params['Material'] ?? 0.0).toInt().clamp(0, AcousticMaterialType.values.length - 1);
+          final basePresetName = f.params['IRSample'] != null
+              ? () {
+                  final all = ConvolverEngine.builtInIrNames;
+                  final idx = f.params['IRSample']!.toInt().clamp(0, all.length - 1);
+                  return all.isNotEmpty ? all[idx] : 'Great Hall';
+                }()
+              : null;
+          final baseParams = basePresetName != null ? ProceduralIRGenerator.presets[basePresetName] : null;
+
+          final matIdx = (f.params['Material'] ?? (baseParams?.material.index.toDouble() ?? 0.0)).toInt().clamp(0, AcousticMaterialType.values.length - 1);
           final spaceParams = AcousticSpaceParams(
             name: customName,
-            width: f.params['Width'] ?? (isCabDesigner ? 0.76 : 8.0),
-            length: f.params['Length'] ?? (isCabDesigner ? 0.76 : 12.0),
-            height: f.params['Height'] ?? (isCabDesigner ? 0.36 : 4.0),
+            width: f.params['Width'] ?? (f.luaParams['Width'] ?? (baseParams?.width ?? (isCabDesigner ? 0.76 : 12.0))),
+            length: f.params['Length'] ?? (f.luaParams['Length'] ?? (baseParams?.length ?? (isCabDesigner ? 0.76 : 15.0))),
+            height: f.params['Height'] ?? (f.luaParams['Height'] ?? (baseParams?.height ?? (isCabDesigner ? 0.36 : 4.0))),
+            sourceX: f.params['SourceX'] ?? (f.luaParams['SourceX'] ?? (baseParams?.sourceX ?? 0.5)),
+            sourceY: f.params['SourceY'] ?? (f.luaParams['SourceY'] ?? (baseParams?.sourceY ?? 0.5)),
+            sourceZ: f.params['SourceZ'] ?? (f.luaParams['SourceZ'] ?? (baseParams?.sourceZ ?? 0.5)),
+            listenerX: f.params['ListenerX'] ?? (f.luaParams['ListenerX'] ?? (baseParams?.listenerX ?? 0.5)),
+            listenerY: f.params['ListenerY'] ?? (f.luaParams['ListenerY'] ?? (baseParams?.listenerY ?? 0.8)),
+            listenerZ: f.params['ListenerZ'] ?? (f.luaParams['ListenerZ'] ?? (baseParams?.listenerZ ?? 0.5)),
+            stereoWidth: f.params['StereoWidth'] ?? (f.luaParams['StereoWidth'] ?? (baseParams?.stereoWidth ?? (isCabDesigner ? 0.08 : 0.20))),
             material: AcousticMaterialType.values[matIdx],
-            rt60: isCabDesigner ? 0.035 : (f.params['RT60'] ?? (f.params['Decay'] ?? 1.8)),
-            damping: f.params['Damping'] ?? (isCabDesigner ? 0.55 : 0.40),
+            rt60: isCabDesigner ? 0.035 : (f.params['RT60'] ?? (f.params['Decay'] ?? (baseParams?.rt60 ?? 1.8))),
+            damping: f.params['Damping'] ?? (baseParams?.damping ?? (isCabDesigner ? 0.55 : 0.40)),
             isCabinetMode: isCabDesigner,
-            micDistance: f.params['MicDistance'] ?? 0.05,
-            micAngleDeg: f.params['MicAngle'] ?? 0.0,
-            isOpenBack: (f.params['OpenBack'] ?? 0.0) == 1.0,
+            micDistance: f.params['MicDistance'] ?? (baseParams?.micDistance ?? 0.05),
+            micAngleDeg: f.params['MicAngle'] ?? (baseParams?.micAngleDeg ?? 0.0),
+            isOpenBack: (f.params['OpenBack'] ?? (baseParams?.isOpenBack == true ? 1.0 : 0.0)) == 1.0,
           );
 
           ConvolverEngine.instance.bakeCustomSpace(spaceParams);

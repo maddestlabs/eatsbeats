@@ -36,7 +36,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Find the filter presets text field in Project Browser
-      final filterFieldFinder = find.widgetWithText(TextField, 'Filter presets...');
+      final filterFieldFinder = find.widgetWithText(TextField, 'Filter scripts & DSP engines...');
       expect(filterFieldFinder, findsOneWidget);
 
       // Tap to focus and enter text

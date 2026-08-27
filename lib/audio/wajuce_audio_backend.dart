@@ -297,29 +297,34 @@ class TrackChannelStrip {
     // Retrieve or construct WABuffer synchronously from ConvolverEngine memory
     var cached = irCache[irName];
     if (cached == null) {
-      final samples = ConvolverEngine.instance.getIrSample(irName);
-      if (samples != null && samples.isNotEmpty) {
-        Float32List irData;
+      final stereo = ConvolverEngine.instance.getIrStereoSample(irName);
+      if (stereo != null && stereo.left.isNotEmpty) {
+        Float32List irDataL;
+        Float32List irDataR;
         const int maxNativeIrLength = 384;
-        if (!kIsWeb && samples.length > maxNativeIrLength) {
-          irData = Float32List(maxNativeIrLength);
+        if (!kIsWeb && stereo.left.length > maxNativeIrLength) {
+          irDataL = Float32List(maxNativeIrLength);
+          irDataR = Float32List(maxNativeIrLength);
           const int fadeLen = 64;
           final int nonFadeLen = maxNativeIrLength - fadeLen;
           for (int i = 0; i < nonFadeLen; i++) {
-            irData[i] = samples[i].toDouble();
+            irDataL[i] = stereo.left[i].toDouble();
+            irDataR[i] = stereo.right[i].toDouble();
           }
           for (int i = 0; i < fadeLen; i++) {
             final double fade = 0.5 * (1.0 + math.cos(math.pi * i / fadeLen));
-            irData[nonFadeLen + i] = (samples[nonFadeLen + i] * fade).toDouble();
+            irDataL[nonFadeLen + i] = (stereo.left[nonFadeLen + i] * fade).toDouble();
+            irDataR[nonFadeLen + i] = (stereo.right[nonFadeLen + i] * fade).toDouble();
           }
         } else {
-          irData = Float32List.fromList(samples);
+          irDataL = Float32List.fromList(stereo.left);
+          irDataR = Float32List.fromList(stereo.right);
         }
         cached = WABuffer(
-          numberOfChannels: 1,
-          length: irData.length,
+          numberOfChannels: 2,
+          length: irDataL.length,
           sampleRate: 44100,
-          channels: [irData],
+          channels: [irDataL, irDataR],
         );
         irCache[irName] = cached;
       }
@@ -711,6 +716,16 @@ class WajuceAudioBackend {
     try { src?.stop(); src?.dispose(); } catch (_) {}
   }
 
+  /// Clears all track channel strips, stops active sources, and flushes buffer cache.
+  void clearChannelStrips() {
+    stopAllSound();
+    for (final strip in _channelStrips.values) {
+      try { strip.dispose(); } catch (_) {}
+    }
+    _channelStrips.clear();
+    _bufferCache.clear();
+  }
+
   void dispose() {
     for (final strip in _channelStrips.values) {
       strip.dispose();
@@ -920,8 +935,9 @@ class WajuceAudioBackend {
     });
   }
 
-  Future<void> preloadIrSamples() async {
-    for (final name in ConvolverEngine.instance.getAvailableIrNames()) {
+  Future<void> preloadIrSamples([Iterable<String>? specificIrNames]) async {
+    final names = specificIrNames ?? ConvolverEngine.instance.getAvailableIrNames();
+    for (final name in names) {
       if (!_irCache.containsKey(name)) {
         await _loadIrAsync(name);
       }

@@ -17,9 +17,11 @@ class ConvolverEngine extends ChangeNotifier {
   static List<String> get builtInIrNames => ProceduralIRGenerator.presets.keys.toList();
 
   final Map<String, List<double>> _irSamples = {};
+  final Map<String, ({List<double> left, List<double> right})> _stereoIrSamples = {};
   final Map<String, AcousticSpaceParams> _userPresets = {};
 
   Map<String, List<double>> get irSamples => Map.unmodifiable(_irSamples);
+  Map<String, ({List<double> left, List<double> right})> get stereoIrSamples => Map.unmodifiable(_stereoIrSamples);
   Map<String, AcousticSpaceParams> get userPresets => Map.unmodifiable(_userPresets);
 
   /// Returns all available Room presets (both stock and user created).
@@ -82,20 +84,38 @@ class ConvolverEngine extends ChangeNotifier {
   }
 
   /// Registers a newly decoded or procedurally baked IR PCM audio buffer.
-  bool registerIrSample(String name, List<double> pcm) {
+  bool registerIrSample(String name, List<double> pcm, {List<double>? rightChannel}) {
     if (pcm.isEmpty) return false;
     final cleanName = name.replaceAll('\\', '/').split('/').last;
     _irSamples[cleanName] = pcm;
     _irSamples[name] = pcm;
-    debugPrint('ConvolverEngine: Registered IR sample "$cleanName" (${pcm.length} samples)');
+
+    final rPcm = rightChannel ?? List<double>.from(pcm);
+    final stereo = (left: pcm, right: rPcm);
+    _stereoIrSamples[cleanName] = stereo;
+    _stereoIrSamples[name] = stereo;
+
+    debugPrint('ConvolverEngine: Registered stereo IR sample "$cleanName" (${pcm.length} samples)');
+    return true;
+  }
+
+  /// Registers a stereo pair of IR PCM buffers.
+  bool registerStereoIrSample(String name, ({List<double> left, List<double> right}) stereo) {
+    if (stereo.left.isEmpty) return false;
+    final cleanName = name.replaceAll('\\', '/').split('/').last;
+    _irSamples[cleanName] = stereo.left;
+    _irSamples[name] = stereo.left;
+    _stereoIrSamples[cleanName] = stereo;
+    _stereoIrSamples[name] = stereo;
+    debugPrint('ConvolverEngine: Registered True Stereo IR "$cleanName" (L:${stereo.left.length}, R:${stereo.right.length})');
     return true;
   }
 
   /// Bakes a procedural space or amp cabinet on demand and registers it in memory.
   List<double> bakeCustomSpace(AcousticSpaceParams params, {int sampleRate = 44100}) {
-    final pcm = ProceduralIRGenerator.generate(params, sampleRate: sampleRate);
-    registerIrSample(params.name, pcm);
-    return pcm;
+    final stereo = ProceduralIRGenerator.generateStereo(params, sampleRate: sampleRate);
+    registerStereoIrSample(params.name, stereo);
+    return stereo.left;
   }
 
   /// Unloads a specific IR sample from memory.
@@ -103,11 +123,14 @@ class ConvolverEngine extends ChangeNotifier {
     final cleanName = name.replaceAll('\\', '/').split('/').last;
     _irSamples.remove(name);
     _irSamples.remove(cleanName);
+    _stereoIrSamples.remove(name);
+    _stereoIrSamples.remove(cleanName);
   }
 
   /// Clears all loaded IR samples to free memory.
   void clearAllIrSamples() {
     _irSamples.clear();
+    _stereoIrSamples.clear();
   }
 
   /// Returns list of all available Impulse Response names (both built-in procedural and imported/downloaded).
@@ -121,6 +144,49 @@ class ConvolverEngine extends ChangeNotifier {
     final list = names.toList();
     list.sort();
     return list;
+  }
+
+  /// Retrieves a stereo IR sample pair by name, generating procedural IRs lazily on-demand.
+  ({List<double> left, List<double> right})? getIrStereoSample(String name) {
+    final cleanName = name.replaceAll('\\', '/').split('/').last;
+    if (_stereoIrSamples.containsKey(name)) return _stereoIrSamples[name];
+    if (_stereoIrSamples.containsKey(cleanName)) return _stereoIrSamples[cleanName];
+
+    // Check custom user presets
+    if (_userPresets.containsKey(cleanName)) {
+      final generated = ProceduralIRGenerator.generateStereo(_userPresets[cleanName]!);
+      registerStereoIrSample(cleanName, generated);
+      registerStereoIrSample(name, generated);
+      return generated;
+    }
+
+    // Check procedural preset library with exact and substring matching
+    for (final entry in ProceduralIRGenerator.presets.entries) {
+      final entryKey = entry.key.toLowerCase();
+      final target = cleanName.toLowerCase();
+      if (entryKey == target ||
+          target == entry.value.name.toLowerCase() ||
+          entryKey.startsWith(target) ||
+          target.startsWith(entryKey.split(' (').first)) {
+        final generated = ProceduralIRGenerator.generateStereo(entry.value);
+        registerStereoIrSample(cleanName, generated);
+        registerStereoIrSample(name, generated);
+        return generated;
+      }
+    }
+
+    // Check if mono sample exists, generate stereo pair
+    final mono = getIrSample(name);
+    if (mono != null && mono.isNotEmpty) {
+      final stereo = (left: mono, right: List<double>.from(mono));
+      _stereoIrSamples[cleanName] = stereo;
+      _stereoIrSamples[name] = stereo;
+      return stereo;
+    }
+
+    final fallback = ProceduralIRGenerator.generateStereo(ProceduralIRGenerator.presets['Great Hall']!);
+    registerStereoIrSample(cleanName, fallback);
+    return fallback;
   }
 
   /// Retrieves an IR sample buffer by name, generating procedural IRs lazily on-demand.

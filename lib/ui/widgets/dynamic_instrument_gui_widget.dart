@@ -17,6 +17,8 @@ import 'grungy_rack_panel.dart';
 import 'hardware_listbox_widget.dart';
 import 'interactive_game_canvas_widget.dart';
 import 'lcd_display_widget.dart';
+import 'live_track_visualizer_widget.dart';
+import 'lua_programmable_canvas_widget.dart';
 import 'skeuomorphic_hardware_button.dart';
 import 'skeuomorphic_hardware_knob.dart';
 import 'skeuomorphic_hardware_slider.dart';
@@ -25,6 +27,7 @@ import '../../models/script_preset_model.dart';
 import 'preset_browser_dialog.dart';
 import 'space_visualizer_widget.dart';
 import 'stereo_meter_widget.dart';
+import 'waveform_painter.dart';
 import 'waveshaper_canvas_widget.dart';
 
 class DynamicInstrumentGuiWidget extends StatelessWidget {
@@ -333,7 +336,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
       case LuaGuiNodeType.row:
         return Row(
           mainAxisAlignment: _parseMainAxisAlignment(node.align),
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: _parseCrossAxisAlignment(node.crossAlign),
           children: node.children
               .map((c) => _buildNode(context, c, compilation, defaultAccent, isLightChassis))
               .toList(),
@@ -341,8 +344,9 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
 
       case LuaGuiNodeType.column:
         return Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: _parseMainAxisAlignment(node.align),
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: _parseCrossAxisAlignment(node.crossAlign),
           children: node.children
               .map((c) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 3.0),
@@ -432,6 +436,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
 
         return SkeuomorphicHardwareKnob(
           label: node.label ?? paramDef.name.toUpperCase(),
+          showLabelText: node.showLabel,
+          showValueText: node.showValue,
           value: currentVal,
           min: paramDef.min,
           max: paramDef.max,
@@ -808,6 +814,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
 
         return GlowingNixieDisplay(
           label: node.label ?? (node.param ?? 'READOUT').toUpperCase(),
+          showLabel: node.showLabel,
           valueText: formattedVal,
           unit: node.unit,
           glowColor: accent,
@@ -856,6 +863,17 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           ),
         );
 
+      case LuaGuiNodeType.oscilloscope:
+      case LuaGuiNodeType.spectrum:
+        return LiveTrackVisualizerWidget(
+          audioEngine: dawState.audioEngine,
+          track: track,
+          isSpectrum: node.type == LuaGuiNodeType.spectrum,
+          accentColor: accent,
+          width: node.width,
+          height: node.height,
+        );
+
       case LuaGuiNodeType.spaceVisualizer:
         final isCab = (track.luaParams['isCabinet'] == 1.0) ||
             (node.canvasMode == 'cabinet') ||
@@ -863,9 +881,15 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         final matIdx = (track.luaParams['Material'] ?? 0.0).toInt().clamp(0, AcousticMaterialType.values.length - 1);
         final currentSpace = AcousticSpaceParams(
           name: '${track.name}_space',
-          width: track.luaParams['Width'] ?? (isCab ? 0.76 : 8.0),
-          length: track.luaParams['Length'] ?? (isCab ? 0.76 : 12.0),
-          height: track.luaParams['Height'] ?? (isCab ? 0.36 : 4.0),
+          width: track.luaParams['Width'] ?? (isCab ? 0.76 : 12.0),
+          length: track.luaParams['Length'] ?? (isCab ? 0.76 : 18.0),
+          height: track.luaParams['Height'] ?? (isCab ? 0.36 : 6.0),
+          sourceX: track.luaParams['SourceX'] ?? 0.5,
+          sourceY: track.luaParams['SourceY'] ?? 0.5,
+          sourceZ: track.luaParams['SourceZ'] ?? 0.5,
+          listenerX: track.luaParams['ListenerX'] ?? 0.5,
+          listenerY: track.luaParams['ListenerY'] ?? 0.8,
+          listenerZ: track.luaParams['ListenerZ'] ?? 0.5,
           material: AcousticMaterialType.values[matIdx],
           rt60: isCab ? 0.035 : (track.luaParams['RT60'] ?? (track.luaParams['Decay'] ?? 1.8)),
           damping: track.luaParams['Damping'] ?? (isCab ? 0.55 : 0.40),
@@ -873,15 +897,23 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           micDistance: track.luaParams['MicDistance'] ?? 0.05,
           micAngleDeg: track.luaParams['MicAngle'] ?? (track.luaParams['OffAxis'] ?? 0.0),
           isOpenBack: (track.luaParams['OpenBack'] ?? 0.0) == 1.0,
+          stereoWidth: track.luaParams['StereoWidth'] ?? (isCab ? 0.08 : 0.20),
         );
 
         return SpaceVisualizerWidget(
           params: currentSpace,
-          height: node.height ?? 150.0,
+          height: node.height ?? 140.0,
           onParamsChanged: (newP) {
             _setParam('Width', newP.width);
             _setParam('Length', newP.length);
             _setParam('Height', newP.height);
+            _setParam('SourceX', newP.sourceX);
+            _setParam('SourceY', newP.sourceY);
+            _setParam('SourceZ', newP.sourceZ);
+            _setParam('ListenerX', newP.listenerX);
+            _setParam('ListenerY', newP.listenerY);
+            _setParam('ListenerZ', newP.listenerZ);
+            _setParam('StereoWidth', newP.stereoWidth);
             _setParam('Material', newP.material.index.toDouble());
             _setParam('RT60', newP.rt60);
             _setParam('Decay', newP.rt60);
@@ -921,6 +953,24 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         );
 
       case LuaGuiNodeType.canvas:
+        final mode = (node.canvasMode ?? '').toLowerCase();
+        if (node.showDpad || node.showActionButtons || mode == 'grid' || mode == 'pixel' || mode == 'game' || mode == 'nibbles' || mode == 'runner' || mode == 'vector' || mode == 'spectrum' || mode == 'fft' || mode == 'oscilloscope' || mode == 'scope') {
+          return InteractiveGameCanvasWidget(
+            dawState: dawState,
+            track: track,
+            node: node,
+            accentColor: accent,
+            isLightChassis: isLightChassis,
+          );
+        }
+        return LuaProgrammableCanvasWidget(
+          dawState: dawState,
+          track: track,
+          node: node,
+          accentColor: accent,
+          isLightChassis: isLightChassis,
+        );
+
       case LuaGuiNodeType.dpad:
       case LuaGuiNodeType.gamepad:
         return InteractiveGameCanvasWidget(
@@ -964,14 +1014,34 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         return MainAxisAlignment.center;
       case 'start':
       case 'left':
+      case 'top':
         return MainAxisAlignment.start;
       case 'end':
       case 'right':
+      case 'bottom':
         return MainAxisAlignment.end;
       case 'space_around':
       case 'spacearound':
       default:
         return MainAxisAlignment.spaceAround;
+    }
+  }
+
+  CrossAxisAlignment _parseCrossAxisAlignment(String align) {
+    switch (align.toLowerCase()) {
+      case 'start':
+      case 'top':
+      case 'left':
+        return CrossAxisAlignment.start;
+      case 'end':
+      case 'bottom':
+      case 'right':
+        return CrossAxisAlignment.end;
+      case 'stretch':
+        return CrossAxisAlignment.stretch;
+      case 'center':
+      default:
+        return CrossAxisAlignment.center;
     }
   }
 
@@ -1213,3 +1283,90 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
 );
   }
 }
+
+class _OscilloscopeLivePainter extends CustomPainter {
+  final Color accentColor;
+  final bool isSpectrum;
+
+  _OscilloscopeLivePainter({
+    required this.accentColor,
+    required this.isSpectrum,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+
+    // 1. Draw subtle background oscilloscope reticle grid
+    final gridPaint = Paint()
+      ..color = accentColor.withOpacity(0.12)
+      ..strokeWidth = 0.75;
+
+    const divisionsX = 8;
+    const divisionsY = 4;
+    final stepX = size.width / divisionsX;
+    final stepY = size.height / divisionsY;
+
+    for (int i = 1; i < divisionsX; i++) {
+      canvas.drawLine(Offset(i * stepX, 0), Offset(i * stepX, size.height), gridPaint);
+    }
+    for (int j = 1; j < divisionsY; j++) {
+      canvas.drawLine(Offset(0, j * stepY), Offset(size.width, j * stepY), gridPaint);
+    }
+
+    final centerY = size.height / 2.0;
+
+    if (isSpectrum) {
+      // Draw FFT Frequency Spectrum Bars
+      final barPaint = Paint()
+        ..color = accentColor
+        ..style = PaintingStyle.fill;
+
+      const numBars = 32;
+      final barWidth = size.width / numBars;
+      for (int i = 0; i < numBars; i++) {
+        final normIdx = i / numBars;
+        // Simulated harmonic distribution for high-tech aesthetic
+        final h = (0.2 + 0.7 * (1.0 - normIdx) * (1.0 + 0.3 * (i % 3))) * (size.height * 0.75);
+        final rect = Rect.fromLTWH(i * barWidth + 1.5, size.height - h - 4, barWidth - 3, h);
+        canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(2)), barPaint);
+      }
+    } else {
+      // Draw Analog Oscilloscope Continuous Waveform Beam
+      final beamPaint = Paint()
+        ..color = accentColor
+        ..strokeWidth = 2.0
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+
+      final glowPaint = Paint()
+        ..color = accentColor.withOpacity(0.35)
+        ..strokeWidth = 4.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+
+      final path = Path();
+      const points = 100;
+      for (int i = 0; i <= points; i++) {
+        final t = i / points;
+        final x = t * size.width;
+        // Dynamic simulated analog phase for vibrant live aesthetic
+        final y = centerY + (centerY * 0.7) * (0.8 * (t * 6.28 * 2.0).clamp(-1.0, 1.0) * (1.0 - (t - 0.5).abs() * 0.5));
+        if (i == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+      canvas.drawPath(path, glowPaint);
+      canvas.drawPath(path, beamPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _OscilloscopeLivePainter oldDelegate) {
+    return oldDelegate.accentColor != accentColor || oldDelegate.isSpectrum != isSpectrum;
+  }
+}
+

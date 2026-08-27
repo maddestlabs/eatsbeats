@@ -163,7 +163,13 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
       _totalRowCount = math.max(_totalRowCount, parsed.totalRows);
       _connections.addAll(parsed.cables);
       for (final entry in parsed.modulesByRow.entries) {
-        _customModulesByRow[entry.key] = List.from(entry.value);
+        final row = entry.key;
+        final baseCount = _getBaseModuleCount(row);
+        if (entry.value.length > baseCount) {
+          _customModulesByRow[row] = entry.value.sublist(baseCount);
+        } else {
+          _customModulesByRow[row] = [];
+        }
       }
       return;
     }

@@ -32,6 +32,7 @@ class SkeuomorphicHardwareKnob extends StatefulWidget {
     required this.defaultValue,
     this.label,
     this.showLabelText = true,
+    this.showValueText = true,
     required this.onChanged,
     this.onChangeStart,
     this.onChangeEnd,
@@ -42,6 +43,8 @@ class SkeuomorphicHardwareKnob extends StatefulWidget {
     this.formatValue,
     this.step = 0.0,
   });
+
+  final bool showValueText;
 
   @override
   State<SkeuomorphicHardwareKnob> createState() => _SkeuomorphicHardwareKnobState();
@@ -122,28 +125,30 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
             ),
           ),
         ),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: widget.isLightChassis ? Colors.black.withOpacity(0.08) : Colors.black45,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: widget.isLightChassis
-                  ? Colors.black.withOpacity(0.2)
-                  : activeColor.withOpacity(0.3),
-              width: 0.8,
+        if (widget.showValueText) ...[
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: widget.isLightChassis ? Colors.black.withOpacity(0.08) : Colors.black45,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: widget.isLightChassis
+                    ? Colors.black.withOpacity(0.2)
+                    : activeColor.withOpacity(0.3),
+                width: 0.8,
+              ),
+            ),
+            child: Text(
+              displayVal,
+              style: EatsTheme.getDisplayFontStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+                color: widget.isLightChassis ? const Color(0xFF1B1A17) : activeColor,
+              ),
             ),
           ),
-          child: Text(
-            displayVal,
-            style: EatsTheme.getDisplayFontStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.bold,
-              color: widget.isLightChassis ? const Color(0xFF1B1A17) : activeColor,
-            ),
-          ),
-        ),
+        ],
       ],
     );
   }

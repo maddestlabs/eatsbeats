@@ -74,6 +74,7 @@ class LuaEngine {
   }
 
   static double _tanh(double x) {
+    if (x.isNaN) return 0.0;
     if (x > 3.0) return 1.0;
     if (x < -3.0) return -1.0;
     final x2 = x * x;
@@ -301,6 +302,23 @@ class LuaEngine {
   static final Map<String, _SnareVoiceState> _snareVoiceStates = {};
   static final Map<String, FMChipVoice> _fmChipVoices = {};
   static final Map<String, SNESDSPEngine> _snesDspEngines = {};
+
+  /// Resets persistent DSP voice states for a given [trackId] or all tracks when loading/transitioning songs.
+  static void resetVoiceStates([String? trackId]) {
+    if (trackId != null) {
+      _acidVoiceStates.remove(trackId);
+      _hihatVoiceStates.remove(trackId);
+      _snareVoiceStates.remove(trackId);
+      _fmChipVoices.remove(trackId);
+      _snesDspEngines.remove(trackId);
+    } else {
+      _acidVoiceStates.clear();
+      _hihatVoiceStates.clear();
+      _snareVoiceStates.clear();
+      _fmChipVoices.clear();
+      _snesDspEngines.clear();
+    }
+  }
 
   // Fast synthesis of complete buffer avoiding redundant per-sample parsing
   static Float32List synthesizeBuffer({
@@ -705,21 +723,33 @@ class LuaEngine {
 
         // Exponential cutoff sweep modulation (up to 5.5 octaves)
         final modCutoff = (cutoff * math.pow(2.0, (baseEnv + accentPulse) * envMod * 5.2 * envBoost)).clamp(30.0, 18000.0);
-        final fNorm = (modCutoff / 44100.0 * math.pi * 2.0).clamp(0.005, 0.85);
+        final fNorm = (modCutoff / 44100.0 * math.pi).clamp(0.002, 0.42);
 
-        // Non-linear 150 Hz Feedback High-Pass Loop (Signature 303 Diode Ladder)
-        final rawFeedback = kRes * _tanh(vState.stage4 * 0.50);
-        final feedbackHP = hpAlpha * (vState.feedbackHpfY1 + rawFeedback - vState.feedbackHpfX1);
-        vState.feedbackHpfX1 = rawFeedback;
-        vState.feedbackHpfY1 = feedbackHP;
+        if (vState.stage1.isNaN || vState.stage1.abs() > 20.0) {
+          vState.stage1 = 0.0;
+          vState.stage2 = 0.0;
+          vState.stage3 = 0.0;
+          vState.stage4 = 0.0;
+          vState.hpfX1 = 0.0;
+          vState.hpfY1 = 0.0;
+          vState.feedbackHpfX1 = 0.0;
+          vState.feedbackHpfY1 = 0.0;
+        }
 
-        final inputWithRes = _tanh(combinedOsc - feedbackHP);
+        // 2x internal oversampling of the non-linear diode ladder filter for unconditional stability
+        for (int step = 0; step < 2; step++) {
+          final rawFeedback = kRes * _tanh(vState.stage4 * 0.50);
+          final feedbackHP = hpAlpha * (vState.feedbackHpfY1 + rawFeedback - vState.feedbackHpfX1);
+          vState.feedbackHpfX1 = rawFeedback;
+          vState.feedbackHpfY1 = feedbackHP;
 
-        // 4-Pole 24dB Diode Ladder Cascade with Stage Non-Linearities
-        vState.stage1 += fNorm * (inputWithRes - vState.stage1);
-        vState.stage2 += fNorm * (_tanh(vState.stage1) - vState.stage2);
-        vState.stage3 += fNorm * (_tanh(vState.stage2) - vState.stage3);
-        vState.stage4 += fNorm * (_tanh(vState.stage3) - vState.stage4);
+          final inputWithRes = _tanh(combinedOsc - feedbackHP);
+
+          vState.stage1 = (vState.stage1 + fNorm * (inputWithRes - vState.stage1)).clamp(-4.0, 4.0);
+          vState.stage2 = (vState.stage2 + fNorm * (_tanh(vState.stage1) - vState.stage2)).clamp(-4.0, 4.0);
+          vState.stage3 = (vState.stage3 + fNorm * (_tanh(vState.stage2) - vState.stage3)).clamp(-4.0, 4.0);
+          vState.stage4 = (vState.stage4 + fNorm * (_tanh(vState.stage3) - vState.stage4)).clamp(-4.0, 4.0);
+        }
         final filtered = vState.stage4 * (1.0 + kRes * 0.20);
 
         // DC-blocking post-filter high-pass
@@ -734,6 +764,8 @@ class LuaEngine {
         if (drive > 0.02) {
           output = _tanh(output * gain);
         }
+
+        if (output.isNaN || output.isInfinite) output = 0.0;
 
         final samplesRemaining = numSamples - 1 - i;
         double boundaryFade = 1.0;
@@ -1182,21 +1214,35 @@ class LuaEngine {
       final accentPulse = hasAccent ? (accentParam * 0.55 * math.exp(-time / 0.035)) : 0.0;
 
       final modCutoff = (cutoff * math.pow(2.0, (baseEnv + accentPulse) * envMod * 5.2 * envBoost)).clamp(30.0, 18000.0);
-      final fNorm = (modCutoff / 44100.0 * math.pi * 2.0).clamp(0.005, 0.85);
+      final fNorm = (modCutoff / 44100.0 * math.pi).clamp(0.002, 0.42);
 
       const double hpCutoffHz = 150.0;
       const double hpAlpha = 1.0 / (1.0 + (2.0 * math.pi * hpCutoffHz / 44100.0));
-      final rawFeedback = kRes * _tanh(vState.stage4 * 0.50);
-      final feedbackHP = hpAlpha * (vState.feedbackHpfY1 + rawFeedback - vState.feedbackHpfX1);
-      vState.feedbackHpfX1 = rawFeedback;
-      vState.feedbackHpfY1 = feedbackHP;
 
-      final inputWithRes = _tanh(combinedOsc - feedbackHP);
+      if (vState.stage1.isNaN || vState.stage1.abs() > 20.0) {
+        vState.stage1 = 0.0;
+        vState.stage2 = 0.0;
+        vState.stage3 = 0.0;
+        vState.stage4 = 0.0;
+        vState.hpfX1 = 0.0;
+        vState.hpfY1 = 0.0;
+        vState.feedbackHpfX1 = 0.0;
+        vState.feedbackHpfY1 = 0.0;
+      }
 
-      vState.stage1 += fNorm * (inputWithRes - vState.stage1);
-      vState.stage2 += fNorm * (_tanh(vState.stage1) - vState.stage2);
-      vState.stage3 += fNorm * (_tanh(vState.stage2) - vState.stage3);
-      vState.stage4 += fNorm * (_tanh(vState.stage3) - vState.stage4);
+      for (int step = 0; step < 2; step++) {
+        final rawFeedback = kRes * _tanh(vState.stage4 * 0.50);
+        final feedbackHP = hpAlpha * (vState.feedbackHpfY1 + rawFeedback - vState.feedbackHpfX1);
+        vState.feedbackHpfX1 = rawFeedback;
+        vState.feedbackHpfY1 = feedbackHP;
+
+        final inputWithRes = _tanh(combinedOsc - feedbackHP);
+
+        vState.stage1 = (vState.stage1 + fNorm * (inputWithRes - vState.stage1)).clamp(-4.0, 4.0);
+        vState.stage2 = (vState.stage2 + fNorm * (_tanh(vState.stage1) - vState.stage2)).clamp(-4.0, 4.0);
+        vState.stage3 = (vState.stage3 + fNorm * (_tanh(vState.stage2) - vState.stage3)).clamp(-4.0, 4.0);
+        vState.stage4 = (vState.stage4 + fNorm * (_tanh(vState.stage3) - vState.stage4)).clamp(-4.0, 4.0);
+      }
       final filtered = vState.stage4 * (1.0 + kRes * 0.20);
 
       final hpfOut = 0.985 * (vState.hpfY1 + filtered - vState.hpfX1);
@@ -1207,6 +1253,8 @@ class LuaEngine {
       if (drive > 0.02) {
         output = _tanh(output * gain);
       }
+
+      if (output.isNaN || output.isInfinite) output = 0.0;
 
       final fadeSamples = (44100 * 0.04).toInt().clamp(64, math.max(1, totalSamples ~/ 4));
       final samplesRemaining = totalSamples - 1 - sampleIndex;

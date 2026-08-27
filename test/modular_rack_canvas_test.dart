@@ -10,6 +10,9 @@ import 'package:eatsbeats/ui/modular/modular_rack_canvas.dart';
 import 'package:eatsbeats/ui/modular/modular_module_search_dialog.dart';
 import 'package:eatsbeats/ui/modular/modular_rack_dsl.dart';
 import 'package:eatsbeats/ui/modular/patch_cable_painter.dart';
+import 'package:eatsbeats/ui/widgets/floating_instrument_window.dart';
+import 'package:eatsbeats/models/script_target_model.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -583,6 +586,95 @@ return SynthLab
       expect(track.luaScriptCode, contains('function SuperSynth.rack()'));
       expect(track.luaScriptCode, contains('TAPE DELAY FX'));
       expect(track.luaScriptCode, contains('return SuperSynth'));
+    });
+
+    testWidgets('Clicking Code icon on FloatingInstrumentWindow navigates directly to that specific track script', (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final dawState = DawState();
+      final track2 = dawState.activePattern.tracks[1]; // Track 2
+      dawState.openFloatingInstrumentWindow(track2);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 800,
+              height: 600,
+              child: FloatingInstrumentWindow(
+                dawState: dawState,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Tap Code icon button
+      final codeBtn = find.byIcon(Icons.code);
+      expect(codeBtn, findsOneWidget);
+      await tester.tap(codeBtn);
+      await tester.pumpAndSettle();
+
+      // Verify activeTabIndex is switched to 4 (SCRIPTS) and activeScriptTarget points to Track 2
+      expect(dawState.activeTabIndex, 4);
+      expect(dawState.activeScriptTarget.trackId, track2.id);
+    });
+
+    test('DawState.getScriptCodeForTarget retrieves full populated Lua code for all targets', () {
+      final dawState = DawState();
+      final allTargets = dawState.getAllScriptTargets();
+
+      expect(allTargets.length, greaterThanOrEqualTo(dawState.activePattern.tracks.length));
+
+      for (final target in allTargets) {
+        final code = dawState.getScriptCodeForTarget(target);
+        expect(code, isNotEmpty, reason: 'Target ${target.title} should have non-empty Lua code');
+        if (target.type == ScriptTargetType.trackDsp) {
+          expect(code, contains('.rack()'), reason: 'Target ${target.title} should contain .rack() block');
+        }
+      }
+    });
+
+    test('ModularRackDsl.ensureRackBlock automatically injects .rack() block into scripts without one', () {
+      const legacyCode = '''-- @name: Simple Synth
+local SimpleSynth = {}
+
+function SimpleSynth.init()
+  Param.add("Cutoff", 100, 10000, 2000)
+end
+
+function SimpleSynth.gui()
+  return {}
+end
+
+return SimpleSynth
+''';
+
+      final codeWithRack = ModularRackDsl.ensureRackBlock(legacyCode, trackName: 'Simple Synth');
+      expect(codeWithRack, contains('function SimpleSynth.rack()'));
+      expect(codeWithRack, contains('rows = {'));
+      expect(codeWithRack, contains('cables = {'));
+      expect(codeWithRack, contains('return SimpleSynth'));
+    });
+
+    test('SNES Synth and SNES Sfxr contain complete modular Lua DSP and rack definitions', () {
+      final snesSynth = LuaPresetLibrary.getPresetById('snes_console_synth');
+      expect(snesSynth, isNotNull);
+      expect(snesSynth!.code, contains('function SNESConsole.wavetable('));
+      expect(snesSynth.code, contains('function SNESConsole.adsr('));
+      expect(snesSynth.code, contains('function SNESConsole.echo('));
+      expect(snesSynth.code, contains('function SNESConsole.process('));
+      expect(snesSynth.code, contains('function SNESConsole.rack('));
+
+      final snesSfx = LuaPresetLibrary.getPresetById('eats_sfxr');
+      expect(snesSfx, isNotNull);
+      expect(snesSfx!.code, contains('function SNESSFX.oscillator('));
+      expect(snesSfx.code, contains('function SNESSFX.envelope('));
+      expect(snesSfx.code, contains('function SNESSFX.echo('));
+      expect(snesSfx.code, contains('function SNESSFX.process('));
+      expect(snesSfx.code, contains('function SNESSFX.rack('));
     });
   });
 }
