@@ -19,6 +19,7 @@ import 'ui/widgets/floating_instrument_window.dart';
 import 'ui/virtual_piano_keyboard.dart';
 import 'utils/eats_file_helper.dart';
 import 'utils/fullscreen_helper.dart';
+import 'shaders/shader_post_process_host.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -71,35 +72,42 @@ class _EatsbeatsAppState extends State<EatsbeatsApp> {
           debugShowCheckedModeBanner: false,
           theme: EatsTheme.themeData,
           builder: (context, child) {
+            Widget appContent;
             if (scale == 1.0) {
-              return child ?? const SizedBox.shrink();
-            }
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final logicalWidth = constraints.maxWidth / scale;
-                final logicalHeight = constraints.maxHeight / scale;
-                final logicalSize = Size(logicalWidth, logicalHeight);
-                final mediaQuery = MediaQuery.of(context);
+              appContent = child ?? const SizedBox.shrink();
+            } else {
+              appContent = LayoutBuilder(
+                builder: (context, constraints) {
+                  final logicalWidth = constraints.maxWidth / scale;
+                  final logicalHeight = constraints.maxHeight / scale;
+                  final logicalSize = Size(logicalWidth, logicalHeight);
+                  final mediaQuery = MediaQuery.of(context);
 
-                return SizedBox(
-                  width: constraints.maxWidth,
-                  height: constraints.maxHeight,
-                  child: FittedBox(
-                    fit: BoxFit.fill,
-                    alignment: Alignment.topLeft,
-                    child: SizedBox(
-                      width: logicalWidth,
-                      height: logicalHeight,
-                      child: MediaQuery(
-                        data: mediaQuery.copyWith(
-                          size: logicalSize,
+                  return SizedBox(
+                    width: constraints.maxWidth,
+                    height: constraints.maxHeight,
+                    child: FittedBox(
+                      fit: BoxFit.fill,
+                      alignment: Alignment.topLeft,
+                      child: SizedBox(
+                        width: logicalWidth,
+                        height: logicalHeight,
+                        child: MediaQuery(
+                          data: mediaQuery.copyWith(
+                            size: logicalSize,
+                          ),
+                          child: child ?? const SizedBox.shrink(),
                         ),
-                        child: child ?? const SizedBox.shrink(),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              );
+            }
+
+            return ShaderPostProcessHost(
+              dawState: _dawState,
+              child: appContent,
             );
           },
           home: AnimatedSwitcher(

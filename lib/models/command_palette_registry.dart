@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../lua/lua_preset_library.dart';
+import '../lua/lua_script_library.dart';
+import '../ui/widgets/project_script_runner_dialog.dart';
 import '../theme/eats_theme.dart';
 import '../ui/widgets/ui_scale_dialog.dart';
 import '../utils/fullscreen_helper.dart';
@@ -311,6 +313,19 @@ class CommandPaletteRegistry {
           }
         },
       ),
+      // --- PROJECT ACTION & PROCEDURAL GENERATION SCRIPTS ---
+      ...LuaScriptLibrary.getScriptsByCategory(LuaScriptCategory.projectAction).map((script) {
+        return QuickCommand(
+          id: 'project_script_${script.id}',
+          title: 'Run Script: ${script.name}',
+          subtitle: script.description,
+          category: CommandCategory.action,
+          icon: Icons.auto_awesome,
+          onExecute: (state, ctx) {
+            ProjectScriptRunnerDialog.show(ctx, dawState: state, script: script);
+          },
+        );
+      }),
       QuickCommand(
         id: 'action_add_synth_track',
         title: 'Add Track: Synth / Instrument',
@@ -526,6 +541,10 @@ class CommandPaletteRegistry {
         return Icons.music_note;
       case LuaPresetCategory.midiSeq:
         return Icons.view_timeline_outlined;
+      case LuaPresetCategory.noteSplitter:
+        return Icons.call_split;
+      case LuaPresetCategory.projectAction:
+        return Icons.auto_awesome;
       case LuaPresetCategory.utility:
         return Icons.build;
     }

@@ -54,6 +54,24 @@ class EatsStorageHelperImpl {
     return _memorySoundFonts.keys.toList();
   }
 
+  static final Map<String, Uint8List> _memoryModels = {};
+
+  static Future<void> saveModel(String fileName, Uint8List bytes) async {
+    _memoryModels[fileName] = bytes;
+  }
+
+  static Future<Uint8List?> loadModel(String fileName) async {
+    return _memoryModels[fileName];
+  }
+
+  static Future<bool> hasModel(String fileName) async {
+    return _memoryModels.containsKey(fileName);
+  }
+
+  static Future<void> deleteModel(String fileName) async {
+    _memoryModels.remove(fileName);
+  }
+
   static Future<void> saveSessionLua(String luaCode) async {
     _memorySessionLua = luaCode;
   }

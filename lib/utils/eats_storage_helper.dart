@@ -43,6 +43,20 @@ class EatsStorageHelper {
   static Future<List<String>> listCachedSoundFonts() =>
       EatsStorageHelperImpl.listCachedSoundFonts();
 
+  // --- Neural / AI Model Storage API ---
+
+  static Future<void> saveModel(String fileName, Uint8List bytes) =>
+      EatsStorageHelperImpl.saveModel(fileName, bytes);
+
+  static Future<Uint8List?> loadModel(String fileName) =>
+      EatsStorageHelperImpl.loadModel(fileName);
+
+  static Future<bool> hasModel(String fileName) =>
+      EatsStorageHelperImpl.hasModel(fileName);
+
+  static Future<void> deleteModel(String fileName) =>
+      EatsStorageHelperImpl.deleteModel(fileName);
+
   // --- Session Storage API ---
 
   static Future<void> saveSessionLua(String luaCode) =>

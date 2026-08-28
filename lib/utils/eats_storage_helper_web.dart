@@ -148,6 +148,24 @@ class EatsStorageHelperImpl {
     return [];
   }
 
+  // --- Neural / AI Model Storage API (IndexedDB) ---
+
+  static Future<void> saveModel(String fileName, Uint8List bytes) async {
+    await saveSoundFont(fileName, bytes);
+  }
+
+  static Future<Uint8List?> loadModel(String fileName) async {
+    return await loadSoundFont(fileName);
+  }
+
+  static Future<bool> hasModel(String fileName) async {
+    return await hasSoundFont(fileName);
+  }
+
+  static Future<void> deleteModel(String fileName) async {
+    await deleteSoundFont(fileName);
+  }
+
   // --- Session Storage API ---
 
   static const String _sessionKey = 'eatsbeats_session_lua';

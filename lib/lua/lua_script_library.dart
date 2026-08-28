@@ -8,6 +8,8 @@ enum LuaScriptCategory {
   audioFx,
   midiFx,
   midiSeq,
+  noteSplitter,
+  projectAction,
   utility;
 
   String get displayName {
@@ -20,6 +22,10 @@ enum LuaScriptCategory {
         return 'MIDI FX';
       case LuaScriptCategory.midiSeq:
         return 'MIDI SEQ';
+      case LuaScriptCategory.noteSplitter:
+        return 'NOTE SPLITTER';
+      case LuaScriptCategory.projectAction:
+        return 'PROJECT SCRIPT';
       case LuaScriptCategory.utility:
         return 'UTILITY';
     }
@@ -27,6 +33,12 @@ enum LuaScriptCategory {
 
   static LuaScriptCategory parse(String categoryStr) {
     final clean = categoryStr.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    if (clean.contains('project') || clean.contains('action') || clean.contains('songgen') || clean.contains('generator') || clean.contains('transpos')) {
+      return LuaScriptCategory.projectAction;
+    }
+    if (clean.contains('split') || clean.contains('separator') || clean.contains('demux')) {
+      return LuaScriptCategory.noteSplitter;
+    }
     if (clean.contains('midiseq') || clean.contains('seq') || clean.contains('pattern')) {
       return LuaScriptCategory.midiSeq;
     }
@@ -59,6 +71,8 @@ class LuaScriptDef {
   bool get isAudioFx => category == LuaScriptCategory.audioFx;
   bool get isMidiFx => category == LuaScriptCategory.midiFx;
   bool get isMidiSeq => category == LuaScriptCategory.midiSeq;
+  bool get isNoteSplitter => category == LuaScriptCategory.noteSplitter;
+  bool get isProjectAction => category == LuaScriptCategory.projectAction;
 }
 
 class LuaScriptLibrary {
@@ -4254,6 +4268,219 @@ function Teleprompter.rack()
 end
 
 return Teleprompter
+''',
+    ),
+    LuaScriptDef(
+      id: 'splitter_3way_voice',
+      name: '3-Way Voice Splitter (Bass, Chords, Lead)',
+      category: LuaScriptCategory.noteSplitter,
+      description: 'Separates polyphonic MIDI into dedicated Bass, Middle Harmony Chords, and Skyline Lead tracks.',
+      code: '''-- @name: 3-Way Voice Splitter (Bass, Chords, Lead)
+-- @author: Eatsbeats
+-- @category: note_splitter
+-- @description: Separates polyphonic MIDI into dedicated Bass, Middle Harmony Chords, and Skyline Lead tracks.
+-- @param: bass_split "Bass Cutoff (MIDI)" 48 24 60 1
+-- @param: lead_split "Lead Threshold (MIDI)" 64 48 84 1
+
+function split(notes, params)
+  -- 3-Way Voice Splitter using Skyline Lead detection and Harmonic Bass isolation
+  local bass_track = {}
+  local chords_track = {}
+  local lead_track = {}
+  
+  for _, note in ipairs(notes) do
+    if note.pitch < params.bass_split then
+      table.insert(bass_track, note)
+    elseif note.pitch >= params.lead_split and is_skyline(note, notes) then
+      table.insert(lead_track, note)
+    else
+      table.insert(chords_track, note)
+    end
+  end
+  
+  return {
+    { name = "Bassline", notes = bass_track, color = 0xFF00FF66 },
+    { name = "Harmony & Chords", notes = chords_track, color = 0xFF21F4E8 },
+    { name = "Lead Melody", notes = lead_track, color = 0xFFFF007A },
+  }
+end
+''',
+    ),
+    LuaScriptDef(
+      id: 'splitter_bass_treble',
+      name: 'Bass & Treble Clef Splitter (Piano)',
+      category: LuaScriptCategory.noteSplitter,
+      description: 'Splits notes at a pivot key into Left Hand (Bass Clef) and Right Hand (Treble Clef) tracks.',
+      code: '''-- @name: Bass & Treble Clef Splitter
+-- @author: Eatsbeats
+-- @category: note_splitter
+-- @description: Splits notes at a pivot key into Left Hand (Bass Clef) and Right Hand (Treble Clef) tracks.
+-- @param: split_pitch "Pivot Key (MIDI)" 60 36 84 1
+
+function split(notes, params)
+  local left_hand = {}
+  local right_hand = {}
+  
+  for _, note in ipairs(notes) do
+    if note.pitch < params.split_pitch then
+      table.insert(left_hand, note)
+    else
+      table.insert(right_hand, note)
+    end
+  end
+  
+  return {
+    { name = "Bass Clef (Left Hand)", notes = left_hand, color = 0xFF3399FF },
+    { name = "Treble Clef (Right Hand)", notes = right_hand, color = 0xFFFFD700 },
+  }
+end
+''',
+    ),
+    LuaScriptDef(
+      id: 'splitter_4voice_polyphony',
+      name: '4-Voice Polyphony Distribute (SATB)',
+      category: LuaScriptCategory.noteSplitter,
+      description: 'Distributes polyphonic chord voices into Soprano, Alto, Tenor, and Bass monophonic tracks.',
+      code: '''-- @name: 4-Voice Polyphony Distribute (SATB)
+-- @author: Eatsbeats
+-- @category: note_splitter
+-- @description: Distributes polyphonic chord voices into Soprano, Alto, Tenor, and Bass monophonic tracks.
+
+function split(notes, params)
+  return {
+    { name = "Voice 1 (Soprano / Top)", color = 0xFFFF007A },
+    { name = "Voice 2 (Alto / High-Mid)", color = 0xFFFF8C00 },
+    { name = "Voice 3 (Tenor / Low-Mid)", color = 0xFF21F4E8 },
+    { name = "Voice 4 (Bass / Root)", color = 0xFF00FF66 },
+  }
+end
+''',
+    ),
+    LuaScriptDef(
+      id: 'splitter_drum_demux',
+      name: 'Drum & Percussion Demuxer',
+      category: LuaScriptCategory.noteSplitter,
+      description: 'Separates standard General MIDI drum tracks into Kick, Snare/Clap, Hats/Cymbals, and Percussion tracks.',
+      code: '''-- @name: Drum & Percussion Demuxer
+-- @author: Eatsbeats
+-- @category: note_splitter
+-- @description: Separates standard General MIDI drum tracks into Kick, Snare/Clap, Hats/Cymbals, and Percussion tracks.
+
+function split(notes, params)
+  return {
+    { name = "Drums (Kick)", color = 0xFFFF3333 },
+    { name = "Drums (Snare & Clap)", color = 0xFFFF8C00 },
+    { name = "Drums (Hi-Hats & Cymbals)", color = 0xFFFFE600 },
+    { name = "Drums (Toms & Perc)", color = 0xFFBD00FF },
+  }
+end
+''',
+    ),
+    LuaScriptDef(
+      id: 'action_global_transpose',
+      name: 'Global Chord-Aware Song Transpose',
+      category: LuaScriptCategory.projectAction,
+      description: 'Transposes all tracks, clips, and chord track events across the entire project with scale/chord adherence.',
+      code: '''-- @name: Global Chord-Aware Song Transpose
+-- @author: Eatsbeats
+-- @category: project_action
+-- @description: Transposes all tracks, clips, and chord track events across the entire project with scale/chord adherence.
+
+Param.add("Semitones", -12, 12, 2, 1)
+Param.choice("HarmonicMode", {"Strict Chromatic", "Snap to Scale", "Smart Chord Shift"}, 0)
+Param.choice("UpdateKey", {"No (Keep Key)", "Yes (Shift Song Key)"}, 1)
+
+function run(project, params)
+  -- Evaluated by ProjectScriptEngine
+  local semitones = params.Semitones or 2
+  local mode = params.HarmonicMode or 0
+  local updateKey = params.UpdateKey or 1
+  
+  -- Transposes chord track & note events across all active patterns
+  return {
+    semitones = semitones,
+    harmonic_mode = mode,
+    update_key = updateKey,
+  }
+end
+''',
+    ),
+    LuaScriptDef(
+      id: 'action_harmonic_progression',
+      name: 'Harmonic Progression Generator',
+      category: LuaScriptCategory.projectAction,
+      description: 'Generates Roman numeral / modal chord progressions across the project chord track and conforms tracks.',
+      code: '''-- @name: Harmonic Progression Generator
+-- @author: Eatsbeats
+-- @category: project_action
+-- @description: Generates Roman numeral / modal chord progressions across the project chord track and conforms tracks.
+
+Param.choice("Genre", {"Synthwave", "Pop Anthem", "Deep House / Club", "Jazz / Neo-Soul", "Classic EDM"}, 0)
+Param.add("LengthBars", 2, 32, 8, 2)
+Param.choice("ConformTracks", {"Chord Track Only", "Conform Synth Tracks to Chords"}, 1)
+
+function run(project, params)
+  local genre = params.Genre or 0
+  local bars = params.LengthBars or 8
+  local conform = params.ConformTracks or 1
+  
+  return {
+    genre = genre,
+    length_bars = bars,
+    conform_tracks = conform,
+  }
+end
+''',
+    ),
+    LuaScriptDef(
+      id: 'action_procedural_song',
+      name: 'Procedural Multi-Track Song Generator',
+      category: LuaScriptCategory.projectAction,
+      description: 'Procedurally generates a full arrangement (Drums, Acid Bass, Chords, Lead Arp) based on genre style.',
+      code: '''-- @name: Procedural Multi-Track Song Generator
+-- @author: Eatsbeats
+-- @category: project_action
+-- @description: Procedurally generates a full arrangement (Drums, Acid Bass, Chords, Lead Arp) based on genre style.
+
+Param.choice("Style", {"Synthwave / Retro", "Deep House", "Cyberpunk Acid", "Lo-Fi Hip Hop"}, 0)
+Param.add("Bpm", 80, 175, 124, 1)
+Param.add("Bars", 4, 16, 8, 4)
+
+function run(project, params)
+  local style = params.Style or 0
+  local bpm = params.Bpm or 124
+  local bars = params.Bars or 8
+
+  return {
+    style = style,
+    bpm = bpm,
+    bars = bars,
+  }
+end
+''',
+    ),
+    LuaScriptDef(
+      id: 'action_humanize_groove',
+      name: 'Groove & Velocity Humanizer',
+      category: LuaScriptCategory.projectAction,
+      description: 'Applies organic micro-timing variations and velocity dynamics across all tracks in the song.',
+      code: '''-- @name: Groove & Velocity Humanizer
+-- @author: Eatsbeats
+-- @category: project_action
+-- @description: Applies organic micro-timing variations and velocity dynamics across all tracks in the song.
+
+Param.add("TimingJitter", 0.0, 0.15, 0.04, 0.01)
+Param.add("VelocityJitter", 0.0, 0.30, 0.12, 0.02)
+
+function run(project, params)
+  local timing = params.TimingJitter or 0.04
+  local velocity = params.VelocityJitter or 0.12
+  
+  return {
+    timing_jitter = timing,
+    velocity_jitter = velocity,
+  }
+end
 ''',
     ),
   ];

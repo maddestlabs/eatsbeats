@@ -189,6 +189,28 @@ class _ArrangerViewState extends State<ArrangerView> {
                             },
                             onSelected: (k) => widget.dawState.setSongKey(k),
                           ),
+                          // Progression Presets Quick Picker Button
+                          InkWell(
+                            onTap: () {
+                              final curBar = (widget.dawState.arrangerStep ~/ 16).clamp(0, totalBars - 1);
+                              PresetSearchDialog.showChordProgressions(
+                                context,
+                                dawState: widget.dawState,
+                                startBar: curBar,
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: EatsTheme.accentGold.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Tooltip(
+                                message: 'Browse & Insert Chord Progression Presets',
+                                child: Icon(Icons.queue_music, size: 13, color: EatsTheme.accentGold),
+                              ),
+                            ),
+                          ),
                           const SizedBox(width: 4),
                           // Circle of Fifths Dialog Button
                           InkWell(
@@ -902,8 +924,25 @@ class _ArrangerViewState extends State<ArrangerView> {
                                         initialChord: chord,
                                       );
                                     },
-                                    onSecondaryTapDown: (details) {
-                                      _showChordContextMenu(context, details.globalPosition, chord);
+                                    onSecondaryTap: () {
+                                      widget.dawState.removeChord(chord.id);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Deleted chord "${chord.displayName}" (Ctrl+Z to Undo)'),
+                                          backgroundColor: EatsTheme.panelHeader,
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                    },
+                                    onSecondaryTapDown: (_) {
+                                      widget.dawState.removeChord(chord.id);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Deleted chord "${chord.displayName}" (Ctrl+Z to Undo)'),
+                                          backgroundColor: EatsTheme.panelHeader,
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
                                     },
                                     onHorizontalDragStart: (_) {
                                       _chordMoveDragDxAccumulator = 0.0;
@@ -1290,8 +1329,12 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                          widget.dawState.activeTrackIndex = trackIdx;
                                                          widget.dawState.selectClip(clip);
                                                          if (isDoubleTap) {
-                                                           // DOUBLE-TAP CLIP: Open clip in Edit section (Piano Roll / Tracker View)
-                                                           widget.dawState.openClipInEditor(clip);
+                                                           // DOUBLE-TAP CLIP: Open MIDI clip in Piano Roll / Tracker; for Audio clips, focus clip properties inspector
+                                                           if (track.type != TrackType.sampler && !clip.isAudioClip) {
+                                                             widget.dawState.openClipInEditor(clip);
+                                                           } else {
+                                                             setState(() => _isPropertiesExpanded = true);
+                                                           }
                                                          }
                                                        },
                                                        onSecondaryTap: () {

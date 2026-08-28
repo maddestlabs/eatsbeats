@@ -12,6 +12,7 @@ class EatsStorageHelperImpl {
   // In-memory test isolation maps to prevent test runner disk race conditions
   static final Map<String, dynamic> _testSettings = {};
   static final Map<String, Uint8List> _testSoundFonts = {};
+  static final Map<String, Uint8List> _testModels = {};
   static String? _testSessionLua;
 
   static bool get _isTest => PlatformEnvHelper.isFlutterTest;
@@ -67,6 +68,19 @@ class EatsStorageHelperImpl {
       }
     }
     return sfDir;
+  }
+
+  static io.Directory _getModelsDir() {
+    final base = _getBaseDirectory();
+    final modelDir = io.Directory('${base.path}/models');
+    if (!modelDir.existsSync()) {
+      try {
+        modelDir.createSync(recursive: true);
+      } catch (e) {
+        debugPrint('Error creating models directory: $e');
+      }
+    }
+    return modelDir;
   }
 
   static io.File _getSessionFile() {
@@ -262,6 +276,72 @@ class EatsStorageHelperImpl {
       debugPrint('EatsStorageHelper (IO) error listing soundfonts: $e');
     }
     return list;
+  }
+
+  // --- Neural / AI Model Storage API ---
+
+  static Future<void> saveModel(String fileName, Uint8List bytes) async {
+    if (_isTest) {
+      _testModels[fileName] = bytes;
+      return;
+    }
+    try {
+      final dir = _getModelsDir();
+      final file = io.File('${dir.path}/$fileName');
+      await file.writeAsBytes(bytes, flush: true);
+      debugPrint('EatsStorageHelper (IO): Saved neural model $fileName (${bytes.length} bytes)');
+    } catch (e) {
+      debugPrint('EatsStorageHelper (IO) error saving neural model $fileName: $e');
+    }
+  }
+
+  static Future<Uint8List?> loadModel(String fileName) async {
+    if (_isTest) {
+      return _testModels[fileName];
+    }
+    try {
+      final dir = _getModelsDir();
+      final file = io.File('${dir.path}/$fileName');
+      if (await file.exists()) {
+        final bytes = await file.readAsBytes();
+        if (bytes.isNotEmpty) {
+          debugPrint('EatsStorageHelper (IO): Loaded neural model $fileName (${bytes.length} bytes)');
+          return bytes;
+        }
+      }
+    } catch (e) {
+      debugPrint('EatsStorageHelper (IO) error loading neural model $fileName: $e');
+    }
+    return null;
+  }
+
+  static Future<bool> hasModel(String fileName) async {
+    if (_isTest) {
+      return _testModels.containsKey(fileName);
+    }
+    try {
+      final dir = _getModelsDir();
+      final file = io.File('${dir.path}/$fileName');
+      return await file.exists();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> deleteModel(String fileName) async {
+    if (_isTest) {
+      _testModels.remove(fileName);
+      return;
+    }
+    try {
+      final dir = _getModelsDir();
+      final file = io.File('${dir.path}/$fileName');
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      debugPrint('EatsStorageHelper (IO) error deleting neural model $fileName: $e');
+    }
   }
 
   // --- Session Storage API ---

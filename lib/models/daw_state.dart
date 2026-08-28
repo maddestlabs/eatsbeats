@@ -17,15 +17,21 @@ import '../audio/sampler_engine.dart';
 import '../audio/soundfont_engine.dart';
 import '../audio/tts_engine.dart';
 import '../audio/wav_exporter.dart';
+import '../audio/audio_to_midi_engine.dart';
+import '../utils/audio_to_midi_pack_manager.dart';
 import '../theme/eats_theme.dart';
 import '../lua/lua_engine.dart';
 import '../lua/lua_gui_model.dart';
 import '../lua/eats_lua_serializer.dart';
 import '../lua/eats_lua_parser.dart';
+import '../audio/audio_to_midi_engine.dart';
+import '../utils/audio_to_midi_pack_manager.dart';
 import '../audio/time_context.dart';
 import '../lua/lua_preset_library.dart';
 import '../lua/lua_script_library.dart';
 import '../lua/midi_pipeline_engine.dart';
+import '../lua/note_splitter_engine.dart';
+import '../lua/project_script_engine.dart';
 import '../lua/default_song.dart';
 import '../ui/modular/modular_rack_dsl.dart';
 import 'track_model.dart';
@@ -1501,6 +1507,24 @@ class DawState extends ChangeNotifier {
         ),
       );
     }
+
+    // 6. Project-Wide Action & Procedural Generation Scripts
+    final projectScripts = LuaScriptLibrary.getScriptsByCategory(LuaScriptCategory.projectAction);
+    for (final ps in projectScripts) {
+      list.add(
+        ScriptTarget(
+          id: 'project_${ps.id}',
+          type: ScriptTargetType.projectAction,
+          title: ps.name,
+          subtitle: ps.description,
+          trackId: masterTrack.id,
+          trackName: 'Project',
+          trackColor: const Color(0xFFBD00FF),
+          secondaryId: ps.id,
+        ),
+      );
+    }
+
     return list;
   }
 
@@ -1650,6 +1674,10 @@ return MidiFx
           return serialized;
         }
         return '';
+
+      case ScriptTargetType.projectAction:
+        final script = LuaScriptLibrary.scripts.where((s) => s.id == target.secondaryId).firstOrNull;
+        return script?.code ?? '';
     }
   }
 
@@ -1667,6 +1695,8 @@ return MidiFx
       case ScriptTargetType.clipScript:
         final clip = track.clips.where((c) => c.id == target.secondaryId).firstOrNull;
         return clip?.luaParams ?? {};
+      case ScriptTargetType.projectAction:
+        return {};
     }
   }
 
@@ -1689,6 +1719,8 @@ return MidiFx
           final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
           pipeline.processClip(clip: clip, track: track, timeContext: timeContext);
         }
+        break;
+      case ScriptTargetType.projectAction:
         break;
     }
     notifyListeners();
@@ -1777,9 +1809,34 @@ return MidiFx
             pipeline.processClip(clip: clip, track: track, timeContext: timeContext);
           }
           break;
+
+        case ScriptTargetType.projectAction:
+          final existing = LuaScriptLibrary.scripts.where((s) => s.id == target.secondaryId).firstOrNull;
+          if (existing != null) {
+            final updated = LuaScriptDef(
+              id: existing.id,
+              name: existing.name,
+              category: LuaScriptCategory.projectAction,
+              description: existing.description,
+              code: code,
+            );
+            LuaScriptLibrary.registerCustomScript(updated);
+          }
+          break;
       }
     }
     notifyListeners();
+  }
+
+  /// Runs a project action Lua script with undo snapshot history recording.
+  ProjectScriptResult runProjectScript(LuaScriptDef script, {Map<String, dynamic> params = const {}}) {
+    recordHistory('Run Script: ${script.name}', icon: Icons.auto_awesome, force: true);
+    final result = ProjectScriptEngine.execute(
+      dawState: this,
+      script: script,
+      params: params,
+    );
+    return result;
   }
 
   void compileLuaCode(String code) {
@@ -4058,6 +4115,226 @@ return MidiFx
     }
 
     activePattern.tracks.add(newTrack);
+  }
+
+  /// Ensures pattern and arrangement have enough bars to accommodate content
+  void ensureSongLengthForBars(int requiredBars) {
+    final requiredSteps = requiredBars * 16;
+    if (activePattern.lengthSteps < requiredSteps) {
+      activePattern.lengthSteps = requiredSteps;
+    }
+  }
+
+  /// Imports a parsed MIDI track into either a new track or an existing track
+  void importParsedMidiTrack(
+    ParsedMidiTrack midiTrack, {
+    String? targetTrackId,
+    bool createNewTrack = true,
+    String? customTrackName,
+  }) {
+    beginHistoryTransaction('Import Transcribed Audio to MIDI');
+
+    ensureSongLengthForBars(midiTrack.totalBars);
+
+    if (!createNewTrack && targetTrackId != null) {
+      final target = activePattern.tracks.firstWhere(
+        (t) => t.id == targetTrackId,
+        orElse: () => activeTrack,
+      );
+      if (customTrackName != null && customTrackName.isNotEmpty) {
+        target.name = customTrackName;
+      }
+      _replaceTrackNotesWithMidi(target, midiTrack);
+    } else {
+      if (customTrackName != null && customTrackName.isNotEmpty) {
+        midiTrack.name = customTrackName;
+      }
+      _createNewTrackFromMidi(midiTrack);
+    }
+
+    commitHistoryTransaction();
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  /// High-level method to transcribe an audio buffer directly into MIDI and insert into project
+  Future<ParsedMidiTrack> transcribeAudioToMidi(
+    DecodedAudioBuffer audio, {
+    AudioToMidiOptions? options,
+    String? targetTrackId,
+    bool createNewTrack = true,
+    String? customTrackName,
+    CancellationToken? cancellationToken,
+    Function(double progress, String status)? onProgress,
+  }) async {
+    final opts = options ?? AudioToMidiOptions(targetBpm: bpm);
+    final neuralBytes = AudioToMidiPackManager.instance.cachedModelBytes;
+
+    final parsedTrack = await AudioToMidiEngine.transcribeAudioBuffer(
+      audio,
+      options: opts,
+      neuralModelBytes: neuralBytes,
+      cancellationToken: cancellationToken,
+      onProgress: onProgress,
+    );
+
+    if (cancellationToken?.isCancelled ?? false) {
+      return parsedTrack;
+    }
+
+    importParsedMidiTrack(
+      parsedTrack,
+      targetTrackId: targetTrackId,
+      createNewTrack: createNewTrack,
+      customTrackName: customTrackName ?? 'Audio to MIDI',
+    );
+
+    return parsedTrack;
+  }
+
+  /// Transcribes an audio clip's sample directly into linked embedded MIDI notes on the clip itself
+  Future<int> transcribeAudioClipToLinkedMidi(
+    TrackClip clip, {
+    AudioToMidiOptions? options,
+    CancellationToken? cancellationToken,
+    Function(double progress, String status)? onProgress,
+  }) async {
+    final sampleName = clip.audioSampleName ?? activeTrack.sampleName;
+    final audioBuffer = SamplerEngine.instance.getSample(sampleName);
+    if (audioBuffer == null) {
+      throw Exception('No audio sample loaded for clip "${clip.name}" ($sampleName)');
+    }
+
+    final opts = options ?? AudioToMidiOptions(targetBpm: bpm);
+    final neuralBytes = AudioToMidiPackManager.instance.cachedModelBytes;
+
+    final parsedTrack = await AudioToMidiEngine.transcribeAudioBuffer(
+      audioBuffer,
+      options: opts,
+      neuralModelBytes: neuralBytes,
+      cancellationToken: cancellationToken,
+      onProgress: onProgress,
+    );
+
+    if (cancellationToken?.isCancelled ?? false) {
+      return 0;
+    }
+
+    beginHistoryTransaction('Transcribe Audio to Linked MIDI on "${clip.name}"', icon: Icons.transform);
+
+    clip.embeddedTranscribedNotes = parsedTrack.notes.map((n) => n.copyWith()).toList();
+    ensureSongLengthForBars(clip.startBar + clip.barLength);
+
+    commitHistoryTransaction();
+    triggerAutoSave();
+    notifyListeners();
+
+    return clip.embeddedTranscribedNotes.length;
+  }
+
+  /// Extracts chord progression from clip (either linked transcribed notes or clip notes) and applies to chordTrack
+  int extractAndApplyChordsFromClip(TrackClip clip) {
+    final notesToAnalyze = clip.embeddedTranscribedNotes.isNotEmpty
+        ? clip.embeddedTranscribedNotes
+        : clip.notes;
+
+    if (notesToAnalyze.isEmpty) return 0;
+
+    final extracted = ChordTheory.extractChordsFromNotes(
+      notesToAnalyze,
+      startBar: clip.startBar,
+      totalBars: clip.barLength,
+    );
+
+    if (extracted.isEmpty) return 0;
+
+    beginHistoryTransaction('Extract Chords from "${clip.name}" to Chord Track', icon: Icons.queue_music);
+
+    for (final chord in extracted) {
+      addOrUpdateChord(chord);
+    }
+
+    ensureSongLengthForBars(clip.startBar + clip.barLength);
+
+    commitHistoryTransaction();
+    triggerAutoSave();
+    notifyListeners();
+
+    return extracted.length;
+  }
+
+  /// Splits clip notes into dedicated destination tracks using a Lua note splitter preset
+  List<TrackChannel> splitClipNotesWithPreset(
+    TrackClip clip,
+    LuaScriptDef preset, {
+    Map<String, double>? params,
+    bool removeOriginalClip = false,
+  }) {
+    final sourceNotes = clip.embeddedTranscribedNotes.isNotEmpty
+        ? clip.embeddedTranscribedNotes
+        : clip.notes;
+
+    if (sourceNotes.isEmpty) return [];
+
+    final splitResults = NoteSplitterEngine.splitWithPreset(sourceNotes, preset, params: params);
+    if (splitResults.isEmpty) return [];
+
+    beginHistoryTransaction('Split Clip "${clip.name}" into ${splitResults.length} Tracks', icon: Icons.call_split);
+
+    final List<TrackChannel> createdTracks = [];
+
+    for (final result in splitResults) {
+      final newTrackIndex = activePattern.tracks.length;
+      final newTrackId = 'track_${DateTime.now().millisecondsSinceEpoch}_$newTrackIndex';
+      final newTrack = TrackChannel(
+        id: newTrackId,
+        name: result.name,
+        color: result.color,
+        type: result.type,
+        steps: List.generate(activePattern.lengthSteps, (_) => StepEvent(active: false)),
+        clips: [
+          TrackClip(
+            id: 'clip_${DateTime.now().millisecondsSinceEpoch}_$newTrackIndex',
+            name: result.name,
+            trackId: newTrackId,
+            startBar: clip.startBar,
+            barLength: clip.barLength,
+            notes: result.notes.map((n) => n.copyWith()).toList(),
+          ),
+        ],
+      );
+
+      // Populate tracker step preview
+      for (final note in result.notes) {
+        final step = note.startStep.toInt();
+        if (step < newTrack.steps.length) {
+          newTrack.steps[step] = StepEvent(
+            active: true,
+            pitch: note.pitch,
+            velocity: note.velocity,
+          );
+        }
+      }
+
+      activePattern.tracks.add(newTrack);
+      createdTracks.add(newTrack);
+    }
+
+    if (removeOriginalClip) {
+      final track = activePattern.tracks.firstWhere(
+        (t) => t.id == clip.trackId,
+        orElse: () => activeTrack,
+      );
+      track.clips.removeWhere((c) => c.id == clip.id);
+    }
+
+    ensureSongLengthForBars(clip.startBar + clip.barLength);
+
+    commitHistoryTransaction();
+    triggerAutoSave();
+    notifyListeners();
+
+    return createdTracks;
   }
 
   void loadLuaPreset(LuaPreset preset) {

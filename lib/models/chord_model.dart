@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'track_model.dart';
 
 /// Chord qualities supported by the chord engine.
 enum ChordQuality {
@@ -197,14 +198,26 @@ class ChordProgressionPreset {
   final String id;
   final String name;
   final String genre;
+  final String description;
+  final List<String> tags;
   final List<(int rootOffset, ChordQuality quality, double barLen)> chords; // offsets from tonic
 
   const ChordProgressionPreset({
     required this.id,
     required this.name,
     required this.genre,
+    this.description = '',
+    this.tags = const [],
     required this.chords,
   });
+
+  /// Formatted Roman numeral summary string
+  String get romanSummary {
+    return chords.map((c) {
+      final name = ChordTheory.getRomanNumeral(0, false, c.$1, c.$2);
+      return name;
+    }).join(' - ');
+  }
 }
 
 /// Music Theory Utilities, Circle of Fifths Data & Harmonic Remapping.
@@ -259,12 +272,15 @@ class ChordTheory {
     'Am', 'Em', 'Bm', 'F#m', 'C#m', 'G#m', 'D#m', 'Bbm', 'Fm', 'Cm', 'Gm', 'Dm'
   ];
 
-  /// Common chord progression presets
+  /// Common & Curated chord progression presets
   static const List<ChordProgressionPreset> progressionPresets = [
+    // --- POP & MAINSTREAM ---
     ChordProgressionPreset(
       id: 'pop_axis',
       name: 'Pop Classic (I - V - vi - IV)',
-      genre: 'Pop / EDM',
+      genre: 'Pop',
+      description: 'The iconic Axis of Awesome progression behind hundreds of massive global hit songs.',
+      tags: ['pop', 'hits', 'anthem', 'radio'],
       chords: [
         (0, ChordQuality.major, 1.0),  // I
         (7, ChordQuality.major, 1.0),  // V
@@ -272,10 +288,53 @@ class ChordTheory {
         (5, ChordQuality.major, 1.0),  // IV
       ],
     ),
+    ChordProgressionPreset(
+      id: 'pop_doo_wop',
+      name: '50s Doo-Wop (I - vi - IV - V)',
+      genre: 'Pop',
+      description: 'Nostalgic golden-era ballad progression made legendary by "Stand By Me" and classic rock & roll.',
+      tags: ['50s', 'ballad', 'retro', 'motown'],
+      chords: [
+        (0, ChordQuality.major, 1.0),  // I
+        (9, ChordQuality.minor, 1.0),  // vi
+        (5, ChordQuality.major, 1.0),  // IV
+        (7, ChordQuality.major, 1.0),  // V
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'pop_emotional',
+      name: 'Emotional Anthem (I - iii - IV - V)',
+      genre: 'Pop',
+      description: 'Uplifting ascending progression featuring a bittersweet mediant chord.',
+      tags: ['pop', 'uplifting', 'climax'],
+      chords: [
+        (0, ChordQuality.major, 1.0),  // I
+        (4, ChordQuality.minor, 1.0),  // iii
+        (5, ChordQuality.major, 1.0),  // IV
+        (7, ChordQuality.major, 1.0),  // V
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'pop_melancholy',
+      name: 'Sensitive Minor (vi - IV - I - V)',
+      genre: 'Pop',
+      description: 'Moody, emotive minor pop progression used in countless heartfelt modern tracks.',
+      tags: ['pop', 'minor', 'emotional'],
+      chords: [
+        (9, ChordQuality.minor, 1.0),  // vi
+        (5, ChordQuality.major, 1.0),  // IV
+        (0, ChordQuality.major, 1.0),  // I
+        (7, ChordQuality.major, 1.0),  // V
+      ],
+    ),
+
+    // --- SYNTHWAVE & CYBERPUNK ---
     ChordProgressionPreset(
       id: 'synthwave_dark',
       name: 'Cyberpunk Drive (vi - IV - I - V)',
       genre: 'Synthwave',
+      description: 'Relentless driving progression with high-energy minor synth energy.',
+      tags: ['synthwave', 'cyberpunk', 'retrowave', 'drive'],
       chords: [
         (9, ChordQuality.minor, 1.0),  // vi
         (5, ChordQuality.major, 1.0),  // IV
@@ -284,9 +343,93 @@ class ChordTheory {
       ],
     ),
     ChordProgressionPreset(
+      id: 'synthwave_outrun',
+      name: 'Outrun Sunset (i - VII - v - VI)',
+      genre: 'Synthwave',
+      description: 'Nostalgic 80s arcade sunset cruising vibe with natural minor cadences.',
+      tags: ['synthwave', 'outrun', '80s', 'neon'],
+      chords: [
+        (0, ChordQuality.minor, 1.0),   // i
+        (10, ChordQuality.major, 1.0),  // VII
+        (7, ChordQuality.minor, 1.0),   // v
+        (8, ChordQuality.major, 1.0),   // VI
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'synthwave_darkwave',
+      name: 'Darkwave Pulse (i - VI - iv - V)',
+      genre: 'Synthwave',
+      description: 'Ominous industrial darkwave loop with a harmonic minor dominant turnaround.',
+      tags: ['synthwave', 'darkwave', 'goth', 'minor'],
+      chords: [
+        (0, ChordQuality.minor, 1.0),     // i
+        (8, ChordQuality.major, 1.0),     // VI
+        (5, ChordQuality.minor, 1.0),     // iv
+        (7, ChordQuality.dominant7, 1.0), // V7
+      ],
+    ),
+
+    // --- EDM, HOUSE & TRANCE ---
+    ChordProgressionPreset(
+      id: 'edm_progressive_house',
+      name: 'Progressive House (IV - I - vi - V)',
+      genre: 'EDM',
+      description: 'Festival mainstage euphoric buildup and melodic drop progression.',
+      tags: ['edm', 'house', 'festival', 'euphoria'],
+      chords: [
+        (5, ChordQuality.major, 1.0), // IV
+        (0, ChordQuality.major, 1.0), // I
+        (9, ChordQuality.minor, 1.0), // vi
+        (7, ChordQuality.major, 1.0), // V
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'edm_deep_house',
+      name: 'Deep House Nocturne (i7 - v7 - iv7 - VImaj7)',
+      genre: 'EDM',
+      description: 'Late-night club groove with lush minor 7th chords and deep sub warmth.',
+      tags: ['edm', 'deephouse', 'club', 'groove'],
+      chords: [
+        (0, ChordQuality.minor7, 1.0), // i7
+        (7, ChordQuality.minor7, 1.0), // v7
+        (5, ChordQuality.minor7, 1.0), // iv7
+        (8, ChordQuality.major7, 1.0), // VImaj7
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'edm_trance_uplift',
+      name: 'Trance Uplift (i - VI - VII - i)',
+      genre: 'EDM',
+      description: 'Driving 138 BPM uplifting trance arpeggio progression with high emotional energy.',
+      tags: ['edm', 'trance', 'uplift', 'energy'],
+      chords: [
+        (0, ChordQuality.minor, 1.0),  // i
+        (8, ChordQuality.major, 1.0),  // VI
+        (10, ChordQuality.major, 1.0), // VII
+        (0, ChordQuality.minor, 1.0),  // i
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'edm_future_bass',
+      name: 'Future Bass Lush (IVmaj9 - V - iii7 - vi7)',
+      genre: 'EDM',
+      description: 'Glitchy vocal-chopped future bass progression with extended lush 9th chords.',
+      tags: ['edm', 'futurebass', 'chill', 'lush'],
+      chords: [
+        (5, ChordQuality.maj9, 1.0),   // IVmaj9
+        (7, ChordQuality.major, 1.0),  // V
+        (4, ChordQuality.minor7, 1.0), // iii7
+        (9, ChordQuality.minor7, 1.0), // vi7
+      ],
+    ),
+
+    // --- JAZZ, NEO-SOUL & R&B ---
+    ChordProgressionPreset(
       id: 'jazz_two_five_one',
       name: 'Jazz Cadence (ii7 - V7 - Imaj7 - VI7)',
       genre: 'Jazz / Neo-Soul',
+      description: 'The foundational standard of jazz harmony with secondary dominant turnaround.',
+      tags: ['jazz', 'ii-v-i', 'standard', 'harmony'],
       chords: [
         (2, ChordQuality.minor7, 1.0),    // ii7
         (7, ChordQuality.dominant7, 1.0), // V7
@@ -295,20 +438,51 @@ class ChordTheory {
       ],
     ),
     ChordProgressionPreset(
-      id: 'cinematic_epic',
-      name: 'Epic Hero (i - VI - III - VII)',
-      genre: 'Cinematic / Rock',
+      id: 'neo_soul_smooth',
+      name: 'Neo-Soul Silk (ii9 - V9 - Imaj9 - VI7alt)',
+      genre: 'Jazz / Neo-Soul',
+      description: 'Silky, warm Neo-Soul progression with rich color tones and voice leading.',
+      tags: ['neosoul', 'soul', 'rnb', 'warm'],
       chords: [
-        (0, ChordQuality.minor, 1.0), // i
-        (8, ChordQuality.major, 1.0), // VI
-        (3, ChordQuality.major, 1.0), // III
-        (10, ChordQuality.major, 1.0),// VII
+        (2, ChordQuality.min9, 1.0),      // ii9
+        (7, ChordQuality.dom9, 1.0),      // V9
+        (0, ChordQuality.maj9, 1.0),      // Imaj9
+        (9, ChordQuality.dominant7, 1.0), // VI7
       ],
     ),
     ChordProgressionPreset(
+      id: 'rnb_bedroom_jam',
+      name: 'R&B Slow Jam (IVmaj7 - iii7 - ii7 - Imaj7)',
+      genre: 'Jazz / Neo-Soul',
+      description: 'Velveteen step-wise descending bass line progression for smooth R&B ballads.',
+      tags: ['rnb', 'slowjam', 'ballad', 'descent'],
+      chords: [
+        (5, ChordQuality.major7, 1.0), // IVmaj7
+        (4, ChordQuality.minor7, 1.0), // iii7
+        (2, ChordQuality.minor7, 1.0), // ii7
+        (0, ChordQuality.major7, 1.0), // Imaj7
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'jazz_modal_so_what',
+      name: 'Modal Jazz Vamp (i7 - i7 - bII7 - i7)',
+      genre: 'Jazz / Neo-Soul',
+      description: 'Miles Davis "So What" style Dorian modal shift with half-step chromatic tension.',
+      tags: ['jazz', 'modal', 'dorian', 'vamp'],
+      chords: [
+        (0, ChordQuality.minor7, 2.0), // i7
+        (1, ChordQuality.minor7, 1.0), // bII7
+        (0, ChordQuality.minor7, 1.0), // i7
+      ],
+    ),
+
+    // --- LO-FI & CHILLHOP ---
+    ChordProgressionPreset(
       id: 'lofi_chill',
       name: 'Lofi Nostalgia (Imaj9 - vi9 - ii9 - V7)',
-      genre: 'Lofi / R&B',
+      genre: 'Lo-Fi',
+      description: 'Wobbly tape saturation and rainy day study beats progression.',
+      tags: ['lofi', 'chill', 'study', 'relax'],
       chords: [
         (0, ChordQuality.maj9, 1.0),      // Imaj9
         (9, ChordQuality.min9, 1.0),      // vi9
@@ -317,14 +491,180 @@ class ChordTheory {
       ],
     ),
     ChordProgressionPreset(
+      id: 'lofi_sunset',
+      name: 'Lofi Sunset Breeze (IVmaj9 - iii7 - vi9 - Imaj7)',
+      genre: 'Lo-Fi',
+      description: 'Dreamy chillhop loop with lush upper extensions and laid-back swing.',
+      tags: ['lofi', 'chillhop', 'sunset', 'warm'],
+      chords: [
+        (5, ChordQuality.maj9, 1.0),   // IVmaj9
+        (4, ChordQuality.minor7, 1.0), // iii7
+        (9, ChordQuality.min9, 1.0),   // vi9
+        (0, ChordQuality.major7, 1.0), // Imaj7
+      ],
+    ),
+
+    // --- CINEMATIC & AMBIENT ---
+    ChordProgressionPreset(
+      id: 'cinematic_epic',
+      name: 'Epic Hero (i - VI - III - VII)',
+      genre: 'Cinematic',
+      description: 'Blockbuster trailer and movie soundtrack theme with sweeping orchestral power.',
+      tags: ['cinematic', 'epic', 'soundtrack', 'heroic'],
+      chords: [
+        (0, ChordQuality.minor, 1.0), // i
+        (8, ChordQuality.major, 1.0), // VI
+        (3, ChordQuality.major, 1.0), // III
+        (10, ChordQuality.major, 1.0),// VII
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'cinematic_hans_ostinato',
+      name: 'Hans Zimmer Ostinato (i - VI - iv - VII)',
+      genre: 'Cinematic',
+      description: 'Relentless cello string ostinato with massive harmonic tension and resolution.',
+      tags: ['cinematic', 'zimmer', 'strings', 'tension'],
+      chords: [
+        (0, ChordQuality.minor, 1.0),  // i
+        (8, ChordQuality.major, 1.0),  // VI
+        (5, ChordQuality.minor, 1.0),  // iv
+        (10, ChordQuality.major, 1.0), // VII
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'cinematic_ethereal',
+      name: 'Ethereal Dreamscape (Imaj7 - IVmaj7 - vi7 - V)',
+      genre: 'Cinematic',
+      description: 'Spacious, ambient soundscape progression with floating reverbs and pads.',
+      tags: ['ambient', 'ethereal', 'pads', 'space'],
+      chords: [
+        (0, ChordQuality.major7, 1.0), // Imaj7
+        (5, ChordQuality.major7, 1.0), // IVmaj7
+        (9, ChordQuality.minor7, 1.0), // vi7
+        (7, ChordQuality.major, 1.0),  // V
+      ],
+    ),
+
+    // --- ROCK & METAL ---
+    ChordProgressionPreset(
+      id: 'rock_power_anthem',
+      name: 'Classic Rock Anthem (I - IV - V - IV)',
+      genre: 'Rock / Metal',
+      description: 'Timeless arena rock progression with roaring overdriven rhythm guitars.',
+      tags: ['rock', 'arena', 'power', 'guitars'],
+      chords: [
+        (0, ChordQuality.major, 1.0), // I
+        (5, ChordQuality.major, 1.0), // IV
+        (7, ChordQuality.major, 1.0), // V
+        (5, ChordQuality.major, 1.0), // IV
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'metal_phrygian_menace',
+      name: 'Phrygian Metal Riff (i - bII - i - bVII)',
+      genre: 'Rock / Metal',
+      description: 'Heavy downtuned metal riff with the sinister half-step Phrygian flat-2nd.',
+      tags: ['metal', 'phrygian', 'heavy', 'riff'],
+      chords: [
+        (0, ChordQuality.minor, 1.0),  // i
+        (1, ChordQuality.major, 1.0),  // bII
+        (0, ChordQuality.minor, 1.0),  // i
+        (10, ChordQuality.major, 1.0), // bVII
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'grunge_minor_drop',
+      name: '90s Grunge Drop (i - VI - III - VII)',
+      genre: 'Rock / Metal',
+      description: 'Raw, gritty grunge and alternative rock power chord progression.',
+      tags: ['grunge', 'alternative', '90s', 'distortion'],
+      chords: [
+        (0, ChordQuality.minor, 1.0),  // i
+        (8, ChordQuality.major, 1.0),  // VI
+        (3, ChordQuality.major, 1.0),  // III
+        (10, ChordQuality.major, 1.0), // VII
+      ],
+    ),
+
+    // --- LATIN & FLAMENCO ---
+    ChordProgressionPreset(
       id: 'andalusian',
       name: 'Flamenco Descent (i - VII - VI - V)',
       genre: 'Latin / Flamenco',
+      description: 'The ancient Andalusian cadence featuring dramatic step-wise downward resolution.',
+      tags: ['latin', 'flamenco', 'spanish', 'classical'],
       chords: [
         (0, ChordQuality.minor, 1.0),     // i
         (10, ChordQuality.major, 1.0),    // VII
         (8, ChordQuality.major, 1.0),     // VI
-        (7, ChordQuality.dominant7, 1.0), // V
+        (7, ChordQuality.dominant7, 1.0), // V7
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'bossa_ipanema',
+      name: 'Bossa Nova Ipanema (Imaj7 - II7 - ii7 - V7)',
+      genre: 'Latin / Flamenco',
+      description: 'Classic Brazilian bossa nova with secondary dominant 9th chords and gentle nylon swing.',
+      tags: ['bossa', 'latin', 'brazil', 'jazz'],
+      chords: [
+        (0, ChordQuality.major7, 1.0),    // Imaj7
+        (2, ChordQuality.dominant7, 1.0), // II7
+        (2, ChordQuality.minor7, 1.0),    // ii7
+        (7, ChordQuality.dominant7, 1.0), // V7
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'latin_reggaeton_bounce',
+      name: 'Reggaeton / Latin Trap (i - VI - III - VII)',
+      genre: 'Latin / Flamenco',
+      description: 'Bouncing Latin urban dembow groove progression with infectious minor warmth.',
+      tags: ['reggaeton', 'dembow', 'latin', 'trap'],
+      chords: [
+        (0, ChordQuality.minor, 1.0),  // i
+        (8, ChordQuality.major, 1.0),  // VI
+        (3, ChordQuality.major, 1.0),  // III
+        (10, ChordQuality.major, 1.0), // VII
+      ],
+    ),
+
+    // --- ANIME & J-POP ---
+    ChordProgressionPreset(
+      id: 'jpop_royal_road',
+      name: 'Royal Road / Oudo 王道 (IVmaj7 - V7 - iii7 - vi)',
+      genre: 'Anime / J-Pop',
+      description: 'The signature "Royal Road" progression used in anime openings and J-Pop masterpieces.',
+      tags: ['anime', 'jpop', 'oudo', 'royalroad'],
+      chords: [
+        (5, ChordQuality.major7, 1.0),    // IVmaj7
+        (7, ChordQuality.dominant7, 1.0), // V7
+        (4, ChordQuality.minor7, 1.0),    // iii7
+        (9, ChordQuality.minor, 1.0),     // vi
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'jpop_just_the_two_of_us',
+      name: 'Shibutani Groover (IVmaj7 - III7 - vi7 - I7)',
+      genre: 'Anime / J-Pop',
+      description: 'Funky J-Rock & City Pop progression with chromatic secondary dominant push.',
+      tags: ['citypop', 'anime', 'funk', 'groove'],
+      chords: [
+        (5, ChordQuality.major7, 1.0),    // IVmaj7
+        (4, ChordQuality.dominant7, 1.0), // III7
+        (9, ChordQuality.minor7, 1.0),    // vi7
+        (0, ChordQuality.dominant7, 1.0), // I7
+      ],
+    ),
+    ChordProgressionPreset(
+      id: 'jpop_emotional_climax',
+      name: 'Anime Emotional Climax (IV - V - vi - I)',
+      genre: 'Anime / J-Pop',
+      description: 'Driving cinematic chorus explosion from high-octane anime openings.',
+      tags: ['anime', 'opening', 'chorus', 'climax'],
+      chords: [
+        (5, ChordQuality.major, 1.0), // IV
+        (7, ChordQuality.major, 1.0), // V
+        (9, ChordQuality.minor, 1.0), // vi
+        (0, ChordQuality.major, 1.0), // I
       ],
     ),
   ];
@@ -502,5 +842,119 @@ class ChordTheory {
       }
     }
     return bestPc;
+  }
+
+  /// Given a list of active MIDI pitches (e.g. [60, 64, 67] for C4, E4, G4),
+  /// detects the best matching root pitch class (0..11) and ChordQuality.
+  static (int rootPc, ChordQuality quality, int? bassPc)? detectChordFromPitches(List<int> midiPitches) {
+    if (midiPitches.isEmpty) return null;
+
+    // Find lowest bass note
+    final lowestPitch = midiPitches.reduce((a, b) => a < b ? a : b);
+    final bassPc = lowestPitch % 12;
+
+    // Count active pitch classes
+    final activePcs = midiPitches.map((p) => p % 12).toSet();
+    if (activePcs.isEmpty) return null;
+
+    int bestRoot = bassPc;
+    ChordQuality bestQuality = ChordQuality.major;
+    double bestScore = -1.0;
+
+    // Candidate roots to test (prioritize bass note and active pitch classes)
+    final candidateRoots = activePcs.toList();
+
+    for (final root in candidateRoots) {
+      for (final quality in ChordQuality.values) {
+        final chordPcs = quality.intervals.map((i) => (root + i) % 12).toSet();
+
+        // Intersection (matching tones)
+        final matches = activePcs.intersection(chordPcs).length;
+        final thirdPc = (root + quality.intervals[1]) % 12;
+        final hasThird = activePcs.contains(thirdPc);
+        final hasRoot = activePcs.contains(root);
+
+        // Score formula
+        double score = (matches.toDouble() / chordPcs.length);
+        if (hasRoot) score += 0.5;
+        if (hasThird) score += 0.4;
+        if (root == bassPc) score += 0.3; // Prefer root in bass
+
+        // Penalize extra tones outside the chord
+        final outsideTones = activePcs.difference(chordPcs).length;
+        score -= outsideTones * 0.25;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestRoot = root;
+          bestQuality = quality;
+        }
+      }
+    }
+
+    return (bestRoot, bestQuality, bassPc != bestRoot ? bassPc : null);
+  }
+
+  /// Analyzes note events across bars and creates a sequence of ChordEvents
+  static List<ChordEvent> extractChordsFromNotes(
+    List<Note> notes, {
+    int startBar = 0,
+    int totalBars = 0,
+    int stepsPerBar = 16,
+  }) {
+    if (notes.isEmpty) return [];
+
+    final List<ChordEvent> extracted = [];
+
+    // Determine max bar from notes if totalBars <= 0
+    int effectiveTotalBars = totalBars;
+    if (effectiveTotalBars <= 0) {
+      double maxStep = 0.0;
+      for (final n in notes) {
+        final end = n.startStep + n.durationSteps;
+        if (end > maxStep) maxStep = end;
+      }
+      effectiveTotalBars = (maxStep / stepsPerBar).ceil();
+      if (effectiveTotalBars < 1) effectiveTotalBars = 1;
+    }
+
+    for (int bar = 0; bar < effectiveTotalBars; bar++) {
+      final barStartStep = bar * stepsPerBar;
+      final barEndStep = (bar + 1) * stepsPerBar;
+
+      // Notes active during this bar
+      final barNotes = notes.where((n) {
+        final noteEnd = n.startStep + n.durationSteps;
+        return n.startStep < barEndStep && noteEnd > barStartStep;
+      }).toList();
+
+      if (barNotes.isNotEmpty) {
+        final pitches = barNotes.map((n) => n.pitch).toList();
+        final detected = detectChordFromPitches(pitches);
+        if (detected != null) {
+          final chord = ChordEvent(
+            id: 'chord_extracted_${startBar + bar}_${DateTime.now().microsecondsSinceEpoch}',
+            startBar: startBar + bar,
+            barLength: 1.0,
+            rootPitchClass: detected.$1,
+            quality: detected.$2,
+            bassPitchClass: detected.$3,
+          );
+
+          // Merge with previous chord if identical
+          if (extracted.isNotEmpty &&
+              extracted.last.rootPitchClass == chord.rootPitchClass &&
+              extracted.last.quality == chord.quality &&
+              extracted.last.bassPitchClass == chord.bassPitchClass &&
+              (extracted.last.startBar + extracted.last.barLength) == chord.startBar) {
+            extracted.last.barLength += 1.0;
+          } else {
+            extracted.add(chord);
+          }
+        }
+      }
+    }
+
+    return extracted;
   }
 }

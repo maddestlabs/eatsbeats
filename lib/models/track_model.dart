@@ -407,7 +407,14 @@ class TrackClip {
   List<Note>? evaluatedNotesCache;
   List<AutomationLane> automationLanes;
 
+  // Audio Clip & Linked MIDI Transcription
+  bool isAudioClip;
+  String? audioSampleName;
+  double audioPitchOffset; // Semitones (-24.0 to +24.0)
+  List<Note> embeddedTranscribedNotes;
+
   bool get hasLyrics => lyrics.isNotEmpty || notes.any((n) => n.lyric != null && n.lyric!.isNotEmpty);
+  bool get hasEmbeddedMidi => embeddedTranscribedNotes.isNotEmpty;
 
   bool get hasMidiScript {
     if (luaScriptCode.trim().isEmpty) return false;
@@ -436,10 +443,15 @@ class TrackClip {
     Map<String, double>? luaParams,
     this.evaluatedNotesCache,
     List<AutomationLane>? automationLanes,
+    this.isAudioClip = false,
+    this.audioSampleName,
+    this.audioPitchOffset = 0.0,
+    List<Note>? embeddedTranscribedNotes,
   })  : notes = notes ?? [],
         lyrics = lyrics ?? [],
         luaParams = luaParams ?? {},
-        automationLanes = automationLanes ?? [];
+        automationLanes = automationLanes ?? [],
+        embeddedTranscribedNotes = embeddedTranscribedNotes ?? [];
 
   TrackClip copyWith({
     String? id,
@@ -453,6 +465,10 @@ class TrackClip {
     Map<String, double>? luaParams,
     List<Note>? evaluatedNotesCache,
     List<AutomationLane>? automationLanes,
+    bool? isAudioClip,
+    String? audioSampleName,
+    double? audioPitchOffset,
+    List<Note>? embeddedTranscribedNotes,
   }) {
     return TrackClip(
       id: id ?? this.id,
@@ -466,6 +482,10 @@ class TrackClip {
       luaParams: luaParams ?? Map.from(this.luaParams),
       evaluatedNotesCache: evaluatedNotesCache ?? (this.evaluatedNotesCache != null ? this.evaluatedNotesCache!.map((n) => n.copyWith()).toList() : null),
       automationLanes: automationLanes ?? this.automationLanes.map((a) => a.copyWith()).toList(),
+      isAudioClip: isAudioClip ?? this.isAudioClip,
+      audioSampleName: audioSampleName ?? this.audioSampleName,
+      audioPitchOffset: audioPitchOffset ?? this.audioPitchOffset,
+      embeddedTranscribedNotes: embeddedTranscribedNotes ?? this.embeddedTranscribedNotes.map((n) => n.copyWith()).toList(),
     );
   }
 
@@ -480,6 +500,10 @@ class TrackClip {
     'luaScriptCode': luaScriptCode,
     'luaParams': luaParams,
     'automationLanes': automationLanes.map((a) => a.toJson()).toList(),
+    'isAudioClip': isAudioClip,
+    if (audioSampleName != null) 'audioSampleName': audioSampleName,
+    'audioPitchOffset': audioPitchOffset,
+    'embeddedTranscribedNotes': embeddedTranscribedNotes.map((n) => n.toJson()).toList(),
   };
 
   factory TrackClip.fromJson(Map<String, dynamic> json) => TrackClip(
@@ -496,6 +520,10 @@ class TrackClip {
             ?.map((a) => AutomationLane.fromJson(a))
             .toList() ??
         [],
+    isAudioClip: json['isAudioClip'] ?? false,
+    audioSampleName: json['audioSampleName'] as String?,
+    audioPitchOffset: (json['audioPitchOffset'] as num?)?.toDouble() ?? 0.0,
+    embeddedTranscribedNotes: (json['embeddedTranscribedNotes'] as List?)?.map((n) => Note.fromJson(n)).toList() ?? [],
   );
 }
 

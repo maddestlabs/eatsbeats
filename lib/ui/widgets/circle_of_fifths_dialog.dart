@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/chord_model.dart';
 import '../../models/daw_state.dart';
 import '../../theme/eats_theme.dart';
+import 'script_search_dialog.dart';
 
 /// Studio One-style interactive Circle of Fifths chord picker modal.
 class CircleOfFifthsDialog extends StatefulWidget {
@@ -305,14 +306,58 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
 
         const SizedBox(height: 16),
 
-        // Progression Presets Quick Apply
-        Text(
-          'QUICK PROGRESSION PRESETS',
-          style: EatsTheme.getPrimaryFontStyle(
-            color: EatsTheme.textMuted,
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-          ),
+        // Progression Presets Quick Apply Header & Browse Button
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                'PROGRESSION PRESETS',
+                style: EatsTheme.getPrimaryFontStyle(
+                  color: EatsTheme.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            InkWell(
+              borderRadius: BorderRadius.circular(4),
+              onTap: () async {
+                final selected = await ScriptSearchDialog.showChordProgressions(
+                  context,
+                  dawState: widget.dawState,
+                  startBar: widget.targetBar,
+                );
+                if (selected != null && context.mounted) {
+                  Navigator.of(context).pop();
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: EatsTheme.accentGold.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: EatsTheme.accentGold.withOpacity(0.6), width: 0.8),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.search, size: 12, color: EatsTheme.accentGold),
+                    SizedBox(width: 4),
+                    Text(
+                      'BROWSE ALL',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: EatsTheme.accentGold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 6),
         Container(
@@ -324,7 +369,7 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<ChordProgressionPreset>(
-              hint: const Text('Insert Progression from Bar...', style: TextStyle(fontSize: 11, color: EatsTheme.accentGold)),
+              hint: const Text('Quick Insert Progression from Bar...', style: TextStyle(fontSize: 11, color: EatsTheme.accentGold)),
               dropdownColor: EatsTheme.controlBackground,
               isExpanded: true,
               items: ChordTheory.progressionPresets.map((preset) {

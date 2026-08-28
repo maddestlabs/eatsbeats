@@ -8,12 +8,15 @@ import '../../audio/procedural_ir_generator.dart';
 import '../../models/script_preset_model.dart';
 import '../../utils/soundfont_pack_manager.dart';
 import '../../utils/ir_pack_manager.dart';
+import '../../utils/audio_to_midi_pack_manager.dart';
+import '../audio_to_midi_dialog.dart';
 import '../../models/history_manager.dart';
 import '../../models/track_model.dart';
 import '../../models/script_target_model.dart';
 import 'command_palette_dialog.dart';
 import 'fx_rack_dialog.dart';
 import 'preset_browser_dialog.dart';
+import 'project_script_runner_dialog.dart';
 
 class SoundFontDragItem {
   final String fontId;
@@ -633,6 +636,11 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                 tooltip: 'Filter: MIDI FX',
               ),
               _buildCategoryChip(
+                category: LuaPresetCategory.projectAction,
+                icon: Icons.auto_awesome,
+                tooltip: 'Filter: Project Actions & Generators',
+              ),
+              _buildCategoryChip(
                 category: LuaPresetCategory.utility,
                 icon: Icons.build,
                 tooltip: 'Filter: Utilities',
@@ -740,25 +748,35 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                         ),
                         trailing: IconButton(
                           icon: Icon(
-                            preset.isInstrument
-                                ? Icons.add_circle_outline
-                                : preset.isAudioFx
-                                    ? Icons.playlist_add
-                                    : preset.isMidiFx
-                                        ? Icons.auto_fix_high
-                                        : Icons.playlist_add,
+                            preset.isProjectAction
+                                ? Icons.play_arrow
+                                : (preset.isInstrument
+                                    ? Icons.add_circle_outline
+                                    : (preset.isAudioFx
+                                        ? Icons.playlist_add
+                                        : (preset.isMidiFx
+                                            ? Icons.auto_fix_high
+                                            : Icons.playlist_add))),
                             size: 18,
                           ),
-                          tooltip: preset.isInstrument
-                              ? 'Add as New Track'
-                              : preset.isAudioFx
-                                  ? 'Add FX to Active Track FX Chain'
-                                  : preset.isMidiFx
-                                      ? 'Apply MIDI FX to Active Clip'
-                                      : 'Add as Clip to Active Track',
+                          tooltip: preset.isProjectAction
+                              ? 'Run Project Action Script'
+                              : (preset.isInstrument
+                                  ? 'Add as New Track'
+                                  : (preset.isAudioFx
+                                      ? 'Add FX to Active Track FX Chain'
+                                      : (preset.isMidiFx
+                                          ? 'Apply MIDI FX to Active Clip'
+                                          : 'Add as Clip to Active Track'))),
                           color: _getCategoryColor(preset.category),
                           onPressed: () {
-                            if (preset.isInstrument) {
+                            if (preset.isProjectAction) {
+                              ProjectScriptRunnerDialog.show(
+                                context,
+                                dawState: widget.dawState,
+                                script: preset,
+                              );
+                            } else if (preset.isInstrument) {
                               widget.dawState.addNewPresetTrack(preset);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -802,7 +820,13 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                           },
                         ),
                         onTap: () {
-                          if (preset.isMidiFx) {
+                          if (preset.isProjectAction) {
+                            ProjectScriptRunnerDialog.show(
+                              context,
+                              dawState: widget.dawState,
+                              script: preset,
+                            );
+                          } else if (preset.isMidiFx) {
                             widget.dawState.applyPreset(preset, targetTrack: widget.dawState.activeTrack);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -1130,13 +1154,170 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
   // --- TAB 4: DOWNLOAD & EXPANSION PACKS ---
   Widget _buildPacksTab() {
     return AnimatedBuilder(
-      animation: SoundFontPackManager.instance,
+      animation: Listenable.merge([
+        SoundFontPackManager.instance,
+        AudioToMidiPackManager.instance,
+      ]),
       builder: (context, _) {
         final sfPacks = SoundFontPackManager.instance.packs;
+        final aiPacks = AudioToMidiPackManager.instance.packs;
 
         return ListView(
           padding: const EdgeInsets.all(8),
           children: [
+            // Quick Launch Tool Card
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: EatsTheme.primaryCyan.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.4)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.transform, color: EatsTheme.primaryCyan, size: 24),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'AUDIO TO MIDI CONVERTER',
+                          style: EatsTheme.getPrimaryFontStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: EatsTheme.textLight,
+                          ),
+                        ),
+                        Text(
+                          'Transcribe audio recordings into MIDI tracks & clips',
+                          style: EatsTheme.getPrimaryFontStyle(
+                            fontSize: 9.5,
+                            color: EatsTheme.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: EatsTheme.primaryCyan,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    ),
+                    onPressed: () {
+                      widget.onClose();
+                      AudioToMidiDialog.show(context, widget.dawState);
+                    },
+                    child: const Text('LAUNCH', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ),
+
+            _buildSectionHeader('AI & NEURAL TRANSCRIPTION PACKS', Icons.smart_toy_outlined),
+            ...aiPacks.map((pack) {
+              final isInstalled = pack.isDownloaded;
+              final isDownloading = pack.isDownloading;
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: isInstalled ? const Color(0xFF00FF66).withOpacity(0.4) : EatsTheme.panelHeader,
+                    width: 1,
+                  ),
+                ),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Column(
+                    children: [
+                      ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.all(8),
+                        leading: Icon(
+                          isInstalled ? Icons.check_circle_outline : (isDownloading ? Icons.sync : Icons.psychology_outlined),
+                          color: isInstalled ? const Color(0xFF00FF66) : EatsTheme.primaryCyan,
+                        ),
+                        title: Text(
+                          pack.title,
+                          style: EatsTheme.getPrimaryFontStyle(fontSize: 12, fontWeight: FontWeight.bold, color: EatsTheme.textLight),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              pack.description,
+                              style: EatsTheme.getPrimaryFontStyle(fontSize: 10, color: EatsTheme.textMuted),
+                            ),
+                            if (pack.statusMessage.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                pack.statusMessage,
+                                style: EatsTheme.getPrimaryFontStyle(
+                                  fontSize: 9,
+                                  color: pack.statusMessage.startsWith('Error') || pack.statusMessage.startsWith('Download failed')
+                                      ? Colors.redAccent
+                                      : EatsTheme.primaryCyan,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        trailing: GestureDetector(
+                          onTap: () {
+                            if (!isInstalled && !isDownloading) {
+                              AudioToMidiPackManager.instance.downloadPack(pack.id);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isInstalled
+                                  ? Colors.green.withOpacity(0.2)
+                                  : (isDownloading ? Colors.orange.withOpacity(0.2) : EatsTheme.primaryCyan.withOpacity(0.2)),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: isInstalled
+                                    ? const Color(0xFF00FF66)
+                                    : (isDownloading ? Colors.orange : EatsTheme.primaryCyan),
+                              ),
+                            ),
+                            child: Text(
+                              isInstalled ? 'INSTALLED' : (isDownloading ? 'DOWNLOADING...' : 'DOWNLOAD (${pack.fileSizeMb}MB)'),
+                              style: EatsTheme.getDisplayFontStyle(
+                                fontSize: 9,
+                                color: isInstalled
+                                    ? const Color(0xFF00FF66)
+                                    : (isDownloading ? Colors.orange : EatsTheme.primaryCyan),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (isDownloading) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          child: LinearProgressIndicator(
+                            value: pack.downloadProgress,
+                            backgroundColor: Colors.black.withOpacity(0.25),
+                            valueColor: AlwaysStoppedAnimation<Color>(EatsTheme.primaryCyan),
+                            minHeight: 3,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 12),
+
             _buildSectionHeader('SOUNDFONT EXPANSION PACKS', Icons.library_music),
             ...sfPacks.map((pack) {
               final isInstalled = pack.isDownloaded;
@@ -1399,6 +1580,10 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
         return Icons.music_note;
       case LuaPresetCategory.midiSeq:
         return Icons.view_timeline_outlined;
+      case LuaPresetCategory.noteSplitter:
+        return Icons.call_split;
+      case LuaPresetCategory.projectAction:
+        return Icons.auto_awesome;
       case LuaPresetCategory.utility:
         return Icons.build;
     }
@@ -1414,6 +1599,10 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
         return const Color(0xFF00FF66);
       case LuaPresetCategory.midiSeq:
         return const Color(0xFFFFD700);
+      case LuaPresetCategory.noteSplitter:
+        return const Color(0xFFFF007A);
+      case LuaPresetCategory.projectAction:
+        return const Color(0xFFBD00FF);
       case LuaPresetCategory.utility:
         return const Color(0xFFBD00FF);
     }

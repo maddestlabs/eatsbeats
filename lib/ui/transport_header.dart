@@ -10,6 +10,8 @@ import 'widgets/skeuomorphic_hardware_switch.dart';
 import 'widgets/glowing_nixie_display.dart';
 import 'widgets/compact_value_dialog.dart';
 import 'widgets/ui_scale_dialog.dart';
+import 'widgets/shader_picker_dialog.dart';
+import '../shaders/shader_settings_manager.dart';
 
 
 class TransportHeader extends StatelessWidget {
@@ -572,31 +574,74 @@ class TransportHeader extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: EatsTheme.panelHeader),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        child: Column(
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('UI MAGNIFICATION', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Current Scale: ${(dawState.uiScale * 100).toStringAsFixed(0)}%',
-                                  style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('UI MAGNIFICATION', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Current Scale: ${(dawState.uiScale * 100).toStringAsFixed(0)}%',
+                                      style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                                SkeuomorphicHardwareButton(
+                                  label: 'ADJUST SCALE',
+                                  icon: Icons.aspect_ratio,
+                                  isActive: true,
+                                  activeColor: EatsTheme.primaryCyan,
+                                  onTap: () {
+                                    Navigator.of(context).pop();
+                                    UiScaleDialog.show(context, dawState);
+                                  },
+                                  height: 32,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 ),
                               ],
                             ),
-                            SkeuomorphicHardwareButton(
-                              label: 'ADJUST SCALE',
-                              icon: Icons.aspect_ratio,
-                              isActive: true,
-                              activeColor: EatsTheme.primaryCyan,
-                              onTap: () {
-                                Navigator.of(context).pop();
-                                UiScaleDialog.show(context, dawState);
-                              },
-                              height: 32,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            const Divider(height: 16, color: Colors.white10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('SCREEN SHADERS & CRT FX', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        ShaderSettingsManager.instance.hasActiveShader
+                                            ? '${ShaderSettingsManager.instance.activeProfile.name} (Active)'
+                                            : 'Disabled (Normal Display)',
+                                        style: TextStyle(
+                                          color: ShaderSettingsManager.instance.hasActiveShader
+                                              ? EatsTheme.primaryCyan
+                                              : EatsTheme.textPrimary,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SkeuomorphicHardwareButton(
+                                  label: 'CUSTOMIZE SHADERS',
+                                  icon: Icons.tv,
+                                  isActive: ShaderSettingsManager.instance.hasActiveShader,
+                                  activeColor: EatsTheme.primaryCyan,
+                                  onTap: () {
+                                    Navigator.of(context).pop();
+                                    ShaderPickerDialog.show(context);
+                                  },
+                                  height: 32,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                ),
+                              ],
                             ),
                           ],
                         ),

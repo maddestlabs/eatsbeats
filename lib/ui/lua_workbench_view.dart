@@ -6,11 +6,13 @@ import '../models/script_target_model.dart';
 import '../theme/eats_theme.dart';
 import '../lua/lua_engine.dart';
 import '../lua/lua_preset_library.dart';
+import '../lua/lua_script_library.dart';
 import 'gui_designer/gui_designer_view.dart';
 import 'modular/eurorack_theme.dart';
 import 'modular/modular_rack_canvas.dart';
 import 'widgets/dynamic_instrument_gui_widget.dart';
 import 'widgets/eatsbeats_slider.dart';
+import 'widgets/project_script_runner_dialog.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
 import 'widgets/waveform_painter.dart';
 
@@ -87,6 +89,20 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
 
   void _compileCurrentScript() {
     final activeTarget = widget.dawState.activeScriptTarget;
+    if (activeTarget.type == ScriptTargetType.projectAction) {
+      widget.dawState.compileScriptTarget(activeTarget, _codeController.text);
+      final script = LuaScriptLibrary.scripts.where((s) => s.id == activeTarget.secondaryId).firstOrNull ??
+          LuaScriptDef(
+            id: activeTarget.secondaryId ?? 'custom_action',
+            name: activeTarget.title,
+            category: LuaScriptCategory.projectAction,
+            description: activeTarget.subtitle,
+            code: _codeController.text,
+          );
+      ProjectScriptRunnerDialog.show(context, dawState: widget.dawState, script: script);
+      return;
+    }
+
     widget.dawState.compileScriptTarget(activeTarget, _codeController.text);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -135,7 +151,11 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
 
     final targetBadgeBg = activeTarget.type == ScriptTargetType.trackDsp
         ? EatsTheme.primaryCyan
-        : (activeTarget.type == ScriptTargetType.midiFx ? EatsTheme.accentGold : EatsTheme.secondaryMagenta);
+        : (activeTarget.type == ScriptTargetType.midiFx
+            ? EatsTheme.accentGold
+            : (activeTarget.type == ScriptTargetType.projectAction
+                ? const Color(0xFFBD00FF)
+                : EatsTheme.secondaryMagenta));
 
     final currentTargetParams = widget.dawState.getScriptParamsForTarget(activeTarget);
     final lines = _codeController.text.split('\n');

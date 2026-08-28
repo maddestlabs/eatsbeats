@@ -141,6 +141,8 @@ class EatsTheme {
     }
   }
 
+  static Color get accentCyan => primaryCyan;
+
   static Color get highlightColor {
     switch (currentPreset) {
       case EatsThemePreset.lightSnack:

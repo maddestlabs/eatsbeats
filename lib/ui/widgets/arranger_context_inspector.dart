@@ -2,11 +2,17 @@ import 'package:flutter/material.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../models/lyric_model.dart';
+import '../../models/chord_model.dart';
+import '../../audio/audio_to_midi_engine.dart';
+import '../../audio/sampler_engine.dart';
+import '../../utils/midi_file_parser.dart';
 import '../../theme/eats_theme.dart';
 import 'midi_fx_rack_widget.dart';
 import 'modular_fx_rack_widget.dart';
 import 'eats_color_picker_dialog.dart';
 import 'compact_value_dialog.dart';
+import 'note_splitter_dialog.dart';
+import '../audio_to_midi_dialog.dart';
 
 enum InspectorTab { track, clip }
 
@@ -37,6 +43,12 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
   bool _isEditingClipName = false;
   String? _lastTrackId;
   String? _lastClipId;
+
+  // Audio Clip Transcription State
+  String? _transcribingClipId;
+  double _transcriptionProgress = 0.0;
+  String _transcriptionStatus = '';
+  CancellationToken? _activeCancellationToken;
 
   static const List<Color> _quickColorPalette = [
     Color(0xFF21F4E8), // Neon Cyan
@@ -730,6 +742,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
   Widget _buildClipSection(BuildContext context, TrackChannel track, TrackClip? clip) {
     if (clip == null) return _buildEmptyClipCard();
     final hasTrackMidiFx = track.midiFXRack.any((f) => f.enabled);
+    final isAudio = clip.isAudioClip || track.type == TrackType.sampler;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -738,10 +751,363 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
         const SizedBox(height: 8),
         _buildClipTitleCard(track, clip),
         const SizedBox(height: 10),
-        _buildLyricsAndTtsCard(context, track, clip: clip),
-        const SizedBox(height: 10),
-        _buildClipActionsCard(context, track, clip, hasTrackMidiFx),
+        if (isAudio) ...[
+          _buildAudioClipPropertiesCard(context, track, clip),
+          const SizedBox(height: 10),
+        ] else ...[
+          _buildLyricsAndTtsCard(context, track, clip: clip),
+          const SizedBox(height: 10),
+        ],
+        _buildClipActionsCard(context, track, clip, hasTrackMidiFx, isAudio: isAudio),
       ],
+    );
+  }
+
+  void _startClipTranscription(TrackClip clip) async {
+    final cancellationToken = CancellationToken();
+    setState(() {
+      _transcribingClipId = clip.id;
+      _transcriptionProgress = 0.0;
+      _transcriptionStatus = 'Preparing transcription engine...';
+      _activeCancellationToken = cancellationToken;
+    });
+
+    try {
+      final noteCount = await widget.dawState.transcribeAudioClipToLinkedMidi(
+        clip,
+        cancellationToken: cancellationToken,
+        onProgress: (p, status) {
+          if (mounted && _transcribingClipId == clip.id) {
+            setState(() {
+              _transcriptionProgress = p;
+              _transcriptionStatus = status;
+            });
+          }
+        },
+      );
+
+      if (mounted) {
+        setState(() {
+          _transcribingClipId = null;
+          _activeCancellationToken = null;
+        });
+
+        if (!cancellationToken.isCancelled) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: EatsTheme.primaryCyan,
+              content: Text(
+                'Linked $noteCount transcribed MIDI notes to "${clip.name}"!',
+                style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+              ),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _transcribingClipId = null;
+          _activeCancellationToken = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Transcription error: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildAudioClipPropertiesCard(BuildContext context, TrackChannel track, TrackClip clip) {
+    final sampleName = clip.audioSampleName ?? track.sampleName;
+    final buffer = SamplerEngine.instance.getSample(sampleName);
+    final overview = SamplerEngine.instance.getWaveformOverview(sampleName);
+    final isTranscribing = _transcribingClipId == clip.id;
+    final hasLinkedMidi = clip.hasEmbeddedMidi;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: EatsTheme.panelHeader,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: track.color.withOpacity(0.5), width: 1.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Audio Sample Info Row
+          Row(
+            children: [
+              Icon(Icons.graphic_eq, size: 16, color: track.color),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  sampleName.isNotEmpty ? sampleName : 'No Sample Assigned',
+                  style: TextStyle(color: EatsTheme.textPrimary, fontSize: 11, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (hasLinkedMidi)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00FF66).withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFF00FF66).withOpacity(0.5), width: 0.8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.link, size: 10, color: Color(0xFF00FF66)),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${clip.embeddedTranscribedNotes.length} MIDI Notes',
+                        style: const TextStyle(color: Color(0xFF00FF66), fontSize: 8.5, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          if (buffer != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${(buffer.samples.length / buffer.sampleRate / buffer.channels).toStringAsFixed(2)}s  •  ${buffer.sampleRate} Hz  •  ${buffer.channels}ch',
+              style: TextStyle(color: EatsTheme.textMuted, fontSize: 9.5),
+            ),
+          ],
+          const SizedBox(height: 8),
+
+          // Mini Waveform Container
+          Container(
+            height: 32,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: EatsTheme.controlBackground,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: overview != null
+                ? CustomPaint(
+                    painter: _InspectorWaveformPainter(overview: overview, color: track.color),
+                  )
+                : Center(
+                    child: Text('No waveform available', style: TextStyle(color: EatsTheme.textMuted, fontSize: 9)),
+                  ),
+          ),
+          const SizedBox(height: 10),
+
+          // Pitch Shift Slider
+          Row(
+            children: [
+              Text('Pitch Shift:', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderThemeData(
+                    activeTrackColor: track.color,
+                    inactiveTrackColor: Colors.white12,
+                    thumbColor: track.color,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+                  ),
+                  child: Slider(
+                    value: clip.audioPitchOffset.clamp(-24.0, 24.0),
+                    min: -24.0,
+                    max: 24.0,
+                    divisions: 48,
+                    onChanged: (val) {
+                      setState(() {
+                        clip.audioPitchOffset = val;
+                      });
+                      widget.dawState.notifyListeners();
+                    },
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 45,
+                child: Text(
+                  '${clip.audioPitchOffset >= 0 ? "+" : ""}${clip.audioPitchOffset.toStringAsFixed(0)} st',
+                  style: TextStyle(color: track.color, fontSize: 10, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 16, color: Colors.white12),
+
+          // Audio-to-MIDI Transcription Section (Studio One-style)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.transform, size: 14, color: EatsTheme.primaryCyan),
+                  const SizedBox(width: 5),
+                  Text(
+                    'AUDIO-TO-MIDI & CHORDS',
+                    style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 9.5, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+
+          if (isTranscribing) ...[
+            // Live Transcription Progress Bar with Cancel
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: _transcriptionProgress > 0 ? _transcriptionProgress : null,
+                backgroundColor: EatsTheme.controlBackground,
+                valueColor: AlwaysStoppedAnimation<Color>(EatsTheme.primaryCyan),
+                minHeight: 6,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    _transcriptionStatus,
+                    style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 9.5, fontStyle: FontStyle.italic),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                InkWell(
+                  onTap: () {
+                    _activeCancellationToken?.cancel();
+                    setState(() {
+                      _transcribingClipId = null;
+                      _transcriptionStatus = 'Cancelled';
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF4D6D).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: const Color(0xFFFF4D6D), width: 0.8),
+                    ),
+                    child: const Text('CANCEL', style: TextStyle(color: Color(0xFFFF4D6D), fontSize: 8.5, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            // Action Buttons
+            if (!hasLinkedMidi) ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _startClipTranscription(clip),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: EatsTheme.controlBackground,
+                    foregroundColor: EatsTheme.primaryCyan,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.5)),
+                  ),
+                  icon: const Icon(Icons.auto_awesome, size: 14),
+                  label: const Text('TRANSCRIBE TO LINKED MIDI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ] else ...[
+              // Studio One Extract Chords to Chord Track Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final count = widget.dawState.extractAndApplyChordsFromClip(clip);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: EatsTheme.primaryCyan,
+                        content: Text(
+                          'Extracted $count chords to global Chord Track!',
+                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                        ),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00FF66).withOpacity(0.18),
+                    foregroundColor: const Color(0xFF00FF66),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    side: const BorderSide(color: Color(0xFF00FF66), width: 1.0),
+                  ),
+                  icon: const Icon(Icons.queue_music, size: 14),
+                  label: const Text('EXTRACT CHORDS TO CHORD TRACK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 6),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => NoteSplitterDialog.show(context, widget.dawState, clip),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: EatsTheme.controlBackground,
+                    foregroundColor: EatsTheme.primaryCyan,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6)),
+                  ),
+                  icon: const Icon(Icons.call_split, size: 14),
+                  label: const Text('SPLIT LINKED NOTES TO TRACKS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        // Export to dedicated new track
+                        final midiTrack = ParsedMidiTrack(
+                          trackIndex: widget.dawState.activePattern.tracks.length,
+                          name: '${clip.name} (MIDI)',
+                          notes: clip.embeddedTranscribedNotes.map((n) => n.copyWith()).toList(),
+                        );
+                        widget.dawState.importParsedMidiTrack(midiTrack, createNewTrack: true);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            backgroundColor: EatsTheme.primaryCyan,
+                            content: Text(
+                              'Created new MIDI Track with ${clip.embeddedTranscribedNotes.length} notes!',
+                              style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: EatsTheme.textSecondary,
+                        side: const BorderSide(color: Color(0xFF2B3245)),
+                        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                      ),
+                      icon: const Icon(Icons.library_add, size: 12),
+                      label: const Text('EXPORT TO TRACK', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _startClipTranscription(clip),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: EatsTheme.textMuted,
+                        side: const BorderSide(color: Colors.white12),
+                        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                      ),
+                      icon: const Icon(Icons.refresh, size: 12),
+                      label: const Text('RE-TRANSCRIBE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ],
+      ),
     );
   }
 
@@ -901,27 +1267,69 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
     );
   }
 
-  Widget _buildClipActionsCard(BuildContext context, TrackChannel track, TrackClip clip, bool hasTrackMidiFx) {
+  Widget _buildClipActionsCard(BuildContext context, TrackChannel track, TrackClip clip, bool hasTrackMidiFx, {bool isAudio = false}) {
     return Column(
       children: [
-        // Edit in Piano Roll
+        if (!isAudio) ...[
+          // Edit in Piano Roll
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                widget.dawState.selectClip(clip);
+                widget.dawState.activeTabIndex = 1; // EDIT tab
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: EatsTheme.primaryCyan,
+                side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6)),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+              ),
+              icon: const Icon(Icons.piano, size: 15),
+              label: const Text('OPEN IN PIANO ROLL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ] else ...[
+          // Audio to MIDI Converter Modal Launcher
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                final sampleName = clip.audioSampleName ?? track.sampleName;
+                final buffer = SamplerEngine.instance.getSample(sampleName);
+                AudioToMidiDialog.show(
+                  context,
+                  widget.dawState,
+                  initialAudioBuffer: buffer,
+                  initialFileName: sampleName,
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: EatsTheme.primaryCyan,
+                side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6)),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+              ),
+              icon: const Icon(Icons.tune, size: 15),
+              label: const Text('ADVANCED TRANSCRIPTION DIALOG', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+
+        // Split Notes into Tracks Launcher
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: () {
-              widget.dawState.selectClip(clip);
-              widget.dawState.activeTabIndex = 1; // EDIT tab
-            },
+            onPressed: () => NoteSplitterDialog.show(context, widget.dawState, clip),
             style: OutlinedButton.styleFrom(
               foregroundColor: EatsTheme.primaryCyan,
-              side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6)),
+              side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.5)),
               padding: const EdgeInsets.symmetric(vertical: 8),
             ),
-            icon: const Icon(Icons.piano, size: 15),
-            label: const Text('OPEN IN PIANO ROLL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            icon: const Icon(Icons.call_split, size: 14),
+            label: const Text('SPLIT NOTES INTO TRACKS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
           ),
         ),
-
         const SizedBox(height: 8),
 
         // Duplicate Clip & Delete Clip Row
@@ -1188,4 +1596,36 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
       ),
     );
   }
+}
+
+class _InspectorWaveformPainter extends CustomPainter {
+  final WaveformOverview overview;
+  final Color color;
+
+  _InspectorWaveformPainter({required this.overview, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (overview.minPeaks.isEmpty || size.width <= 0 || size.height <= 0) return;
+
+    final paint = Paint()
+      ..color = color.withOpacity(0.85)
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    final midY = size.height / 2.0;
+    final numPoints = overview.minPeaks.length;
+    final dx = size.width / numPoints;
+
+    for (int i = 0; i < numPoints; i++) {
+      final x = i * dx + dx / 2.0;
+      final minY = midY - (overview.maxPeaks[i] * midY * 0.9);
+      final maxY = midY - (overview.minPeaks[i] * midY * 0.9);
+      canvas.drawLine(Offset(x, minY), Offset(x, maxY), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _InspectorWaveformPainter oldDelegate) =>
+      oldDelegate.overview != overview || oldDelegate.color != color;
 }

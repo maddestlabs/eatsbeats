@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../lua/lua_preset_library.dart';
+import '../../models/chord_model.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
@@ -12,6 +13,8 @@ class ScriptSearchDialog extends StatefulWidget {
   final LuaPresetCategory? initialCategory;
   final String? customTitle;
   final bool isAddTrackMode;
+  final bool isChordProgressionMode;
+  final int chordTargetBar;
 
   const ScriptSearchDialog({
     super.key,
@@ -20,6 +23,8 @@ class ScriptSearchDialog extends StatefulWidget {
     this.initialCategory,
     this.customTitle,
     this.isAddTrackMode = false,
+    this.isChordProgressionMode = false,
+    this.chordTargetBar = 0,
   });
 
   static Future<LuaPreset?> show(
@@ -37,6 +42,22 @@ class ScriptSearchDialog extends StatefulWidget {
         initialCategory: initialCategory,
         customTitle: customTitle,
         isAddTrackMode: false,
+      ),
+    );
+  }
+
+  static Future<ChordProgressionPreset?> showChordProgressions(
+    BuildContext context, {
+    required DawState dawState,
+    int startBar = 0,
+  }) {
+    return showDialog<ChordProgressionPreset>(
+      context: context,
+      builder: (context) => ScriptSearchDialog(
+        dawState: dawState,
+        isChordProgressionMode: true,
+        chordTargetBar: startBar,
+        customTitle: 'CHORD PROGRESSIONS • BAR ${startBar + 1}',
       ),
     );
   }
@@ -92,6 +113,7 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
   final TextEditingController _searchController = TextEditingController();
   late LuaPresetCategory? _selectedCategory;
   String? _selectedCustomFilter;
+  String _selectedGenre = 'ALL';
   String _searchQuery = '';
 
   @override
@@ -116,6 +138,10 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
         return EatsTheme.accentGold;
       case LuaPresetCategory.midiSeq:
         return const Color(0xFF00E676);
+      case LuaPresetCategory.noteSplitter:
+        return const Color(0xFFFF007A);
+      case LuaPresetCategory.projectAction:
+        return const Color(0xFFBD00FF);
       case LuaPresetCategory.utility:
         return EatsTheme.textMuted;
     }
@@ -131,9 +157,44 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
         return Icons.bolt;
       case LuaPresetCategory.midiSeq:
         return Icons.view_timeline_outlined;
+      case LuaPresetCategory.noteSplitter:
+        return Icons.call_split;
+      case LuaPresetCategory.projectAction:
+        return Icons.auto_awesome;
       case LuaPresetCategory.utility:
         return Icons.build;
     }
+  }
+
+  List<ChordProgressionPreset> _getFilteredChordProgressions() {
+    var list = ChordTheory.progressionPresets;
+    if (_selectedGenre != 'ALL') {
+      final g = _selectedGenre.toLowerCase();
+      list = list.where((p) => p.genre.toLowerCase().contains(g) || p.tags.any((t) => t.toLowerCase().contains(g))).toList();
+    }
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      list = list.where((p) {
+        return p.name.toLowerCase().contains(q) ||
+            p.genre.toLowerCase().contains(q) ||
+            p.description.toLowerCase().contains(q) ||
+            p.romanSummary.toLowerCase().contains(q) ||
+            p.tags.any((t) => t.toLowerCase().contains(q));
+      }).toList();
+    }
+    return list;
+  }
+
+  void _applyChordProgression(ChordProgressionPreset preset) {
+    widget.dawState.applyChordProgressionPreset(preset, startBar: widget.chordTargetBar);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Applied "${preset.name}" at Bar ${widget.chordTargetBar + 1} (Ctrl+Z to Undo)'),
+        backgroundColor: EatsTheme.panelHeader,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    Navigator.of(context).pop(preset);
   }
 
   List<LuaPreset> _getFilteredPresets() {
@@ -267,11 +328,11 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.35),
+        color: folderColor.withOpacity(0.08),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: folderColor.withOpacity(0.6),
-          width: 1.2,
+          width: 1.5,
         ),
       ),
       child: Material(
@@ -286,10 +347,10 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: folderColor.withOpacity(0.18),
+                    color: folderColor.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Icon(Icons.create_new_folder, size: 18, color: folderColor),
+                  child: Icon(Icons.create_new_folder_outlined, size: 20, color: folderColor),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -298,21 +359,19 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
                     children: [
                       Row(
                         children: [
-                          Expanded(
-                            child: Text(
-                              'Track Folder',
-                              style: EatsTheme.getPrimaryFontStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: EatsTheme.textLight,
-                              ),
-                              overflow: TextOverflow.ellipsis,
+                          Text(
+                            'Track Folder',
+                            style: EatsTheme.getPrimaryFontStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: folderColor,
                             ),
                           ),
+                          const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                             decoration: BoxDecoration(
-                              color: folderColor.withOpacity(0.15),
+                              color: folderColor.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(3),
                               border: Border.all(color: folderColor.withOpacity(0.5), width: 0.8),
                             ),
@@ -327,7 +386,7 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 2),
                       Text(
                         'Group & organize multiple tracks into a collapsible folder',
                         style: EatsTheme.getPrimaryFontStyle(
@@ -340,25 +399,134 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
                     ],
                   ),
                 ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChordProgressionCard(ChordProgressionPreset preset) {
+    const accentColor = EatsTheme.accentGold;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.25),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: accentColor.withOpacity(0.35),
+          width: 1,
+        ),
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: () => _applyChordProgression(preset),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Row(
+              children: [
+                // Gold Icon Badge
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Icon(Icons.queue_music, size: 18, color: accentColor),
+                ),
+                const SizedBox(width: 10),
+
+                // Details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              preset.name,
+                              style: EatsTheme.getPrimaryFontStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: EatsTheme.textLight,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: accentColor.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(3),
+                              border: Border.all(color: accentColor.withOpacity(0.4), width: 0.8),
+                            ),
+                            child: Text(
+                              preset.genre.toUpperCase(),
+                              style: EatsTheme.getPrimaryFontStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                                color: accentColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        preset.description,
+                        style: EatsTheme.getPrimaryFontStyle(
+                          fontSize: 10,
+                          color: EatsTheme.textMuted,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      // Roman Numeral Preview Row
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.black45,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: Text(
+                          preset.romanSummary,
+                          style: const TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.bold,
+                            color: EatsTheme.accentGold,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(width: 8),
+
+                // Apply Button
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                   decoration: BoxDecoration(
-                    color: folderColor.withOpacity(0.2),
+                    color: accentColor.withOpacity(0.18),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: folderColor, width: 1),
+                    border: Border.all(color: accentColor, width: 1),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.add, size: 14, color: folderColor),
-                      const SizedBox(width: 2),
+                      Icon(Icons.add, size: 14, color: accentColor),
+                      SizedBox(width: 2),
                       Text(
-                        'ADD',
-                        style: EatsTheme.getPrimaryFontStyle(
+                        'APPLY',
+                        style: TextStyle(
                           fontSize: 9.5,
                           fontWeight: FontWeight.bold,
-                          color: folderColor,
+                          color: accentColor,
                         ),
                       ),
                     ],
@@ -372,8 +540,276 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
     );
   }
 
+  Widget _buildCategoryFilterChip(LuaPresetCategory? cat, String label, IconData icon) {
+    final isSelected = _selectedCategory == cat;
+    final color = cat != null ? _getCategoryColor(cat) : EatsTheme.primaryCyan;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => setState(() {
+          _selectedCategory = cat;
+          _selectedCustomFilter = null;
+        }),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: isSelected ? color.withOpacity(0.25) : EatsTheme.panelHeader,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: isSelected ? color : EatsTheme.panelHeader, width: 1),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 12, color: isSelected ? color : EatsTheme.textMuted),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: EatsTheme.getPrimaryFontStyle(
+                  fontSize: 9.5,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  color: isSelected ? color : EatsTheme.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomFilterChip(String filter, IconData icon, Color color) {
+    final isSelected = _selectedCustomFilter == filter;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => setState(() {
+          _selectedCustomFilter = filter;
+          _selectedCategory = null;
+        }),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: isSelected ? color.withOpacity(0.25) : EatsTheme.panelHeader,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: isSelected ? color : EatsTheme.panelHeader, width: 1),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 12, color: isSelected ? color : EatsTheme.textMuted),
+              const SizedBox(width: 6),
+              Text(
+                filter,
+                style: EatsTheme.getPrimaryFontStyle(
+                  fontSize: 9.5,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  color: isSelected ? color : EatsTheme.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (widget.isChordProgressionMode) {
+      final chordList = _getFilteredChordProgressions();
+      const accentColor = EatsTheme.accentGold;
+      final title = widget.customTitle ?? 'CHORD PROGRESSION PRESETS • BAR ${widget.chordTargetBar + 1}';
+
+      final genres = [
+        'ALL',
+        'Pop',
+        'Synthwave',
+        'EDM',
+        'Jazz',
+        'Lo-Fi',
+        'Cinematic',
+        'Rock',
+        'Latin',
+        'Anime',
+      ];
+
+      return Dialog(
+        backgroundColor: EatsTheme.panelBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: accentColor, width: 2),
+        ),
+        child: Container(
+          width: 540,
+          constraints: const BoxConstraints(maxHeight: 600),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header
+              Row(
+                children: [
+                  const Icon(Icons.queue_music, color: accentColor, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: EatsTheme.getPrimaryFontStyle(
+                        color: accentColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: EatsTheme.textMuted, size: 18),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Search Bar Input
+              Container(
+                height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: EatsTheme.panelHeader),
+                ),
+                child: Row(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Icon(Icons.search, size: 18, color: EatsTheme.textMuted),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        autofocus: true,
+                        style: EatsTheme.getPrimaryFontStyle(fontSize: 12, color: EatsTheme.textPrimary),
+                        decoration: InputDecoration(
+                          hintText: 'Search progressions by name, genre, Roman numerals (I-V-vi-IV)...',
+                          hintStyle: EatsTheme.getPrimaryFontStyle(fontSize: 12, color: EatsTheme.textMuted),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        onChanged: (val) => setState(() => _searchQuery = val.trim()),
+                      ),
+                    ),
+                    if (_searchQuery.isNotEmpty)
+                      IconButton(
+                        icon: Icon(Icons.clear, size: 16, color: EatsTheme.textMuted),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // Genre Filter Chips
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: genres.map((g) {
+                    final isSelected = _selectedGenre == g;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => setState(() => _selectedGenre = g),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isSelected ? accentColor.withOpacity(0.25) : EatsTheme.panelHeader,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: isSelected ? accentColor : EatsTheme.panelHeader, width: 1),
+                          ),
+                          child: Text(
+                            g.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isSelected ? accentColor : EatsTheme.textMuted,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+
+              const SizedBox(height: 4),
+
+              // Count Status
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${chordList.length} PROGRESSIONS FOUND',
+                    style: EatsTheme.getPrimaryFontStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.bold,
+                      color: EatsTheme.textMuted,
+                    ),
+                  ),
+                  Text(
+                    'TAP TO INSERT AT BAR ${widget.chordTargetBar + 1}',
+                    style: EatsTheme.getPrimaryFontStyle(
+                      fontSize: 9,
+                      color: EatsTheme.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+
+              // Items List
+              Flexible(
+                child: chordList.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.search_off, size: 36, color: EatsTheme.textMuted),
+                              const SizedBox(height: 8),
+                              Text(
+                                'No matching chord progressions found',
+                                style: EatsTheme.getPrimaryFontStyle(
+                                  fontSize: 12,
+                                  color: EatsTheme.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: chordList.length,
+                        itemBuilder: (context, index) {
+                          return _buildChordProgressionCard(chordList[index]);
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final filtered = _getFilteredPresets();
     final isAudioFxMode = _selectedCategory == LuaPresetCategory.audioFx && !widget.isAddTrackMode;
     final isMidiFxMode = _selectedCategory == LuaPresetCategory.midiFx && !widget.isAddTrackMode;
@@ -724,83 +1160,6 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
                     ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryFilterChip(LuaPresetCategory? category, String label, IconData icon) {
-    final isSelected = _selectedCategory == category && _selectedCustomFilter == null;
-    final color = category != null ? _getCategoryColor(category) : EatsTheme.primaryCyan;
-
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => setState(() {
-          _selectedCategory = category;
-          _selectedCustomFilter = null;
-        }),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: isSelected ? color.withOpacity(0.25) : EatsTheme.panelHeader,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isSelected ? color : EatsTheme.panelHeader, width: 1),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 12, color: isSelected ? color : EatsTheme.textMuted),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: EatsTheme.getPrimaryFontStyle(
-                  fontSize: 9.5,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected ? color : EatsTheme.textMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCustomFilterChip(String filterName, IconData icon, Color color) {
-    final isSelected = _selectedCustomFilter == filterName;
-
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => setState(() {
-          _selectedCustomFilter = filterName;
-          _selectedCategory = null;
-        }),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: isSelected ? color.withOpacity(0.25) : EatsTheme.panelHeader,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isSelected ? color : EatsTheme.panelHeader, width: 1),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 12, color: isSelected ? color : EatsTheme.textMuted),
-              const SizedBox(width: 4),
-              Text(
-                filterName,
-                style: EatsTheme.getPrimaryFontStyle(
-                  fontSize: 9.5,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected ? color : EatsTheme.textMuted,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

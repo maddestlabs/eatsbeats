@@ -69,6 +69,10 @@ flutter:
   assets:
     - assets/soundfonts/
 
+  shaders:
+    - assets/shaders/apocalypse_crt.frag
+    - assets/shaders/accessibility_colorblind.frag
+
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
 

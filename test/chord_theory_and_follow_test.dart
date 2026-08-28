@@ -351,5 +351,40 @@ void main() {
       final pitches = voiced.map((n) => n.pitch).toList();
       expect(pitches, containsAll([60, 64, 67]));
     });
+
+    test('Progression Presets Library contains extensive multi-genre chord progressions', () {
+      final presets = ChordTheory.progressionPresets;
+      expect(presets.length, greaterThanOrEqualTo(20));
+
+      final popAxis = presets.firstWhere((p) => p.id == 'pop_axis');
+      expect(popAxis.genre, equals('Pop'));
+      expect(popAxis.romanSummary, equals('I - V - vi - IV'));
+
+      final royalRoad = presets.firstWhere((p) => p.id == 'jpop_royal_road');
+      expect(royalRoad.genre, equals('Anime / J-Pop'));
+      expect(royalRoad.romanSummary, contains('IV - V - iii - vi'));
+
+      final deepHouse = presets.firstWhere((p) => p.id == 'edm_deep_house');
+      expect(deepHouse.genre, equals('EDM'));
+    });
+
+    testWidgets('ArrangerView right-click on chord block directly deletes the chord with undo support', (tester) async {
+      final dawState = DawState(enableMeterTimer: false);
+      dawState.setSongKey('C Major');
+      dawState.addOrUpdateChord(
+        ChordEvent(id: 'chord_del_test', startBar: 0, barLength: 2.0, rootPitchClass: 0, quality: ChordQuality.major),
+      );
+
+      expect(dawState.chordTrack.length, equals(1));
+
+      // Direct deletion method check
+      dawState.removeChord('chord_del_test');
+      expect(dawState.chordTrack, isEmpty);
+
+      // Undo restoration check
+      expect(dawState.undo(), isTrue);
+      expect(dawState.chordTrack.length, equals(1));
+      expect(dawState.chordTrack.first.displayName, equals('C'));
+    });
   });
 }

@@ -5,6 +5,7 @@ enum ScriptTargetType {
   audioFx,
   midiFx,
   clipScript,
+  projectAction,
 }
 
 class ScriptTarget {
@@ -40,6 +41,8 @@ class ScriptTarget {
         return 'MIDI FX';
       case ScriptTargetType.clipScript:
         return 'CLIP SCRIPT';
+      case ScriptTargetType.projectAction:
+        return 'PROJECT SCRIPT';
     }
   }
 
@@ -53,6 +56,8 @@ class ScriptTarget {
         return Icons.bolt;
       case ScriptTargetType.clipScript:
         return Icons.view_timeline;
+      case ScriptTargetType.projectAction:
+        return Icons.auto_awesome;
     }
   }
 
