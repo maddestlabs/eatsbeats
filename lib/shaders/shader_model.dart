@@ -475,9 +475,9 @@ class BuiltInShaders {
 
   static const ShaderProfile accessibility = ShaderProfile(
     id: accessibilityId,
-    name: 'Accessibility & Color Profiles',
+    name: 'Color Profiles',
     description:
-        'Color vision deficiency correction (Protanopia, Deuteranopia, Tritanopia), high contrast, Black & White, and light-sensitive eye comfort filters.',
+        'Color profiles, color vision correction (Protanopia, Deuteranopia, Tritanopia), high contrast, Black & White, inverted colors, and light-sensitive eye comfort.',
     assetPath: 'assets/shaders/accessibility_colorblind.frag',
     isAnimated: false,
     uniforms: [
@@ -485,12 +485,12 @@ class BuiltInShaders {
         key: 'u_mode',
         label: 'Vision Profile',
         type: UniformType.float,
-        min: 1.0,
+        min: 0.0,
         max: 6.0,
         defaultValue: 1.0,
         step: 1.0,
         category: 'Vision Profile',
-        description: '1: Monochrome B&W, 2: Protanopia, 3: Deuteranopia, 4: Tritanopia, 5: High Contrast, 6: Light-Sensitive Muted',
+        description: '0: Custom / Invert, 1: Monochrome B&W, 2: Protanopia, 3: Deuteranopia, 4: Tritanopia, 5: High Contrast, 6: Light-Sensitive Muted',
       ),
       ShaderUniformSpec(
         key: 'u_intensity',
@@ -501,7 +501,18 @@ class BuiltInShaders {
         defaultValue: 1.0,
         step: 0.02,
         category: 'Tuning',
-        description: 'Blend amount between original output and accessibility profile.',
+        description: 'Blend amount between original output and profile.',
+      ),
+      ShaderUniformSpec(
+        key: 'u_invert',
+        label: 'Invert Colors',
+        type: UniformType.float,
+        min: 0.0,
+        max: 1.0,
+        defaultValue: 0.0,
+        step: 0.05,
+        category: 'Tuning',
+        description: 'Inverts color luminance for high contrast and alternate theme styling.',
       ),
       ShaderUniformSpec(
         key: 'u_brightness',
@@ -541,6 +552,15 @@ class BuiltInShaders {
       'Monochrome B&W': {
         'u_mode': 1.0,
         'u_intensity': 1.0,
+        'u_invert': 0.0,
+        'u_brightness': 1.0,
+        'u_contrast': 1.0,
+        'u_saturation': 1.0,
+      },
+      'Invert Colors': {
+        'u_mode': 0.0,
+        'u_intensity': 0.0,
+        'u_invert': 1.0,
         'u_brightness': 1.0,
         'u_contrast': 1.0,
         'u_saturation': 1.0,
@@ -548,6 +568,7 @@ class BuiltInShaders {
       'Protanopia (Red-Weak)': {
         'u_mode': 2.0,
         'u_intensity': 1.0,
+        'u_invert': 0.0,
         'u_brightness': 1.05,
         'u_contrast': 1.1,
         'u_saturation': 1.0,
@@ -555,6 +576,7 @@ class BuiltInShaders {
       'Deuteranopia (Green-Weak)': {
         'u_mode': 3.0,
         'u_intensity': 1.0,
+        'u_invert': 0.0,
         'u_brightness': 1.05,
         'u_contrast': 1.1,
         'u_saturation': 1.0,
@@ -562,6 +584,7 @@ class BuiltInShaders {
       'Tritanopia (Blue-Weak)': {
         'u_mode': 4.0,
         'u_intensity': 1.0,
+        'u_invert': 0.0,
         'u_brightness': 1.0,
         'u_contrast': 1.05,
         'u_saturation': 1.0,
@@ -569,6 +592,7 @@ class BuiltInShaders {
       'High Contrast': {
         'u_mode': 5.0,
         'u_intensity': 1.0,
+        'u_invert': 0.0,
         'u_brightness': 1.0,
         'u_contrast': 1.3,
         'u_saturation': 1.2,
@@ -576,6 +600,7 @@ class BuiltInShaders {
       'Light Sensitive (Eye Comfort)': {
         'u_mode': 6.0,
         'u_intensity': 1.0,
+        'u_invert': 0.0,
         'u_brightness': 0.85,
         'u_contrast': 0.9,
         'u_saturation': 0.8,

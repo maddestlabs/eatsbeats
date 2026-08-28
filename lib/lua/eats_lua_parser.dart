@@ -3,6 +3,8 @@ import 'lua_preset_library.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../models/chord_model.dart';
+import '../models/automation_model.dart';
+import '../models/lyric_model.dart';
 import '../theme/eats_theme.dart';
 
 class EatsLuaParser {
@@ -379,13 +381,38 @@ class EatsLuaParser {
               }
             }
           }
+
+          final cLyrics = <LyricCue>[];
+          if (cMap['lyrics'] is List) {
+            for (final cl in cMap['lyrics']) {
+              if (cl is Map) {
+                cLyrics.add(LyricCue.fromJson(Map<String, dynamic>.from(cl)));
+              }
+            }
+          }
+
+          final cAutomation = <AutomationLane>[];
+          if (cMap['automationLanes'] is List) {
+            for (final ca in cMap['automationLanes']) {
+              if (ca is Map) {
+                cAutomation.add(AutomationLane.fromJson(Map<String, dynamic>.from(ca)));
+              }
+            }
+          }
+
           clips.add(TrackClip(
             id: cMap['id'] ?? 'clip_${clips.length}',
             name: cMap['name'] ?? 'Clip ${clips.length + 1}',
             trackId: cMap['trackId'] ?? (map['id'] ?? ''),
-            startBar: cMap['startBar'] ?? 0,
-            barLength: cMap['barLength'] ?? 2,
+            startBar: (cMap['startBar'] as num?)?.toInt() ?? 0,
+            barLength: (cMap['barLength'] as num?)?.toInt() ?? 2,
+            loopLengthBars: (cMap['loopLengthBars'] as num?)?.toInt(),
+            isAudioClip: cMap['isAudioClip'] == true,
+            audioSampleName: cMap['audioSampleName'] as String?,
+            audioPitchOffset: (cMap['audioPitchOffset'] as num?)?.toDouble() ?? 0.0,
             notes: cNotes,
+            lyrics: cLyrics,
+            automationLanes: cAutomation,
             luaScriptCode: cMap['luaScriptCode'] ?? '',
             luaParams: cMap['luaParams'] is Map ? Map<String, double>.from(
               (cMap['luaParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
@@ -408,11 +435,17 @@ class EatsLuaParser {
         luaParams: {},
       ));
     } else {
-      for (final c in clips) {
-        if (notes.isEmpty && c.notes.isNotEmpty) {
-          notes.addAll(c.notes);
+      if (clips.length == 1) {
+        if (notes.isEmpty && clips.first.notes.isNotEmpty) {
+          notes.addAll(clips.first.notes);
         }
-        c.notes = notes;
+        clips.first.notes = notes;
+      } else {
+        if (notes.isEmpty) {
+          for (final c in clips) {
+            notes.addAll(c.notes);
+          }
+        }
       }
     }
 

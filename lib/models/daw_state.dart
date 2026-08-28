@@ -1172,7 +1172,7 @@ class DawState extends ChangeNotifier {
           h = (h * 31) ^ entry.key.hashCode ^ (entry.value * 100).round();
         }
         for (final clip in track.clips) {
-          h = (h * 31) ^ clip.id.hashCode ^ clip.startBar ^ clip.barLength;
+          h = (h * 31) ^ clip.id.hashCode ^ clip.startBar ^ clip.barLength ^ (clip.loopLengthBars ?? 0);
           for (final note in clip.notes) {
             h = (h * 31) ^ note.id.hashCode ^ note.pitch ^ (note.startStep * 100).round() ^ (note.durationSteps * 100).round() ^ (note.velocity * 100).round() ^ (note.isSlide ? 1 : 0) ^ (note.isAccent ? 2 : 0);
           }
@@ -1916,6 +1916,67 @@ return MidiFx
     notifyListeners();
   }
 
+  void setTrackClipLoopLength(TrackClip clip, int? newLoopLengthBars) {
+    if (newLoopLengthBars != null && newLoopLengthBars <= 0) {
+      newLoopLengthBars = null;
+    }
+    clip.loopLengthBars = newLoopLengthBars;
+    if (newLoopLengthBars != null) {
+      recordHistory('Set Clip "${clip.name}" Loop to $newLoopLengthBars Bars', icon: Icons.loop);
+    } else {
+      recordHistory('Disable Loop on Clip "${clip.name}"', icon: Icons.loop);
+    }
+    notifyListeners();
+  }
+
+  bool canMoveClipToTrack(TrackClip clip, TrackChannel targetTrack) {
+    if (targetTrack.isFolder) return false;
+    // Audio clips can only go to sampler/audio tracks
+    if (clip.isAudioClip) {
+      return targetTrack.type == TrackType.sampler;
+    }
+    // Pattern clips can go to any pattern-based track (all non-sampler, non-folder tracks)
+    return targetTrack.type != TrackType.sampler;
+  }
+
+  bool moveClipToTrack(TrackClip clip, TrackChannel sourceTrack, TrackChannel targetTrack, {int? targetStartBar}) {
+    if (!canMoveClipToTrack(clip, targetTrack)) {
+      return false;
+    }
+
+    if (sourceTrack.id == targetTrack.id) {
+      if (targetStartBar != null && clip.startBar != targetStartBar) {
+        clip.startBar = targetStartBar.clamp(0, 128);
+        recordHistory('Move Clip "${clip.name}" to Bar ${clip.startBar + 1}', icon: Icons.drag_handle);
+        notifyListeners();
+      }
+      return true;
+    }
+
+    sourceTrack.clips.removeWhere((c) => c.id == clip.id);
+    clip.trackId = targetTrack.id;
+    if (targetStartBar != null) {
+      clip.startBar = targetStartBar.clamp(0, 128);
+    }
+    targetTrack.clips.add(clip);
+
+    activeClip = clip;
+    final tIdx = activePattern.tracks.indexWhere((t) => t.id == targetTrack.id);
+    if (tIdx != -1) {
+      _activeTrackIndex = tIdx;
+    }
+
+    // Invalidate midi pipeline cache if moving to new track
+    if (clip.evaluatedNotesCache != null) {
+      final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+      pipeline.processClip(clip: clip, track: targetTrack, timeContext: timeContext);
+    }
+
+    recordHistory('Move Clip "${clip.name}" to ${targetTrack.name}', icon: Icons.swap_vert);
+    notifyListeners();
+    return true;
+  }
+
   void toggleTrackMidiFXRack(TrackChannel track, bool enableAll) {
     for (final fx in track.midiFXRack) {
       fx.enabled = enableAll;
@@ -2274,7 +2335,10 @@ return MidiFx
           final int clipEndStep = (clip.startBar + clip.barLength) * 16;
 
           if (stepIdx >= clipStartStep && stepIdx < clipEndStep) {
-            final int localStep = stepIdx - clipStartStep;
+            final int effectiveLoopSteps = clip.effectiveLoopLengthBars * 16;
+            final int localStep = effectiveLoopSteps > 0
+                ? (stepIdx - clipStartStep) % effectiveLoopSteps
+                : (stepIdx - clipStartStep);
 
             // Evaluate Clip Automation Lanes
             for (final lane in clip.automationLanes) {
@@ -2884,9 +2948,12 @@ return MidiFx
     return pastedNotes;
   }
 
-  void setTrackClipBarLength(TrackClip clip, int newBarLength) {
-    final clamped = newBarLength.clamp(1, 16);
+  void setTrackClipBarLength(TrackClip clip, int newBarLength, {bool keepLoop = false}) {
+    final clamped = newBarLength.clamp(1, 64);
     clip.barLength = clamped;
+    if (!keepLoop && clip.loopLengthBars != null && clip.loopLengthBars! >= clamped) {
+      clip.loopLengthBars = null;
+    }
     recordHistory('Resize Clip "${clip.name}" to $clamped Bars', icon: Icons.straighten);
     notifyListeners();
   }

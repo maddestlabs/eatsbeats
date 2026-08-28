@@ -407,11 +407,16 @@ class TrackClip {
   List<Note>? evaluatedNotesCache;
   List<AutomationLane> automationLanes;
 
+  int? loopLengthBars; // Length in bars of repeated pattern loop (null or equals barLength if unlooped)
+
   // Audio Clip & Linked MIDI Transcription
   bool isAudioClip;
   String? audioSampleName;
   double audioPitchOffset; // Semitones (-24.0 to +24.0)
   List<Note> embeddedTranscribedNotes;
+
+  int get effectiveLoopLengthBars => (loopLengthBars != null && loopLengthBars! > 0) ? loopLengthBars! : barLength;
+  bool get isLooped => loopLengthBars != null && loopLengthBars! > 0 && loopLengthBars! < barLength;
 
   bool get hasLyrics => lyrics.isNotEmpty || notes.any((n) => n.lyric != null && n.lyric!.isNotEmpty);
   bool get hasEmbeddedMidi => embeddedTranscribedNotes.isNotEmpty;
@@ -437,6 +442,7 @@ class TrackClip {
     required this.trackId,
     this.startBar = 0,
     this.barLength = 2,
+    this.loopLengthBars,
     List<Note>? notes,
     List<LyricCue>? lyrics,
     this.luaScriptCode = '',
@@ -459,6 +465,7 @@ class TrackClip {
     String? trackId,
     int? startBar,
     int? barLength,
+    int? loopLengthBars,
     List<Note>? notes,
     List<LyricCue>? lyrics,
     String? luaScriptCode,
@@ -476,6 +483,7 @@ class TrackClip {
       trackId: trackId ?? this.trackId,
       startBar: startBar ?? this.startBar,
       barLength: barLength ?? this.barLength,
+      loopLengthBars: loopLengthBars ?? this.loopLengthBars,
       notes: notes ?? this.notes.map((n) => n.copyWith()).toList(),
       lyrics: lyrics ?? this.lyrics.map((l) => l.copyWith()).toList(),
       luaScriptCode: luaScriptCode ?? this.luaScriptCode,
@@ -495,6 +503,7 @@ class TrackClip {
     'trackId': trackId,
     'startBar': startBar,
     'barLength': barLength,
+    if (loopLengthBars != null) 'loopLengthBars': loopLengthBars,
     'notes': notes.map((n) => n.toJson()).toList(),
     'lyrics': lyrics.map((l) => l.toJson()).toList(),
     'luaScriptCode': luaScriptCode,
@@ -512,6 +521,7 @@ class TrackClip {
     trackId: json['trackId'] ?? '',
     startBar: json['startBar'] ?? 0,
     barLength: json['barLength'] ?? 2,
+    loopLengthBars: (json['loopLengthBars'] as num?)?.toInt(),
     notes: (json['notes'] as List?)?.map((n) => Note.fromJson(n)).toList() ?? [],
     lyrics: (json['lyrics'] as List?)?.map((l) => LyricCue.fromJson(l)).toList() ?? [],
     luaScriptCode: json['luaScriptCode'] ?? '',

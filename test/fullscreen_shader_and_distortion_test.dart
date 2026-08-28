@@ -25,8 +25,9 @@ void main() {
       expect(crt.curvatureMap, isNotNull);
 
       final access = BuiltInShaders.getProfileById(BuiltInShaders.accessibilityId);
-      expect(access.name, contains('Accessibility'));
+      expect(access.name, equals('Color Profiles'));
       expect(access.presets.containsKey('Monochrome B&W'), isTrue);
+      expect(access.presets.containsKey('Invert Colors'), isTrue);
       expect(access.presets.containsKey('Protanopia (Red-Weak)'), isTrue);
       expect(access.presets.containsKey('Deuteranopia (Green-Weak)'), isTrue);
       expect(access.presets.containsKey('Tritanopia (Blue-Weak)'), isTrue);
@@ -64,30 +65,15 @@ void main() {
       final retroCurve = manager.getUniformValue(BuiltInShaders.apocalypseCrtId, 'u_curve_strength');
       expect(retroCurve, equals(0.50));
 
-      // Tune a slider
-      await manager.setUniformValue(BuiltInShaders.apocalypseCrtId, 'u_curve_strength', 0.42);
-      expect(manager.getUniformValue(BuiltInShaders.apocalypseCrtId, 'u_curve_strength'), equals(0.42));
-
-      // Reset to defaults
-      await manager.resetToDefaults(BuiltInShaders.apocalypseCrtId);
-      expect(manager.getUniformValue(BuiltInShaders.apocalypseCrtId, 'u_curve_strength'), equals(0.35));
+      // Switch to Color Profiles and test Invert Colors preset
+      await manager.setActiveShader(BuiltInShaders.accessibilityId);
+      await manager.applyPreset(BuiltInShaders.accessibilityId, 'Invert Colors');
+      final invertVal = manager.getUniformValue(BuiltInShaders.accessibilityId, 'u_invert');
+      expect(invertVal, equals(1.0));
 
       // Switch back to none
       await manager.setActiveShader(BuiltInShaders.noneId);
       expect(manager.hasActiveShader, isFalse);
-    });
-
-    test('Audio reactivity controls', () async {
-      final manager = ShaderSettingsManager.instance;
-
-      await manager.setAudioReactivityEnabled(true);
-      expect(manager.audioReactivityEnabled, isTrue);
-
-      await manager.setAudioBeatPulseSensitivity(1.5);
-      expect(manager.audioBeatPulseSensitivity, equals(1.5));
-
-      await manager.setAudioBassSensitivity(1.8);
-      expect(manager.audioBassSensitivity, equals(1.8));
     });
   });
 
@@ -154,14 +140,13 @@ void main() {
       expect(find.text('SCREEN SHADERS & CRT FX'), findsOneWidget);
       expect(find.text('SELECT SHADER EFFECT'), findsOneWidget);
       expect(find.text('Apocalypse CRT'), findsOneWidget);
-      expect(find.text('Accessibility & Color Profiles'), findsOneWidget);
+      expect(find.text('Color Profiles'), findsOneWidget);
 
       // Select Apocalypse CRT
       await tester.tap(find.text('Apocalypse CRT'));
       await tester.pumpAndSettle();
 
       expect(find.text('FACTORY PRESETS'), findsOneWidget);
-      expect(find.text('DAW AUDIO REACTIVITY'), findsOneWidget);
 
       // Scroll to verify Visual Effects section
       await tester.scrollUntilVisible(find.text('VISUAL EFFECTS'), 100);

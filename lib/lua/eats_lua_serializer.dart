@@ -1,5 +1,7 @@
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
+import '../models/automation_model.dart';
+import '../models/lyric_model.dart';
 
 class EatsLuaSerializer {
   /// Serializes a full [DawState] object into a formatted `.eats.lua` script.
@@ -207,6 +209,18 @@ class EatsLuaSerializer {
     buffer.writeln('${childIndent}trackId = "${_escapeString(clip.trackId)}",');
     buffer.writeln('${childIndent}startBar = ${clip.startBar},');
     buffer.writeln('${childIndent}barLength = ${clip.barLength},');
+    if (clip.loopLengthBars != null) {
+      buffer.writeln('${childIndent}loopLengthBars = ${clip.loopLengthBars},');
+    }
+    if (clip.isAudioClip) {
+      buffer.writeln('${childIndent}isAudioClip = true,');
+    }
+    if (clip.audioSampleName != null && clip.audioSampleName!.isNotEmpty) {
+      buffer.writeln('${childIndent}audioSampleName = "${_escapeString(clip.audioSampleName!)}",');
+    }
+    if (clip.audioPitchOffset != 0.0) {
+      buffer.writeln('${childIndent}audioPitchOffset = ${clip.audioPitchOffset.toStringAsFixed(2)},');
+    }
 
     if (clip.luaScriptCode.isNotEmpty) {
       buffer.writeln('${childIndent}luaScriptCode = ${_formatLuaString(clip.luaScriptCode, childIndent)},');
@@ -215,10 +229,31 @@ class EatsLuaSerializer {
       buffer.writeln('${childIndent}luaParams = ${_formatMap(clip.luaParams)},');
     }
 
+    if (clip.lyrics.isNotEmpty) {
+      buffer.writeln('${childIndent}lyrics = {');
+      for (final l in clip.lyrics) {
+        buffer.writeln('$childIndent  { id = "${_escapeString(l.id)}", text = "${_escapeString(l.text)}", startStep = ${l.startStep.toStringAsFixed(2)}, durationSteps = ${l.durationSteps.toStringAsFixed(2)} },');
+      }
+      buffer.writeln('${childIndent}},');
+    }
+
+    if (clip.automationLanes.isNotEmpty) {
+      buffer.writeln('${childIndent}automationLanes = {');
+      for (final lane in clip.automationLanes) {
+        buffer.writeln('$childIndent  { id = "${_escapeString(lane.id)}", targetId = "${_escapeString(lane.target.id)}", targetName = "${_escapeString(lane.target.name)}", enabled = ${lane.enabled}, points = {');
+        for (final pt in lane.points) {
+          buffer.writeln('$childIndent    { id = "${_escapeString(pt.id)}", step = ${pt.step.toStringAsFixed(2)}, value = ${pt.value.toStringAsFixed(4)}, easing = "${pt.easing.name}", tension = ${pt.tension.toStringAsFixed(2)} },');
+        }
+        buffer.writeln('$childIndent  } },');
+      }
+      buffer.writeln('${childIndent}},');
+    }
+
     if (clip.notes.isNotEmpty) {
       buffer.writeln('${childIndent}notes = {');
       for (final n in clip.notes) {
-        buffer.writeln('$childIndent  { id = "${_escapeString(n.id)}", pitch = ${n.pitch}, startStep = ${n.startStep.toStringAsFixed(2)}, durationSteps = ${n.durationSteps.toStringAsFixed(2)}, velocity = ${n.velocity.toStringAsFixed(2)}, column = ${n.column}, effectCommand = "${_escapeString(n.effectCommand)}", isSlide = ${n.isSlide}, isAccent = ${n.isAccent} },');
+        final lyricStr = (n.lyric != null && n.lyric!.isNotEmpty) ? ', lyric = "${_escapeString(n.lyric!)}"' : '';
+        buffer.writeln('$childIndent  { id = "${_escapeString(n.id)}", pitch = ${n.pitch}, startStep = ${n.startStep.toStringAsFixed(2)}, durationSteps = ${n.durationSteps.toStringAsFixed(2)}, velocity = ${n.velocity.toStringAsFixed(2)}, column = ${n.column}, effectCommand = "${_escapeString(n.effectCommand)}", isSlide = ${n.isSlide}, isAccent = ${n.isAccent}$lyricStr },');
       }
       buffer.writeln('${childIndent}},');
     }

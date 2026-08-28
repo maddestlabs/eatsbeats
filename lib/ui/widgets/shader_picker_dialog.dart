@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../shaders/shader_model.dart';
@@ -247,10 +248,6 @@ class _ShaderPickerDialogState extends State<ShaderPickerDialog> {
                       ),
                     ],
 
-                    // Audio Reactivity Section
-                    const SizedBox(height: 16),
-                    _buildAudioReactivitySection(),
-
                     // Categorized Uniform Sliders
                     for (final entry in groupedUniforms.entries) ...[
                       const SizedBox(height: 16),
@@ -294,16 +291,10 @@ class _ShaderPickerDialogState extends State<ShaderPickerDialog> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: Text(
-                      _settings.hasActiveShader
-                          ? 'Shaders compiled via Impeller / Skia (Low VRAM footprint)'
-                          : 'No post-process shader active (0% GPU/CPU overhead)',
-                      style: TextStyle(color: EatsTheme.textMuted, fontSize: 10),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  Text(
+                    _settings.hasActiveShader ? activeProfile.name : 'Normal Display Mode',
+                    style: TextStyle(color: EatsTheme.textMuted, fontSize: 11, fontWeight: FontWeight.w600),
                   ),
-                  const SizedBox(width: 8),
                   SkeuomorphicHardwareButton(
                     label: 'DONE',
                     icon: Icons.check,
@@ -318,142 +309,6 @@ class _ShaderPickerDialogState extends State<ShaderPickerDialog> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildAudioReactivitySection() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: EatsTheme.controlBackground,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: _settings.audioReactivityEnabled
-              ? EatsTheme.primaryCyan.withValues(alpha: 0.6)
-              : EatsTheme.panelHeader,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.graphic_eq,
-                      size: 16,
-                      color: _settings.audioReactivityEnabled
-                          ? EatsTheme.primaryCyan
-                          : EatsTheme.textMuted,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'DAW AUDIO REACTIVITY',
-                            style: TextStyle(
-                              color: EatsTheme.textPrimary,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            'Syncs CRT rumble, pulse & RGB jitter to master bus audio & BPM tempo',
-                            style: TextStyle(color: EatsTheme.textMuted, fontSize: 9),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              SkeuomorphicHardwareSwitch(
-                value: _settings.audioReactivityEnabled,
-                activeColor: EatsTheme.primaryCyan,
-                tooltip: 'Toggle audio reactivity',
-                onChanged: (val) => _settings.setAudioReactivityEnabled(val),
-              ),
-            ],
-          ),
-          if (_settings.audioReactivityEnabled) ...[
-            const Divider(height: 16, color: Colors.white10),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Beat Pulse Sensitivity',
-                              style: TextStyle(color: EatsTheme.textMuted, fontSize: 10)),
-                          Text(
-                            '${(_settings.audioBeatPulseSensitivity * 100).toInt()}%',
-                            style: TextStyle(
-                              color: EatsTheme.primaryCyan,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SliderTheme(
-                        data: _sliderTheme(),
-                        child: Slider(
-                          value: _settings.audioBeatPulseSensitivity,
-                          min: 0.0,
-                          max: 2.0,
-                          onChanged: (v) => _settings.setAudioBeatPulseSensitivity(v),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Bass Kick Expansion',
-                              style: TextStyle(color: EatsTheme.textMuted, fontSize: 10)),
-                          Text(
-                            '${(_settings.audioBassSensitivity * 100).toInt()}%',
-                            style: TextStyle(
-                              color: EatsTheme.primaryCyan,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SliderTheme(
-                        data: _sliderTheme(),
-                        child: Slider(
-                          value: _settings.audioBassSensitivity,
-                          min: 0.0,
-                          max: 2.0,
-                          onChanged: (v) => _settings.setAudioBassSensitivity(v),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
       ),
     );
   }

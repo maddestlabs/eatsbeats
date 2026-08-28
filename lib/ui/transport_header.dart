@@ -630,7 +630,7 @@ class TransportHeader extends StatelessWidget {
                                   ),
                                 ),
                                 SkeuomorphicHardwareButton(
-                                  label: 'CUSTOMIZE SHADERS',
+                                  label: 'SHADERS',
                                   icon: Icons.tv,
                                   isActive: ShaderSettingsManager.instance.hasActiveShader,
                                   activeColor: EatsTheme.primaryCyan,
@@ -639,7 +639,7 @@ class TransportHeader extends StatelessWidget {
                                     ShaderPickerDialog.show(context);
                                   },
                                   height: 32,
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                                 ),
                               ],
                             ),

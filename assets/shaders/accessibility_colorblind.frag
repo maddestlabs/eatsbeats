@@ -7,6 +7,7 @@ uniform float u_intensity;     // 0.0 - 1.0 filter blend amount
 uniform float u_brightness;    // 0.5 - 1.5 (default 1.0)
 uniform float u_contrast;      // 0.5 - 2.0 (default 1.0)
 uniform float u_saturation;    // 0.0 - 2.0 (default 1.0)
+uniform float u_invert;        // 0.0 - 1.0 (default 0.0, 1.0 = fully inverted colors)
 uniform float u_beat_pulse;    // 0.0 - 1.0 (audio reactivity)
 uniform float u_bass_energy;   // 0.0 - 1.0 (audio reactivity)
 
@@ -79,6 +80,11 @@ void main() {
     if (abs(u_saturation - 1.0) > 0.01) {
         float gray = dot(col, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(gray), col, u_saturation);
+    }
+
+    // Color Inversion
+    if (u_invert > 0.0) {
+        col = mix(col, vec3(1.0) - col, u_invert);
     }
 
     fragColor = vec4(clamp(col, 0.0, 1.0), baseTex.a);

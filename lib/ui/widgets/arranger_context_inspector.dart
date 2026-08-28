@@ -751,6 +751,8 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
         const SizedBox(height: 8),
         _buildClipTitleCard(track, clip),
         const SizedBox(height: 10),
+        _buildClipLoopAndTimingCard(track, clip),
+        const SizedBox(height: 10),
         if (isAudio) ...[
           _buildAudioClipPropertiesCard(context, track, clip),
           const SizedBox(height: 10),
@@ -1262,6 +1264,172 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClipLoopAndTimingCard(TrackChannel track, TrackClip clip) {
+    final isLooped = clip.isLooped;
+    final loopLength = clip.effectiveLoopLengthBars;
+
+    Widget buildStepperBtn({required IconData icon, required VoidCallback? onTap}) {
+      final isEnabled = onTap != null;
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(3),
+        child: Container(
+          width: 18,
+          height: 18,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isEnabled ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.02),
+            borderRadius: BorderRadius.circular(3),
+          ),
+          child: Icon(
+            icon,
+            size: 10,
+            color: isEnabled ? EatsTheme.textPrimary : EatsTheme.textMuted.withOpacity(0.3),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: EatsTheme.panelHeader,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: isLooped ? EatsTheme.accentGold.withOpacity(0.6) : Colors.white.withOpacity(0.08), width: 1.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.repeat, size: 12, color: isLooped ? EatsTheme.accentGold : EatsTheme.textSecondary),
+                  const SizedBox(width: 4),
+                  Text(
+                    'LOOP & LENGTH',
+                    style: TextStyle(
+                      color: isLooped ? EatsTheme.accentGold : EatsTheme.textPrimary,
+                      fontSize: 9.0,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+              Transform.scale(
+                scale: 0.65,
+                alignment: Alignment.centerRight,
+                child: Switch(
+                  value: isLooped,
+                  activeColor: EatsTheme.accentGold,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  onChanged: (enabled) {
+                    if (enabled) {
+                      widget.dawState.setTrackClipLoopLength(clip, (clip.barLength / 2).ceil().clamp(1, 16));
+                    } else {
+                      widget.dawState.setTrackClipLoopLength(clip, null);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Row(
+            children: [
+              // Length Controls
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: EatsTheme.controlBackground,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Length', style: TextStyle(color: EatsTheme.textMuted, fontSize: 8.0)),
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          buildStepperBtn(
+                            icon: Icons.remove,
+                            onTap: clip.barLength > 1
+                                ? () => widget.dawState.setTrackClipBarLength(clip, clip.barLength - 1)
+                                : null,
+                          ),
+                          Text(
+                            '${clip.barLength} B',
+                            style: TextStyle(color: EatsTheme.textPrimary, fontSize: 9.5, fontWeight: FontWeight.bold),
+                          ),
+                          buildStepperBtn(
+                            icon: Icons.add,
+                            onTap: clip.barLength < 32
+                                ? () => widget.dawState.setTrackClipBarLength(clip, clip.barLength + 1)
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+
+              // Loop Length Controls
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: EatsTheme.controlBackground,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Loop Point', style: TextStyle(color: isLooped ? EatsTheme.accentGold : EatsTheme.textMuted, fontSize: 8.0)),
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          buildStepperBtn(
+                            icon: Icons.remove,
+                            onTap: (isLooped && loopLength > 1)
+                                ? () => widget.dawState.setTrackClipLoopLength(clip, loopLength - 1)
+                                : null,
+                          ),
+                          Text(
+                            isLooped ? '$loopLength B' : 'OFF',
+                            style: TextStyle(
+                              color: isLooped ? EatsTheme.accentGold : EatsTheme.textMuted,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          buildStepperBtn(
+                            icon: Icons.add,
+                            onTap: isLooped && loopLength < clip.barLength - 1
+                                ? () => widget.dawState.setTrackClipLoopLength(clip, loopLength + 1)
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

@@ -222,31 +222,36 @@ class _ShaderPostProcessHostState extends State<ShaderPostProcessHost>
       // 28: u_bass_energy
       shader.setFloat(28, _smoothedBassEnergy);
     } else if (profile.id == BuiltInShaders.accessibilityId) {
-      // u_mode
+      // 3: u_mode
       shader.setFloat(3, uniforms['u_mode'] ?? 1.0);
-      // u_intensity
+      // 4: u_intensity
       shader.setFloat(4, uniforms['u_intensity'] ?? 1.0);
-      // u_brightness
+      // 5: u_brightness
       shader.setFloat(5, uniforms['u_brightness'] ?? 1.0);
-      // u_contrast
+      // 6: u_contrast
       shader.setFloat(6, uniforms['u_contrast'] ?? 1.0);
-      // u_saturation
+      // 7: u_saturation
       shader.setFloat(7, uniforms['u_saturation'] ?? 1.0);
-      // u_beat_pulse
-      shader.setFloat(8, _smoothedBeatPulse);
-      // u_bass_energy
-      shader.setFloat(9, _smoothedBassEnergy);
+      // 8: u_invert
+      shader.setFloat(8, uniforms['u_invert'] ?? 0.0);
+      // 9: u_beat_pulse
+      shader.setFloat(9, _smoothedBeatPulse);
+      // 10: u_bass_energy
+      shader.setFloat(10, _smoothedBassEnergy);
     }
 
     return shader;
   }
 
+  static bool? _isImageFilterShaderSupported;
+  static bool get isSupported => _isImageFilterShaderSupported ?? true;
+
   @override
   Widget build(BuildContext context) {
     final profile = _settings.activeProfile;
 
-    // Fast path: No shader active or still loading
-    if (profile.id == BuiltInShaders.noneId || _isLoadingShader) {
+    // Fast path: No shader active, still loading, or unsupported on current renderer (e.g. Web CanvasKit/HTML)
+    if (profile.id == BuiltInShaders.noneId || _isLoadingShader || _isImageFilterShaderSupported == false) {
       return widget.child;
     }
 
@@ -261,6 +266,16 @@ class _ShaderPostProcessHostState extends State<ShaderPostProcessHost>
           return widget.child;
         }
 
+        ui.ImageFilter? imageFilter;
+        try {
+          imageFilter = ui.ImageFilter.shader(shader);
+          _isImageFilterShaderSupported = true;
+        } catch (e) {
+          _isImageFilterShaderSupported = false;
+          debugPrint('Notice: ImageFilter.shader is not supported on this platform/renderer ($e). Rendering native direct display.');
+          return widget.child;
+        }
+
         // Pointer distortion remapper function
         Offset Function(Offset)? uvDistortionMap;
         if (profile.curvatureMap != null) {
@@ -270,7 +285,7 @@ class _ShaderPostProcessHostState extends State<ShaderPostProcessHost>
         return ShaderDistortionPointerRemapper(
           uvDistortionMap: uvDistortionMap,
           child: ImageFiltered(
-            imageFilter: ui.ImageFilter.shader(shader),
+            imageFilter: imageFilter,
             child: widget.child,
           ),
         );

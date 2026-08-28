@@ -51,7 +51,14 @@ class _ArrangerViewState extends State<ArrangerView> {
   String? _lastClipTapId;
 
   double _moveDragDxAccumulator = 0.0;
+  double _moveDragDyAccumulator = 0.0;
   double _resizeDragDxAccumulator = 0.0;
+  double _loopResizeDragDxAccumulator = 0.0;
+  int? _initialLoopPointOnDrag;
+  int? _dragSourceTrackIdx;
+  int? _dragHoverTrackIdx;
+  TrackClip? _draggedClip;
+  TrackChannel? _draggedClipSourceTrack;
   double _chordMoveDragDxAccumulator = 0.0;
   double _chordResizeDragDxAccumulator = 0.0;
   int? _dragLoopStartBar;
@@ -1141,13 +1148,27 @@ class _ArrangerViewState extends State<ArrangerView> {
                                     }
 
                                     final track = tracks[trackIdx];
+                                    final isDropTargetHover = _dragHoverTrackIdx == trackIdx && _dragSourceTrackIdx != trackIdx;
+                                    final bool canAcceptDrop = isDropTargetHover && _draggedClip != null && widget.dawState.canMoveClipToTrack(_draggedClip!, track);
 
                                     return Container(
                                       height: trackRowHeight,
                                       margin: const EdgeInsets.only(bottom: 2),
                                       decoration: BoxDecoration(
-                                        color: EatsTheme.backgroundDark,
-                                        border: Border(bottom: BorderSide(color: EatsTheme.panelHeader, width: 1)),
+                                        color: isDropTargetHover
+                                            ? (canAcceptDrop ? EatsTheme.primaryCyan.withOpacity(0.12) : Colors.red.withOpacity(0.12))
+                                            : EatsTheme.backgroundDark,
+                                        border: Border(
+                                          bottom: BorderSide(
+                                            color: isDropTargetHover
+                                                ? (canAcceptDrop ? EatsTheme.primaryCyan : Colors.redAccent)
+                                                : EatsTheme.panelHeader,
+                                            width: isDropTargetHover ? 1.5 : 1,
+                                          ),
+                                          top: isDropTargetHover
+                                              ? BorderSide(color: canAcceptDrop ? EatsTheme.primaryCyan : Colors.redAccent, width: 1.5)
+                                              : BorderSide.none,
+                                        ),
                                       ),
                                       child: Stack(
                                         children: [
@@ -1172,6 +1193,45 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                );
                                              }),
                                            ),
+
+                                           // Cross-Track Drag Target Ghost Preview
+                                           if (isDropTargetHover && _draggedClip != null)
+                                             Positioned(
+                                               left: _draggedClip!.startBar * barWidth + 2,
+                                               top: 6,
+                                               width: (_draggedClip!.barLength * barWidth) - 4,
+                                               height: trackRowHeight - 12,
+                                               child: Container(
+                                                 decoration: BoxDecoration(
+                                                   color: canAcceptDrop ? EatsTheme.primaryCyan.withOpacity(0.22) : Colors.red.withOpacity(0.18),
+                                                   borderRadius: BorderRadius.circular(6),
+                                                   border: Border.all(
+                                                     color: canAcceptDrop ? EatsTheme.primaryCyan : Colors.redAccent,
+                                                     width: 1.5,
+                                                   ),
+                                                 ),
+                                                 alignment: Alignment.center,
+                                                 child: Row(
+                                                   mainAxisSize: MainAxisSize.min,
+                                                   children: [
+                                                     Icon(
+                                                       canAcceptDrop ? Icons.swap_vert : Icons.block,
+                                                       size: 13,
+                                                       color: canAcceptDrop ? EatsTheme.primaryCyan : Colors.redAccent,
+                                                     ),
+                                                     const SizedBox(width: 4),
+                                                     Text(
+                                                       canAcceptDrop ? 'MOVE TO ${track.name.toUpperCase()}' : 'WAVE / FOLDER TRACK NOT COMPATIBLE',
+                                                       style: TextStyle(
+                                                         color: canAcceptDrop ? EatsTheme.primaryCyan : Colors.redAccent,
+                                                         fontSize: 8.5,
+                                                         fontWeight: FontWeight.bold,
+                                                       ),
+                                                     ),
+                                                   ],
+                                                 ),
+                                               ),
+                                             ),
 
                                            // Time-Synced Track Lyrics Ribbon
                                            if (track.lyrics.isNotEmpty) ...[
@@ -1347,12 +1407,20 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                          widget.dawState.activeTrackIndex = trackIdx;
                                                          widget.dawState.selectClip(clip);
                                                        },
-                                                       onHorizontalDragStart: (_) {
+                                                       onPanStart: (details) {
                                                          _moveDragDxAccumulator = 0.0;
+                                                         _moveDragDyAccumulator = 0.0;
+                                                         _draggedClip = clip;
+                                                         _draggedClipSourceTrack = track;
+                                                         _dragSourceTrackIdx = trackIdx;
+                                                         _dragHoverTrackIdx = trackIdx;
                                                          widget.dawState.beginHistoryTransaction('Move Clip "${clip.name}"', icon: Icons.open_with);
                                                        },
-                                                       onHorizontalDragUpdate: (details) {
+                                                       onPanUpdate: (details) {
                                                          _moveDragDxAccumulator += details.delta.dx;
+                                                         _moveDragDyAccumulator += details.delta.dy;
+
+                                                         // Horizontal Bar Drag Shift
                                                          if (_moveDragDxAccumulator.abs() >= barWidth * 0.5) {
                                                            final shiftBars = (_moveDragDxAccumulator / barWidth).round();
                                                            if (shiftBars != 0) {
@@ -1362,9 +1430,57 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                              _moveDragDxAccumulator -= shiftBars * barWidth;
                                                            }
                                                          }
+
+                                                         // Vertical Track Drag Shift
+                                                         final trackShift = (_moveDragDyAccumulator / (trackRowHeight + 2.0)).round();
+                                                         if (_dragSourceTrackIdx != null) {
+                                                           final targetIdx = (_dragSourceTrackIdx! + trackShift).clamp(0, tracks.length - 1);
+                                                           if (targetIdx != _dragHoverTrackIdx) {
+                                                             setState(() {
+                                                               _dragHoverTrackIdx = targetIdx;
+                                                             });
+                                                           }
+                                                         }
                                                        },
-                                                       onHorizontalDragEnd: (_) => widget.dawState.commitHistoryTransaction(),
-                                                       onHorizontalDragCancel: () => widget.dawState.commitHistoryTransaction(),
+                                                       onPanEnd: (_) {
+                                                         if (_dragHoverTrackIdx != null && _dragSourceTrackIdx != null && _dragHoverTrackIdx != _dragSourceTrackIdx) {
+                                                           final targetTrack = tracks[_dragHoverTrackIdx!];
+                                                           if (widget.dawState.canMoveClipToTrack(clip, targetTrack)) {
+                                                             widget.dawState.moveClipToTrack(clip, track, targetTrack, targetStartBar: clip.startBar);
+                                                             ScaffoldMessenger.of(context).showSnackBar(
+                                                               SnackBar(
+                                                                 content: Text('Moved pattern clip "${clip.name}" to ${targetTrack.name}'),
+                                                                 backgroundColor: EatsTheme.panelHeader,
+                                                                 duration: const Duration(seconds: 1),
+                                                               ),
+                                                             );
+                                                           } else {
+                                                             ScaffoldMessenger.of(context).showSnackBar(
+                                                               SnackBar(
+                                                                 content: Text('Cannot drop pattern clip onto ${targetTrack.type == TrackType.sampler ? "Audio Wave Track" : "Folder Track"}'),
+                                                                 backgroundColor: Colors.redAccent.shade700,
+                                                                 duration: const Duration(seconds: 2),
+                                                               ),
+                                                             );
+                                                           }
+                                                         }
+                                                         setState(() {
+                                                           _draggedClip = null;
+                                                           _draggedClipSourceTrack = null;
+                                                           _dragSourceTrackIdx = null;
+                                                           _dragHoverTrackIdx = null;
+                                                         });
+                                                         widget.dawState.commitHistoryTransaction();
+                                                       },
+                                                       onPanCancel: () {
+                                                         setState(() {
+                                                           _draggedClip = null;
+                                                           _draggedClipSourceTrack = null;
+                                                           _dragSourceTrackIdx = null;
+                                                           _dragHoverTrackIdx = null;
+                                                         });
+                                                         widget.dawState.commitHistoryTransaction();
+                                                       },
                                                        child: AnimatedContainer(
                                                          duration: const Duration(milliseconds: 120),
                                                          decoration: BoxDecoration(
@@ -1461,6 +1577,32 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                                            maxLines: 1,
                                                                          ),
                                                                        ),
+                                                                        if (clip.isLooped) ...[
+                                                                          const SizedBox(width: 4),
+                                                                          Container(
+                                                                            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                                                                            decoration: BoxDecoration(
+                                                                              color: EatsTheme.accentGold.withOpacity(0.35),
+                                                                              borderRadius: BorderRadius.circular(2),
+                                                                              border: Border.all(color: EatsTheme.accentGold.withOpacity(0.8), width: 0.5),
+                                                                            ),
+                                                                            child: Row(
+                                                                              mainAxisSize: MainAxisSize.min,
+                                                                              children: [
+                                                                                const Icon(Icons.loop, size: 7.5, color: EatsTheme.accentGold),
+                                                                                const SizedBox(width: 2),
+                                                                                Text(
+                                                                                  '${clip.loopLengthBars}b LOOP',
+                                                                                  style: const TextStyle(
+                                                                                    color: EatsTheme.accentGold,
+                                                                                    fontSize: 7.0,
+                                                                                    fontWeight: FontWeight.bold,
+                                                                                  ),
+                                                                                ),
+                                                                              ],
+                                                                            ),
+                                                                          ),
+                                                                        ],
                                                                         if (clip.hasLyrics) ...[
                                                                           const SizedBox(width: 4),
                                                                           Container(
@@ -1580,39 +1722,108 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                                    ),
                                                                  ),
 
-                                                               // 4. Right Edge Drag Handle to Resize Clip Length (Transparent Background)
+                                                               // 4a. Top Right Edge Loop Resize Handle (OpenDAW-style Loop cursor & Looping drag)
                                                                Positioned(
                                                                  right: 0,
                                                                  top: 0,
+                                                                 height: 18,
+                                                                 width: 22,
+                                                                 child: MouseRegion(
+                                                                   cursor: SystemMouseCursors.allScroll,
+                                                                   child: Tooltip(
+                                                                     message: 'Loop Resize (Repeats pattern every ${clip.effectiveLoopLengthBars} bars)',
+                                                                     child: GestureDetector(
+                                                                       behavior: HitTestBehavior.opaque,
+                                                                       onHorizontalDragStart: (_) {
+                                                                         _loopResizeDragDxAccumulator = 0.0;
+                                                                         _initialLoopPointOnDrag = clip.effectiveLoopLengthBars;
+                                                                         widget.dawState.beginHistoryTransaction('Loop Resize Clip "${clip.name}"', icon: Icons.loop);
+                                                                       },
+                                                                       onHorizontalDragUpdate: (details) {
+                                                                         _loopResizeDragDxAccumulator += details.delta.dx;
+                                                                         if (_loopResizeDragDxAccumulator.abs() >= barWidth * 0.5) {
+                                                                           final shiftBars = (_loopResizeDragDxAccumulator / barWidth).round();
+                                                                           if (shiftBars != 0) {
+                                                                             final newBarLength = (clip.barLength + shiftBars).clamp(1, totalBars - clip.startBar);
+                                                                             setState(() {
+                                                                               clip.barLength = newBarLength;
+                                                                               final initPoint = _initialLoopPointOnDrag ?? 2;
+                                                                               if (newBarLength > initPoint) {
+                                                                                 clip.loopLengthBars = initPoint;
+                                                                               } else {
+                                                                                 clip.loopLengthBars = null;
+                                                                               }
+                                                                             });
+                                                                             _loopResizeDragDxAccumulator -= shiftBars * barWidth;
+                                                                           }
+                                                                         }
+                                                                       },
+                                                                       onHorizontalDragEnd: (_) {
+                                                                         _initialLoopPointOnDrag = null;
+                                                                         widget.dawState.commitHistoryTransaction();
+                                                                       },
+                                                                       onHorizontalDragCancel: () {
+                                                                         _initialLoopPointOnDrag = null;
+                                                                         widget.dawState.commitHistoryTransaction();
+                                                                       },
+                                                                       child: Container(
+                                                                         color: Colors.transparent,
+                                                                         alignment: Alignment.center,
+                                                                         child: Icon(
+                                                                           Icons.sync,
+                                                                           size: 11,
+                                                                           color: clip.isLooped
+                                                                               ? EatsTheme.accentGold
+                                                                               : (isClipSelected ? EatsTheme.highlightColor : Colors.white.withOpacity(0.7)),
+                                                                         ),
+                                                                       ),
+                                                                     ),
+                                                                   ),
+                                                                 ),
+                                                               ),
+
+                                                               // 4b. Bottom Right Edge Standard Resize Handle (Simple resize without looping)
+                                                               Positioned(
+                                                                 right: 0,
+                                                                 top: 18,
                                                                  bottom: 0,
-                                                                 width: 18,
-                                                                 child: GestureDetector(
-                                                                   behavior: HitTestBehavior.opaque,
-                                                                   onHorizontalDragStart: (_) {
-                                                                     _resizeDragDxAccumulator = 0.0;
-                                                                     widget.dawState.beginHistoryTransaction('Resize Clip "${clip.name}"', icon: Icons.straighten);
-                                                                   },
-                                                                   onHorizontalDragUpdate: (details) {
-                                                                     _resizeDragDxAccumulator += details.delta.dx;
-                                                                     if (_resizeDragDxAccumulator.abs() >= barWidth * 0.5) {
-                                                                       final shiftBars = (_resizeDragDxAccumulator / barWidth).round();
-                                                                       if (shiftBars != 0) {
-                                                                         setState(() {
-                                                                           clip.barLength = (clip.barLength + shiftBars).clamp(1, totalBars - clip.startBar);
-                                                                         });
-                                                                         _resizeDragDxAccumulator -= shiftBars * barWidth;
-                                                                       }
-                                                                     }
-                                                                   },
-                                                                   onHorizontalDragEnd: (_) => widget.dawState.commitHistoryTransaction(),
-                                                                   onHorizontalDragCancel: () => widget.dawState.commitHistoryTransaction(),
-                                                                   child: Container(
-                                                                     color: Colors.transparent,
-                                                                     alignment: Alignment.center,
-                                                                     child: Icon(
-                                                                       Icons.code,
-                                                                       size: 11,
-                                                                       color: isClipSelected ? EatsTheme.highlightColor : EatsTheme.backgroundDark.withOpacity(0.8),
+                                                                 width: 22,
+                                                                 child: MouseRegion(
+                                                                   cursor: SystemMouseCursors.resizeLeftRight,
+                                                                   child: Tooltip(
+                                                                     message: 'Resize Clip Length',
+                                                                     child: GestureDetector(
+                                                                       behavior: HitTestBehavior.opaque,
+                                                                       onHorizontalDragStart: (_) {
+                                                                         _resizeDragDxAccumulator = 0.0;
+                                                                         widget.dawState.beginHistoryTransaction('Resize Clip "${clip.name}"', icon: Icons.straighten);
+                                                                       },
+                                                                       onHorizontalDragUpdate: (details) {
+                                                                         _resizeDragDxAccumulator += details.delta.dx;
+                                                                         if (_resizeDragDxAccumulator.abs() >= barWidth * 0.5) {
+                                                                           final shiftBars = (_resizeDragDxAccumulator / barWidth).round();
+                                                                           if (shiftBars != 0) {
+                                                                             setState(() {
+                                                                               clip.barLength = (clip.barLength + shiftBars).clamp(1, totalBars - clip.startBar);
+                                                                               if (clip.loopLengthBars != null && clip.loopLengthBars! >= clip.barLength) {
+                                                                                 clip.loopLengthBars = null;
+                                                                               }
+                                                                             });
+                                                                             _resizeDragDxAccumulator -= shiftBars * barWidth;
+                                                                           }
+                                                                         }
+                                                                       },
+                                                                       onHorizontalDragEnd: (_) => widget.dawState.commitHistoryTransaction(),
+                                                                       onHorizontalDragCancel: () => widget.dawState.commitHistoryTransaction(),
+                                                                       child: Container(
+                                                                         color: Colors.transparent,
+                                                                         alignment: Alignment.center,
+                                                                         child: Icon(
+                                                                           Icons.code,
+                                                                           size: 11,
+                                                                           color: isClipSelected ? EatsTheme.highlightColor : EatsTheme.backgroundDark.withOpacity(0.8),
+                                                                         ),
+                                                                       ),
                                                                      ),
                                                                    ),
                                                                  ),
@@ -2059,49 +2270,81 @@ class PatternClipNotePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.5;
 
-    for (final note in notesToDraw) {
-      final double startStep = note.startStep;
-      if (startStep >= totalSteps) continue;
+    final int loopBars = clip.effectiveLoopLengthBars;
+    final double loopSteps = loopBars * 16.0;
+    final int numCycles = clip.isLooped ? (clip.barLength / loopBars).ceil() : 1;
 
-      final double x = (startStep / totalSteps) * size.width;
-      final double width = (note.durationSteps / totalSteps) * size.width;
-      final double clampedWidth = math.max(2.5, width);
+    for (int cycle = 0; cycle < numCycles; cycle++) {
+      final double cycleStepOffset = cycle * loopSteps;
 
-      final double normalizedPitch = ((note.pitch - minPitch) / pitchSpan).clamp(0.0, 1.0);
-      const double minNoteHeight = 3.0;
-      final double maxNoteHeight = math.min(10.0, size.height * 0.32);
-      final double noteHeight = (maxNoteHeight * (note.velocity / 1.0)).clamp(minNoteHeight, maxNoteHeight);
-      final double y = (1.0 - normalizedPitch) * (size.height - noteHeight);
+      for (final note in notesToDraw) {
+        final double startStep = note.startStep + cycleStepOffset;
+        if (startStep >= totalSteps) continue;
 
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(x, y, clampedWidth, noteHeight),
-        const Radius.circular(1.0),
-      );
+        final double x = (startStep / totalSteps) * size.width;
+        final double width = (note.durationSteps / totalSteps) * size.width;
+        final double clampedWidth = math.max(2.5, width);
 
-      notePaint.color = EatsTheme.backgroundDark.withOpacity(0.40);
-      noteBorderPaint.color = Colors.white.withOpacity(0.40);
+        final double normalizedPitch = ((note.pitch - minPitch) / pitchSpan).clamp(0.0, 1.0);
+        const double minNoteHeight = 3.0;
+        final double maxNoteHeight = math.min(10.0, size.height * 0.32);
+        final double noteHeight = (maxNoteHeight * (note.velocity / 1.0)).clamp(minNoteHeight, maxNoteHeight);
+        final double y = (1.0 - normalizedPitch) * (size.height - noteHeight);
 
-      canvas.drawRRect(rect, notePaint);
-      canvas.drawRRect(rect, noteBorderPaint);
-
-      // Render note syllable lyric text if present
-      if (note.lyric != null && note.lyric!.isNotEmpty) {
-        final textSpan = TextSpan(
-          text: note.lyric,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 7.5,
-            fontWeight: FontWeight.bold,
-            shadows: [Shadow(color: Colors.black87, blurRadius: 2)],
-          ),
+        final rect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, y, clampedWidth, noteHeight),
+          const Radius.circular(1.0),
         );
-        final textPainter = TextPainter(
-          text: textSpan,
-          textDirection: TextDirection.ltr,
-        )..layout(maxWidth: 80.0);
-        final textX = (x + 1.0).clamp(0.0, math.max(0.0, size.width - textPainter.width)).toDouble();
-        final textY = (y - 8.0).clamp(2.0, math.max(2.0, size.height - 10.0)).toDouble();
-        textPainter.paint(canvas, Offset(textX, textY));
+
+        notePaint.color = EatsTheme.backgroundDark.withOpacity(cycle == 0 ? 0.40 : 0.30);
+        noteBorderPaint.color = Colors.white.withOpacity(cycle == 0 ? 0.40 : 0.25);
+
+        canvas.drawRRect(rect, notePaint);
+        canvas.drawRRect(rect, noteBorderPaint);
+
+        // Render note syllable lyric text if present
+        if (note.lyric != null && note.lyric!.isNotEmpty) {
+          final textSpan = TextSpan(
+            text: note.lyric,
+            style: TextStyle(
+              color: Colors.white.withOpacity(cycle == 0 ? 1.0 : 0.8),
+              fontSize: 7.5,
+              fontWeight: FontWeight.bold,
+              shadows: const [Shadow(color: Colors.black87, blurRadius: 2)],
+            ),
+          );
+          final textPainter = TextPainter(
+            text: textSpan,
+            textDirection: TextDirection.ltr,
+          )..layout(maxWidth: 80.0);
+          final textX = (x + 1.0).clamp(0.0, math.max(0.0, size.width - textPainter.width)).toDouble();
+          final textY = (y - 8.0).clamp(2.0, math.max(2.0, size.height - 10.0)).toDouble();
+          textPainter.paint(canvas, Offset(textX, textY));
+        }
+      }
+    }
+
+    // Draw vertical seam lines and top notch ticks for loop repetitions
+    if (clip.isLooped && loopBars > 0 && numCycles > 1) {
+      final loopLinePaint = Paint()
+        ..color = Colors.white.withOpacity(0.35)
+        ..strokeWidth = 1.0
+        ..style = PaintingStyle.stroke;
+      final notchPaint = Paint()
+        ..color = EatsTheme.accentGold.withOpacity(0.9)
+        ..style = PaintingStyle.fill;
+
+      for (int cycle = 1; cycle < numCycles; cycle++) {
+        final double cycleX = (cycle * loopSteps / totalSteps) * size.width;
+        if (cycleX < size.width) {
+          canvas.drawLine(Offset(cycleX, 0), Offset(cycleX, size.height), loopLinePaint);
+          final notchPath = Path()
+            ..moveTo(cycleX - 3.5, 0)
+            ..lineTo(cycleX + 3.5, 0)
+            ..lineTo(cycleX, 5)
+            ..close();
+          canvas.drawPath(notchPath, notchPaint);
+        }
       }
     }
   }
@@ -2142,6 +2385,8 @@ class PatternClipNotePainter extends CustomPainter {
     return oldDelegate.clip != clip ||
         oldDelegate.track != track ||
         oldDelegate.isSelected != isSelected ||
+        oldDelegate.clip.barLength != clip.barLength ||
+        oldDelegate.clip.loopLengthBars != clip.loopLengthBars ||
         oldDelegate.clip.notes.length != clip.notes.length ||
         oldDelegate.clip.lyrics.length != clip.lyrics.length ||
         oldDelegate.track.lyrics.length != track.lyrics.length ||
