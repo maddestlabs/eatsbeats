@@ -3,6 +3,7 @@ import 'package:eatsbeats/audio/convolver_engine.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
 import 'package:eatsbeats/utils/ir_pack_manager.dart';
+import 'package:eatsbeats/lua/lua_preset_library.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -62,11 +63,63 @@ void main() {
       dawState.dispose();
     });
 
+    test('ConvolverEngine stereo IR generation creates pristine stereo pairs with full room decay', () {
+      final stereo = ConvolverEngine.instance.getIrStereoSample('Great Hall');
+      expect(stereo, isNotNull);
+      expect(stereo!.left.isNotEmpty, isTrue);
+      expect(stereo.right.isNotEmpty, isTrue);
+      expect(stereo.left.length, equals(stereo.right.length));
+      // Full fidelity impulse response should be >= 10000 samples for a 1.6s room
+      expect(stereo.left.length, greaterThan(10000));
+    });
+
+    test('AudioEngine getWaveformSamples and getSpectrumBands extract point-in-chain signal taps', () {
+      final dawState = DawState();
+      final track = dawState.activeTrack;
+      dawState.addFXInsert(track, FXType.distortion);
+      final fx = track.fxRack.last;
+
+      final waveMaster = dawState.audioEngine.getWaveformSamples();
+      final waveFx = dawState.audioEngine.getWaveformSamples(trackId: fx.id);
+      final spectrumFx = dawState.audioEngine.getSpectrumBands(trackId: fx.id);
+
+      expect(waveMaster.length, equals(64));
+      expect(waveFx.length, equals(64));
+      expect(spectrumFx.length, equals(16));
+
+      dawState.dispose();
+    });
+
     test('IrPackManager catalog contains designated Sadiquecat IR zip collection', () {
       final catalog = IrPackManager.instance.catalog;
       expect(catalog.isNotEmpty, isTrue);
       expect(catalog.first.id, equals('sadiquecat_ir_collection'));
       expect(catalog.first.zipUrl, equals('audio/ir/43771__sadiquecat__impulse-response.zip'));
+    });
+
+    test('Convolution Reverb preset receives and updates authentic IR sample names', () {
+      final dawState = DawState();
+      final track = dawState.activeTrack;
+
+      final convPreset = LuaPresetLibrary.getPresetById('convolution_reverb')!;
+      dawState.applyPreset(convPreset, targetTrack: track);
+
+      final fx = track.fxRack.last;
+      expect(fx.type, equals(FXType.convolutionReverb));
+      expect(fx.irSampleName, isNotNull);
+      // Must NOT be a baked dummy room ('Conv: Track 1_...')
+      expect(fx.irSampleName!.startsWith('Conv:'), isFalse);
+
+      // Change IR Sample via updateFXIrSample
+      dawState.updateFXIrSample(track, fx.id, 'Stone Cathedral');
+      expect(fx.irSampleName, equals('Stone Cathedral'));
+
+      // Update param IRSample
+      dawState.updateFXParam(track, fx.id, 'IRSample', 2.0);
+      expect(fx.irSampleName, isNotNull);
+      expect(fx.irSampleName!.startsWith('Conv:'), isFalse);
+
+      dawState.dispose();
     });
   });
 }

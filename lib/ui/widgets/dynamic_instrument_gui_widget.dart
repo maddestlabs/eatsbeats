@@ -731,7 +731,13 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             effectiveOptions = allIrs;
           }
 
-          final currentIr = track.sampleName.isNotEmpty ? track.sampleName : 'Great Hall';
+          final currentIr = track.sampleName.isNotEmpty
+              ? track.sampleName
+              : (track.luaParams['IRSample'] != null
+                  ? (effectiveOptions.isNotEmpty
+                      ? effectiveOptions[(track.luaParams['IRSample'] ?? 0.0).toInt().clamp(0, effectiveOptions.length - 1)]
+                      : 'Great Hall')
+                  : 'Great Hall');
           final irIdx = effectiveOptions.indexWhere((opt) =>
               opt.toLowerCase() == currentIr.toLowerCase() ||
               opt.toLowerCase().startsWith(currentIr.toLowerCase()) ||

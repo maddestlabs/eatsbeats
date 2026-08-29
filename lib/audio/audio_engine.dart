@@ -131,7 +131,7 @@ class AudioEngine {
   }
 
   /// Returns normalized real-time audio waveform samples (-1.0 to 1.0)
-  /// If [trackId] is specified, modulates by track activity; otherwise returns master mix.
+  /// If [trackId] is specified, modulates by track/FX activity; otherwise returns master mix.
   List<double> getWaveformSamples({
     String? trackId,
     int count = 64,
@@ -159,6 +159,8 @@ class AudioEngine {
       if (sample.abs() < 0.01 && activity > 0.01) {
         final t = currentTime * 120.0 + (i * timebase * 0.25);
         sample = (math.sin(t) * 0.65 + math.sin(t * 2.1) * 0.25 + math.sin(t * 0.5) * 0.1) * activity;
+      } else if (!isMaster) {
+        sample *= (activity / math.max(0.001, math.max(_leftPeak, _rightPeak))).clamp(0.0, 2.0);
       }
       result[i] = (sample * gain).clamp(-1.0, 1.0);
     }
@@ -166,6 +168,7 @@ class AudioEngine {
   }
 
   /// Returns multi-band normalized frequency spectrum energy (0.0 to 1.0)
+  /// If [trackId] is specified, modulates by track/FX activity; otherwise returns master mix.
   List<double> getSpectrumBands({
     String? trackId,
     int bands = 16,
@@ -191,6 +194,10 @@ class AudioEngine {
         bandSum += val;
       }
       double bandEnergy = (bandSum / samplesPerBand) * 2.2;
+
+      if (!isMaster) {
+        bandEnergy *= (activity / math.max(0.001, math.max(_leftPeak, _rightPeak))).clamp(0.0, 2.0);
+      }
 
       // If audio peak is active, calculate natural log-frequency spectrum distribution
       if (activity > 0.005) {

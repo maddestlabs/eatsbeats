@@ -3,6 +3,7 @@ import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../theme/eats_theme.dart';
 import '../lua/lua_preset_library.dart';
+import '../utils/platform_env_helper.dart';
 import 'widgets/lcd_display_widget.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
 import 'widgets/skeuomorphic_hardware_knob.dart';
@@ -21,9 +22,28 @@ class MixerView extends StatefulWidget {
   State<MixerView> createState() => _MixerViewState();
 }
 
-class _MixerViewState extends State<MixerView> {
+class _MixerViewState extends State<MixerView> with SingleTickerProviderStateMixin {
+  late final AnimationController _ticker;
   DateTime? _lastTapTime;
   int? _lastTapTrackIdx;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
+    if (!PlatformEnvHelper.isFlutterTest) {
+      _ticker.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -145,13 +165,18 @@ class _MixerViewState extends State<MixerView> {
                     ),
                     const SizedBox(width: 4),
 
-                    // Glass Meter Readout on Right
-                    StereoMeterWidget(
-                      leftLevel: dawState.audioEngine.leftPeak,
-                      rightLevel: dawState.audioEngine.rightPeak,
-                      accentColor: EatsTheme.primaryCyan,
-                      width: 38.0,
-                      height: double.infinity,
+                    // Glass Meter Readout on Right (Animated per frame)
+                    AnimatedBuilder(
+                      animation: _ticker,
+                      builder: (context, _) {
+                        return StereoMeterWidget(
+                          leftLevel: dawState.audioEngine.leftPeak,
+                          rightLevel: dawState.audioEngine.rightPeak,
+                          accentColor: EatsTheme.primaryCyan,
+                          width: 38.0,
+                          height: double.infinity,
+                        );
+                      },
                     ),
                     const SizedBox(width: 5),
 
@@ -187,8 +212,6 @@ class _MixerViewState extends State<MixerView> {
 
   Widget _buildTrackStrip(BuildContext context, DawState dawState, TrackChannel track, int trackIdx) {
     final isSelected = dawState.activeTrack.id == track.id;
-    final leftPeak = dawState.audioEngine.getTrackLeftPeak(track.id);
-    final rightPeak = dawState.audioEngine.getTrackRightPeak(track.id);
 
     return DragTarget<Object>(
       onWillAcceptWithDetails: (details) {
@@ -359,13 +382,18 @@ class _MixerViewState extends State<MixerView> {
                       ),
                       const SizedBox(width: 4),
 
-                      // Inset Glass-Encased Stereo Meter on RIGHT side of fader
-                      StereoMeterWidget(
-                        leftLevel: leftPeak,
-                        rightLevel: rightPeak,
-                        accentColor: track.color,
-                        width: 38.0,
-                        height: double.infinity,
+                      // Inset Glass-Encased Stereo Meter on RIGHT side of fader (Animated per frame)
+                      AnimatedBuilder(
+                        animation: _ticker,
+                        builder: (context, _) {
+                          return StereoMeterWidget(
+                            leftLevel: dawState.audioEngine.getTrackLeftPeak(track.id),
+                            rightLevel: dawState.audioEngine.getTrackRightPeak(track.id),
+                            accentColor: track.color,
+                            width: 38.0,
+                            height: double.infinity,
+                          );
+                        },
                       ),
                       const SizedBox(width: 5),
 

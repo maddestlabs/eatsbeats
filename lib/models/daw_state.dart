@@ -1216,8 +1216,8 @@ class DawState extends ChangeNotifier {
   void _rebakeProceduralIrIfNeeded(TrackChannel track, FXInsert fx) {
     final isRoom = fx.presetId == 'room_designer' || fx.name.toLowerCase().contains('room designer');
     final isCab = fx.presetId == 'cab_designer' || fx.name.toLowerCase().contains('cab');
-    final isConv = fx.presetId == 'convolution_reverb' || fx.name.toLowerCase().contains('convolution') || fx.type == FXType.convolutionReverb;
-    if (isRoom || isCab || isConv) {
+    if (isRoom || isCab) {
+      final customName = isCab ? 'Cab: ${track.name}_${fx.id}' : 'Room: ${track.name}_${fx.id}';
       final basePresetName = fx.params['IRSample'] != null
           ? () {
               final all = ConvolverEngine.builtInIrNames;
@@ -1227,7 +1227,6 @@ class DawState extends ChangeNotifier {
           : null;
       final baseParams = basePresetName != null ? ProceduralIRGenerator.presets[basePresetName] : null;
 
-      final customName = fx.irSampleName ?? (isCab ? 'Cab: ${track.name}_${fx.id}' : (isRoom ? 'Room: ${track.name}_${fx.id}' : 'Conv: ${track.name}_${fx.id}'));
       final matIdx = (fx.params['Material'] ?? (fx.luaParams['Material'] ?? (baseParams?.material.index.toDouble() ?? 0.0))).toInt().clamp(0, AcousticMaterialType.values.length - 1);
       final spaceParams = AcousticSpaceParams(
         name: customName,
@@ -1252,6 +1251,13 @@ class DawState extends ChangeNotifier {
       ConvolverEngine.instance.bakeCustomSpace(spaceParams);
       audioEngine.invalidateIrCache(customName);
       fx.irSampleName = customName;
+    } else if (fx.presetId == 'convolution_reverb' || fx.name.toLowerCase().contains('convolution') || fx.type == FXType.convolutionReverb) {
+      if (fx.irSampleName == null || fx.irSampleName!.isEmpty || fx.irSampleName!.startsWith('Conv:')) {
+        final allIrs = ConvolverEngine.instance.getAvailableIrNames();
+        final idx = (fx.params['IRSample'] ?? (fx.luaParams['IRSample'] ?? 0.0)).toInt().clamp(0, allIrs.isEmpty ? 0 : allIrs.length - 1);
+        fx.irSampleName = allIrs.isNotEmpty ? allIrs[idx] : 'Great Hall';
+      }
+      audioEngine.invalidateIrCache(fx.irSampleName);
     }
   }
 
@@ -3321,12 +3327,12 @@ return MidiFx
     for (final e in initialParams.entries) {
       fx.params[e.key] = e.value;
     }
-    if (lowerId == 'cab_designer' || lowerId == 'room_designer' || lowerId == 'convolution_reverb') {
+    if (lowerId == 'cab_designer' || lowerId == 'room_designer') {
       final isCab = lowerId == 'cab_designer';
       final isRoom = lowerId == 'room_designer';
       final customName = isCab
           ? 'Cab: ${track.name}_${fx.id}'
-          : (isRoom ? 'Room: ${track.name}_${fx.id}' : 'Conv: ${track.name}_${fx.id}');
+          : 'Room: ${track.name}_${fx.id}';
 
       final basePresetName = initialParams['IRSample'] != null
           ? () {
@@ -3367,6 +3373,11 @@ return MidiFx
         fx.luaParams['DryLevel'] = 0.0;
         fx.luaParams['WetLevel'] = 1.0;
       }
+    } else if (lowerId == 'convolution_reverb') {
+      final allIrs = ConvolverEngine.instance.getAvailableIrNames();
+      final idx = (initialParams['IRSample'] ?? 0.0).toInt().clamp(0, allIrs.isEmpty ? 0 : allIrs.length - 1);
+      fx.irSampleName = allIrs.isNotEmpty ? allIrs[idx] : 'Great Hall';
+      audioEngine.invalidateIrCache(fx.irSampleName);
     }
     track.fxRack.add(fx);
     _syncFxAudio(track);
@@ -3456,14 +3467,13 @@ return MidiFx
           }
         }
 
-        // If this is a Room, Cabinet Designer, or Convolution Reverb parameter
+        // If this is a Room or Cabinet Designer parameter (procedural custom space synthesizers)
         final isRoomDesigner = f.presetId == 'room_designer' || f.name.toLowerCase().contains('room designer');
         final isCabDesigner = f.presetId == 'cab_designer' || f.name.toLowerCase().contains('cab');
-        final isConv = f.presetId == 'convolution_reverb' || f.name.toLowerCase().contains('convolution') || f.type == FXType.convolutionReverb;
-        if (isRoomDesigner || isCabDesigner || isConv) {
+        if (isRoomDesigner || isCabDesigner) {
           final customName = isCabDesigner
               ? 'Cab: ${track.name}_${f.id}'
-              : (isRoomDesigner ? 'Room: ${track.name}_${f.id}' : 'Conv: ${track.name}_${f.id}');
+              : 'Room: ${track.name}_${f.id}';
 
           if (isCabDesigner && paramName == 'CabType') {
             final cabPresetKeys = [
