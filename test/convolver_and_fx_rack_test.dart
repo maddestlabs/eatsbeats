@@ -97,27 +97,81 @@ void main() {
       expect(catalog.first.zipUrl, equals('audio/ir/43771__sadiquecat__impulse-response.zip'));
     });
 
-    test('Convolution Reverb preset receives and updates authentic IR sample names', () {
+    test('Room Designer and Cab Designer presets initialize and bake authentic procedural impulse responses', () {
       final dawState = DawState();
       final track = dawState.activeTrack;
 
-      final convPreset = LuaPresetLibrary.getPresetById('convolution_reverb')!;
-      dawState.applyPreset(convPreset, targetTrack: track);
+      final roomPreset = LuaPresetLibrary.getPresetById('room_designer')!;
+      dawState.applyPreset(roomPreset, targetTrack: track);
 
+      final roomFx = track.fxRack.last;
+      expect(roomFx.type, equals(FXType.convolutionReverb));
+      expect(roomFx.irSampleName, isNotNull);
+      expect(roomFx.irSampleName!.startsWith('Room:'), isTrue);
+
+      // Verify that changing RT60 rebakes the space
+      dawState.updateFXParam(track, roomFx.id, 'RT60', 3.0);
+      expect(roomFx.params['RT60'], equals(3.0));
+
+      final cabPreset = LuaPresetLibrary.getPresetById('cab_designer')!;
+      dawState.applyPreset(cabPreset, targetTrack: track);
+
+      final cabFx = track.fxRack.last;
+      expect(cabFx.type, equals(FXType.convolutionReverb));
+      expect(cabFx.irSampleName, isNotNull);
+      expect(cabFx.irSampleName!.startsWith('Cab:'), isTrue);
+
+      dawState.dispose();
+    });
+
+    test('Eats Vinyl preset initializes, compiles hardware GUI, and handles Medium preset switching', () {
+      final vintagePreset = LuaPresetLibrary.getPresetById('vintage_era_degrader');
+      expect(vintagePreset, isNotNull);
+      expect(vintagePreset!.name, equals('Eats Vinyl'));
+      expect(vintagePreset.isAudioFx, isTrue);
+
+      final dawState = DawState();
+      final track = dawState.activeTrack;
+
+      dawState.applyPreset(vintagePreset, targetTrack: track);
       final fx = track.fxRack.last;
-      expect(fx.type, equals(FXType.convolutionReverb));
-      expect(fx.irSampleName, isNotNull);
-      // Must NOT be a baked dummy room ('Conv: Track 1_...')
-      expect(fx.irSampleName!.startsWith('Conv:'), isFalse);
 
-      // Change IR Sample via updateFXIrSample
-      dawState.updateFXIrSample(track, fx.id, 'Stone Cathedral');
-      expect(fx.irSampleName, equals('Stone Cathedral'));
+      expect(fx.type, equals(FXType.vintageTape));
+      expect(fx.name, equals('Eats Vinyl'));
+      expect(fx.params['Era'], equals(1974.0));
+      expect(fx.params['WowDepth'], equals(25.0));
+      expect(fx.params['FlutterDepth'], equals(15.0));
+      expect(fx.params['StutterDepth'], equals(35.0));
+      expect(fx.params['TapeDropouts'], equals(15.0));
 
-      // Update param IRSample
-      dawState.updateFXParam(track, fx.id, 'IRSample', 2.0);
-      expect(fx.irSampleName, isNotNull);
-      expect(fx.irSampleName!.startsWith('Conv:'), isFalse);
+      // Test In-Place Parameter Modulation
+      dawState.updateFXParam(track, fx.id, 'Era', 1982.0);
+      expect(fx.params['Era'], equals(1982.0));
+
+      // Test Medium Preset Selection: Tape 15 IPS (Studio Master - idx 0)
+      dawState.updateFXParam(track, fx.id, 'Medium', 0.0);
+      expect(fx.params['Era'], equals(1982.0));
+      expect(fx.params['WowDepth'], equals(6.0));
+      expect(fx.params['FlutterDepth'], equals(4.0));
+      expect(fx.params['HissLevel'], equals(12.0));
+      expect(fx.params['VinylCrackle'], equals(0.0));
+
+      // Test Medium Preset Selection: Shellac 78 RPM (idx 3)
+      dawState.updateFXParam(track, fx.id, 'Medium', 3.0);
+      expect(fx.params['Era'], equals(1952.0));
+      expect(fx.params['WowDepth'], equals(35.0));
+      expect(fx.params['FlutterDepth'], equals(25.0));
+      expect(fx.params['VinylCrackle'], equals(65.0));
+
+      // Test JSON Serialization & Deserialization
+      final jsonMap = fx.toJson();
+      final revived = FXInsert.fromJson(jsonMap);
+      expect(revived.type, equals(FXType.vintageTape));
+      expect(revived.params['Era'], equals(1952.0));
+      expect(revived.params['WowDepth'], equals(35.0));
+
+      // Test Triggering Tape Stop
+      dawState.triggerTapeStop(track.id, stopTime: 0.2, spinUpTime: 0.1);
 
       dawState.dispose();
     });

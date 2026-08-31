@@ -35,6 +35,18 @@ class LuaGuiSerializer {
     } else {
       buffer.writeln('      background = "${_backgroundStyleToString(panel.backgroundStyle)}",');
     }
+    if (panel.textureRotation != 0.0) {
+      buffer.writeln('      textureRotation = ${panel.textureRotation.toInt()},');
+    }
+    if (panel.textureScale != 1.0) {
+      buffer.writeln('      textureScale = ${panel.textureScale},');
+    }
+    if (panel.sideCheeks != null && panel.sideCheeks!.isNotEmpty && panel.sideCheeks != 'none') {
+      buffer.writeln('      rackSides = "${_escape(panel.sideCheeks!)}",');
+    }
+    if (panel.cornerRadius != null) {
+      buffer.writeln('      cornerRadius = ${panel.cornerRadius!.toInt()},');
+    }
     if (panel.accentColor != null) {
       buffer.writeln('      accent = "#${panel.accentColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}",');
     } else {
@@ -171,8 +183,14 @@ class LuaGuiSerializer {
       case LuaGuiNodeType.row:
         final rowAlignStr = (node.align != 'space_around' && node.align.isNotEmpty) ? ', align = "${node.align}"' : '';
         final rowCrossStr = (node.crossAlign != 'center' && node.crossAlign.isNotEmpty) ? ', crossAlign = "${node.crossAlign}"' : '';
+        final rowBgStr = node.backgroundStyle != null
+            ? ', background = "${_backgroundStyleToString(node.backgroundStyle!)}"'
+            : (node.backgroundColor != null
+                ? ', background = "#${node.backgroundColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}"'
+                : '');
+        final rowRotStr = (node.textureRotation != null && node.textureRotation != 0.0) ? ', textureRotation = ${node.textureRotation!.toInt()}' : '';
         buffer.writeln('$indent{');
-        buffer.writeln('$indent  type = "row"$rowAlignStr$rowCrossStr,');
+        buffer.writeln('$indent  type = "row"$rowAlignStr$rowCrossStr$rowBgStr$rowRotStr,');
         buffer.writeln('$indent  children = {');
         for (final child in node.children) {
           _serializeNode(buffer, child, indent: '$indent    ');
@@ -186,8 +204,15 @@ class LuaGuiSerializer {
         final typeStr = node.type == LuaGuiNodeType.column ? 'column' : 'group';
         final colAlignStr = (node.align != 'space_around' && node.align != 'top' && node.align != 'start' && node.align.isNotEmpty) ? ', align = "${node.align}"' : '';
         final colCrossStr = (node.crossAlign != 'center' && node.crossAlign.isNotEmpty) ? ', crossAlign = "${node.crossAlign}"' : '';
+        final labelStr = (node.label != null && node.label!.isNotEmpty) ? ', label = "${_escape(node.label!)}"' : '';
+        final groupBgStr = node.backgroundStyle != null
+            ? ', background = "${_backgroundStyleToString(node.backgroundStyle!)}"'
+            : (node.backgroundColor != null
+                ? ', background = "#${node.backgroundColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}"'
+                : '');
+        final groupRotStr = (node.textureRotation != null && node.textureRotation != 0.0) ? ', textureRotation = ${node.textureRotation!.toInt()}' : '';
         buffer.writeln('$indent{');
-        buffer.writeln('$indent  type = "$typeStr"$colAlignStr$colCrossStr,');
+        buffer.writeln('$indent  type = "$typeStr"$labelStr$colAlignStr$colCrossStr$groupBgStr$groupRotStr,');
         buffer.writeln('$indent  children = {');
         for (final child in node.children) {
           _serializeNode(buffer, child, indent: '$indent    ');
@@ -215,7 +240,9 @@ class LuaGuiSerializer {
         final typeStr = isH ? 'hslider' : 'vslider';
         final widthStr = node.width != null ? ', width = ${node.width!.toInt()}' : (isH ? ', width = 460' : '');
         final heightStr = !isH && node.height != null ? ', height = ${node.height!.toInt()}' : '';
-        final styleStr = node.sliderStyle == SliderStyle.console ? ', style = "console"' : ', style = "capsule"';
+        final styleStr = node.sliderStyle == SliderStyle.console
+            ? ', style = "console"'
+            : (node.sliderStyle == SliderStyle.minimalPill ? ', style = "minimal_pill"' : ', style = "capsule"');
         final showLabelStr = !node.showLabel ? ', showLabel = false' : '';
         buffer.writeln('$indent{ type = "$typeStr", param = "$param", label = "${_escape(label)}"$widthStr$heightStr$styleStr$showLabelStr },');
         break;
@@ -228,6 +255,14 @@ class LuaGuiSerializer {
         final orientStr = node.orientation == 'vertical' ? ', orientation = "vertical"' : '';
         final showLabelStr = !node.showLabel ? ', showLabel = false' : '';
         buffer.writeln('$indent{ type = "switch", param = "$param", label = "${_escape(label)}"$leftStr$rightStr$orientStr$showLabelStr },');
+        break;
+
+      case LuaGuiNodeType.segmentedPill:
+        final param = node.param ?? 'Mode';
+        final label = node.label ?? param;
+        final optsStr = node.options.isNotEmpty ? ', options = { ${node.options.map((o) => '"${_escape(o)}"').join(', ')} }' : '';
+        final showLabelStr = !node.showLabel ? ', showLabel = false' : '';
+        buffer.writeln('$indent{ type = "segmented_pill", param = "$param", label = "${_escape(label)}"$optsStr$showLabelStr },');
         break;
 
       case LuaGuiNodeType.button:
@@ -321,6 +356,28 @@ class LuaGuiSerializer {
         return 'grunge';
       case PanelBackgroundStyle.snes:
         return 'snes';
+      case PanelBackgroundStyle.walnut:
+        return 'walnut';
+      case PanelBackgroundStyle.mahogany:
+        return 'mahogany';
+      case PanelBackgroundStyle.blondePine:
+        return 'blonde_pine';
+      case PanelBackgroundStyle.rosewood:
+        return 'rosewood';
+      case PanelBackgroundStyle.brushedSteel:
+        return 'brushed_steel';
+      case PanelBackgroundStyle.brushedSteelVert:
+        return 'brushed_steel_vert';
+      case PanelBackgroundStyle.matteMetal:
+        return 'matte_metal';
+      case PanelBackgroundStyle.tolex:
+        return 'tolex';
+      case PanelBackgroundStyle.carbon:
+        return 'carbon';
+      case PanelBackgroundStyle.mesh:
+        return 'mesh';
+      case PanelBackgroundStyle.minimalWhite:
+        return 'minimal_white';
       case PanelBackgroundStyle.custom:
         return 'custom';
       case PanelBackgroundStyle.dark:
@@ -337,6 +394,8 @@ class LuaGuiSerializer {
         return 'vintage';
       case KnobStyle.snes:
         return 'snes';
+      case KnobStyle.minimalWhite:
+        return 'minimal_white';
       case KnobStyle.standard:
       default:
         return 'standard';

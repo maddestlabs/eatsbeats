@@ -101,9 +101,38 @@ class EatsLuaSerializer {
     for (final n in notes) {
       final relStep = (n.startStep - minStep).clamp(0.0, double.infinity);
       final relCol = (n.column - minCol).clamp(0, 16);
-      buffer.writeln('  { pitch = ${n.pitch}, startStep = ${relStep.toStringAsFixed(2)}, durationSteps = ${n.durationSteps.toStringAsFixed(2)}, velocity = ${n.velocity.toStringAsFixed(2)}, column = $relCol, effectCommand = "${_escapeString(n.effectCommand)}", isSlide = ${n.isSlide}, isAccent = ${n.isAccent} },');
+      final extra = _formatNoteExpressiveProps(n);
+      buffer.writeln('  { pitch = ${n.pitch}, startStep = ${relStep.toStringAsFixed(2)}, durationSteps = ${n.durationSteps.toStringAsFixed(2)}, velocity = ${n.velocity.toStringAsFixed(2)}, column = $relCol, effectCommand = "${_escapeString(n.effectCommand)}", isSlide = ${n.isSlide}, isAccent = ${n.isAccent}$extra },');
     }
     buffer.writeln('}');
+    return buffer.toString();
+  }
+
+  static String _formatCurvePoints(List<List<double>> points) {
+    final inner = points.map((p) => '{ ${p.map((v) => v.toStringAsFixed(2)).join(', ')} }').join(', ');
+    return '{ $inner }';
+  }
+
+  static String _formatNoteExpressiveProps(Note n) {
+    final buffer = StringBuffer();
+    if (n.lyric != null && n.lyric!.isNotEmpty) {
+      buffer.write(', lyric = "${_escapeString(n.lyric!)}"');
+    }
+    if (n.articulation != null && n.articulation!.isNotEmpty) {
+      buffer.write(', art = "${_escapeString(n.articulation!)}"');
+    }
+    if (n.releaseVelocity != null) {
+      buffer.write(', relVel = ${n.releaseVelocity!.toStringAsFixed(2)}');
+    }
+    if (n.pitchBendPoints != null && n.pitchBendPoints!.isNotEmpty) {
+      buffer.write(', bend = ${_formatCurvePoints(n.pitchBendPoints!)}');
+    }
+    if (n.pressurePoints != null && n.pressurePoints!.isNotEmpty) {
+      buffer.write(', pressure = ${_formatCurvePoints(n.pressurePoints!)}');
+    }
+    if (n.timbrePoints != null && n.timbrePoints!.isNotEmpty) {
+      buffer.write(', timbre = ${_formatCurvePoints(n.timbrePoints!)}');
+    }
     return buffer.toString();
   }
 
@@ -162,7 +191,8 @@ class EatsLuaSerializer {
     if (track.notes.isNotEmpty) {
       buffer.writeln('${childIndent}notes = {');
       for (final n in track.notes) {
-        buffer.writeln('$childIndent  { id = "${_escapeString(n.id)}", pitch = ${n.pitch}, startStep = ${n.startStep.toStringAsFixed(2)}, durationSteps = ${n.durationSteps.toStringAsFixed(2)}, velocity = ${n.velocity.toStringAsFixed(2)}, column = ${n.column}, effectCommand = "${_escapeString(n.effectCommand)}", isSlide = ${n.isSlide}, isAccent = ${n.isAccent} },');
+        final extra = _formatNoteExpressiveProps(n);
+        buffer.writeln('$childIndent  { id = "${_escapeString(n.id)}", pitch = ${n.pitch}, startStep = ${n.startStep.toStringAsFixed(2)}, durationSteps = ${n.durationSteps.toStringAsFixed(2)}, velocity = ${n.velocity.toStringAsFixed(2)}, column = ${n.column}, effectCommand = "${_escapeString(n.effectCommand)}", isSlide = ${n.isSlide}, isAccent = ${n.isAccent}$extra },');
       }
       buffer.writeln('${childIndent}},');
     }
@@ -252,8 +282,8 @@ class EatsLuaSerializer {
     if (clip.notes.isNotEmpty) {
       buffer.writeln('${childIndent}notes = {');
       for (final n in clip.notes) {
-        final lyricStr = (n.lyric != null && n.lyric!.isNotEmpty) ? ', lyric = "${_escapeString(n.lyric!)}"' : '';
-        buffer.writeln('$childIndent  { id = "${_escapeString(n.id)}", pitch = ${n.pitch}, startStep = ${n.startStep.toStringAsFixed(2)}, durationSteps = ${n.durationSteps.toStringAsFixed(2)}, velocity = ${n.velocity.toStringAsFixed(2)}, column = ${n.column}, effectCommand = "${_escapeString(n.effectCommand)}", isSlide = ${n.isSlide}, isAccent = ${n.isAccent}$lyricStr },');
+        final extra = _formatNoteExpressiveProps(n);
+        buffer.writeln('$childIndent  { id = "${_escapeString(n.id)}", pitch = ${n.pitch}, startStep = ${n.startStep.toStringAsFixed(2)}, durationSteps = ${n.durationSteps.toStringAsFixed(2)}, velocity = ${n.velocity.toStringAsFixed(2)}, column = ${n.column}, effectCommand = "${_escapeString(n.effectCommand)}", isSlide = ${n.isSlide}, isAccent = ${n.isAccent}$extra },');
       }
       buffer.writeln('${childIndent}},');
     }

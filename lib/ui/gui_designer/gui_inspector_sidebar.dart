@@ -158,6 +158,10 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
       backgroundColor: widget.panel.backgroundColor,
       accentColor: widget.panel.accentColor,
       defaultKnobStyle: widget.panel.defaultKnobStyle,
+      textureRotation: widget.panel.textureRotation,
+      textureScale: widget.panel.textureScale,
+      sideCheeks: widget.panel.sideCheeks,
+      cornerRadius: widget.panel.cornerRadius,
       children: rows,
     ));
   }
@@ -221,6 +225,10 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       backgroundColor: widget.panel.backgroundColor,
                       accentColor: widget.panel.accentColor,
                       defaultKnobStyle: widget.panel.defaultKnobStyle,
+                      textureRotation: widget.panel.textureRotation,
+                      textureScale: widget.panel.textureScale,
+                      sideCheeks: widget.panel.sideCheeks,
+                      cornerRadius: widget.panel.cornerRadius,
                       children: widget.panel.children,
                     ));
                   }),
@@ -234,6 +242,10 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       backgroundColor: widget.panel.backgroundColor,
                       accentColor: widget.panel.accentColor,
                       defaultKnobStyle: widget.panel.defaultKnobStyle,
+                      textureRotation: widget.panel.textureRotation,
+                      textureScale: widget.panel.textureScale,
+                      sideCheeks: widget.panel.sideCheeks,
+                      cornerRadius: widget.panel.cornerRadius,
                       children: widget.panel.children,
                     ));
                   }),
@@ -242,13 +254,24 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                   _buildSectionHeader('CHASSIS & THEME'),
                   const SizedBox(height: 6),
                   _buildDropdown<PanelBackgroundStyle>(
-                    label: 'Background Theme',
+                    label: 'Background Theme / Texture',
                     value: widget.panel.backgroundStyle,
                     items: const [
                       DropdownMenuItem(value: PanelBackgroundStyle.dark, child: Text('Dark Studio (Anodized)')),
                       DropdownMenuItem(value: PanelBackgroundStyle.silver, child: Text('Silver Brushed (TB-303)')),
-                      DropdownMenuItem(value: PanelBackgroundStyle.grunge, child: Text('Industrial Grunge')),
-                      DropdownMenuItem(value: PanelBackgroundStyle.snes, child: Text('16-Bit SNES Console')),
+                      DropdownMenuItem(value: PanelBackgroundStyle.grunge, child: Text('Industrial Grunge / Weathered')),
+                      DropdownMenuItem(value: PanelBackgroundStyle.snes, child: Text('16-Bit SNES Console Cream')),
+                      DropdownMenuItem(value: PanelBackgroundStyle.walnut, child: Text('Vintage Walnut Wood')),
+                      DropdownMenuItem(value: PanelBackgroundStyle.mahogany, child: Text('Rich Mahogany Wood')),
+                      DropdownMenuItem(value: PanelBackgroundStyle.blondePine, child: Text('Blonde Pine / Nordic Ash')),
+                      DropdownMenuItem(value: PanelBackgroundStyle.rosewood, child: Text('Dark Rosewood / Ebony')),
+                      DropdownMenuItem(value: PanelBackgroundStyle.brushedSteel, child: Text('Brushed Steel (Horizontal)')),
+                      DropdownMenuItem(value: PanelBackgroundStyle.brushedSteelVert, child: Text('Brushed Steel (Vertical)')),
+                      DropdownMenuItem(value: PanelBackgroundStyle.matteMetal, child: Text('Anodized Sandblast Metal')),
+                      DropdownMenuItem(value: PanelBackgroundStyle.tolex, child: Text('Vintage Tolex Amp Vinyl')),
+                      DropdownMenuItem(value: PanelBackgroundStyle.carbon, child: Text('Carbon Fiber Twill Weave')),
+                      DropdownMenuItem(value: PanelBackgroundStyle.mesh, child: Text('Perforated Mesh Grille')),
+                      DropdownMenuItem(value: PanelBackgroundStyle.minimalWhite, child: Text('Minimalist Matte White (Ceramic)')),
                       DropdownMenuItem(value: PanelBackgroundStyle.custom, child: Text('Custom Hex Color')),
                     ],
                     onChanged: (v) {
@@ -261,6 +284,106 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                           backgroundColor: widget.panel.backgroundColor,
                           accentColor: widget.panel.accentColor,
                           defaultKnobStyle: widget.panel.defaultKnobStyle,
+                          textureRotation: widget.panel.textureRotation,
+                          textureScale: widget.panel.textureScale,
+                          sideCheeks: widget.panel.sideCheeks,
+                          cornerRadius: widget.panel.cornerRadius,
+                          children: widget.panel.children,
+                        ));
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+
+                  _buildDropdown<double>(
+                    label: 'Texture Grain Rotation',
+                    value: widget.panel.textureRotation,
+                    items: const [
+                      DropdownMenuItem(value: 0.0, child: Text('0° (Horizontal Grain)')),
+                      DropdownMenuItem(value: 90.0, child: Text('90° (Vertical Grain)')),
+                      DropdownMenuItem(value: 180.0, child: Text('180° (Inverted Horizontal)')),
+                      DropdownMenuItem(value: 270.0, child: Text('270° (Inverted Vertical)')),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) {
+                        widget.onPanelUpdated(LuaGuiPanelDef(
+                          title: widget.panel.title,
+                          subtitle: widget.panel.subtitle,
+                          style: widget.panel.style,
+                          backgroundStyle: widget.panel.backgroundStyle,
+                          backgroundColor: widget.panel.backgroundColor,
+                          accentColor: widget.panel.accentColor,
+                          defaultKnobStyle: widget.panel.defaultKnobStyle,
+                          textureRotation: v,
+                          textureScale: widget.panel.textureScale,
+                          sideCheeks: widget.panel.sideCheeks,
+                          children: widget.panel.children,
+                        ));
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+
+                  _buildDropdown<String>(
+                    label: 'Rack Sides & End-Cheeks',
+                    value: widget.panel.sideCheeks ?? 'none',
+                    items: const [
+                      DropdownMenuItem(value: 'none', child: Text('None (Flush Chassis)')),
+                      DropdownMenuItem(value: 'walnut', child: Text('Vintage Walnut (Wood)')),
+                      DropdownMenuItem(value: 'mahogany', child: Text('Rich Mahogany (Wood)')),
+                      DropdownMenuItem(value: 'blondePine', child: Text('Blonde Pine / Koa (Wood)')),
+                      DropdownMenuItem(value: 'rosewood', child: Text('Dark Rosewood (Wood)')),
+                      DropdownMenuItem(value: 'brushedSteel', child: Text('Brushed Steel (Metal)')),
+                      DropdownMenuItem(value: 'matteMetal', child: Text('Anodized Matte Metal (Metal)')),
+                      DropdownMenuItem(value: 'grunge', child: Text('Weathered Patina (Metal)')),
+                      DropdownMenuItem(value: 'tolex', child: Text('Vintage Tolex (Amp Vinyl)')),
+                      DropdownMenuItem(value: 'carbon', child: Text('Carbon Fiber (Composite)')),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) {
+                        widget.onPanelUpdated(LuaGuiPanelDef(
+                          title: widget.panel.title,
+                          subtitle: widget.panel.subtitle,
+                          style: widget.panel.style,
+                          backgroundStyle: widget.panel.backgroundStyle,
+                          backgroundColor: widget.panel.backgroundColor,
+                          accentColor: widget.panel.accentColor,
+                          defaultKnobStyle: widget.panel.defaultKnobStyle,
+                          textureRotation: widget.panel.textureRotation,
+                          textureScale: widget.panel.textureScale,
+                          sideCheeks: v == 'none' ? null : v,
+                          cornerRadius: widget.panel.cornerRadius,
+                          children: widget.panel.children,
+                        ));
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+
+                  _buildDropdown<double>(
+                    label: 'Chassis Corner Radius',
+                    value: widget.panel.cornerRadius ?? (widget.panel.sideCheeks != null && widget.panel.sideCheeks != 'none' ? 0.0 : 8.0),
+                    items: const [
+                      DropdownMenuItem(value: 0.0, child: Text('0px (Flush / Sharp Rack)')),
+                      DropdownMenuItem(value: 4.0, child: Text('4px (Subtle Curve)')),
+                      DropdownMenuItem(value: 8.0, child: Text('8px (Standard Rounded)')),
+                      DropdownMenuItem(value: 12.0, child: Text('12px (Smooth / Modern)')),
+                      DropdownMenuItem(value: 16.0, child: Text('16px (Extra Round)')),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) {
+                        widget.onPanelUpdated(LuaGuiPanelDef(
+                          title: widget.panel.title,
+                          subtitle: widget.panel.subtitle,
+                          style: widget.panel.style,
+                          backgroundStyle: widget.panel.backgroundStyle,
+                          backgroundColor: widget.panel.backgroundColor,
+                          accentColor: widget.panel.accentColor,
+                          defaultKnobStyle: widget.panel.defaultKnobStyle,
+                          textureRotation: widget.panel.textureRotation,
+                          textureScale: widget.panel.textureScale,
+                          sideCheeks: widget.panel.sideCheeks,
+                          cornerRadius: v,
                           children: widget.panel.children,
                         ));
                       }
@@ -269,26 +392,32 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                   const SizedBox(height: 8),
 
                   _buildTextField(
-                    'Custom Chassis Hex (e.g. #1E1E24)',
+                    'Custom Chassis Hex (e.g. #ECEEF2)',
                     TextEditingController(
                       text: widget.panel.backgroundColor != null
-                          ? '#${widget.panel.backgroundColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}'
-                          : '',
+                          ? '#${widget.panel.backgroundColor!.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}'
+                          : (widget.panel.backgroundStyle == PanelBackgroundStyle.minimalWhite
+                              ? '#ECEEF2'
+                              : (widget.panel.backgroundStyle == PanelBackgroundStyle.silver
+                                  ? '#D4D0C5'
+                                  : (widget.panel.backgroundStyle == PanelBackgroundStyle.snes ? '#D8D6CD' : ''))),
                     ),
                     (v) {
                       final col = LuaGuiNode.parseColor(v);
-                      if (col != null) {
-                        widget.onPanelUpdated(LuaGuiPanelDef(
-                          title: widget.panel.title,
-                          subtitle: widget.panel.subtitle,
-                          style: widget.panel.style,
-                          backgroundStyle: PanelBackgroundStyle.custom,
-                          backgroundColor: col,
-                          accentColor: widget.panel.accentColor,
-                          defaultKnobStyle: widget.panel.defaultKnobStyle,
-                          children: widget.panel.children,
-                        ));
-                      }
+                      widget.onPanelUpdated(LuaGuiPanelDef(
+                        title: widget.panel.title,
+                        subtitle: widget.panel.subtitle,
+                        style: widget.panel.style,
+                        backgroundStyle: col != null ? PanelBackgroundStyle.custom : widget.panel.backgroundStyle,
+                        backgroundColor: col,
+                        accentColor: widget.panel.accentColor,
+                        defaultKnobStyle: widget.panel.defaultKnobStyle,
+                        textureRotation: widget.panel.textureRotation,
+                        textureScale: widget.panel.textureScale,
+                        sideCheeks: widget.panel.sideCheeks,
+                        cornerRadius: widget.panel.cornerRadius,
+                        children: widget.panel.children,
+                      ));
                     },
                   ),
                   const SizedBox(height: 10),
@@ -298,6 +427,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     value: widget.panel.defaultKnobStyle,
                     items: const [
                       DropdownMenuItem(value: KnobStyle.standard, child: Text('Standard Hardware')),
+                      DropdownMenuItem(value: KnobStyle.minimalWhite, child: Text('Minimalist Matte White')),
                       DropdownMenuItem(value: KnobStyle.chrome, child: Text('Chrome Fluted (303)')),
                       DropdownMenuItem(value: KnobStyle.vintage, child: Text('Vintage Bakelite')),
                       DropdownMenuItem(value: KnobStyle.snes, child: Text('SNES Console Cream')),
@@ -312,6 +442,10 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                           backgroundColor: widget.panel.backgroundColor,
                           accentColor: widget.panel.accentColor,
                           defaultKnobStyle: v,
+                          textureRotation: widget.panel.textureRotation,
+                          textureScale: widget.panel.textureScale,
+                          sideCheeks: widget.panel.sideCheeks,
+                          cornerRadius: widget.panel.cornerRadius,
                           children: widget.panel.children,
                         ));
                       }
@@ -331,6 +465,10 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                         backgroundColor: widget.panel.backgroundColor,
                         accentColor: null, // Track Color (auto dynamic)
                         defaultKnobStyle: widget.panel.defaultKnobStyle,
+                        textureRotation: widget.panel.textureRotation,
+                        textureScale: widget.panel.textureScale,
+                        sideCheeks: widget.panel.sideCheeks,
+                        cornerRadius: widget.panel.cornerRadius,
                         children: widget.panel.children,
                       ));
                     },
@@ -405,6 +543,10 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                             backgroundColor: widget.panel.backgroundColor,
                             accentColor: col,
                             defaultKnobStyle: widget.panel.defaultKnobStyle,
+                            textureRotation: widget.panel.textureRotation,
+                            textureScale: widget.panel.textureScale,
+                            sideCheeks: widget.panel.sideCheeks,
+                            cornerRadius: widget.panel.cornerRadius,
                             children: widget.panel.children,
                           ));
                         },
@@ -528,12 +670,102 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                             size: selectedNode.size,
                             width: selectedNode.width,
                             height: selectedNode.height,
+                            backgroundStyle: selectedNode.backgroundStyle,
+                            backgroundColor: selectedNode.backgroundColor,
+                            textureRotation: selectedNode.textureRotation,
+                            textureScale: selectedNode.textureScale,
                             knobStyle: selectedNode.knobStyle,
                             sliderStyle: selectedNode.sliderStyle,
                             orientation: selectedNode.orientation,
                             options: selectedNode.options,
                             align: selectedNode.align,
                             crossAlign: v,
+                            children: selectedNode.children,
+                          ));
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  if (selectedNode.type == LuaGuiNodeType.row || selectedNode.type == LuaGuiNodeType.column || selectedNode.type == LuaGuiNodeType.group) ...[
+                    _buildSectionHeader('SECTION BACKGROUND & INLAY'),
+                    const SizedBox(height: 6),
+                    _buildDropdown<String>(
+                      label: 'Background Material',
+                      value: selectedNode.backgroundStyle != null ? selectedNode.backgroundStyle!.name : 'none',
+                      items: const [
+                        DropdownMenuItem(value: 'none', child: Text('None (Inherit Chassis)')),
+                        DropdownMenuItem(value: 'walnut', child: Text('Vintage Walnut Wood')),
+                        DropdownMenuItem(value: 'mahogany', child: Text('Rich Mahogany Wood')),
+                        DropdownMenuItem(value: 'blondePine', child: Text('Blonde Pine / Ash')),
+                        DropdownMenuItem(value: 'rosewood', child: Text('Dark Rosewood')),
+                        DropdownMenuItem(value: 'brushedSteel', child: Text('Brushed Steel (Horizontal)')),
+                        DropdownMenuItem(value: 'brushedSteelVert', child: Text('Brushed Steel (Vertical)')),
+                        DropdownMenuItem(value: 'matteMetal', child: Text('Anodized Sandblast Metal')),
+                        DropdownMenuItem(value: 'tolex', child: Text('Vintage Tolex Amp Vinyl')),
+                        DropdownMenuItem(value: 'carbon', child: Text('Carbon Fiber Weave')),
+                        DropdownMenuItem(value: 'mesh', child: Text('Perforated Mesh Grille')),
+                        DropdownMenuItem(value: 'silver', child: Text('Silver Brushed (TB-303)')),
+                        DropdownMenuItem(value: 'grunge', child: Text('Industrial Grunge')),
+                        DropdownMenuItem(value: 'dark', child: Text('Dark Studio Plate')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) {
+                          final style = v == 'none' ? null : LuaGuiNode.parseBackgroundStyle(v);
+                          _updateSelectedNode(LuaGuiNode(
+                            type: selectedNode.type,
+                            param: selectedNode.param,
+                            label: selectedNode.label,
+                            unit: selectedNode.unit,
+                            size: selectedNode.size,
+                            width: selectedNode.width,
+                            height: selectedNode.height,
+                            backgroundStyle: style,
+                            backgroundColor: selectedNode.backgroundColor,
+                            textureRotation: selectedNode.textureRotation,
+                            textureScale: selectedNode.textureScale,
+                            knobStyle: selectedNode.knobStyle,
+                            sliderStyle: selectedNode.sliderStyle,
+                            orientation: selectedNode.orientation,
+                            options: selectedNode.options,
+                            align: selectedNode.align,
+                            crossAlign: selectedNode.crossAlign,
+                            children: selectedNode.children,
+                          ));
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    _buildDropdown<double>(
+                      label: 'Grain Rotation',
+                      value: selectedNode.textureRotation ?? 0.0,
+                      items: const [
+                        DropdownMenuItem(value: 0.0, child: Text('0° (Horizontal Grain)')),
+                        DropdownMenuItem(value: 90.0, child: Text('90° (Vertical Grain)')),
+                        DropdownMenuItem(value: 180.0, child: Text('180° (Inverted Horizontal)')),
+                        DropdownMenuItem(value: 270.0, child: Text('270° (Inverted Vertical)')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) {
+                          _updateSelectedNode(LuaGuiNode(
+                            type: selectedNode.type,
+                            param: selectedNode.param,
+                            label: selectedNode.label,
+                            unit: selectedNode.unit,
+                            size: selectedNode.size,
+                            width: selectedNode.width,
+                            height: selectedNode.height,
+                            backgroundStyle: selectedNode.backgroundStyle,
+                            backgroundColor: selectedNode.backgroundColor,
+                            textureRotation: v,
+                            textureScale: selectedNode.textureScale,
+                            knobStyle: selectedNode.knobStyle,
+                            sliderStyle: selectedNode.sliderStyle,
+                            orientation: selectedNode.orientation,
+                            options: selectedNode.options,
+                            align: selectedNode.align,
+                            crossAlign: selectedNode.crossAlign,
                             children: selectedNode.children,
                           ));
                         }
@@ -777,6 +1009,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                         DropdownMenuItem(value: KnobStyle.chrome, child: Text('Chrome Fluted (303)')),
                         DropdownMenuItem(value: KnobStyle.vintage, child: Text('Vintage Bakelite')),
                         DropdownMenuItem(value: KnobStyle.snes, child: Text('SNES Console Cream')),
+                        DropdownMenuItem(value: KnobStyle.minimalWhite, child: Text('Minimalist Matte Ceramic')),
                       ],
                       onChanged: (v) {
                         if (v != null) {
@@ -810,6 +1043,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       items: const [
                         DropdownMenuItem(value: SliderStyle.capsule, child: Text('Capsule Track')),
                         DropdownMenuItem(value: SliderStyle.console, child: Text('Console Studio Fader')),
+                        DropdownMenuItem(value: SliderStyle.minimalPill, child: Text('Minimalist Slit Fader')),
                       ],
                       onChanged: (v) {
                         if (v != null) {

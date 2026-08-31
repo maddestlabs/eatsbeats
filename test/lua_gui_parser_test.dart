@@ -39,6 +39,38 @@ void main() {
       expect(snareResult.guiLayout!.title, contains('SNARE'));
     });
 
+    test('Parses TTS Voice Synth minimalist ceramic GUI layout correctly', () {
+      final preset = LuaPresetLibrary.getPresetById('tts_voice_synth')!;
+      final result = LuaEngine.compile(preset.code);
+
+      expect(result.isSuccess, isTrue);
+      expect(result.guiLayout, isNotNull);
+
+      final layout = result.guiLayout!;
+      expect(layout.title, contains('TTS VOICE SYNTH'));
+      expect(layout.backgroundStyle, equals(PanelBackgroundStyle.minimalWhite));
+      expect(layout.defaultKnobStyle, equals(KnobStyle.minimalWhite));
+      expect(layout.children.length, equals(1));
+
+      final rootRow = layout.children[0];
+      expect(rootRow.type, equals(LuaGuiNodeType.row));
+      expect(rootRow.children.length, equals(2));
+
+      // Card 1 (Vocal Engine & Formant Display)
+      final col1 = rootRow.children[0];
+      expect(col1.type, equals(LuaGuiNodeType.column));
+      expect(col1.children.any((c) => c.type == LuaGuiNodeType.spectrum), isTrue);
+      expect(col1.children.any((c) => c.type == LuaGuiNodeType.segmentedPill && c.param == 'voice_mode'), isTrue);
+      expect(col1.children.any((c) => c.type == LuaGuiNodeType.segmentedPill && c.param == 'speech_speed'), isTrue);
+
+      // Card 2 (Dynamics & Space)
+      final col2 = rootRow.children[1];
+      expect(col2.type, equals(LuaGuiNodeType.column));
+      expect(col2.children.any((c) => c.type == LuaGuiNodeType.knob && c.param == 'volume' && c.knobStyle == KnobStyle.minimalWhite), isTrue);
+      expect(col2.children.any((c) => c.type == LuaGuiNodeType.knob && c.param == 'space' && c.knobStyle == KnobStyle.minimalWhite), isTrue);
+      expect(col2.children.any((c) => c.type == LuaGuiNodeType.knob && c.param == 'air' && c.knobStyle == KnobStyle.minimalWhite), isTrue);
+    });
+
     test('Gracefully returns null guiLayout for scripts without GUI definition', () {
       const scriptWithoutGui = '''
 -- @name: Simple Synth

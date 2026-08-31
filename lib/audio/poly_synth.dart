@@ -107,20 +107,33 @@ class PolySynth {
     double attack = 0.01,
     double release = 0.3,
     double lengthSec = 0.5,
+    int? targetMidiNote,
+    bool isSlide = false,
   }) {
     final double freq = midiToFreq(midiNote);
+    final double targetFreq = (targetMidiNote != null && targetMidiNote > 0)
+        ? midiToFreq(targetMidiNote)
+        : freq;
     final int numSamples = (sampleRate * lengthSec).toInt();
     final buffer = Float32List(numSamples);
+    final double glideTime = math.max(0.02, lengthSec * 0.4);
+
+    double phaseAccum = 0.0;
 
     for (int i = 0; i < numSamples; i++) {
       final t = i / sampleRate;
+      double currentFreq = freq;
+      if (isSlide || (targetMidiNote != null && targetFreq != freq)) {
+        currentFreq = targetFreq + (freq - targetFreq) * math.exp(-t / glideTime);
+      }
+
+      phaseAccum += currentFreq / sampleRate;
+      final normPhase = phaseAccum - phaseAccum.floorToDouble();
       double raw = 0.0;
-      final phase = t * freq;
-      final normPhase = phase - phase.floorToDouble();
 
       switch (waveform) {
         case 'sine':
-          raw = math.sin(2.0 * math.pi * phase);
+          raw = math.sin(2.0 * math.pi * normPhase);
           break;
         case 'square':
           raw = normPhase < 0.5 ? 0.7 : -0.7;

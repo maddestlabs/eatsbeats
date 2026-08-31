@@ -137,8 +137,7 @@ class _PresetBrowserDialogState extends State<PresetBrowserDialog> {
   @override
   Widget build(BuildContext context) {
     final trackPresets = widget.dawState.getPresetsForTrack(widget.track);
-    final allPresets = ScriptPresetLibrary.instance.allPresets;
-    final baseList = trackPresets.isNotEmpty ? trackPresets : allPresets;
+    final baseList = trackPresets;
 
     final query = _searchController.text.trim().toLowerCase();
     final filtered = baseList.where((p) {

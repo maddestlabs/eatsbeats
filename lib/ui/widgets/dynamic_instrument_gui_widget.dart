@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../audio/convolver_engine.dart';
@@ -29,10 +30,12 @@ import 'space_visualizer_widget.dart';
 import 'stereo_meter_widget.dart';
 import 'waveform_painter.dart';
 import 'waveshaper_canvas_widget.dart';
+import '../textures/daw_texture_engine.dart';
 
 class DynamicInstrumentGuiWidget extends StatelessWidget {
   final DawState dawState;
   final TrackChannel track;
+  final TrackChannel? hostTrack;
   final bool hideHeader;
   final void Function(String paramName, double value)? onParamChanged;
 
@@ -40,9 +43,24 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     super.key,
     required this.dawState,
     required this.track,
+    this.hostTrack,
     this.hideHeader = false,
     this.onParamChanged,
   });
+
+  static final Map<String, LuaCompilationResult> _compilationCache = {};
+
+  static LuaCompilationResult _getCompilation(String code, LuaCompilationResult fallback) {
+    if (code.isEmpty) return fallback;
+    final cached = _compilationCache[code];
+    if (cached != null) return cached;
+    final compiled = LuaEngine.compile(code);
+    _compilationCache[code] = compiled;
+    if (_compilationCache.length > 50) {
+      _compilationCache.remove(_compilationCache.keys.first);
+    }
+    return compiled;
+  }
 
   void _setParam(String paramName, double value) {
     track.luaParams[paramName] = value;
@@ -58,9 +76,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     return ListenableBuilder(
       listenable: SoundFontEngine.instance,
       builder: (context, _) {
-        final trackCompilation = track.luaScriptCode.isNotEmpty
-            ? LuaEngine.compile(track.luaScriptCode)
-            : dawState.compilationResult;
+        final trackCompilation = _getCompilation(track.luaScriptCode, dawState.compilationResult);
 
         final guiLayout = trackCompilation.guiLayout;
 
@@ -88,29 +104,58 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         (layout.backgroundStyle == PanelBackgroundStyle.dark && EatsTheme.currentPreset == EatsThemePreset.ateTrack);
     final isSilver = layout.backgroundStyle == PanelBackgroundStyle.silver;
     final isSnes = layout.backgroundStyle == PanelBackgroundStyle.snes;
-    final isLightChassis = isSilver || isSnes;
-    final baseAccent = layout.accentColor ?? (isSilver ? const Color(0xFF141416) : track.color);
+    final isMinimal = layout.backgroundStyle == PanelBackgroundStyle.minimalWhite;
+    final textureType = DawTextureEngine.mapStyleToTexture(layout.backgroundStyle);
+    final isLightChassis = isSilver || isSnes || isMinimal || layout.backgroundStyle == PanelBackgroundStyle.blondePine;
+    final baseAccent = layout.accentColor ?? (isMinimal ? const Color(0xFF1E1E24) : (isSilver ? const Color(0xFF141416) : track.color));
     final hasUpgrade = dawState.isPresetUpgradeAvailable(track);
 
     if (hideHeader) {
+      Color basePanel;
+      if (layout.backgroundColor != null) {
+        basePanel = layout.backgroundColor!;
+      } else if (isMinimal) {
+        basePanel = const Color(0xFFECEEF2);
+      } else if (isSnes) {
+        basePanel = const Color(0xFFD8D6CD);
+      } else if (isSilver) {
+        basePanel = const Color(0xFFD4D0C5);
+      } else if (isGrungy) {
+        basePanel = const Color(0xFF26221D);
+      } else if (layout.backgroundStyle == PanelBackgroundStyle.walnut) {
+        basePanel = const Color(0xFF3B2414);
+      } else if (layout.backgroundStyle == PanelBackgroundStyle.mahogany) {
+        basePanel = const Color(0xFF451912);
+      } else if (layout.backgroundStyle == PanelBackgroundStyle.blondePine) {
+        basePanel = const Color(0xFFC7B591);
+      } else if (layout.backgroundStyle == PanelBackgroundStyle.rosewood) {
+        basePanel = const Color(0xFF211310);
+      } else if (layout.backgroundStyle == PanelBackgroundStyle.brushedSteel || layout.backgroundStyle == PanelBackgroundStyle.brushedSteelVert) {
+        basePanel = const Color(0xFF383D47);
+      } else if (layout.backgroundStyle == PanelBackgroundStyle.tolex) {
+        basePanel = const Color(0xFF161618);
+      } else if (layout.backgroundStyle == PanelBackgroundStyle.carbon) {
+        basePanel = const Color(0xFF121418);
+      } else {
+        basePanel = EatsTheme.panelBackground;
+      }
+
       return RepaintBoundary(
-        child: Container(
+        child: DawTexturedContainer(
+          texture: textureType,
+          textureRotation: layout.textureRotation,
+          textureScale: layout.textureScale,
+          color: basePanel,
+          sideCheeks: layout.sideCheeks,
+          cornerRadius: layout.cornerRadius,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
+          border: Border.all(
             color: isSnes
-                ? const Color(0xFFD8D6CD)
+                ? const Color(0xFF908C82)
                 : (isSilver
-                    ? const Color(0xFFD4D0C5)
-                    : (isGrungy ? const Color(0xFF26221D) : EatsTheme.panelBackground)),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSnes
-                  ? const Color(0xFF908C82)
-                  : (isSilver
-                      ? const Color(0xFF8C887D)
-                      : (isGrungy ? const Color(0xFF423B33) : EatsTheme.panelHeader)),
-              width: 1.2,
-            ),
+                    ? const Color(0xFF8C887D)
+                    : (isGrungy ? const Color(0xFF423B33) : EatsTheme.panelHeader)),
+            width: 1.2,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -137,6 +182,10 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             accentColor: baseAccent,
             panelColor: layout.backgroundColor,
             backgroundStyle: layout.backgroundStyle,
+            textureRotation: layout.textureRotation,
+            textureScale: layout.textureScale,
+            cornerRadius: layout.cornerRadius,
+            sideCheeks: layout.sideCheeks,
             headerActions: [
               if (hasUpgrade) ...[
                 GestureDetector(
@@ -334,35 +383,133 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
 
     switch (node.type) {
       case LuaGuiNodeType.row:
-        return Row(
+        Widget rowWidget = Row(
           mainAxisAlignment: _parseMainAxisAlignment(node.align),
           crossAxisAlignment: _parseCrossAxisAlignment(node.crossAlign),
           children: node.children
-              .map((c) => _buildNode(context, c, compilation, defaultAccent, isLightChassis))
+              .map((c) => _buildNode(context, c, compilation, accent, isLightChassis))
               .toList(),
         );
 
+        if (node.backgroundStyle != null || node.backgroundColor != null) {
+          final isNodeLight = node.backgroundStyle == PanelBackgroundStyle.blondePine ||
+              node.backgroundStyle == PanelBackgroundStyle.silver ||
+              node.backgroundStyle == PanelBackgroundStyle.snes;
+          rowWidget = DawTexturedContainer(
+            backgroundStyle: node.backgroundStyle,
+            color: node.backgroundColor ?? (isLightChassis ? Colors.black.withOpacity(0.05) : Colors.black.withOpacity(0.2)),
+            textureRotation: node.textureRotation ?? 0.0,
+            textureScale: node.textureScale ?? 1.0,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: isNodeLight
+                  ? const Color(0xFF9E9A8E)
+                  : accent.withOpacity(0.25),
+              width: 1.0,
+            ),
+            child: rowWidget,
+          );
+        }
+        return rowWidget;
+
       case LuaGuiNodeType.column:
-        return Column(
+        final isMinimalColCard = node.backgroundStyle == PanelBackgroundStyle.minimalWhite ||
+            (isLightChassis && node.backgroundStyle == null && node.children.length > 1 && node.width != null);
+
+        Widget colWidget = Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: _parseMainAxisAlignment(node.align),
           crossAxisAlignment: _parseCrossAxisAlignment(node.crossAlign),
-          children: node.children
-              .map((c) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3.0),
-                    child: _buildNode(context, c, compilation, defaultAccent, isLightChassis),
-                  ))
-              .toList(),
+          children: [
+            if (node.action == 'bypass' || node.param == 'bypass' || node.param == 'power') ...[
+              _buildPowerBypassButton(node, compilation, accent),
+              const SizedBox(height: 12),
+            ],
+            ...node.children.map((c) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: _buildNode(context, c, compilation, accent, isLightChassis),
+                )),
+          ],
         );
 
+        if (isMinimalColCard) {
+          colWidget = Container(
+            width: node.width,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+            margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFBFBFC),
+              borderRadius: BorderRadius.circular(node.cornerRadius ?? 26.0),
+              border: Border.all(color: const Color(0xFFE4E7EE), width: 1.0),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                  spreadRadius: -2,
+                ),
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.95),
+                  blurRadius: 12,
+                  offset: const Offset(0, -3),
+                ),
+              ],
+            ),
+            child: colWidget,
+          );
+        } else if (node.backgroundStyle != null || node.backgroundColor != null) {
+          final isNodeLight = node.backgroundStyle == PanelBackgroundStyle.blondePine ||
+              node.backgroundStyle == PanelBackgroundStyle.silver ||
+              node.backgroundStyle == PanelBackgroundStyle.snes;
+          colWidget = DawTexturedContainer(
+            backgroundStyle: node.backgroundStyle,
+            color: node.backgroundColor ?? (isLightChassis ? Colors.black.withOpacity(0.05) : Colors.black.withOpacity(0.2)),
+            textureRotation: node.textureRotation ?? 0.0,
+            textureScale: node.textureScale ?? 1.0,
+            padding: const EdgeInsets.all(8),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: isNodeLight
+                  ? const Color(0xFF9E9A8E)
+                  : accent.withOpacity(0.25),
+              width: 1.0,
+            ),
+            child: colWidget,
+          );
+        }
+        return colWidget;
+
       case LuaGuiNodeType.divider:
+        if (node.action == 'link' || node.label == 'link' || node.text == 'link') {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(width: 24, height: 1, color: const Color(0xFFC0C4CC)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE6E9EE),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFFB8BCC6), width: 0.8),
+                  ),
+                  child: const Icon(Icons.link, size: 11, color: Color(0xFF3A3D45)),
+                ),
+                Container(width: 24, height: 1, color: const Color(0xFFC0C4CC)),
+              ],
+            ),
+          );
+        }
         if (node.orientation == 'vertical') {
           return Container(
             width: node.width ?? 2.0,
             height: node.height ?? node.size ?? 68.0,
             margin: const EdgeInsets.symmetric(horizontal: 10.0),
             decoration: BoxDecoration(
-              color: isLightChassis ? const Color(0xFF4A463E) : Colors.white12,
+              color: isLightChassis ? const Color(0xFFD4D8DF) : Colors.white12,
               borderRadius: BorderRadius.circular(1.0),
               boxShadow: isLightChassis
                   ? [
@@ -378,9 +525,9 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         } else {
           return Container(
             height: node.height ?? 2.0,
-            margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+            margin: const EdgeInsets.symmetric(vertical: 8.0),
             decoration: BoxDecoration(
-              color: isLightChassis ? const Color(0xFF4A463E) : Colors.white12,
+              color: isLightChassis ? const Color(0xFFD4D8DF) : Colors.white12,
               borderRadius: BorderRadius.circular(1.0),
               boxShadow: isLightChassis
                   ? [
@@ -396,6 +543,82 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         }
 
       case LuaGuiNodeType.group:
+        final hasCustomBg = node.backgroundStyle != null || node.backgroundColor != null;
+        final isMinimalGroup = node.backgroundStyle == PanelBackgroundStyle.minimalWhite || (isLightChassis && !hasCustomBg);
+        final isNodeLight = node.backgroundStyle == PanelBackgroundStyle.blondePine ||
+            node.backgroundStyle == PanelBackgroundStyle.silver ||
+            node.backgroundStyle == PanelBackgroundStyle.snes ||
+            isLightChassis;
+
+        final groupBody = Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (node.action == 'bypass' || node.param == 'bypass' || node.param == 'power') ...[
+              _buildPowerBypassButton(node, compilation, accent),
+              const SizedBox(height: 12),
+            ],
+            if (node.label != null && node.label != 'bypass') ...[
+              Text(
+                node.label!.toUpperCase(),
+                style: EatsTheme.getDisplayFontStyle(
+                  color: isNodeLight ? const Color(0xFF1E1E24) : accent,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            ...node.children.map((c) => _buildNode(context, c, compilation, accent, isNodeLight)),
+          ],
+        );
+
+        if (isMinimalGroup) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+            margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFBFBFC),
+              borderRadius: BorderRadius.circular(node.cornerRadius ?? 26.0),
+              border: Border.all(color: const Color(0xFFE4E7EE), width: 1.0),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                  spreadRadius: -2,
+                ),
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.95),
+                  blurRadius: 12,
+                  offset: const Offset(0, -3),
+                ),
+              ],
+            ),
+            child: groupBody,
+          );
+        }
+
+        if (hasCustomBg) {
+          return DawTexturedContainer(
+            backgroundStyle: node.backgroundStyle,
+            color: node.backgroundColor ?? (isNodeLight ? Colors.black.withOpacity(0.05) : EatsTheme.panelHeader.withOpacity(0.6)),
+            textureRotation: node.textureRotation ?? 0.0,
+            textureScale: node.textureScale ?? 1.0,
+            padding: const EdgeInsets.all(10),
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: isNodeLight
+                  ? const Color(0xFF9E9A8E)
+                  : accent.withOpacity(0.5),
+              width: 1.2,
+            ),
+            child: groupBody,
+          );
+        }
+
         return Container(
           padding: const EdgeInsets.all(10),
           margin: const EdgeInsets.symmetric(vertical: 4),
@@ -407,26 +630,11 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             border: Border.all(
               color: isLightChassis
                   ? const Color(0xFF9E9A8E)
-                  : accent.withOpacity(0.3),
+                  : accent.withOpacity(0.5),
+              width: 1.2,
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (node.label != null) ...[
-                Text(
-                  node.label!.toUpperCase(),
-                  style: EatsTheme.getPrimaryFontStyle(
-                    color: isLightChassis ? const Color(0xFF1B1A17) : accent,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-              ...node.children.map((c) => _buildNode(context, c, compilation, defaultAccent, isLightChassis)),
-            ],
-          ),
+          child: groupBody,
         );
 
       case LuaGuiNodeType.knob:
@@ -466,57 +674,82 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         final paramDef = _findParam(node.param, compilation);
         final rawVal = (track.luaParams[node.param] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
         final currentVal = paramDef.isInteger ? rawVal.roundToDouble() : rawVal;
+        final isVertical = node.orientation == 'vertical' || node.type == LuaGuiNodeType.fader || (node.sliderStyle == SliderStyle.minimalPill && node.orientation != 'horizontal');
 
-        final isVert = node.orientation == 'vertical';
-        if (isVert) {
-          return SkeuomorphicHardwareSlider(
-            label: node.label ?? paramDef.name.toUpperCase(),
-            value: currentVal,
-            min: paramDef.min,
-            max: paramDef.max,
-            defaultValue: paramDef.defaultValue,
-            orientation: Axis.vertical,
-            length: node.size ?? 120.0,
-            activeColor: accent,
-            onChanged: (val) {
-              final snapped = paramDef.isInteger ? val.roundToDouble() : val;
-              _setParam(paramDef.name, snapped);
-            },
-            onChangeStart: () => dawState.beginHistoryTransaction(
-              '${paramDef.name} (${track.name})',
-              icon: Icons.linear_scale,
+        if (isVertical) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  height: node.height ?? 100.0,
+                  width: node.width ?? 32.0,
+                  child: SkeuomorphicHardwareSlider(
+                    value: currentVal,
+                    min: paramDef.min,
+                    max: paramDef.max,
+                    defaultValue: paramDef.defaultValue,
+                    label: node.label ?? paramDef.name,
+                    activeColor: accent,
+                    orientation: Axis.vertical,
+                    style: node.sliderStyle,
+                    showLevelMarkings: false,
+                    showTooltip: true,
+                    onChanged: (val) {
+                      final snapped = paramDef.isInteger ? val.roundToDouble() : val;
+                      _setParam(paramDef.name, snapped);
+                    },
+                    onChangeStart: () => dawState.beginHistoryTransaction(
+                      '${paramDef.name} (${track.name})',
+                      icon: Icons.linear_scale,
+                    ),
+                    onChangeEnd: () => dawState.commitHistoryTransaction(),
+                  ),
+                ),
+                if (node.showLabel) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    node.label ?? paramDef.name,
+                    style: EatsTheme.getDisplayFontStyle(
+                      color: isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFE2DDD5),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ],
             ),
-            onChangeEnd: () => dawState.commitHistoryTransaction(),
-            formatValue: (v) {
-              final f = paramDef.getFormattedValue(v);
-              return node.unit != null ? '$f ${node.unit}' : f;
-            },
           );
         }
 
-        // Horizontal Slider (matching Track Volume and Track Inspector layout)
         final displayFormatted = () {
           final f = paramDef.getFormattedValue(currentVal);
           return node.unit != null ? '$f ${node.unit}' : f;
         }();
 
-        return SizedBox(
-          width: node.width ?? 235.0,
+        Widget sliderWidget = SizedBox(
+          width: node.width,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    node.label ?? paramDef.name.toUpperCase(),
-                    style: EatsTheme.getDisplayFontStyle(
-                      color: EatsTheme.textMuted,
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
+                  Flexible(
+                    child: Text(
+                      node.label ?? paramDef.name.toUpperCase(),
+                      overflow: TextOverflow.ellipsis,
+                      style: EatsTheme.getDisplayFontStyle(
+                        color: isLightChassis ? const Color(0xFF1B1A17) : const Color(0xFFE2DDD5),
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Text(
                     displayFormatted,
                     style: EatsTheme.getDisplayFontStyle(
@@ -554,9 +787,34 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           ),
         );
 
+        if (node.width == null) {
+          sliderWidget = Expanded(child: sliderWidget);
+        }
+        return sliderWidget;
+
+      case LuaGuiNodeType.segmentedPill:
+        final paramDef = _findParam(node.param, compilation);
+        final options = node.options.isNotEmpty
+            ? node.options
+            : (paramDef.options.isNotEmpty ? paramDef.options : ['Fast', 'Slow', 'Auto']);
+        final rawVal = (track.luaParams[node.param] ?? paramDef.defaultValue);
+        final currentIdx = rawVal.round().toInt().clamp(0, options.length - 1);
+
+        return _buildSegmentedPill(
+          label: node.label,
+          showLabel: node.showLabel,
+          options: options,
+          selectedIndex: currentIdx,
+          accentColor: accent,
+          isLightChassis: isLightChassis,
+          onSelected: (idx) {
+            _setParam(paramDef.name, idx.toDouble());
+          },
+        );
+
       case LuaGuiNodeType.switchToggle:
         final paramDef = _findParam(node.param, compilation);
-        final rawVal = (track.luaParams[node.param] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
+        final rawVal = (track.luaParams[node.param] ?? paramDef.defaultValue);
         final bool isChecked = rawVal > 0.5;
 
         final isEats303 = track.name.toLowerCase().contains('303') ||
@@ -575,9 +833,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           ledColor: accent,
           showText: switchStyle != SwitchStyle.vintageBat,
           onChanged: (bool val) {
-            dawState.beginHistoryTransaction('Toggle ${paramDef.name} (${track.name})', icon: Icons.toggle_on);
             _setParam(paramDef.name, val ? 1.0 : 0.0);
-            dawState.commitHistoryTransaction();
           },
         );
 
@@ -616,6 +872,15 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                 velocity: 0.85,
                 durationSec: 0.6,
               );
+              return;
+            }
+
+            if (actionClean == 'trigger_tape_stop' ||
+                actionClean.contains('tape_stop') ||
+                labelClean.contains('tape stop')) {
+              final stopTime = (track.luaParams['StopTime'] ?? 0.8).clamp(0.1, 3.0);
+              final spinUpTime = (track.luaParams['SpinUpTime'] ?? 0.4).clamp(0.1, 2.0);
+              dawState.triggerTapeStop(track.id, stopTime: stopTime, spinUpTime: spinUpTime);
               return;
             }
 
@@ -754,6 +1019,11 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               _setParam(paramDef.name, newIdx.toDouble());
             }
           };
+        } else {
+          onSelectionChanged = (newIdx) {
+            track.luaParams[paramDef.name] = newIdx.toDouble();
+            _setParam(paramDef.name, newIdx.toDouble());
+          };
         }
 
         return HardwareListBoxWidget(
@@ -871,9 +1141,18 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
 
       case LuaGuiNodeType.oscilloscope:
       case LuaGuiNodeType.spectrum:
+        if (isLightChassis || node.canvasMode == 'formant_curve' || node.canvasMode == 'formant') {
+          return _MinimalistFormantScreenWidget(
+            width: node.width ?? 180.0,
+            height: node.height ?? 100.0,
+            accentColor: node.accentColor ?? const Color(0xFFD9603B),
+            dawState: dawState,
+            track: hostTrack ?? track,
+          );
+        }
         return LiveTrackVisualizerWidget(
           audioEngine: dawState.audioEngine,
-          track: track,
+          track: hostTrack ?? track,
           isSpectrum: node.type == LuaGuiNodeType.spectrum,
           accentColor: accent,
           width: node.width,
@@ -964,6 +1243,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           return InteractiveGameCanvasWidget(
             dawState: dawState,
             track: track,
+            hostTrack: hostTrack,
             node: node,
             accentColor: accent,
             isLightChassis: isLightChassis,
@@ -971,7 +1251,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         }
         return LuaProgrammableCanvasWidget(
           dawState: dawState,
-          track: track,
+          track: hostTrack ?? track,
           node: node,
           accentColor: accent,
           isLightChassis: isLightChassis,
@@ -982,6 +1262,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         return InteractiveGameCanvasWidget(
           dawState: dawState,
           track: track,
+          hostTrack: hostTrack,
           node: node,
           accentColor: accent,
           isLightChassis: isLightChassis,
@@ -1049,6 +1330,132 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
       default:
         return CrossAxisAlignment.center;
     }
+  }
+
+  Widget _buildPowerBypassButton(LuaGuiNode node, LuaCompilationResult compilation, Color accent) {
+    final paramName = node.param ?? (node.action ?? 'bypass');
+    final rawVal = (track.luaParams[paramName] ?? 1.0);
+    final isPoweredOn = rawVal > 0.5;
+
+    return Center(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          final nextVal = isPoweredOn ? 0.0 : 1.0;
+          _setParam(paramName, nextVal);
+        },
+        child: Tooltip(
+          message: 'Toggle Bypass (${isPoweredOn ? "Active" : "Bypassed"})',
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFFE8EBF0),
+              border: Border.all(color: const Color(0xFFD4D8DF), width: 1.2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+                const BoxShadow(
+                  color: Colors.white,
+                  blurRadius: 2,
+                  offset: Offset(0, -1),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Icon(
+                Icons.power_settings_new,
+                size: 16,
+                color: isPoweredOn ? const Color(0xFF1B1B1E) : const Color(0xFF9EA3B0),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSegmentedPill({
+    String? label,
+    bool showLabel = true,
+    required List<String> options,
+    required int selectedIndex,
+    required Color accentColor,
+    required bool isLightChassis,
+    required ValueChanged<int> onSelected,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (label != null && showLabel) ...[
+          Text(
+            label.toUpperCase(),
+            style: EatsTheme.getDisplayFontStyle(
+              color: isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFE2DDD5),
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 5),
+        ],
+        Container(
+          padding: const EdgeInsets.all(3.0),
+          decoration: BoxDecoration(
+            color: isLightChassis ? const Color(0xFFE2E4EB) : const Color(0xFF14171E),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isLightChassis ? const Color(0xFFD0D4DD) : const Color(0xFF282D3A),
+              width: 0.8,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(options.length, (idx) {
+              final isSelected = idx == selectedIndex;
+              final optText = options[idx];
+
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => onSelected(idx),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 140),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? (isLightChassis ? const Color(0xFFFFFFFF) : accentColor)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1.5),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Text(
+                    optText,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                      color: isSelected
+                          ? (isLightChassis ? const Color(0xFF1B1B1E) : Colors.black)
+                          : (isLightChassis ? const Color(0xFF6B707E) : const Color(0xFF8C92A4)),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildUpgradeBanner(BuildContext context) {
@@ -1375,4 +1782,228 @@ class _OscilloscopeLivePainter extends CustomPainter {
     return oldDelegate.accentColor != accentColor || oldDelegate.isSpectrum != isSpectrum;
   }
 }
+
+class _MinimalistFormantScreenWidget extends StatelessWidget {
+  final double width;
+  final double height;
+  final Color accentColor;
+  final DawState dawState;
+  final TrackChannel track;
+
+  const _MinimalistFormantScreenWidget({
+    required this.width,
+    required this.height,
+    required this.accentColor,
+    required this.dawState,
+    required this.track,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final f1 = track.luaParams['f1'] ?? track.luaParams['Low'] ?? 0.6;
+    final f2 = track.luaParams['f2'] ?? track.luaParams['Mid'] ?? 0.45;
+    final f3 = track.luaParams['f3'] ?? track.luaParams['High'] ?? 0.25;
+    final air = track.luaParams['air'] ?? track.luaParams['Air'] ?? 0.35;
+
+    return Container(
+      width: width,
+      height: height,
+      padding: const EdgeInsets.all(4.0),
+      decoration: BoxDecoration(
+        color: const Color(0xFFD6D9E0),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFC0C4CE), width: 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+          const BoxShadow(
+            color: Colors.white,
+            blurRadius: 2,
+            offset: Offset(0, -1),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(9),
+        child: CustomPaint(
+          painter: _MinimalistFormantScreenPainter(
+            accentColor: accentColor,
+            formants: [f1, f2, f3, air],
+            phase: 0.0,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MinimalistFormantScreenPainter extends CustomPainter {
+  final Color accentColor;
+  final List<double> formants;
+  final double phase;
+
+  _MinimalistFormantScreenPainter({
+    required this.accentColor,
+    required this.formants,
+    required this.phase,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 1. Screen Bevel / LCD Surface Gradient
+    final screenGradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: const [
+        Color(0xFFDFE2E8),
+        Color(0xFFCFD3DA),
+      ],
+    );
+    canvas.drawRect(Offset.zero & size, Paint()..shader = screenGradient.createShader(Offset.zero & size));
+
+    // Inset Screen Shadow
+    final innerShadow = Paint()
+      ..color = const Color(0xFFB5BAC4).withOpacity(0.6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawRect(Offset.zero & size, innerShadow);
+
+    const padLeft = 24.0;
+    const padRight = 8.0;
+    const padTop = 10.0;
+    const padBottom = 16.0;
+
+    final plotW = size.width - padLeft - padRight;
+    final plotH = size.height - padTop - padBottom;
+
+    // 2. dB Level Axis Markings & Dotted Guide Lines
+    final gridPaint = Paint()
+      ..color = const Color(0xFF9095A2).withOpacity(0.6)
+      ..strokeWidth = 0.8;
+
+    final dbLevels = ['+12', '0', '-12', '-24'];
+    for (int i = 0; i < dbLevels.length; i++) {
+      final y = padTop + (i / (dbLevels.length - 1)) * plotH;
+      // Dotted line
+      for (double x = padLeft; x < padLeft + plotW; x += 4.0) {
+        canvas.drawCircle(Offset(x, y), 0.5, gridPaint);
+      }
+
+      final tp = TextPainter(
+        text: TextSpan(
+          text: dbLevels[i],
+          style: const TextStyle(
+            fontSize: 7.5,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF6E7382),
+            fontFamily: 'monospace',
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(2.0, y - tp.height / 2));
+    }
+
+    // 3. Frequency Guide Lines & Text
+    final freqs = ['100Hz', '500Hz', '2kHz', '10kHz'];
+    for (int i = 0; i < freqs.length; i++) {
+      final x = padLeft + (i / (freqs.length - 1)) * plotW;
+      for (double y = padTop; y < padTop + plotH; y += 4.0) {
+        canvas.drawCircle(Offset(x, y), 0.5, gridPaint);
+      }
+
+      final tp = TextPainter(
+        text: TextSpan(
+          text: freqs[i],
+          style: const TextStyle(
+            fontSize: 7.0,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF6E7382),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(x - tp.width / 2, size.height - tp.height - 2));
+    }
+
+    // 4. Formant Translucent Filled Waveform Silhouette
+    final formantPath = Path();
+    formantPath.moveTo(padLeft, padTop + plotH);
+
+    final f1 = (formants.isNotEmpty ? formants[0] : 0.6).clamp(0.0, 1.0);
+    final f2 = (formants.length > 1 ? formants[1] : 0.45).clamp(0.0, 1.0);
+    final f3 = (formants.length > 2 ? formants[2] : 0.25).clamp(0.0, 1.0);
+    final air = (formants.length > 3 ? formants[3] : 0.35).clamp(0.0, 1.0);
+
+    const int steps = 60;
+    for (int i = 0; i <= steps; i++) {
+      final normX = i / steps;
+      final x = padLeft + normX * plotW;
+
+      // Combine 4 bell curves for formant formant peaks
+      final p1 = math.exp(-math.pow((normX - 0.18) / 0.10, 2)) * f1;
+      final p2 = math.exp(-math.pow((normX - 0.42) / 0.12, 2)) * f2;
+      final p3 = math.exp(-math.pow((normX - 0.68) / 0.10, 2)) * f3;
+      final p4 = math.exp(-math.pow((normX - 0.88) / 0.14, 2)) * air;
+
+      final combined = (p1 + p2 + p3 + p4).clamp(0.05, 0.95);
+      final y = padTop + (1.0 - combined) * plotH;
+
+      formantPath.lineTo(x, y);
+    }
+    formantPath.lineTo(padLeft + plotW, padTop + plotH);
+    formantPath.close();
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.white.withOpacity(0.55),
+          const Color(0xFFB0B6C2).withOpacity(0.35),
+        ],
+      ).createShader(Rect.fromLTWH(padLeft, padTop, plotW, plotH));
+    canvas.drawPath(formantPath, fillPaint);
+
+    // 5. Active Vibrant Terracotta/Orange Curve Line
+    final curvePath = Path();
+    for (int i = 0; i <= steps; i++) {
+      final normX = i / steps;
+      final x = padLeft + normX * plotW;
+
+      final p1 = math.exp(-math.pow((normX - 0.18) / 0.10, 2)) * f1;
+      final p2 = math.exp(-math.pow((normX - 0.42) / 0.12, 2)) * f2;
+      final p3 = math.exp(-math.pow((normX - 0.68) / 0.10, 2)) * f3;
+      final p4 = math.exp(-math.pow((normX - 0.88) / 0.14, 2)) * air;
+
+      final combined = (p1 + p2 + p3 + p4).clamp(0.05, 0.95);
+      final y = padTop + (1.0 - combined) * plotH;
+
+      if (i == 0) {
+        curvePath.moveTo(x, y);
+      } else {
+        curvePath.lineTo(x, y);
+      }
+    }
+
+    final curvePaint = Paint()
+      ..color = accentColor
+      ..strokeWidth = 1.8
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(curvePath, curvePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MinimalistFormantScreenPainter oldDelegate) {
+    return oldDelegate.accentColor != accentColor ||
+        oldDelegate.phase != phase ||
+        oldDelegate.formants != formants;
+  }
+}
+
 

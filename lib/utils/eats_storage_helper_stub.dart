@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
+import '../models/saved_project_model.dart';
 
 class EatsStorageHelperImpl {
   static final Map<String, String> _memorySettings = {};
   static final Map<String, Uint8List> _memorySoundFonts = {};
+  static final Map<String, String> _memoryProjects = {};
   static String? _memorySessionLua;
 
   static Future<String?> getString(String key) async {
@@ -82,5 +85,58 @@ class EatsStorageHelperImpl {
 
   static Future<void> clearSessionLua() async {
     _memorySessionLua = null;
+  }
+
+  // --- Saved Projects Storage API ---
+
+  static String getProjectsFolderPath() => 'Projects';
+
+  static Future<void> openProjectsFolder() async {}
+
+  static Future<List<SavedProjectItem>> listSavedProjects() async {
+    return _memoryProjects.entries.map((e) {
+      return SavedProjectItem(
+        id: e.key,
+        name: e.key.replaceAll('.eats.lua', ''),
+        fileName: e.key,
+        filePath: 'Projects/${e.key}',
+        fileSizeBytes: utf8.encode(e.value).length,
+        lastModified: DateTime.now(),
+        isWebStorage: false,
+      );
+    }).toList();
+  }
+
+  static Future<SavedProjectItem?> saveProjectFile(String name, String luaCode) async {
+    final sanitized = name.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    final fileName = sanitized.toLowerCase().endsWith('.eats.lua') ? sanitized : '$sanitized.eats.lua';
+    _memoryProjects[fileName] = luaCode;
+    return SavedProjectItem(
+      id: fileName,
+      name: sanitized,
+      fileName: fileName,
+      filePath: 'Projects/$fileName',
+      fileSizeBytes: utf8.encode(luaCode).length,
+      lastModified: DateTime.now(),
+      isWebStorage: false,
+    );
+  }
+
+  static Future<String?> loadProjectFile(SavedProjectItem item) async {
+    return _memoryProjects[item.fileName] ?? _memoryProjects[item.id];
+  }
+
+  static Future<bool> deleteProjectFile(SavedProjectItem item) async {
+    _memoryProjects.remove(item.fileName);
+    _memoryProjects.remove(item.id);
+    return true;
+  }
+
+  static Future<bool> renameProjectFile(SavedProjectItem item, String newName) async {
+    final sanitized = newName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    final newFileName = sanitized.toLowerCase().endsWith('.eats.lua') ? sanitized : '$sanitized.eats.lua';
+    final code = _memoryProjects.remove(item.fileName) ?? _memoryProjects.remove(item.id) ?? '';
+    _memoryProjects[newFileName] = code;
+    return true;
   }
 }

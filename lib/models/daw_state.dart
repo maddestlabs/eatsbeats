@@ -295,13 +295,16 @@ class DawState extends ChangeNotifier {
   }
 
   TrackClip get activeTrackClip {
+    if (activeClip != null && (activeClip!.trackId == activeTrack.id || activeTrack.clips.any((c) => c.id == activeClip!.id))) {
+      return activeClip!;
+    }
     if (activeTrack.clips.isEmpty) {
       activeTrack.clips.add(TrackClip(
         id: 'clip_${activeTrack.id}_0',
         name: '${activeTrack.name} Clip',
         trackId: activeTrack.id,
         startBar: 0,
-        barLength: 2,
+        barLength: activePattern.barLength > 0 ? activePattern.barLength : 2,
         notes: activeTrack.notes.map((n) => n.copyWith()).toList(),
         luaScriptCode: '',
         luaParams: {},
@@ -502,42 +505,123 @@ class DawState extends ChangeNotifier {
     if (gui != null && gui.children.isNotEmpty) {
       double totalHeight = 16.0; // container top/bottom padding
       for (final node in gui.children) {
-        double nodeH = 70.0;
-        if (node.type == LuaGuiNodeType.row || node.type == LuaGuiNodeType.column) {
-          final hasListBox = node.children.any((c) => c.type == LuaGuiNodeType.listBox);
-          final onlyHorizontalSliders = node.children.isNotEmpty && node.children.every((c) => (c.type == LuaGuiNodeType.slider) && c.orientation != 'vertical');
-          final hasKnobOrSlider = node.children.any((c) => c.type == LuaGuiNodeType.knob || c.type == LuaGuiNodeType.slider || c.type == LuaGuiNodeType.fader);
-          final onlyDisplays = node.children.every((c) => c.type == LuaGuiNodeType.nixie || c.type == LuaGuiNodeType.lcd || c.type == LuaGuiNodeType.label || c.type == LuaGuiNodeType.button);
-
-          if (onlyHorizontalSliders) {
-            nodeH = 40.0;
-          } else if (hasListBox) {
-            nodeH = 76.0;
-          } else if (hasKnobOrSlider) {
-            nodeH = 70.0;
-          } else if (onlyDisplays) {
-            nodeH = 42.0;
-          }
-        } else if (node.type == LuaGuiNodeType.group) {
-          nodeH = 88.0;
-        } else if (node.type == LuaGuiNodeType.nixie || node.type == LuaGuiNodeType.lcd) {
-          nodeH = 42.0;
-        } else if (node.type == LuaGuiNodeType.listBox) {
-          nodeH = 76.0;
-        } else if (node.type == LuaGuiNodeType.spaceVisualizer || node.type == LuaGuiNodeType.waveshaperCanvas) {
-          nodeH = node.height ?? 160.0;
-        }
-        totalHeight += nodeH + 8.0;
+        totalHeight += _estimateGuiNodeHeight(node) + 8.0;
       }
-      return totalHeight.clamp(120.0, 600.0);
+      return totalHeight.clamp(120.0, 750.0);
     }
 
     if (compilation.params.isNotEmpty) {
       final rows = (compilation.params.length / 4.0).ceil();
-      return (rows * 72.0 + 20.0).clamp(120.0, 600.0);
+      return (rows * 72.0 + 20.0).clamp(120.0, 750.0);
     }
 
     return 160.0;
+  }
+
+  static double _estimateGuiNodeHeight(LuaGuiNode node) {
+    switch (node.type) {
+      case LuaGuiNodeType.row:
+        if (node.children.isEmpty) return 0.0;
+        double maxChildH = 0.0;
+        for (final c in node.children) {
+          final h = _estimateGuiNodeHeight(c);
+          if (h > maxChildH) maxChildH = h;
+        }
+        final hasBg = node.backgroundStyle != null || node.backgroundColor != null;
+        return maxChildH + (hasBg ? 16.0 : 0.0);
+
+      case LuaGuiNodeType.column:
+        if (node.children.isEmpty) return 0.0;
+        double sumChildH = 0.0;
+        if (node.action == 'bypass' || node.param == 'bypass' || node.param == 'power') {
+          sumChildH += 44.0;
+        }
+        for (final c in node.children) {
+          sumChildH += _estimateGuiNodeHeight(c) + 8.0;
+        }
+        final hasBg = node.backgroundStyle != null || node.backgroundColor != null || node.width != null;
+        return sumChildH + (hasBg ? 24.0 : 0.0);
+
+      case LuaGuiNodeType.group:
+        double groupH = (node.label != null && node.label != 'bypass') ? 26.0 : 0.0;
+        if (node.action == 'bypass' || node.param == 'bypass' || node.param == 'power') {
+          groupH += 44.0;
+        }
+        for (final c in node.children) {
+          groupH += _estimateGuiNodeHeight(c) + 6.0;
+        }
+        return groupH + 28.0;
+
+      case LuaGuiNodeType.knob:
+        final baseSize = node.size ?? 56.0;
+        final labelH = node.showLabel ? 16.0 : 0.0;
+        final valueH = node.showValue ? 14.0 : 0.0;
+        return baseSize + labelH + valueH + 6.0;
+
+      case LuaGuiNodeType.slider:
+      case LuaGuiNodeType.fader:
+        final isVertical = node.orientation == 'vertical' ||
+            node.type == LuaGuiNodeType.fader ||
+            (node.sliderStyle == SliderStyle.minimalPill && node.orientation != 'horizontal');
+        if (isVertical) {
+          final h = node.height ?? 100.0;
+          return h + (node.showLabel ? 18.0 : 0.0) + 8.0;
+        }
+        return 38.0;
+
+      case LuaGuiNodeType.segmentedPill:
+        final labelH = (node.label != null && node.label!.isNotEmpty && node.showLabel) ? 16.0 : 0.0;
+        return labelH + 34.0;
+
+      case LuaGuiNodeType.switchToggle:
+        return (node.orientation == 'vertical') ? 72.0 : 40.0;
+
+      case LuaGuiNodeType.button:
+        return (node.height ?? node.size ?? 32.0) + 4.0;
+
+      case LuaGuiNodeType.listBox:
+        return (node.height ?? 76.0) + 4.0;
+
+      case LuaGuiNodeType.nixie:
+      case LuaGuiNodeType.lcd:
+        return (node.height ?? 46.0);
+
+      case LuaGuiNodeType.meter:
+        return (node.height ?? 40.0);
+
+      case LuaGuiNodeType.label:
+        return 20.0;
+
+      case LuaGuiNodeType.oscilloscope:
+      case LuaGuiNodeType.spectrum:
+        return (node.height ?? 100.0) + 4.0;
+
+      case LuaGuiNodeType.spaceVisualizer:
+        return (node.height ?? 140.0) + 4.0;
+
+      case LuaGuiNodeType.waveshaperCanvas:
+        return (node.height ?? 160.0) + 4.0;
+
+      case LuaGuiNodeType.canvas:
+        if (node.showDpad || node.showActionButtons) return 220.0;
+        return (node.height ?? 120.0) + 4.0;
+
+      case LuaGuiNodeType.dpad:
+      case LuaGuiNodeType.gamepad:
+        return (node.height ?? 160.0) + 4.0;
+
+      case LuaGuiNodeType.divider:
+        if (node.orientation == 'vertical') {
+          return node.height ?? node.size ?? 68.0;
+        }
+        return (node.height ?? 2.0) + 16.0;
+
+      case LuaGuiNodeType.spacer:
+        return node.size ?? 16.0;
+
+      case LuaGuiNodeType.unknown:
+        return 0.0;
+    }
   }
 
   /// Automatically calculates the optimal proportional window dimensions
@@ -737,6 +821,13 @@ class DawState extends ChangeNotifier {
       track.name = script.name;
       track.type = TrackType.luaScript;
       track.luaScriptCode = script.code;
+      if (script.id == 'soundfont_sampler') {
+        if (!track.sampleName.toLowerCase().endsWith('.sf2')) {
+          track.sampleName = 'super_small_font.sf2';
+        }
+      } else {
+        track.sampleName = '';
+      }
       final compiled = LuaEngine.compile(script.code);
       track.luaParams.clear();
       for (final p in compiled.params) {
@@ -746,6 +837,7 @@ class DawState extends ChangeNotifier {
         luaCode = script.code;
         compilationResult = compiled;
       }
+      audioEngine.clearPcmCache();
       audioEngine.invalidateLuaCache(track.id);
       recordHistory('Applied instrument "${script.name}" to ${track.name}', icon: Icons.piano);
     } else if (script.isAudioFx) {
@@ -2179,8 +2271,28 @@ return MidiFx
     notifyListeners();
   }
 
+  /// Dynamic total bars calculation for the project arranger timeline.
+  /// Expands to fit all clips, loop points, chords, and pattern length (minimum 32 bars).
+  int get totalTimelineBars {
+    int maxBar = 32;
+    if (_loopEndBar > maxBar) maxBar = _loopEndBar;
+    final patternBars = (activePattern.lengthSteps / 16).ceil();
+    if (patternBars > maxBar) maxBar = patternBars;
+    for (final track in activePattern.tracks) {
+      for (final clip in track.clips) {
+        final clipEnd = clip.startBar + clip.barLength;
+        if (clipEnd > maxBar) maxBar = clipEnd;
+      }
+    }
+    for (final chord in chordTrack) {
+      final chordEnd = (chord.startBar + chord.barLength).ceil();
+      if (chordEnd > maxBar) maxBar = chordEnd;
+    }
+    return maxBar;
+  }
+
   void seekToBar(int bar) {
-    final targetBar = bar.clamp(0, 31);
+    final targetBar = bar.clamp(0, totalTimelineBars - 1);
     _currentStep = targetBar * 16;
     _arrangerStep = targetBar * 16;
     _currentBar = targetBar;
@@ -2191,7 +2303,7 @@ return MidiFx
   }
 
   void seekToArrangerStep(double step) {
-    final clamped = step.clamp(0.0, (32 * 16.0) - 1.0);
+    final clamped = step.clamp(0.0, (totalTimelineBars * 16.0) - 1.0);
     _arrangerStep = clamped.toInt();
     _currentStep = clamped.toInt();
     _currentBar = _arrangerStep ~/ 16;
@@ -2278,7 +2390,7 @@ return MidiFx
     // Guaranteed monotonic clock progression anchored to the playback base audio timeline
     final double currentAudioTime = _playbackBaseAudioTime + math.max(elapsedHardware > 0 ? elapsedHardware : 0.0, elapsedWall);
     final double stepDurationSec = 60.0 / _bpm / 4.0; // 16th note step length in seconds
-    const int maxSteps = 32 * 16;
+    final int maxSteps = totalTimelineBars * 16;
 
     // Safety: If nextNoteTime fell behind or drifted far ahead of current audio time, re-anchor cleanly
     if (_nextNoteTime < currentAudioTime - 0.1 || _nextNoteTime > currentAudioTime + 0.5) {
@@ -2480,10 +2592,22 @@ return MidiFx
                     final bool isAccentNote = note.isAccent || note.velocity > 0.75;
                     final effectiveMidi = remapPitch(note.pitch);
 
+                    // Polyphonic slide resolution per tracker column:
+                    int? rawTargetPitch;
+                    final nextColNotes = effectiveNotes.where(
+                      (n) => n.column == note.column && n.startStep > note.startStep && n.startStep <= (note.startStep + math.max(1.5, note.durationSteps + 0.5)),
+                    ).toList();
+                    if (nextColNotes.isNotEmpty && nextColNotes.first.isSlide) {
+                      rawTargetPitch = nextColNotes.first.pitch;
+                    }
+                    final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
+                    final bool isSlideNote = note.isSlide || targetPitch != null;
+
                     audioEngine.playNoteOrSample(
                       track: track,
                       midiNote: effectiveMidi,
-                      isSlide: note.isSlide,
+                      targetMidiNote: targetPitch,
+                      isSlide: isSlideNote,
                       isAccent: isAccentNote,
                       velocity: note.velocity,
                       durationSec: math.max(0.02, note.durationSteps * stepDurationSec),
@@ -2756,6 +2880,11 @@ return MidiFx
       isSlide: isSlide,
       isAccent: note.isAccent || note.velocity > 0.75,
       velocity: note.velocity,
+      articulation: note.articulation,
+      releaseVelocity: note.releaseVelocity ?? 0.5,
+      pitchBendPoints: note.pitchBendPoints,
+      pressurePoints: note.pressurePoints,
+      timbrePoints: note.timbrePoints,
     );
     recordHistory('Add Note ${_formatPitch(note.pitch)} (${track.name})', icon: Icons.music_note, force: true);
     notifyListeners();
@@ -2837,6 +2966,83 @@ return MidiFx
     _syncClipNotes(track);
     recordHistory('Change Duration of ${idSet.length} Notes (${track.name})', icon: Icons.straighten, force: true);
     notifyListeners();
+  }
+
+  void setNoteSlide(TrackChannel track, Note note, bool isSlide) {
+    final idx = track.notes.indexWhere((n) => n.id == note.id);
+    if (idx != -1) {
+      track.notes[idx].isSlide = isSlide;
+      _syncClipNotes(track);
+      recordHistory('${isSlide ? "Enable" : "Disable"} Slide on Note ${_formatPitch(note.pitch)} (${track.name})', icon: Icons.trending_up, force: true);
+      notifyListeners();
+    }
+  }
+
+  void toggleNoteSlide(TrackChannel track, Note note) {
+    setNoteSlide(track, note, !note.isSlide);
+  }
+
+  void setNotesSlide(TrackChannel track, Iterable<String> noteIds, bool isSlide) {
+    final idSet = noteIds.toSet();
+    if (idSet.isEmpty) return;
+    for (final n in track.notes) {
+      if (idSet.contains(n.id)) {
+        n.isSlide = isSlide;
+      }
+    }
+    _syncClipNotes(track);
+    recordHistory('${isSlide ? "Enable" : "Disable"} Slide for ${idSet.length} Notes (${track.name})', icon: Icons.trending_up, force: true);
+    notifyListeners();
+  }
+
+  void setNoteArticulation(TrackChannel track, Note note, String? articulation) {
+    final idx = track.notes.indexWhere((n) => n.id == note.id);
+    if (idx != -1) {
+      track.notes[idx].articulation = articulation;
+      _syncClipNotes(track);
+      recordHistory('Set Articulation on Note ${_formatPitch(note.pitch)} to ${articulation ?? "Normal"} (${track.name})', icon: Icons.music_note, force: true);
+      notifyListeners();
+    }
+  }
+
+  void setNotesArticulation(TrackChannel track, Iterable<String> noteIds, String? articulation) {
+    final idSet = noteIds.toSet();
+    if (idSet.isEmpty) return;
+    for (final n in track.notes) {
+      if (idSet.contains(n.id)) {
+        n.articulation = articulation;
+      }
+    }
+    _syncClipNotes(track);
+    recordHistory('Set Articulation for ${idSet.length} Notes to ${articulation ?? "Normal"} (${track.name})', icon: Icons.music_note, force: true);
+    notifyListeners();
+  }
+
+  void setNoteReleaseVelocity(TrackChannel track, Note note, double? relVel) {
+    final idx = track.notes.indexWhere((n) => n.id == note.id);
+    if (idx != -1) {
+      track.notes[idx].releaseVelocity = relVel?.clamp(0.01, 1.0);
+      _syncClipNotes(track);
+      notifyListeners();
+    }
+  }
+
+  void setNoteMPECurves(
+    TrackChannel track,
+    Note note, {
+    List<List<double>>? bend,
+    List<List<double>>? pressure,
+    List<List<double>>? timbre,
+  }) {
+    final idx = track.notes.indexWhere((n) => n.id == note.id);
+    if (idx != -1) {
+      if (bend != null) track.notes[idx].pitchBendPoints = bend;
+      if (pressure != null) track.notes[idx].pressurePoints = pressure;
+      if (timbre != null) track.notes[idx].timbrePoints = timbre;
+      _syncClipNotes(track);
+      recordHistory('Update MPE Curves on Note ${_formatPitch(note.pitch)} (${track.name})', icon: Icons.gesture, force: true);
+      notifyListeners();
+    }
   }
 
   // Note Clipboard State & Operations (Universal Cross-Platform Lua Clipboard)
@@ -3315,6 +3521,8 @@ return MidiFx
       type = FXType.bitcrusher;
     } else if (lowerId == 'stereo_delay' || lowerId.contains('delay')) {
       type = FXType.delay;
+    } else if (lowerId.contains('vintage') || lowerName.contains('vintage') || lowerId.contains('degrader') || lowerName.contains('degrader') || lowerId.contains('tape') || lowerName.contains('flutter')) {
+      type = FXType.vintageTape;
     }
 
     final fx = FXInsert.create(
@@ -3373,11 +3581,6 @@ return MidiFx
         fx.luaParams['DryLevel'] = 0.0;
         fx.luaParams['WetLevel'] = 1.0;
       }
-    } else if (lowerId == 'convolution_reverb') {
-      final allIrs = ConvolverEngine.instance.getAvailableIrNames();
-      final idx = (initialParams['IRSample'] ?? 0.0).toInt().clamp(0, allIrs.isEmpty ? 0 : allIrs.length - 1);
-      fx.irSampleName = allIrs.isNotEmpty ? allIrs[idx] : 'Great Hall';
-      audioEngine.invalidateIrCache(fx.irSampleName);
     }
     track.fxRack.add(fx);
     _syncFxAudio(track);
@@ -3464,6 +3667,20 @@ return MidiFx
           if (allIrs.isNotEmpty) {
             f.irSampleName = allIrs[idx];
             audioEngine.invalidateIrCache(f.irSampleName);
+          }
+        }
+
+        // If this is Eats Vinyl Medium (Media Format Preset Selector)
+        final isEatsVinyl = f.type == FXType.vintageTape ||
+            f.presetId == 'vintage_era_degrader' ||
+            f.presetId == 'eats_vinyl' ||
+            f.name.toLowerCase().contains('vinyl') ||
+            f.name.toLowerCase().contains('vintage');
+        if (isEatsVinyl && paramName == 'Medium') {
+          final presetMap = getEatsVinylMediumPreset(val.toInt());
+          for (final entry in presetMap.entries) {
+            f.params[entry.key] = entry.value;
+            f.luaParams[entry.key] = entry.value;
           }
         }
 
@@ -3554,6 +3771,12 @@ return MidiFx
         break;
       }
     }
+  }
+
+  /// Triggers real-time Tape Stop motor deceleration and spin-up effect on a track.
+  void triggerTapeStop(String trackId, {double stopTime = 0.8, double spinUpTime = 0.4}) {
+    audioEngine.triggerTapeStop(trackId, stopTime: stopTime, spinUpTime: spinUpTime);
+    notifyListeners();
   }
 
   // MIDI FX Insert Management
@@ -4067,11 +4290,17 @@ return MidiFx
       }
     }
 
+    final totalSongBars = parsedSong.totalBars;
+    if (totalSongBars > 0) {
+      ensureSongLengthForBars(totalSongBars);
+      setLoopPoints(0, totalSongBars);
+    }
+
     commitHistoryTransaction();
     triggerAutoSave();
     notifyListeners();
     debugPrint(
-        'Successfully imported MIDI "$fileName": Replaced $replacedCount tracks, created $createdCount tracks, BPM: $bpm');
+        'Successfully imported MIDI "$fileName": Replaced $replacedCount tracks, created $createdCount tracks, BPM: $bpm, Bars: $totalSongBars');
     return true;
   }
 
@@ -4212,6 +4441,9 @@ return MidiFx
     beginHistoryTransaction('Import Transcribed Audio to MIDI');
 
     ensureSongLengthForBars(midiTrack.totalBars);
+    if (midiTrack.totalBars > 0) {
+      setLoopPoints(0, midiTrack.totalBars);
+    }
 
     if (!createNewTrack && targetTrackId != null) {
       final target = activePattern.tracks.firstWhere(
@@ -4419,8 +4651,109 @@ return MidiFx
     compileLuaCode(preset.code);
   }
 
+  /// Curated authentic media presets for Eats Vinyl (Wow, Flutter, Era, Crackle, Hiss, etc.)
+  static Map<String, double> getEatsVinylMediumPreset(int mediumIdx) {
+    switch (mediumIdx) {
+      case 0: // Tape 15 IPS (Studio Master)
+        return {
+          'Era': 1982.0,
+          'WowDepth': 6.0,
+          'FlutterDepth': 4.0,
+          'MotorJitter': 4.0,
+          'WarpSwell': 5.0,
+          'TapeDropouts': 4.0,
+          'NeedleBumpFreq': 0.0,
+          'StutterDepth': 0.0,
+          'ThudLevel': 0.0,
+          'TapeWarmth': 35.0,
+          'HeadBump': 2.0,
+          'HissLevel': 12.0,
+          'VinylCrackle': 0.0,
+          'GrooveRumble': 4.0,
+        };
+      case 1: // Cassette Type I (Ferric Lo-Fi)
+        return {
+          'Era': 1985.0,
+          'WowDepth': 22.0,
+          'FlutterDepth': 30.0,
+          'MotorJitter': 18.0,
+          'WarpSwell': 18.0,
+          'TapeDropouts': 20.0,
+          'NeedleBumpFreq': 5.0,
+          'StutterDepth': 10.0,
+          'ThudLevel': 10.0,
+          'TapeWarmth': 60.0,
+          'HeadBump': 4.5,
+          'HissLevel': 45.0,
+          'VinylCrackle': 5.0,
+          'GrooveRumble': 10.0,
+        };
+      case 2: // Vinyl 33 RPM (Warm Hi-Fi LP)
+        return {
+          'Era': 1975.0,
+          'WowDepth': 18.0,
+          'FlutterDepth': 12.0,
+          'MotorJitter': 8.0,
+          'WarpSwell': 20.0,
+          'TapeDropouts': 12.0,
+          'NeedleBumpFreq': 22.0,
+          'StutterDepth': 30.0,
+          'ThudLevel': 28.0,
+          'TapeWarmth': 40.0,
+          'HeadBump': 3.5,
+          'HissLevel': 18.0,
+          'VinylCrackle': 28.0,
+          'GrooveRumble': 20.0,
+        };
+      case 3: // Shellac 78 RPM (Gramophone 1930s)
+        return {
+          'Era': 1952.0,
+          'WowDepth': 35.0,
+          'FlutterDepth': 25.0,
+          'MotorJitter': 22.0,
+          'WarpSwell': 35.0,
+          'TapeDropouts': 30.0,
+          'NeedleBumpFreq': 45.0,
+          'StutterDepth': 45.0,
+          'ThudLevel': 40.0,
+          'TapeWarmth': 75.0,
+          'HeadBump': 0.0,
+          'HissLevel': 50.0,
+          'VinylCrackle': 65.0,
+          'GrooveRumble': 35.0,
+        };
+      case 4: // Warped 45 RPM (Psychedelic Single)
+      default:
+        return {
+          'Era': 1968.0,
+          'WowDepth': 65.0,
+          'FlutterDepth': 18.0,
+          'MotorJitter': 25.0,
+          'WarpSwell': 60.0,
+          'TapeDropouts': 25.0,
+          'NeedleBumpFreq': 55.0,
+          'StutterDepth': 50.0,
+          'ThudLevel': 50.0,
+          'TapeWarmth': 50.0,
+          'HeadBump': 3.0,
+          'HissLevel': 25.0,
+          'VinylCrackle': 40.0,
+          'GrooveRumble': 45.0,
+        };
+    }
+  }
+
   void updateLuaParam(String paramName, double value) {
     activeTrack.luaParams[paramName] = value;
+    final isEatsVinylTrack = activeTrack.luaScriptCode.contains('EatsVinyl') ||
+        activeTrack.luaScriptCode.contains('VintageDegrader') ||
+        activeTrack.luaScriptCode.contains('vintage_era_degrader');
+    if (isEatsVinylTrack && paramName == 'Medium') {
+      final presetMap = getEatsVinylMediumPreset(value.toInt());
+      for (final entry in presetMap.entries) {
+        activeTrack.luaParams[entry.key] = entry.value;
+      }
+    }
     notifyListeners();
   }
 
@@ -4453,8 +4786,10 @@ return MidiFx
   int trackerSelectedStep = 0;
   int trackerSelectedColumn = 0;
 
+  int get maxTrackerSteps => math.max(16, math.max(activeTrackClip.barLength * 16, activePattern.lengthSteps));
+
   void selectTrackerCell(int step, int column) {
-    trackerSelectedStep = step.clamp(0, activePattern.lengthSteps - 1);
+    trackerSelectedStep = step.clamp(0, maxTrackerSteps - 1);
     trackerSelectedColumn = column.clamp(0, activeTrack.trackerColumns - 1);
     notifyListeners();
   }
@@ -4462,6 +4797,7 @@ return MidiFx
   void addOrUpdateTrackerNote({
     required int pitch,
     double velocity = 0.85,
+    bool isSlide = false,
     bool autoAdvance = true,
   }) {
     final track = activeTrack;
@@ -4477,6 +4813,7 @@ return MidiFx
         durationSteps: 1.0,
         velocity: velocity,
         column: trackerSelectedColumn,
+        isSlide: isSlide,
       ),
     );
 
@@ -4484,14 +4821,29 @@ return MidiFx
       track: track,
       midiNote: pitch,
       velocity: velocity,
+      isSlide: isSlide,
     );
 
     if (autoAdvance) {
-      trackerSelectedStep = (trackerSelectedStep + 1) % activePattern.lengthSteps;
+      trackerSelectedStep = (trackerSelectedStep + 1) % maxTrackerSteps;
     }
 
     _syncClipNotes(track);
     notifyListeners();
+  }
+
+  void toggleTrackerSlideAtSelectedCell() {
+    final track = activeTrack;
+    final existing = track.notes.where(
+      (n) => n.startStep.toInt() == trackerSelectedStep && n.column == trackerSelectedColumn,
+    ).toList();
+    if (existing.isNotEmpty) {
+      final note = existing.first;
+      note.isSlide = !note.isSlide;
+      _syncClipNotes(track);
+      recordHistory('${note.isSlide ? "Enable" : "Disable"} Slide on Tracker Note ${_formatPitch(note.pitch)}', icon: Icons.trending_up, force: true);
+      notifyListeners();
+    }
   }
 
   void deleteTrackerNoteAtSelectedCell() {

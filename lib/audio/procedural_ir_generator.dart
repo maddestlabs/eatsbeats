@@ -580,11 +580,12 @@ class ProceduralIRGenerator {
       filteredR[i] *= decay;
     }
 
-    _normalizeStereo(filteredL, filteredR);
+    // Energy / RMS transmission scaling for cabinet speaker response to achieve unity loudness (0 dB)
+    _normalizeStereo(filteredL, filteredR, maxPeak: 0.30);
     return (left: filteredL, right: filteredR);
   }
 
-  static void _normalizeStereo(List<double> left, List<double> right) {
+  static void _normalizeStereo(List<double> left, List<double> right, {double maxPeak = 0.95}) {
     double peak = 0.0;
     for (final s in left) {
       final abs = s.abs();
@@ -596,7 +597,7 @@ class ProceduralIRGenerator {
     }
 
     if (peak > 1e-6) {
-      final gain = 0.95 / peak;
+      final gain = maxPeak / peak;
       for (int i = 0; i < left.length; i++) {
         left[i] *= gain;
         right[i] *= gain;

@@ -23,6 +23,7 @@ enum LuaGuiNodeType {
   spectrum,
   dpad,
   gamepad,
+  segmentedPill,
   unknown,
 }
 
@@ -31,11 +32,13 @@ enum KnobStyle {
   chrome,
   vintage,
   snes,
+  minimalWhite,
 }
 
 enum SliderStyle {
   console,
   capsule,
+  minimalPill,
 }
 
 enum PanelBackgroundStyle {
@@ -44,6 +47,19 @@ enum PanelBackgroundStyle {
   grunge,
   snes,
   custom,
+  walnut,
+  mahogany,
+  blondePine,
+  rosewood,
+  brushedSteel,
+  brushedSteelVert,
+  matteMetal,
+  tolex,
+  carbon,
+  mesh,
+  dx7Membrane,
+  harpsichordLacquer,
+  minimalWhite,
 }
 
 class LuaGuiNode {
@@ -55,6 +71,11 @@ class LuaGuiNode {
   final double? width;
   final double? height;
   final Color? accentColor;
+  final PanelBackgroundStyle? backgroundStyle;
+  final Color? backgroundColor;
+  final double? textureRotation; // degrees (e.g. 0, 90)
+  final double? textureScale;
+  final double? cornerRadius;
   final List<String> options;
   final String orientation; // 'horizontal' or 'vertical'
   final String align; // 'space_around', 'space_between', 'center', 'left', 'right', 'top', 'bottom', 'start', 'end'
@@ -85,6 +106,11 @@ class LuaGuiNode {
     this.width,
     this.height,
     this.accentColor,
+    this.backgroundStyle,
+    this.backgroundColor,
+    this.textureRotation,
+    this.textureScale,
+    this.cornerRadius,
     this.options = const [],
     this.orientation = 'vertical',
     this.align = 'space_around',
@@ -170,6 +196,14 @@ class LuaGuiNode {
       case 'spectrumanalyzer':
       case 'eatsspectrum':
         return LuaGuiNodeType.spectrum;
+      case 'segmented_pill':
+      case 'segmentedpill':
+      case 'segmented':
+      case 'pill_selector':
+      case 'pillselector':
+      case 'pill_switch':
+      case 'mode_pill':
+        return LuaGuiNodeType.segmentedPill;
       case 'canvas':
       case 'gamecanvas':
       case 'screen':
@@ -220,6 +254,9 @@ class LuaGuiNode {
   static KnobStyle parseKnobStyle(String? raw) {
     if (raw == null) return KnobStyle.standard;
     final clean = raw.toLowerCase().trim();
+    if (clean.contains('minimal') || clean.contains('ceramic') || clean.contains('clean_white') || clean.contains('matte_white')) {
+      return KnobStyle.minimalWhite;
+    }
     if (clean.contains('snes') || clean.contains('white') || clean.contains('controller') || clean.contains('famicom')) {
       return KnobStyle.snes;
     }
@@ -235,6 +272,9 @@ class LuaGuiNode {
   static SliderStyle parseSliderStyle(String? raw) {
     if (raw == null) return SliderStyle.capsule;
     final clean = raw.toLowerCase().trim();
+    if (clean.contains('minimal') || clean.contains('pill') || clean.contains('minimal_pill') || clean.contains('minimalpill')) {
+      return SliderStyle.minimalPill;
+    }
     if (clean.contains('console') || clean.contains('mixer') || clean.contains('fader') || clean.contains('vintage')) {
       return SliderStyle.console;
     }
@@ -247,6 +287,9 @@ class LuaGuiNode {
     if (clean.startsWith('#') || clean.contains('custom') || clean.startsWith('0x') || clean.startsWith('rgba')) {
       return PanelBackgroundStyle.custom;
     }
+    if (clean.contains('minimal') || clean.contains('ceramic') || clean.contains('clean_white') || clean.contains('matte_white')) {
+      return PanelBackgroundStyle.minimalWhite;
+    }
     if (clean.contains('snes') || clean.contains('famicom') || clean.contains('offwhite') || clean.contains('console') || clean.contains('beige')) {
       return PanelBackgroundStyle.snes;
     }
@@ -255,6 +298,42 @@ class LuaGuiNode {
     }
     if (clean.contains('grunge') || clean.contains('rust') || clean.contains('distressed')) {
       return PanelBackgroundStyle.grunge;
+    }
+    if (clean.contains('walnut') || clean.contains('wood') || clean.contains('timber') || clean.contains('oak')) {
+      return PanelBackgroundStyle.walnut;
+    }
+    if (clean.contains('mahogany') || clean.contains('redwood')) {
+      return PanelBackgroundStyle.mahogany;
+    }
+    if (clean.contains('blonde') || clean.contains('pine') || clean.contains('ash') || clean.contains('birch')) {
+      return PanelBackgroundStyle.blondePine;
+    }
+    if (clean.contains('rosewood') || clean.contains('darkwood') || clean.contains('ebony')) {
+      return PanelBackgroundStyle.rosewood;
+    }
+    if (clean.contains('steel_vert') || clean.contains('brushed_vert') || clean.contains('vert_steel')) {
+      return PanelBackgroundStyle.brushedSteelVert;
+    }
+    if (clean.contains('steel') || clean.contains('brushed') || clean.contains('iron')) {
+      return PanelBackgroundStyle.brushedSteel;
+    }
+    if (clean.contains('matte') || clean.contains('anodized') || clean.contains('chassis')) {
+      return PanelBackgroundStyle.matteMetal;
+    }
+    if (clean.contains('tolex') || clean.contains('vinyl') || clean.contains('amp') || clean.contains('tweed')) {
+      return PanelBackgroundStyle.tolex;
+    }
+    if (clean.contains('carbon') || clean.contains('kevlar') || clean.contains('weave')) {
+      return PanelBackgroundStyle.carbon;
+    }
+    if (clean.contains('mesh') || clean.contains('grille') || clean.contains('vent') || clean.contains('perforated')) {
+      return PanelBackgroundStyle.mesh;
+    }
+    if (clean.contains('dx7') || clean.contains('membrane') || clean.contains('teal_membrane')) {
+      return PanelBackgroundStyle.dx7Membrane;
+    }
+    if (clean.contains('harpsichord') || clean.contains('lacquer') || clean.contains('cembalo') || clean.contains('gilded')) {
+      return PanelBackgroundStyle.harpsichordLacquer;
     }
     return PanelBackgroundStyle.dark;
   }
@@ -315,6 +394,10 @@ class LuaGuiPanelDef {
   final Color? backgroundColor;
   final Color? accentColor;
   final KnobStyle defaultKnobStyle;
+  final double textureRotation; // degrees (e.g. 0, 90)
+  final double textureScale;
+  final String? sideCheeks; // 'walnut', 'mahogany', 'blondePine', 'rosewood', 'none'
+  final double? cornerRadius; // in pixels (e.g. 0 for flush rack, 4, 8, 12)
   final List<LuaGuiNode> children;
 
   const LuaGuiPanelDef({
@@ -325,6 +408,10 @@ class LuaGuiPanelDef {
     this.backgroundColor,
     this.accentColor,
     this.defaultKnobStyle = KnobStyle.standard,
+    this.textureRotation = 0.0,
+    this.textureScale = 1.0,
+    this.sideCheeks,
+    this.cornerRadius,
     required this.children,
   });
 }

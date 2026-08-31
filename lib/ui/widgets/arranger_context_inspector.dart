@@ -3,6 +3,7 @@ import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../models/lyric_model.dart';
 import '../../models/chord_model.dart';
+import '../../lua/lua_preset_library.dart';
 import '../../audio/audio_to_midi_engine.dart';
 import '../../audio/sampler_engine.dart';
 import '../../utils/midi_file_parser.dart';
@@ -12,6 +13,7 @@ import 'modular_fx_rack_widget.dart';
 import 'eats_color_picker_dialog.dart';
 import 'compact_value_dialog.dart';
 import 'note_splitter_dialog.dart';
+import 'script_search_dialog.dart';
 import '../audio_to_midi_dialog.dart';
 
 enum InspectorTab { track, clip }
@@ -161,9 +163,11 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
       children: [
         _buildTrackHeader(track),
         const SizedBox(height: 8),
-        _buildTrackIdentityCard(track),
-        const SizedBox(height: 10),
-        _buildFolderGroupCard(context, track),
+        _buildTrackIdentityCard(context, track),
+        if (track.isFolder) ...[
+          const SizedBox(height: 10),
+          _buildFolderGroupCard(context, track),
+        ],
         const SizedBox(height: 10),
         _buildTrackColorCard(context, track),
         const SizedBox(height: 10),
@@ -211,192 +215,100 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
     );
   }
 
+
+
   Widget _buildFolderGroupCard(BuildContext context, TrackChannel track) {
-    final folderTracks = widget.dawState.folderTracks.where((f) => f.id != track.id).toList();
-
-    if (track.isFolder) {
-      final children = widget.dawState.getFolderChildren(track.id);
-      return Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: EatsTheme.controlBackground,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: track.color.withOpacity(0.5), width: 1),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(track.isCollapsed ? Icons.folder : Icons.folder_open, size: 13, color: track.color),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    'TRACK FOLDER (${children.length} TRACKS)',
-                    style: TextStyle(color: track.color, fontSize: 9, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                InkWell(
-                  onTap: () => widget.dawState.toggleFolderCollapsed(track),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: EatsTheme.panelBackground,
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(color: track.color.withOpacity(0.4)),
-                    ),
-                    child: Text(
-                      track.isCollapsed ? 'EXPAND' : 'COLLAPSE',
-                      style: TextStyle(color: track.color, fontSize: 7.5, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            // Color sync toggle
-            Row(
-              children: [
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: Checkbox(
-                    value: track.syncColorWithChildren,
-                    activeColor: track.color,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                    onChanged: (_) => widget.dawState.toggleFolderColorSync(track),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Sync folder color to children',
-                    style: TextStyle(color: EatsTheme.textSecondary, fontSize: 8.5),
-                  ),
-                ),
-              ],
-            ),
-            if (children.isNotEmpty) ...[
-              const Divider(color: Colors.white10, height: 10),
-              ...children.map((c) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  children: [
-                    Icon(c.iconData, size: 11, color: c.color),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(c.name, style: TextStyle(color: EatsTheme.textPrimary, fontSize: 8.5), overflow: TextOverflow.ellipsis),
-                    ),
-                    InkWell(
-                      onTap: () => widget.dawState.ungroupTrack(c.id),
-                      child: Tooltip(
-                        message: 'Remove from folder',
-                        child: Icon(Icons.close, size: 12, color: EatsTheme.textMuted),
-                      ),
-                    ),
-                  ],
-                ),
-              )),
-            ],
-          ],
-        ),
-      );
-    }
-
-    // For Regular Non-Folder Tracks:
+    if (!track.isFolder) return const SizedBox.shrink();
+    final children = widget.dawState.getFolderChildren(track.id);
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: EatsTheme.controlBackground,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: EatsTheme.panelHeader),
+        border: Border.all(color: track.color.withOpacity(0.5), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.folder_open, size: 12, color: EatsTheme.textMuted),
+              Icon(track.isCollapsed ? Icons.folder : Icons.folder_open, size: 13, color: track.color),
               const SizedBox(width: 4),
-              Text(
-                'FOLDER ORGANIZATION',
-                style: TextStyle(color: EatsTheme.textMuted, fontSize: 8.5, fontWeight: FontWeight.bold),
+              Expanded(
+                child: Text(
+                  'TRACK FOLDER (${children.length} TRACKS)',
+                  style: TextStyle(color: track.color, fontSize: 9, fontWeight: FontWeight.bold),
+                ),
+              ),
+              InkWell(
+                onTap: () => widget.dawState.toggleFolderCollapsed(track),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: EatsTheme.panelBackground,
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(color: track.color.withOpacity(0.4)),
+                  ),
+                  child: Text(
+                    track.isCollapsed ? 'EXPAND' : 'COLLAPSE',
+                    style: TextStyle(color: track.color, fontSize: 7.5, fontWeight: FontWeight.bold),
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 6),
+          // Color sync toggle
           Row(
             children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: EatsTheme.panelBackground,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: EatsTheme.panelHeader),
-                  ),
-                  child: DropdownButton<String?>(
-                    value: track.parentFolderId,
-                    dropdownColor: EatsTheme.panelBackground,
-                    underline: const SizedBox(),
-                    isDense: true,
-                    isExpanded: true,
-                    style: TextStyle(color: EatsTheme.textPrimary, fontSize: 9),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('(No Folder / Root)'),
-                      ),
-                      ...folderTracks.map((f) => DropdownMenuItem<String?>(
-                        value: f.id,
-                        child: Row(
-                          children: [
-                            Icon(Icons.folder, size: 11, color: f.color),
-                            const SizedBox(width: 4),
-                            Text(f.name),
-                          ],
-                        ),
-                      )),
-                    ],
-                    onChanged: (folderId) => widget.dawState.setTrackFolder(track.id, folderId),
-                  ),
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: Checkbox(
+                  value: track.syncColorWithChildren,
+                  activeColor: track.color,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  onChanged: (_) => widget.dawState.toggleFolderColorSync(track),
                 ),
               ),
               const SizedBox(width: 6),
-              InkWell(
-                onTap: () {
-                  widget.dawState.createTrackFolder(
-                    name: '${track.name} Group',
-                    initialTrackIds: [track.id],
-                    color: track.color,
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: EatsTheme.primaryCyan.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.5)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.create_new_folder, size: 11, color: EatsTheme.primaryCyan),
-                      const SizedBox(width: 3),
-                      Text('GROUP', style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 8, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
+              Expanded(
+                child: Text(
+                  'Sync folder color to children',
+                  style: TextStyle(color: EatsTheme.textSecondary, fontSize: 8.5),
                 ),
               ),
             ],
           ),
+          if (children.isNotEmpty) ...[
+            const Divider(color: Colors.white10, height: 10),
+            ...children.map((c) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  Icon(c.iconData, size: 11, color: c.color),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(c.name, style: TextStyle(color: EatsTheme.textPrimary, fontSize: 8.5), overflow: TextOverflow.ellipsis),
+                  ),
+                  InkWell(
+                    onTap: () => widget.dawState.ungroupTrack(c.id),
+                    child: Tooltip(
+                      message: 'Remove from folder',
+                      child: Icon(Icons.close, size: 12, color: EatsTheme.textMuted),
+                    ),
+                  ),
+                ],
+              ),
+            )),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildTrackIdentityCard(TrackChannel track) {
+  Widget _buildTrackIdentityCard(BuildContext context, TrackChannel track) {
     final hasMidiFx = track.midiFXRack.isNotEmpty;
     final isMidiFxAllEnabled = track.midiFXRack.any((f) => f.enabled);
 
@@ -538,6 +450,80 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                     ),
                 ],
               ),
+            ),
+          ],
+          if (!track.isFolder) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(4),
+                    onTap: () => widget.dawState.openFloatingInstrumentWindow(track),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: EatsTheme.controlBackground,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: EatsTheme.panelHeader),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.tune, size: 11, color: EatsTheme.textPrimary),
+                          const SizedBox(width: 4),
+                          Text(
+                            'SHOW GUI',
+                            style: TextStyle(
+                              color: EatsTheme.textPrimary,
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(4),
+                    onTap: () {
+                      PresetSearchDialog.show(
+                        context,
+                        dawState: widget.dawState,
+                        track: track,
+                        initialCategory: LuaPresetCategory.instrument,
+                        customTitle: 'CHANGE INSTRUMENT • ${track.name.toUpperCase()}',
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: EatsTheme.primaryCyan.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.5)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.swap_horiz, size: 12, color: EatsTheme.primaryCyan),
+                          const SizedBox(width: 4),
+                          Text(
+                            'CHANGE',
+                            style: TextStyle(
+                              color: EatsTheme.primaryCyan,
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ],

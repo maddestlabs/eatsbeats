@@ -185,6 +185,11 @@ class _FaderPainter extends CustomPainter {
       return;
     }
 
+    if (style == SliderStyle.minimalPill) {
+      _paintMinimalPillSlider(canvas, size, trackLength, trackCross, centerCross, isHoriz);
+      return;
+    }
+
     final capBreadth = isHoriz ? 32.0 : 18.0;
     final capThickness = isHoriz ? 18.0 : 32.0;
 
@@ -572,6 +577,100 @@ class _FaderPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.7,
     );
+  }
+
+  void _paintMinimalPillSlider(Canvas canvas, Size size, double trackLength, double trackCross, double centerCross, bool isHoriz) {
+    const margin = 12.0;
+    const slotThickness = 3.5;
+    const halfSlot = slotThickness / 2.0;
+
+    // 1. Recessed Narrow Dark Slit Track
+    final slotRect = isHoriz
+        ? Rect.fromLTRB(margin, centerCross - halfSlot, trackLength - margin, centerCross + halfSlot)
+        : Rect.fromLTRB(centerCross - halfSlot, margin, centerCross + halfSlot, trackLength - margin);
+
+    final slotRRect = RRect.fromRectAndRadius(slotRect, const Radius.circular(1.8));
+
+    // Dark track well
+    canvas.drawRRect(slotRRect, Paint()..color = const Color(0xFF1E2024));
+
+    // Inset top/left shadow for physical slot depth
+    final slotShadow = Paint()
+      ..color = const Color(0xFF0F1012)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
+    canvas.drawRRect(slotRRect, slotShadow);
+
+    // 2. Compute Thumb Position
+    final thumbTravel = trackLength - 2 * margin - 12.0;
+    final thumbCenterPos = isHoriz
+        ? margin + 6.0 + (normalizedValue.clamp(0.0, 1.0) * thumbTravel)
+        : trackLength - margin - 6.0 - (normalizedValue.clamp(0.0, 1.0) * thumbTravel);
+
+    // 3. Ceramic Matte White Capsule Thumb
+    final thumbW = isHoriz ? 11.0 : 26.0;
+    final thumbH = isHoriz ? 26.0 : 11.0;
+    final thumbRadius = const Radius.circular(5.0);
+
+    final thumbCenter = isHoriz ? Offset(thumbCenterPos, centerCross) : Offset(centerCross, thumbCenterPos);
+    final thumbRect = Rect.fromCenter(center: thumbCenter, width: thumbW, height: thumbH);
+    final thumbRRect = RRect.fromRectAndRadius(thumbRect, thumbRadius);
+
+    // Ambient drop shadow
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(thumbRect.translate(0, 3.0), thumbRadius),
+      Paint()
+        ..color = Colors.black.withOpacity(0.20)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0),
+    );
+
+    // Subtle contact shadow
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(thumbRect.translate(0, 1.0), thumbRadius),
+      Paint()..color = Colors.black.withOpacity(0.35),
+    );
+
+    // Thumb Body Gradient (Matte ceramic white)
+    final thumbGradient = LinearGradient(
+      begin: isHoriz ? Alignment.centerLeft : Alignment.topCenter,
+      end: isHoriz ? Alignment.centerRight : Alignment.bottomCenter,
+      colors: const [
+        Color(0xFFFFFFFF),
+        Color(0xFFF7F8FA),
+        Color(0xFFECEEF2),
+      ],
+      stops: const [0.0, 0.5, 1.0],
+    );
+    canvas.drawRRect(thumbRRect, Paint()..shader = thumbGradient.createShader(thumbRect));
+
+    // Outer subtle border
+    canvas.drawRRect(
+      thumbRRect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..color = const Color(0xFFD2D5DC),
+    );
+
+    // Center Dark Indicator Notch Line
+    final notchPaint = Paint()
+      ..color = const Color(0xFF22242A)
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round;
+
+    if (isHoriz) {
+      canvas.drawLine(
+        Offset(thumbCenter.dx, thumbCenter.dy - 6.0),
+        Offset(thumbCenter.dx, thumbCenter.dy + 6.0),
+        notchPaint,
+      );
+    } else {
+      canvas.drawLine(
+        Offset(thumbCenter.dx - 6.0, thumbCenter.dy),
+        Offset(thumbCenter.dx + 6.0, thumbCenter.dy),
+        notchPaint,
+      );
+    }
   }
 
   @override

@@ -42,25 +42,22 @@ class EatsLuaParser {
         final item = noteItems[i];
         if (item is Map) {
           final m = Map<String, dynamic>.from(item);
-          final pitch = (m['pitch'] as num?)?.toInt() ?? 60;
-          final startStep = (m['startStep'] as num?)?.toDouble() ?? 0.0;
-          final durationSteps = (m['durationSteps'] as num?)?.toDouble() ?? 1.0;
-          final velocity = (m['velocity'] as num?)?.toDouble() ?? 0.85;
-          final column = (m['column'] as num?)?.toInt() ?? 0;
-          final effectCommand = (m['effectCommand'] as String?) ?? '00';
-          final isSlide = _parseBool(m['isSlide']);
-          final isAccent = _parseBool(m['isAccent']);
-
+          final noteObj = Note.fromJson(m);
+          if (noteObj.id.isEmpty) {
+            noteObj.id = (m['id'] as String?) ?? 'pasted_${DateTime.now().microsecondsSinceEpoch}_$i';
+          }
+          notes.add(noteObj);
+        } else if (item is List && item.isNotEmpty) {
+          final pitch = (item[0] as num).toInt();
+          final start = item.length > 1 ? (item[1] as num).toDouble() : 0.0;
+          final dur = item.length > 2 ? (item[2] as num).toDouble() : 1.0;
+          final vel = item.length > 3 ? (item[3] as num).toDouble() : 0.85;
           notes.add(Note(
-            id: (m['id'] as String?) ?? 'pasted_${DateTime.now().microsecondsSinceEpoch}_$i',
+            id: 'pasted_${DateTime.now().microsecondsSinceEpoch}_$i',
             pitch: pitch.clamp(0, 127),
-            startStep: startStep.clamp(0.0, 64.0),
-            durationSteps: durationSteps.clamp(0.1, 64.0),
-            velocity: velocity.clamp(0.01, 1.0),
-            column: column.clamp(0, 16),
-            effectCommand: effectCommand,
-            isSlide: isSlide,
-            isAccent: isAccent,
+            startStep: start.clamp(0.0, 64.0),
+            durationSteps: dur.clamp(0.1, 64.0),
+            velocity: vel.clamp(0.01, 1.0),
           ));
         }
       }
@@ -223,8 +220,8 @@ class EatsLuaParser {
           match = LuaPresetLibrary.getPresetById('room_designer');
         } else if (lowerName.contains('cab') || lowerName.contains('cabinet') || lowerName.contains('cab designer') || lowerId.contains('cab')) {
           match = LuaPresetLibrary.getPresetById('cab_designer');
-        } else if (lowerName.contains('conv') || lowerName.contains('convolution') || lowerId.contains('conv')) {
-          match = LuaPresetLibrary.getPresetById('convolution_reverb');
+        } else if (lowerName.contains('conv') || lowerName.contains('convolution') || lowerName.contains('reverb') || lowerId.contains('conv') || lowerId.contains('reverb')) {
+          match = LuaPresetLibrary.getPresetById('room_designer');
         } else if (lowerName.contains('crush') || lowerName.contains('bitcrush') || lowerName.contains('8-bit') || lowerId.contains('crush')) {
           match = LuaPresetLibrary.getPresetById('bitcrusher');
         } else if (lowerName.contains('shaper') || lowerName.contains('waveshaper') || lowerId.contains('shaper')) {
@@ -255,7 +252,7 @@ class EatsLuaParser {
               match = LuaPresetLibrary.getPresetById('stereo_delay');
               break;
             case FXType.convolutionReverb:
-              match = LuaPresetLibrary.getPresetById('convolution_reverb');
+              match = LuaPresetLibrary.getPresetById('room_designer');
               break;
             case FXType.biquadFilter:
               match = LuaPresetLibrary.getPresetById('lowpass_filter');
@@ -347,19 +344,26 @@ class EatsLuaParser {
     final notes = <Note>[];
     final rawNotes = map['notes'];
     if (rawNotes is List) {
-      for (final n in rawNotes) {
+      for (int i = 0; i < rawNotes.length; i++) {
+        final n = rawNotes[i];
         if (n is Map) {
           final nMap = Map<String, dynamic>.from(n);
+          final noteObj = Note.fromJson(nMap);
+          if (noteObj.id.isEmpty) {
+            noteObj.id = (nMap['id'] as String?) ?? 'note_${notes.length}';
+          }
+          notes.add(noteObj);
+        } else if (n is List && n.isNotEmpty) {
+          final pitch = (n[0] as num).toInt();
+          final start = n.length > 1 ? (n[1] as num).toDouble() : 0.0;
+          final dur = n.length > 2 ? (n[2] as num).toDouble() : 1.0;
+          final vel = n.length > 3 ? (n[3] as num).toDouble() : 0.85;
           notes.add(Note(
-            id: nMap['id'] ?? 'note_${notes.length}',
-            pitch: nMap['pitch'] ?? 60,
-            startStep: (nMap['startStep'] as num?)?.toDouble() ?? 0.0,
-            durationSteps: (nMap['durationSteps'] as num?)?.toDouble() ?? 1.0,
-            velocity: (nMap['velocity'] as num?)?.toDouble() ?? 0.9,
-            column: nMap['column'] ?? 0,
-            effectCommand: nMap['effectCommand'] ?? '00',
-            isSlide: _parseBool(nMap['isSlide']),
-            isAccent: _parseBool(nMap['isAccent']),
+            id: 'note_${notes.length}',
+            pitch: pitch.clamp(0, 127),
+            startStep: start.clamp(0.0, 64.0),
+            durationSteps: dur.clamp(0.1, 64.0),
+            velocity: vel.clamp(0.01, 1.0),
           ));
         }
       }
@@ -550,6 +554,11 @@ class _LuaValueParser {
 
   dynamic parseTopLevel() {
     _skipWhitespace();
+    // Skip optional 'local' prefix
+    if (source.startsWith('local', pos)) {
+      pos += 5;
+      _skipWhitespace();
+    }
     // Skip optional 'return' prefix
     if (source.startsWith('return', pos)) {
       pos += 6;
@@ -564,6 +573,16 @@ class _LuaValueParser {
     } else if (source.startsWith('eats.song', pos)) {
       pos += 9;
       _skipWhitespace();
+    }
+
+    // Check if there is an assignment like "notes = {" or "data = {"
+    final eqIdx = source.indexOf('=', pos);
+    if (eqIdx != -1) {
+      final prefix = source.substring(pos, eqIdx).trim();
+      if (RegExp(r'^[a-zA-Z_][a-zA-Z0-9_\.]*$').hasMatch(prefix)) {
+        pos = eqIdx + 1;
+        _skipWhitespace();
+      }
     }
 
     return _parseValue();

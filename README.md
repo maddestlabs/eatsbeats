@@ -14,7 +14,7 @@ Mobile-first and web-first, totally unprofessional digital audio workstation (DA
 - Web-first: Built for easy access on the web
 - Made with Flutter (using wajuce for native Web Audio): Easy portability for native mobile and desktop
 - Lua scripting: Everything is Lua scripts, built on a WebAudio based API
-- Rebirth template: 2 TB-303s, an TR-808, and a TR-909
+- Rebirth template: 2 303s, an 808, and a 909
 
 ---
 

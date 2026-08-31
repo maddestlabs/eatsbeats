@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import '../models/saved_project_model.dart';
 
 import 'eats_storage_helper_stub.dart'
     if (dart.library.html) 'eats_storage_helper_web.dart'
@@ -67,4 +68,25 @@ class EatsStorageHelper {
 
   static Future<void> clearSessionLua() =>
       EatsStorageHelperImpl.clearSessionLua();
+
+  // --- Saved Projects Storage API ---
+
+  static String getProjectsFolderPath() => EatsStorageHelperImpl.getProjectsFolderPath();
+
+  static Future<void> openProjectsFolder() => EatsStorageHelperImpl.openProjectsFolder();
+
+  static Future<List<SavedProjectItem>> listSavedProjects() =>
+      EatsStorageHelperImpl.listSavedProjects();
+
+  static Future<SavedProjectItem?> saveProjectFile(String name, String luaCode) =>
+      EatsStorageHelperImpl.saveProjectFile(name, luaCode);
+
+  static Future<String?> loadProjectFile(SavedProjectItem item) =>
+      EatsStorageHelperImpl.loadProjectFile(item);
+
+  static Future<bool> deleteProjectFile(SavedProjectItem item) =>
+      EatsStorageHelperImpl.deleteProjectFile(item);
+
+  static Future<bool> renameProjectFile(SavedProjectItem item, String newName) =>
+      EatsStorageHelperImpl.renameProjectFile(item, newName);
 }

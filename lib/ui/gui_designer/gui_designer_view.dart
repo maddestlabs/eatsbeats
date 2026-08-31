@@ -17,6 +17,7 @@ import '../widgets/hardware_listbox_widget.dart';
 import '../widgets/skeuomorphic_hardware_button.dart';
 import '../widgets/space_visualizer_widget.dart';
 import '../widgets/waveshaper_canvas_widget.dart';
+import '../textures/daw_texture_engine.dart';
 import 'gui_inspector_sidebar.dart';
 import 'gui_widget_palette.dart';
 
@@ -683,38 +684,57 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
 
   Widget _buildDesignerFaceplate() {
     final bgStyle = _panel.backgroundStyle;
+    final isMinimal = bgStyle == PanelBackgroundStyle.minimalWhite;
     final isSilver = bgStyle == PanelBackgroundStyle.silver;
     final isSnes = bgStyle == PanelBackgroundStyle.snes;
     final isGrunge = bgStyle == PanelBackgroundStyle.grunge;
+    final textureType = DawTextureEngine.mapStyleToTexture(bgStyle);
 
     Color chassisBg = const Color(0xFF14171E);
-    if (bgStyle == PanelBackgroundStyle.custom && _panel.backgroundColor != null) {
+    if (_panel.backgroundColor != null) {
       chassisBg = _panel.backgroundColor!;
+    } else if (isMinimal) {
+      chassisBg = const Color(0xFFECEEF2);
     } else if (isSilver) {
       chassisBg = const Color(0xFFD4D0C5);
     } else if (isSnes) {
       chassisBg = const Color(0xFFD8D6CD);
     } else if (isGrunge) {
       chassisBg = const Color(0xFF1A1412);
+    } else if (bgStyle == PanelBackgroundStyle.walnut) {
+      chassisBg = const Color(0xFF3B2414);
+    } else if (bgStyle == PanelBackgroundStyle.mahogany) {
+      chassisBg = const Color(0xFF451912);
+    } else if (bgStyle == PanelBackgroundStyle.blondePine) {
+      chassisBg = const Color(0xFFC7B591);
+    } else if (bgStyle == PanelBackgroundStyle.rosewood) {
+      chassisBg = const Color(0xFF211310);
+    } else if (bgStyle == PanelBackgroundStyle.brushedSteel || bgStyle == PanelBackgroundStyle.brushedSteelVert) {
+      chassisBg = const Color(0xFF383D47);
+    } else if (bgStyle == PanelBackgroundStyle.tolex) {
+      chassisBg = const Color(0xFF161618);
+    } else if (bgStyle == PanelBackgroundStyle.carbon) {
+      chassisBg = const Color(0xFF121418);
     }
 
-    final isLight = isSilver || isSnes || (chassisBg.computeLuminance() > 0.5);
+    final isLight = isMinimal || isSilver || isSnes || bgStyle == PanelBackgroundStyle.blondePine || (chassisBg.computeLuminance() > 0.5);
     final effectiveTrackColor = widget.target.trackColor;
-    final accent = _panel.accentColor ?? effectiveTrackColor;
+    final accent = _panel.accentColor ?? (isMinimal ? const Color(0xFF1E1E24) : effectiveTrackColor);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: chassisBg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isSilver
-              ? const Color(0xFF9E9A8A)
-              : (isSnes ? const Color(0xFF7B52AB) : accent.withOpacity(0.5)),
-          width: 2.5,
-        ),
-        boxShadow: const [
-          BoxShadow(color: Color(0x80000000), offset: Offset(0, 8), blurRadius: 16),
-        ],
+    Widget faceplate = DawTexturedContainer(
+      texture: textureType,
+      textureRotation: _panel.textureRotation,
+      textureScale: _panel.textureScale,
+      color: chassisBg,
+      sideCheeks: _panel.sideCheeks,
+      borderRadius: BorderRadius.circular(_panel.cornerRadius ?? (isMinimal ? 16.0 : 10.0)),
+      border: Border.all(
+        color: isMinimal
+            ? const Color(0xFFD8DBE2)
+            : (isSilver
+                ? const Color(0xFF9E9A8A)
+                : (isSnes ? const Color(0xFF7B52AB) : accent.withOpacity(0.5))),
+        width: 2.0,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -728,58 +748,74 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
               });
             },
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: isLight ? Colors.black.withOpacity(0.06) : Colors.black.withOpacity(0.4),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                border: Border(bottom: BorderSide(color: isLight ? Colors.black12 : Colors.white10)),
+                color: isLight ? Colors.black.withOpacity(0.04) : Colors.black26,
+                border: Border(
+                  bottom: BorderSide(
+                    color: isLight ? Colors.black12 : Colors.white10,
+                    width: 1.0,
+                  ),
+                ),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _panel.title.toUpperCase(),
-                        style: EatsTheme.getDisplayFontStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          color: isLight ? const Color(0xFF212121) : accent,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      if (_panel.subtitle != null && _panel.subtitle!.isNotEmpty) ...[
-                        const SizedBox(height: 2),
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: accent.withOpacity(0.6), blurRadius: 6),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          _panel.subtitle!,
+                          _panel.title.toUpperCase(),
                           style: TextStyle(
-                            fontSize: 9.5,
-                            color: isLight ? Colors.black54 : EatsTheme.textMuted,
-                            fontFamily: 'monospace',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                            color: isLight ? const Color(0xFF1B1A17) : Colors.white,
                           ),
                         ),
+                        if (_panel.subtitle != null && _panel.subtitle!.isNotEmpty)
+                          Text(
+                            _panel.subtitle!,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: isLight ? const Color(0xFF555048) : Colors.white54,
+                            ),
+                          ),
                       ],
-                    ],
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: accent.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: accent.withOpacity(0.5)),
-                    ),
-                    child: Text(
-                      'DESIGN MODE',
-                      style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: accent),
                     ),
                   ),
+                  if (_selectedRowIndex == null && _selectedChildIndex == null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: accent.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: accent, width: 1),
+                      ),
+                      child: Text(
+                        'CHASSIS SELECTED',
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: accent),
+                      ),
+                    ),
                 ],
               ),
             ),
           ),
 
-          // Rows Canvas
+          // Faceplate Content Area
           Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -826,10 +862,13 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
         ],
       ),
     );
+
+    return faceplate;
   }
 
   Widget _buildRowDesigner(int rowIndex, LuaGuiNode rowNode, bool isLight, Color accent) {
     final isRowSelected = _selectedRowIndex == rowIndex && _selectedChildIndex == null;
+    final rowTextureType = rowNode.backgroundStyle != null ? DawTextureEngine.mapStyleToTexture(rowNode.backgroundStyle!) : null;
 
     return DragTarget<Object>(
       onWillAcceptWithDetails: (_) => true,
@@ -852,21 +891,22 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
               _selectedStackChildIndex = null;
             });
           },
-          child: Container(
+          child: DawTexturedContainer(
+            texture: rowTextureType,
+            textureRotation: rowNode.textureRotation ?? 0.0,
+            textureScale: rowNode.textureScale ?? 1.0,
+            color: isDropHovered
+                ? EatsTheme.primaryCyan.withOpacity(0.18)
+                : (isRowSelected
+                    ? (isLight ? Colors.blue.withOpacity(0.08) : Colors.blueAccent.withOpacity(0.12))
+                    : (rowNode.backgroundColor ?? (isLight ? Colors.black.withOpacity(0.03) : Colors.black.withOpacity(0.2)))),
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
               color: isDropHovered
-                  ? EatsTheme.primaryCyan.withOpacity(0.18)
-                  : (isRowSelected
-                      ? (isLight ? Colors.blue.withOpacity(0.08) : Colors.blueAccent.withOpacity(0.12))
-                      : (isLight ? Colors.black.withOpacity(0.03) : Colors.black.withOpacity(0.2))),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: isDropHovered
-                    ? EatsTheme.primaryCyan
-                    : (isRowSelected ? Colors.blueAccent : (isLight ? Colors.black12 : Colors.white12)),
-                width: (isDropHovered || isRowSelected) ? 1.5 : 1.0,
-              ),
+                  ? EatsTheme.primaryCyan
+                  : (isRowSelected ? Colors.blueAccent : (isLight ? Colors.black12 : Colors.white12)),
+              width: (isDropHovered || isRowSelected) ? 1.5 : 1.0,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -880,8 +920,14 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
                         Icon(Icons.drag_indicator, size: 14, color: isLight ? Colors.black38 : Colors.white38),
                         const SizedBox(width: 4),
                         Text(
-                          'ROW ${rowIndex + 1} (${rowNode.children.length} widgets)',
-                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isLight ? Colors.black54 : Colors.white54),
+                          rowNode.type == LuaGuiNodeType.group
+                              ? 'GROUP: ${(rowNode.label ?? "SECTION").toUpperCase()} (${rowNode.children.length} items)'
+                              : 'ROW ${rowIndex + 1} (${rowNode.children.length} widgets)',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: rowNode.accentColor ?? (isLight ? Colors.black54 : Colors.white54),
+                          ),
                         ),
                       ],
                     ),
@@ -1055,6 +1101,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
 
   Widget _buildStackDesignerSlot(int rowIndex, int childIndex, LuaGuiNode node, bool isLight, Color accent) {
     final isStackSelected = _selectedRowIndex == rowIndex && _selectedChildIndex == childIndex && _selectedStackChildIndex == null;
+    final isMinimal = _panel.backgroundStyle == PanelBackgroundStyle.minimalWhite || node.backgroundStyle == PanelBackgroundStyle.minimalWhite;
 
     return DragTarget<Object>(
       onWillAcceptWithDetails: (_) => true,
@@ -1078,20 +1125,33 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
             });
           },
           child: Container(
-            padding: const EdgeInsets.all(6),
+            padding: EdgeInsets.all(isMinimal ? 10 : 6),
             decoration: BoxDecoration(
               color: isHovered
                   ? EatsTheme.primaryCyan.withOpacity(0.2)
                   : (isStackSelected
                       ? EatsTheme.primaryCyan.withOpacity(0.12)
-                      : (isLight ? Colors.black.withOpacity(0.04) : Colors.black.withOpacity(0.2))),
-              borderRadius: BorderRadius.circular(6),
+                      : (isMinimal
+                          ? const Color(0xFFFBFBFC)
+                          : (isLight ? Colors.black.withOpacity(0.04) : Colors.black.withOpacity(0.2)))),
+              borderRadius: BorderRadius.circular(isMinimal ? 16 : 6),
               border: Border.all(
                 color: isHovered
                     ? EatsTheme.primaryCyan
-                    : (isStackSelected ? EatsTheme.primaryCyan : (isLight ? Colors.black26 : Colors.white24)),
+                    : (isStackSelected
+                        ? EatsTheme.primaryCyan
+                        : (isMinimal ? const Color(0xFFE4E7EE) : (isLight ? Colors.black26 : Colors.white24))),
                 width: (isHovered || isStackSelected) ? 2.0 : 1.0,
               ),
+              boxShadow: (isMinimal && !isHovered && !isStackSelected)
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1440,6 +1500,62 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
 
       case LuaGuiNodeType.divider:
         return Container(width: 1.5, height: 50, color: isLight ? Colors.black26 : Colors.white24);
+
+      case LuaGuiNodeType.row:
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          alignment: _parseWrapAlignment(node.align),
+          crossAxisAlignment: _parseWrapCrossAlignment(node.crossAlign),
+          children: [
+            for (final child in node.children)
+              _renderMockWidget(child, isLight, node.accentColor ?? accent),
+          ],
+        );
+
+      case LuaGuiNodeType.column:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: _parseMainAxisAlignment(node.align),
+          crossAxisAlignment: _parseCrossAxisAlignment(node.crossAlign),
+          children: [
+            for (final child in node.children)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2.0),
+                child: _renderMockWidget(child, isLight, node.accentColor ?? accent),
+              ),
+          ],
+        );
+
+      case LuaGuiNodeType.group:
+        final groupAccent = node.accentColor ?? accent;
+        return Container(
+          padding: const EdgeInsets.all(8),
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          decoration: BoxDecoration(
+            color: isLight ? Colors.black.withOpacity(0.04) : Colors.black.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: groupAccent.withOpacity(0.4), width: 1.2),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (node.label != null) ...[
+                Text(
+                  node.label!.toUpperCase(),
+                  style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: groupAccent),
+                ),
+                const SizedBox(height: 6),
+              ],
+              for (final child in node.children)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2.0),
+                  child: _renderMockWidget(child, isLight, groupAccent),
+                ),
+            ],
+          ),
+        );
 
       default:
         return Container(

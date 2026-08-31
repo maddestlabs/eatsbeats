@@ -7,6 +7,7 @@ import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
 import '../modular/modular_rack_canvas.dart';
 import 'dynamic_instrument_gui_widget.dart';
+import 'preset_browser_dialog.dart';
 
 /// A sleek, movable, resizable floating in-app VSTi Instrument & Audio FX window.
 /// Supports both Skeuomorphic Hardware Panel mode and Eurorack Multi-Row Modular Rack mode.
@@ -83,20 +84,22 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
     final isMaximized = widget.dawState.isFloatingWindowMaximized;
     final wsBounds = widget.workspaceBounds ?? MediaQuery.of(context).size;
 
-    // Auto-scale window to "Fit to Screen" proportions whenever opened for a track
-    if (_lastFittedTrackId != effectiveTrack.id) {
+    // Auto-scale window to "Fit to Screen" proportions whenever opened for a track (only when not maximized)
+    if (!widget.dawState.isFloatingWindowMaximized && _lastFittedTrackId != effectiveTrack.id) {
       _lastFittedTrackId = effectiveTrack.id;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && widget.dawState.isFloatingWindowVisible) {
+        if (mounted && widget.dawState.isFloatingWindowVisible && !widget.dawState.isFloatingWindowMaximized) {
           widget.dawState.fitFloatingWindowToWorkspace(wsBounds, effectiveTrack);
         }
       });
     }
 
-    return RepaintBoundary(
-      child: Container(
-        decoration: BoxDecoration(
-          color: isGrungy ? const Color(0xFF1B1714) : EatsTheme.panelBackground,
+    return Material(
+      type: MaterialType.transparency,
+      child: RepaintBoundary(
+        child: Container(
+          decoration: BoxDecoration(
+          color: isGrungy ? const Color(0xFF1B1714) : const Color(0xFF14171E),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: accentColor, width: 2),
           boxShadow: [
@@ -120,7 +123,7 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
               height: 38,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
-                color: isGrungy ? const Color(0xFF2B241E) : EatsTheme.panelHeader,
+                color: isGrungy ? const Color(0xFF2B241E) : const Color(0xFF1E222B),
                 border: Border(
                   bottom: BorderSide(color: accentColor.withOpacity(0.4), width: 1.2),
                 ),
@@ -214,50 +217,12 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                       ),
                     ],
 
-                    // Fit to Screen (Minimal Padding Proportional Sizing)
-                    Tooltip(
-                      message: 'Fit to Screen (Auto-scale Proportions)',
-                      child: InkWell(
-                        onTap: () => widget.dawState.fitFloatingWindowToWorkspace(wsBounds),
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          margin: const EdgeInsets.only(right: 5),
-                          decoration: BoxDecoration(
-                            color: EatsTheme.controlBackground.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Icon(Icons.fit_screen, size: 14, color: EatsTheme.textSecondary),
-                        ),
-                      ),
-                    ),
+                    // Preset Selector in Titlebar
+                    _buildTitleBarPresetStrip(context, effectiveTrack, accentColor, isFxMode, fxInsert, fxParentTrack),
 
-                    // Fill Workspace / Fullscreen Mode Toggle
+                    // 1. Open in Design tab
                     Tooltip(
-                      message: isMaximized ? 'Restore Window Size' : 'Fill Workspace (Fullscreen)',
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => widget.dawState.toggleMaximizeFloatingWindow(wsBounds),
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          margin: const EdgeInsets.only(right: 5),
-                          decoration: BoxDecoration(
-                            color: isMaximized
-                                ? accentColor.withOpacity(0.25)
-                                : EatsTheme.controlBackground.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Icon(
-                            isMaximized ? Icons.fullscreen_exit : Icons.fullscreen,
-                            size: 15,
-                            color: isMaximized ? accentColor : EatsTheme.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Open Code Editor Button
-                    Tooltip(
-                      message: 'Open in Script Editor (Tab 5)',
+                      message: 'Open in Design tab',
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTap: () {
@@ -290,17 +255,58 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                         },
                         child: Container(
                           padding: const EdgeInsets.all(4),
-                          margin: const EdgeInsets.only(right: 8),
+                          margin: const EdgeInsets.only(right: 5),
                           decoration: BoxDecoration(
                             color: EatsTheme.controlBackground.withOpacity(0.5),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Icon(Icons.code, size: 14, color: EatsTheme.primaryCyan),
+                          child: Icon(Icons.developer_board, size: 14, color: EatsTheme.primaryCyan),
                         ),
                       ),
                     ),
 
-                    // Tactical Chassis Screw (Tap to Unscrew / Close Panel)
+                    // 2. Fit to Screen
+                    Tooltip(
+                      message: 'Fit to screen',
+                      child: InkWell(
+                        onTap: () => widget.dawState.fitFloatingWindowToWorkspace(wsBounds),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          margin: const EdgeInsets.only(right: 5),
+                          decoration: BoxDecoration(
+                            color: EatsTheme.controlBackground.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Icon(Icons.fit_screen, size: 14, color: EatsTheme.textSecondary),
+                        ),
+                      ),
+                    ),
+
+                    // 3. Fullscreen Toggle
+                    Tooltip(
+                      message: isMaximized ? 'Restore window size' : 'Fullscreen',
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => widget.dawState.toggleMaximizeFloatingWindow(wsBounds),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          margin: const EdgeInsets.only(right: 6),
+                          decoration: BoxDecoration(
+                            color: isMaximized
+                                ? accentColor.withOpacity(0.25)
+                                : EatsTheme.controlBackground.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Icon(
+                            isMaximized ? Icons.fullscreen_exit : Icons.fullscreen,
+                            size: 15,
+                            color: isMaximized ? accentColor : EatsTheme.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // 4. Tactical Chassis Screw Close Icon (Tooltip: "Close")
                     _InteractiveScrewButton(
                       accentColor: accentColor,
                       onTap: widget.dawState.closeFloatingInstrumentWindow,
@@ -314,29 +320,20 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onDoubleTap: () {
-                        if (isMaximized) {
-                          widget.dawState.fitFloatingWindowToWorkspace(wsBounds, effectiveTrack);
-                        } else {
-                          widget.dawState.toggleMaximizeFloatingWindow(wsBounds);
-                        }
-                      },
-                      child: Container(
-                        color: isGrungy ? const Color(0xFF221E19) : EatsTheme.panelBackground,
-                        padding: EdgeInsets.zero,
-                        child: FittedBox(
-                          fit: BoxFit.contain,
-                          alignment: Alignment.center,
-                          child: SizedBox(
-                            width: 520,
-                            child: DynamicInstrumentGuiWidget(
-                              dawState: widget.dawState,
-                              track: effectiveTrack,
-                              hideHeader: true,
-                              onParamChanged: onParamChanged,
-                            ),
+                    child: Container(
+                      color: Colors.transparent,
+                      padding: const EdgeInsets.all(6),
+                      child: FittedBox(
+                        fit: BoxFit.contain,
+                        alignment: Alignment.center,
+                        child: SizedBox(
+                          width: 520,
+                          child: DynamicInstrumentGuiWidget(
+                            dawState: widget.dawState,
+                            track: effectiveTrack,
+                            hostTrack: isFxMode ? fxParentTrack : null,
+                            hideHeader: true,
+                            onParamChanged: onParamChanged,
                           ),
                         ),
                       ),
@@ -375,8 +372,134 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
         ),
       ),
     ),
+  ),
   );
 }
+
+  Widget _buildTitleBarPresetStrip(
+    BuildContext context,
+    TrackChannel track,
+    Color accentColor,
+    bool isFxMode,
+    FXInsert? fxInsert,
+    TrackChannel? fxParentTrack,
+  ) {
+    final trackPresets = widget.dawState.getPresetsForTrack(track);
+
+    String activeName = 'PRESET';
+    int activeIndex = -1;
+
+    for (int i = 0; i < trackPresets.length; i++) {
+      final p = trackPresets[i];
+      bool isMatch = true;
+      for (final e in p.params.entries) {
+        if ((track.luaParams[e.key] ?? -999.0) != e.value) {
+          isMatch = false;
+          break;
+        }
+      }
+      if (isMatch) {
+        activeName = p.name;
+        activeIndex = i;
+        break;
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(right: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Previous [<]
+          if (trackPresets.isNotEmpty)
+            InkWell(
+              onTap: () {
+                final targetIdx = activeIndex <= 0 ? trackPresets.length - 1 : activeIndex - 1;
+                final targetPreset = trackPresets[targetIdx];
+                widget.dawState.applyScriptPreset(track, targetPreset);
+                if (isFxMode && fxInsert != null && fxParentTrack != null) {
+                  for (final entry in targetPreset.params.entries) {
+                    widget.dawState.updateFXParam(fxParentTrack, fxInsert.id, entry.key, entry.value);
+                  }
+                }
+              },
+              borderRadius: BorderRadius.circular(3),
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: accentColor.withOpacity(0.35)),
+                ),
+                child: Icon(Icons.chevron_left, size: 13, color: accentColor),
+              ),
+            ),
+          if (trackPresets.isNotEmpty) const SizedBox(width: 3),
+
+          // Preset Name Dropdown / Modal Button
+          InkWell(
+            onTap: () => PresetBrowserDialog.show(context, widget.dawState, track),
+            borderRadius: BorderRadius.circular(4),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: accentColor.withOpacity(0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.tune, size: 10, color: accentColor),
+                  const SizedBox(width: 3),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 85),
+                    child: Text(
+                      activeName.toUpperCase(),
+                      overflow: TextOverflow.ellipsis,
+                      style: EatsTheme.getDisplayFontStyle(
+                        color: accentColor,
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(Icons.arrow_drop_down, size: 11, color: accentColor),
+                ],
+              ),
+            ),
+          ),
+          if (trackPresets.isNotEmpty) const SizedBox(width: 3),
+
+          // Next [>]
+          if (trackPresets.isNotEmpty)
+            InkWell(
+              onTap: () {
+                final targetIdx = activeIndex >= trackPresets.length - 1 ? 0 : activeIndex + 1;
+                final targetPreset = trackPresets[targetIdx];
+                widget.dawState.applyScriptPreset(track, targetPreset);
+                if (isFxMode && fxInsert != null && fxParentTrack != null) {
+                  for (final entry in targetPreset.params.entries) {
+                    widget.dawState.updateFXParam(fxParentTrack, fxInsert.id, entry.key, entry.value);
+                  }
+                }
+              },
+              borderRadius: BorderRadius.circular(3),
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: accentColor.withOpacity(0.35)),
+                ),
+                child: Icon(Icons.chevron_right, size: 13, color: accentColor),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 /// A tactile vintage hardware chassis mounting screw that closes the window when unscrewed/tapped.
@@ -399,7 +522,7 @@ class _InteractiveScrewButtonState extends State<_InteractiveScrewButton> {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'Unscrew Panel (Close VSTi - Esc)',
+      message: 'Close',
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _isHovered = true),

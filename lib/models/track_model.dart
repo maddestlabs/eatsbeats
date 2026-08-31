@@ -52,12 +52,28 @@ class Note {
   int pitch; // MIDI Note Number (e.g., 60 = C4)
   double startStep; // Position in steps (0.0 to 32.0)
   double durationSteps; // Duration in steps (default 1.0)
-  double velocity; // 0.0 to 1.0
+  double velocity; // 0.0 to 1.0 (MPE Strike)
   int column; // Tracker sub-channel column index (0..N)
   String effectCommand; // Hex effect command (e.g., "00", "V90", "P12")
   bool isSlide;
   bool isAccent;
   String? lyric; // Syllable or word text attached to this note
+
+  // Articulation & MPE Continuous Modulation
+  String? articulation; // e.g. "muted", "harmonics", "pizzicato", "slap", "flam"
+  double? releaseVelocity; // 0.0 to 1.0 (MPE Lift / Note-Off velocity)
+  List<List<double>>? pitchBendPoints; // MPE Glide / Pitch Bend: [[normTime, semitones], ...]
+  List<List<double>>? pressurePoints; // MPE Press / Poly Aftertouch: [[normTime, pressure (0..1)], ...]
+  List<List<double>>? timbrePoints; // MPE Slide / Timbre / CC74: [[normTime, timbre (0..1)], ...]
+
+  String? get art => articulation;
+  set art(String? value) => articulation = value;
+
+  double? get relVel => releaseVelocity;
+  set relVel(double? value) => releaseVelocity = value;
+
+  bool get isBend => isSlide || (pitchBendPoints != null && pitchBendPoints!.isNotEmpty);
+  set isBend(bool value) => isSlide = value;
 
   Note({
     required this.id,
@@ -70,7 +86,42 @@ class Note {
     this.isSlide = false,
     bool? isAccent,
     this.lyric,
+    this.articulation,
+    this.releaseVelocity,
+    this.pitchBendPoints,
+    this.pressurePoints,
+    this.timbrePoints,
   }) : isAccent = isAccent ?? (velocity > 0.75);
+
+  /// Interpolates a piecewise linear curve of [[timeNorm, value], ...] at [progress] (0.0 to 1.0).
+  static double interpolateCurve(List<List<double>>? points, double progress, double fallback) {
+    if (points == null || points.isEmpty) return fallback;
+    if (points.length == 1) return points[0].length > 1 ? points[0][1] : fallback;
+
+    final p = progress.clamp(0.0, 1.0);
+    if (p <= points.first[0]) return points.first.length > 1 ? points.first[1] : fallback;
+    if (p >= points.last[0]) return points.last.length > 1 ? points.last[1] : fallback;
+
+    for (int i = 0; i < points.length - 1; i++) {
+      final p0 = points[i];
+      final p1 = points[i + 1];
+      final t0 = p0[0];
+      final t1 = p1[0];
+      if (p >= t0 && p <= t1) {
+        final span = t1 - t0;
+        if (span <= 0.00001) return p1.length > 1 ? p1[1] : fallback;
+        final norm = (p - t0) / span;
+        final v0 = p0.length > 1 ? p0[1] : fallback;
+        final v1 = p1.length > 1 ? p1[1] : fallback;
+        return v0 + (v1 - v0) * norm;
+      }
+    }
+    return points.last.length > 1 ? points.last[1] : fallback;
+  }
+
+  double getPitchBendAt(double progress) => interpolateCurve(pitchBendPoints, progress, 0.0);
+  double getPressureAt(double progress) => interpolateCurve(pressurePoints, progress, velocity);
+  double getTimbreAt(double progress) => interpolateCurve(timbrePoints, progress, 0.5);
 
   Note copyWith({
     String? id,
@@ -83,6 +134,11 @@ class Note {
     bool? isSlide,
     bool? isAccent,
     String? lyric,
+    String? articulation,
+    double? releaseVelocity,
+    List<List<double>>? pitchBendPoints,
+    List<List<double>>? pressurePoints,
+    List<List<double>>? timbrePoints,
   }) {
     return Note(
       id: id ?? this.id,
@@ -95,6 +151,11 @@ class Note {
       isSlide: isSlide ?? this.isSlide,
       isAccent: isAccent ?? this.isAccent,
       lyric: lyric ?? this.lyric,
+      articulation: articulation ?? this.articulation,
+      releaseVelocity: releaseVelocity ?? this.releaseVelocity,
+      pitchBendPoints: pitchBendPoints ?? (this.pitchBendPoints != null ? List<List<double>>.from(this.pitchBendPoints!.map((e) => List<double>.from(e))) : null),
+      pressurePoints: pressurePoints ?? (this.pressurePoints != null ? List<List<double>>.from(this.pressurePoints!.map((e) => List<double>.from(e))) : null),
+      timbrePoints: timbrePoints ?? (this.timbrePoints != null ? List<List<double>>.from(this.timbrePoints!.map((e) => List<double>.from(e))) : null),
     );
   }
 
@@ -109,25 +170,51 @@ class Note {
     'isSlide': isSlide,
     'isAccent': isAccent,
     if (lyric != null && lyric!.isNotEmpty) 'lyric': lyric,
+    if (articulation != null && articulation!.isNotEmpty) 'articulation': articulation,
+    if (releaseVelocity != null) 'releaseVelocity': releaseVelocity,
+    if (pitchBendPoints != null && pitchBendPoints!.isNotEmpty) 'pitchBendPoints': pitchBendPoints,
+    if (pressurePoints != null && pressurePoints!.isNotEmpty) 'pressurePoints': pressurePoints,
+    if (timbrePoints != null && timbrePoints!.isNotEmpty) 'timbrePoints': timbrePoints,
   };
 
   factory Note.fromJson(Map<String, dynamic> json) {
-    final vel = (json['velocity'] as num?)?.toDouble() ?? 0.9;
+    final vel = (json['velocity'] as num?)?.toDouble() ?? (json['vel'] as num?)?.toDouble() ?? 0.9;
+    final start = (json['startStep'] as num?)?.toDouble() ?? (json['start'] as num?)?.toDouble() ?? 0.0;
+    final dur = (json['durationSteps'] as num?)?.toDouble() ?? (json['duration'] as num?)?.toDouble() ?? (json['dur'] as num?)?.toDouble() ?? 1.0;
     final rawSlide = json['isSlide'];
     final rawAccent = json['isAccent'];
     final slideBool = rawSlide is bool ? rawSlide : (rawSlide.toString() == 'true');
     final accentBool = rawAccent is bool ? rawAccent : (rawAccent == null ? vel > 0.75 : rawAccent.toString() == 'true');
+
+    List<List<double>>? parsePoints(dynamic raw) {
+      if (raw is List) {
+        final list = <List<double>>[];
+        for (final item in raw) {
+          if (item is List) {
+            list.add(item.map((e) => (e as num).toDouble()).toList());
+          }
+        }
+        if (list.isNotEmpty) return list;
+      }
+      return null;
+    }
+
     return Note(
       id: json['id'] ?? '',
       pitch: json['pitch'] ?? 60,
-      startStep: (json['startStep'] as num?)?.toDouble() ?? 0.0,
-      durationSteps: (json['durationSteps'] as num?)?.toDouble() ?? 1.0,
+      startStep: start,
+      durationSteps: dur,
       velocity: vel,
       column: json['column'] ?? 0,
       effectCommand: json['effectCommand'] ?? '00',
       isSlide: slideBool,
       isAccent: accentBool,
       lyric: json['lyric'] as String?,
+      articulation: json['articulation']?.toString() ?? json['art']?.toString(),
+      releaseVelocity: (json['releaseVelocity'] as num?)?.toDouble() ?? (json['relVel'] as num?)?.toDouble() ?? (json['offVel'] as num?)?.toDouble(),
+      pitchBendPoints: parsePoints(json['pitchBendPoints'] ?? json['bend']),
+      pressurePoints: parsePoints(json['pressurePoints'] ?? json['pressure'] ?? json['press']),
+      timbrePoints: parsePoints(json['timbrePoints'] ?? json['timbre'] ?? json['slide']),
     );
   }
 }
@@ -177,7 +264,7 @@ class StepEvent {
   }
 }
 
-enum FXType { biquadFilter, delay, distortion, bitcrusher, convolutionReverb, compressor, limiter, luaFX }
+enum FXType { biquadFilter, delay, distortion, bitcrusher, convolutionReverb, compressor, limiter, vintageTape, luaFX }
 
 class FXInsert {
   String id;
@@ -291,6 +378,36 @@ class FXInsert {
           },
           luaScriptCode: luaScriptCode,
           presetId: presetId,
+          luaParams: luaParams,
+        );
+      case FXType.vintageTape:
+        return FXInsert(
+          id: id,
+          name: name ?? 'Eats Vinyl',
+          type: FXType.vintageTape,
+          mix: 1.0,
+          params: {
+            'Era': 1974.0,
+            'Medium': 2.0,
+            'WowDepth': 25.0,
+            'FlutterDepth': 15.0,
+            'MotorJitter': 10.0,
+            'WarpSwell': 20.0,
+            'TapeDropouts': 15.0,
+            'LevelDrift': 10.0,
+            'NeedleBumpFreq': 25.0,
+            'StutterDepth': 35.0,
+            'ThudLevel': 30.0,
+            'TapeWarmth': 45.0,
+            'HeadBump': 3.0,
+            'HissLevel': 20.0,
+            'VinylCrackle': 25.0,
+            'GrooveRumble': 15.0,
+            'StopTime': 0.8,
+            'SpinUpTime': 0.4,
+          },
+          luaScriptCode: luaScriptCode,
+          presetId: presetId ?? 'vintage_era_degrader',
           luaParams: luaParams,
         );
       case FXType.luaFX:
@@ -892,6 +1009,8 @@ class Pattern {
   String name;
   int lengthSteps; // 16 or 32
   List<TrackChannel> tracks;
+
+  int get barLength => (lengthSteps / 16).ceil().clamp(1, 64);
 
   Pattern({
     required this.id,

@@ -28,12 +28,29 @@ class LuaGuiParser {
       final title = (panelMap['title'] as String?) ?? 'CUSTOM INSTRUMENT';
       final subtitle = panelMap['subtitle'] as String?;
       final style = (panelMap['style'] as String?) ?? 'rack';
-      final bgRaw = panelMap['background'] ?? panelMap['bg'] ?? panelMap['chassis'] ?? panelMap['theme'] ?? panelMap['style'];
+      final bgRaw = panelMap['background'] ?? panelMap['bg'] ?? panelMap['chassis'] ?? panelMap['theme'] ?? panelMap['style'] ?? panelMap['texture'];
       final backgroundStyle = LuaGuiNode.parseBackgroundStyle(bgRaw is String ? bgRaw : null);
       final backgroundColor = LuaGuiNode.parseColor(bgRaw);
       final accentColor = LuaGuiNode.parseColor(panelMap['accent'] ?? panelMap['accentColor'] ?? panelMap['color']);
       final knobStyleRaw = panelMap['knobStyle'] ?? panelMap['knobs'] ?? panelMap['knob_style'];
       final defaultKnobStyle = LuaGuiNode.parseKnobStyle(knobStyleRaw is String ? knobStyleRaw : (backgroundStyle == PanelBackgroundStyle.silver ? 'chrome' : null));
+      final textureRotation = (panelMap['textureRotation'] as num?)?.toDouble() ??
+          (panelMap['rotation'] as num?)?.toDouble() ??
+          0.0;
+      final textureScale = (panelMap['textureScale'] as num?)?.toDouble() ??
+          (panelMap['scale'] as num?)?.toDouble() ??
+          1.0;
+      final sideCheeks = (panelMap['rackSides'] as String?) ??
+          (panelMap['rack_sides'] as String?) ??
+          (panelMap['sideCheeks'] as String?) ??
+          (panelMap['side_cheeks'] as String?) ??
+          (panelMap['sides'] as String?) ??
+          (panelMap['cheeks'] as String?) ??
+          (panelMap['sidePanels'] as String?);
+
+      final cornerRadius = (panelMap['cornerRadius'] as num?)?.toDouble() ??
+          (panelMap['corner_radius'] as num?)?.toDouble() ??
+          (panelMap['radius'] as num?)?.toDouble();
 
       final rawLayout = panelMap['layout'] ?? panelMap['children'] ?? panelMap['items'];
       final List<LuaGuiNode> nodes = [];
@@ -58,6 +75,10 @@ class LuaGuiParser {
         backgroundColor: backgroundColor,
         accentColor: accentColor,
         defaultKnobStyle: defaultKnobStyle,
+        textureRotation: textureRotation,
+        textureScale: textureScale,
+        sideCheeks: sideCheeks,
+        cornerRadius: cornerRadius,
         children: nodes,
       );
     } catch (_) {
@@ -186,6 +207,13 @@ class LuaGuiParser {
       }
     }
 
+    final bgRaw = m['background'] ?? m['bg'] ?? m['texture'] ?? m['theme'];
+    final nodeBgStyle = bgRaw is String ? LuaGuiNode.parseBackgroundStyle(bgRaw) : null;
+    final nodeBgColor = LuaGuiNode.parseColor(bgRaw) ?? LuaGuiNode.parseColor(m['backgroundColor'] ?? m['color']);
+    final nodeTexRot = (m['textureRotation'] as num?)?.toDouble() ?? (m['rotation'] as num?)?.toDouble();
+    final nodeTexScale = (m['textureScale'] as num?)?.toDouble() ?? (m['bgScale'] as num?)?.toDouble();
+    final nodeCornerRadius = (m['cornerRadius'] as num?)?.toDouble() ?? (m['radius'] as num?)?.toDouble();
+
     return LuaGuiNode(
       type: type,
       param: param,
@@ -195,6 +223,11 @@ class LuaGuiParser {
       width: width,
       height: height,
       accentColor: accentColor,
+      backgroundStyle: nodeBgStyle,
+      backgroundColor: nodeBgColor,
+      textureRotation: nodeTexRot,
+      textureScale: nodeTexScale,
+      cornerRadius: nodeCornerRadius,
       options: options,
       orientation: orientation,
       align: align,

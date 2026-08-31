@@ -1,13 +1,17 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:indexed_db' as idb;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import '../models/saved_project_model.dart';
 
 class EatsStorageHelperImpl {
   static const String _dbName = 'eatsbeats_storage_db';
   static const int _dbVersion = 1;
   static const String _soundFontStore = 'soundfonts';
+  static const String _projectsMetaKey = 'eatsbeats_saved_projects_meta';
+  static const String _projectPrefix = 'eatsbeats_project_data_';
 
   static idb.Database? _db;
 
@@ -196,5 +200,107 @@ class EatsStorageHelperImpl {
     } catch (e) {
       debugPrint('EatsStorageHelper (Web) error clearing session lua: $e');
     }
+  }
+
+  // --- Saved Projects Storage API ---
+
+  static String getProjectsFolderPath() => 'Web Browser Storage (localStorage)';
+
+  static Future<void> openProjectsFolder() async {}
+
+  static Future<List<SavedProjectItem>> listSavedProjects() async {
+    final results = <SavedProjectItem>[];
+    try {
+      final raw = html.window.localStorage[_projectsMetaKey];
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          for (final item in decoded) {
+            if (item is Map<String, dynamic>) {
+              results.add(SavedProjectItem.fromJson(item));
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('EatsStorageHelper (Web) error listing saved projects: $e');
+    }
+    results.sort((a, b) => b.lastModified.compareTo(a.lastModified));
+    return results;
+  }
+
+  static Future<SavedProjectItem?> saveProjectFile(String name, String luaCode) async {
+    final sanitized = name.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    final id = 'proj_${DateTime.now().millisecondsSinceEpoch}';
+    final fileName = sanitized.toLowerCase().endsWith('.eats.lua') ? sanitized : '$sanitized.eats.lua';
+
+    try {
+      final item = SavedProjectItem(
+        id: id,
+        name: sanitized,
+        fileName: fileName,
+        fileSizeBytes: utf8.encode(luaCode).length,
+        lastModified: DateTime.now(),
+        isWebStorage: true,
+      );
+
+      final list = await listSavedProjects();
+      list.removeWhere((p) => p.name == sanitized || p.fileName == fileName);
+      list.insert(0, item);
+
+      html.window.localStorage[_projectsMetaKey] = jsonEncode(list.map((p) => p.toJson()).toList());
+      html.window.localStorage['$_projectPrefix$id'] = luaCode;
+      return item;
+    } catch (e) {
+      debugPrint('EatsStorageHelper (Web) error saving project: $e');
+      return null;
+    }
+  }
+
+  static Future<String?> loadProjectFile(SavedProjectItem item) async {
+    try {
+      return html.window.localStorage['$_projectPrefix${item.id}'];
+    } catch (e) {
+      debugPrint('EatsStorageHelper (Web) error loading project: $e');
+      return null;
+    }
+  }
+
+  static Future<bool> deleteProjectFile(SavedProjectItem item) async {
+    try {
+      final list = await listSavedProjects();
+      list.removeWhere((p) => p.id == item.id);
+      html.window.localStorage[_projectsMetaKey] = jsonEncode(list.map((p) => p.toJson()).toList());
+      html.window.localStorage.remove('$_projectPrefix${item.id}');
+      return true;
+    } catch (e) {
+      debugPrint('EatsStorageHelper (Web) error deleting project: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> renameProjectFile(SavedProjectItem item, String newName) async {
+    final sanitized = newName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    final fileName = sanitized.toLowerCase().endsWith('.eats.lua') ? sanitized : '$sanitized.eats.lua';
+
+    try {
+      final list = await listSavedProjects();
+      final idx = list.indexWhere((p) => p.id == item.id);
+      if (idx != -1) {
+        list[idx] = SavedProjectItem(
+          id: item.id,
+          name: sanitized,
+          fileName: fileName,
+          fileSizeBytes: item.fileSizeBytes,
+          lastModified: DateTime.now(),
+          isWebStorage: true,
+        );
+        html.window.localStorage[_projectsMetaKey] = jsonEncode(list.map((p) => p.toJson()).toList());
+        return true;
+      }
+    } catch (e) {
+      debugPrint('EatsStorageHelper (Web) error renaming project: $e');
+    }
+    return false;
   }
 }

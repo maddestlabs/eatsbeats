@@ -14,6 +14,13 @@ class GraphContext {
   final int? targetMidiNote;
   final Map<String, double> params;
 
+  // Articulations & MPE Dimensions
+  final String? articulation;
+  final double releaseVelocity;
+  final List<List<double>>? pitchBendPoints;
+  final List<List<double>>? pressurePoints;
+  final List<List<double>>? timbrePoints;
+
   GraphContext({
     this.sampleRate = 44100.0,
     required this.durationSec,
@@ -24,11 +31,45 @@ class GraphContext {
     this.isSlide = false,
     this.targetMidiNote,
     this.params = const {},
+    this.articulation,
+    this.releaseVelocity = 0.5,
+    this.pitchBendPoints,
+    this.pressurePoints,
+    this.timbrePoints,
   }) : totalSamples = (sampleRate * durationSec).toInt().clamp(1, 441000);
 
   double getParam(String name, double defaultValue) {
     return params[name] ?? defaultValue;
   }
+
+  static double interpolateCurve(List<List<double>>? points, double progress, double fallback) {
+    if (points == null || points.isEmpty) return fallback;
+    if (points.length == 1) return points[0].length > 1 ? points[0][1] : fallback;
+
+    final p = progress.clamp(0.0, 1.0);
+    if (p <= points.first[0]) return points.first.length > 1 ? points.first[1] : fallback;
+    if (p >= points.last[0]) return points.last.length > 1 ? points.last[1] : fallback;
+
+    for (int i = 0; i < points.length - 1; i++) {
+      final p0 = points[i];
+      final p1 = points[i + 1];
+      final t0 = p0[0];
+      final t1 = p1[0];
+      if (p >= t0 && p <= t1) {
+        final span = t1 - t0;
+        if (span <= 0.00001) return p1.length > 1 ? p1[1] : fallback;
+        final norm = (p - t0) / span;
+        final v0 = p0.length > 1 ? p0[1] : fallback;
+        final v1 = p1.length > 1 ? p1[1] : fallback;
+        return v0 + (v1 - v0) * norm;
+      }
+    }
+    return points.last.length > 1 ? points.last[1] : fallback;
+  }
+
+  double getPitchBendAt(double progress) => interpolateCurve(pitchBendPoints, progress, 0.0);
+  double getPressureAt(double progress) => interpolateCurve(pressurePoints, progress, velocity);
+  double getTimbreAt(double progress) => interpolateCurve(timbrePoints, progress, 0.5);
 }
 
 /// Abstract base class for all audio & modulation graph nodes.

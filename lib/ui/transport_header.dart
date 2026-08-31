@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/daw_state.dart';
 import '../theme/eats_theme.dart';
 import '../utils/eats_file_helper.dart';
+import '../utils/url_script_helper.dart';
 import '../lua/default_song.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
 import 'widgets/skeuomorphic_hardware_switch.dart';
@@ -11,6 +13,7 @@ import 'widgets/glowing_nixie_display.dart';
 import 'widgets/compact_value_dialog.dart';
 import 'widgets/ui_scale_dialog.dart';
 import 'widgets/shader_picker_dialog.dart';
+import 'widgets/theme_picker_dialog.dart';
 import '../shaders/shader_settings_manager.dart';
 
 
@@ -252,67 +255,166 @@ class TransportHeader extends StatelessWidget {
     });
   }
 
+  Future<String?> _fetchGistOrUrlContent(String input) async {
+    return await UrlScriptHelper.resolveScript(input);
+  }
+
   void _showCodeViewDialog(BuildContext context) {
     final controller = TextEditingController(text: dawState.exportToEatsLua());
+    final gistUrlController = TextEditingController();
+    bool isLoadingGist = false;
+
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: EatsTheme.panelBackground,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: Row(
-            children: [
-              Icon(Icons.code, color: EatsTheme.primaryCyan),
-              const SizedBox(width: 8),
-              Text(
-                'EATS.LUA SCRIPT',
-                style: TextStyle(color: EatsTheme.primaryCyan, fontWeight: FontWeight.bold, fontSize: 16),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: EatsTheme.panelBackground,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              title: Row(
+                children: [
+                  Icon(Icons.code, color: EatsTheme.primaryCyan),
+                  const SizedBox(width: 8),
+                  Text(
+                    'IMPORT / EXPORT SCRIPT',
+                    style: TextStyle(color: EatsTheme.primaryCyan, fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                ],
               ),
-            ],
-          ),
-          content: SizedBox(
-            width: 600,
-            height: 400,
-            child: TextField(
-              controller: controller,
-              maxLines: null,
-              expands: true,
-              style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: EatsTheme.textPrimary),
-              decoration: InputDecoration(
-                fillColor: EatsTheme.controlBackground,
-                filled: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              content: SizedBox(
+                width: 620,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      height: 320,
+                      child: TextField(
+                        controller: controller,
+                        maxLines: null,
+                        expands: true,
+                        style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: EatsTheme.textPrimary),
+                        decoration: InputDecoration(
+                          fillColor: EatsTheme.controlBackground,
+                          filled: true,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: gistUrlController,
+                            style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12),
+                            decoration: InputDecoration(
+                              hintText: 'Paste Gist ID, Gist URL, or Lua script URL...',
+                              hintStyle: TextStyle(color: EatsTheme.textMuted, fontSize: 11),
+                              labelText: 'LOAD FROM GITHUB GIST / URL',
+                              labelStyle: TextStyle(color: EatsTheme.primaryCyan, fontSize: 10, fontWeight: FontWeight.bold),
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                              prefixIcon: Icon(Icons.link, size: 16, color: EatsTheme.primaryCyan),
+                              filled: true,
+                              fillColor: EatsTheme.controlBackground,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: EatsTheme.accentGold,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          ),
+                          icon: isLoadingGist
+                              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                              : const Icon(Icons.download_for_offline, size: 16, color: Colors.black),
+                          label: const Text(
+                            'FETCH GIST',
+                            style: TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                          onPressed: isLoadingGist
+                              ? null
+                              : () async {
+                                  final input = gistUrlController.text.trim();
+                                  if (input.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Please enter a GitHub Gist ID, URL, or Lua script link')),
+                                    );
+                                    return;
+                                  }
+
+                                  setDialogState(() => isLoadingGist = true);
+                                  final content = await _fetchGistOrUrlContent(input);
+                                  setDialogState(() => isLoadingGist = false);
+
+                                  if (content != null && content.isNotEmpty) {
+                                    controller.text = content;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Successfully loaded Lua script! Click "Import" to load project.')),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Failed to resolve script from Gist ID or URL. Please verify.')),
+                                    );
+                                  }
+                                },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: controller.text));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Copied .eats.lua to clipboard!')),
-                );
-              },
-              child: Text('COPY CODE', style: TextStyle(color: EatsTheme.accentGold)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: EatsTheme.primaryCyan),
-              onPressed: () {
-                if (controller.text.isNotEmpty) {
-                  dawState.loadFromEatsLua(controller.text);
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Loaded project from .eats.lua script!')),
-                  );
-                }
-              },
-              child: const Text('LOAD SCRIPT', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('CLOSE', style: TextStyle(color: EatsTheme.textMuted)),
-            ),
-          ],
+              actions: [
+                TextButton.icon(
+                  icon: const Icon(Icons.share, size: 15),
+                  label: const Text('SHARE LINK', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: TextButton.styleFrom(foregroundColor: EatsTheme.secondaryMagenta),
+                  onPressed: () {
+                    if (controller.text.isNotEmpty) {
+                      final shareUrl = UrlScriptHelper.buildShareableUrl(controller.text);
+                      Clipboard.setData(ClipboardData(text: shareUrl));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Copied compressed shareable song URL to clipboard!')),
+                      );
+                    }
+                  },
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.copy, size: 15),
+                  label: const Text('COPY', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: TextButton.styleFrom(foregroundColor: EatsTheme.accentGold),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: controller.text));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Copied .eats.lua to clipboard!')),
+                    );
+                  },
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: EatsTheme.primaryCyan),
+                  icon: const Icon(Icons.file_download, size: 16, color: Colors.black),
+                  label: const Text('IMPORT', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    if (controller.text.isNotEmpty) {
+                      dawState.loadFromEatsLua(controller.text);
+                      Navigator.of(context).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Imported project from .eats.lua script!')),
+                      );
+                    }
+                  },
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('CLOSE', style: TextStyle(color: EatsTheme.textMuted)),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -433,8 +535,8 @@ class TransportHeader extends StatelessWidget {
                         children: [
                           Expanded(
                             child: _buildHubActionButton(
-                              icon: Icons.code,
-                              label: 'LUA CODE SCRIPT',
+                              icon: Icons.import_export,
+                              label: 'IMPORT / EXPORT',
                               color: EatsTheme.secondaryMagenta,
                               onTap: () {
                                 Navigator.of(context).pop();
@@ -601,6 +703,41 @@ class TransportHeader extends StatelessWidget {
                                   },
                                   height: 32,
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 16, color: Colors.white10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('UI THEME ENGINE', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${EatsTheme.currentPreset.name.toUpperCase()} (Active)',
+                                        style: TextStyle(
+                                          color: EatsTheme.accentGold,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SkeuomorphicHardwareButton(
+                                  label: 'THEME',
+                                  icon: Icons.palette,
+                                  isActive: true,
+                                  activeColor: EatsTheme.accentGold,
+                                  onTap: () {
+                                    Navigator.of(context).pop();
+                                    ThemePickerDialog.show(context, dawState);
+                                  },
+                                  height: 32,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                                 ),
                               ],
                             ),

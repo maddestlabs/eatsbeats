@@ -6,6 +6,7 @@ import '../audio/graph/graph_evaluator.dart';
 import '../audio/snes_dsp_engine.dart';
 import '../audio/time_context.dart';
 import '../models/automation_model.dart';
+import '../models/track_model.dart';
 import 'lua_gui_model.dart';
 import 'lua_gui_parser.dart';
 
@@ -331,6 +332,12 @@ class LuaEngine {
     bool isSlide = false,
     bool isAccent = false,
     String? trackId,
+    String? articulation,
+    double releaseVelocity = 0.5,
+    List<List<double>>? pitchBendPoints,
+    List<List<double>>? pressurePoints,
+    List<List<double>>? timbrePoints,
+    double velocity = 0.9,
   }) {
     // 0. Physical Acoustic & Analog 808 Graph Synthesis
     if (code.contains('FmAcousticKick') ||
@@ -343,10 +350,15 @@ class LuaEngine {
         freq: freq,
         note: note,
         params: params,
-        velocity: isAccent ? 1.0 : 0.85,
+        velocity: isAccent ? 1.0 : velocity,
         isAccent: isAccent,
         isSlide: isSlide,
         targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
       );
     }
 
@@ -577,6 +589,671 @@ class LuaEngine {
         isAccent: isAccent,
         isSlide: isSlide,
         targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('RhodesEPiano') ||
+        code.contains('rhodes_epiano') ||
+        code.contains('Rhodes Mark I') ||
+        code.contains('Rhodes E-Piano') ||
+        code.contains('Stage 73') ||
+        (code.contains('TineBell') && code.contains('PickupDistance'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildRhodesEPiano(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('ReggaeGuitar') ||
+        code.contains('reggae_guitar') ||
+        code.contains('Reggae Skank') ||
+        code.contains('Dub Chop') ||
+        code.contains('SkankGuitar') ||
+        code.contains('DubGuitar') ||
+        (code.contains('PalmDamp') && code.contains('StrumSpread'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildReggaeGuitar(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('HawaiianUkulele') ||
+        code.contains('hawaiian_ukulele') ||
+        code.contains('Ukulele') ||
+        (code.contains('PluckSnap') && code.contains('StrumSpread'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildHawaiianUkulele(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('SpanishGuitar') ||
+        code.contains('spanish_guitar') ||
+        code.contains('ClassicalGuitar') ||
+        code.contains('classical_guitar') ||
+        code.contains('Spanish Guitar') ||
+        code.contains('Classical Guitar') ||
+        (code.contains('FleshNail') && code.contains('AirResonance'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildSpanishGuitar(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('RenaissanceLute') ||
+        code.contains('renaissance_lute') ||
+        code.contains('BaroqueLute') ||
+        code.contains('baroque_lute') ||
+        code.contains('Lute') ||
+        code.contains('Vihuela') ||
+        (code.contains('CourseDetune') && code.contains('BowlWarmth'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildRenaissanceLute(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('BaroqueGuitar') ||
+        code.contains('baroque_guitar') ||
+        code.contains('5-Course Guitar') ||
+        code.contains('Chitarra Spagnola') ||
+        (code.contains('RoseBite') && code.contains('RasgueadoSpeed'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildBaroqueGuitar(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('FlamencoGuitar') ||
+        code.contains('flamenco_guitar') ||
+        code.contains('Guitarra Flamenca') ||
+        code.contains('Flamenco') ||
+        (code.contains('GolpeTap') && code.contains('SnapDamp'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildFlamencoGuitar(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('SteelAcousticGuitar') ||
+        code.contains('acoustic_steel_guitar') ||
+        code.contains('Acoustic Guitar') ||
+        code.contains('Steel Guitar') ||
+        code.contains('Dreadnought') ||
+        (code.contains('BodyProfile') && code.contains('BronzeSparkle'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildSteelAcousticGuitar(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('TwelveStringGuitar') ||
+        code.contains('twelve_string_guitar') ||
+        code.contains('12-String') ||
+        code.contains('12 String') ||
+        (code.contains('ChorusDetune') && code.contains('OctavePairing'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildTwelveStringGuitar(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('DobroResonator') ||
+        code.contains('dobro_resonator') ||
+        code.contains('Dobro') ||
+        code.contains('Resonator') ||
+        code.contains('Resonator Guitar') ||
+        (code.contains('ConeType') && code.contains('MetalBark'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildDobroResonator(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('PedalSteelGuitar') ||
+        code.contains('pedal_steel_guitar') ||
+        code.contains('Pedal Steel') ||
+        code.contains('Lap Steel') ||
+        (code.contains('VolumeSwell') && code.contains('BarVibrato'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildPedalSteelGuitar(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('HarpGuitar') ||
+        code.contains('harp_guitar') ||
+        code.contains('Harp Guitar') ||
+        (code.contains('SubDroneGain') && code.contains('PickStyle'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildHarpGuitar(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('BluegrassBanjo') ||
+        code.contains('bluegrass_banjo') ||
+        code.contains('Banjo') ||
+        code.contains('5-String Banjo') ||
+        (code.contains('HeadTension') && code.contains('TwangSnap'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildBluegrassBanjo(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('FolkMandolin') ||
+        code.contains('folk_mandolin') ||
+        code.contains('Mandolin') ||
+        (code.contains('TremoloSpeed') && code.contains('MandolinBite'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildFolkMandolin(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('SoloViolin') ||
+        code.contains('solo_violin') ||
+        code.contains('Virtuoso Solo Violin') ||
+        (code.contains('BowPressure') && code.contains('BridgeBite'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildSoloViolin(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('SoloViola') ||
+        code.contains('solo_viola') ||
+        code.contains('Warm Solo Viola') ||
+        (code.contains('BowPressure') && code.contains('ViolaWarmth'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildSoloViola(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('SoloCello') ||
+        code.contains('solo_cello') ||
+        code.contains('Deep Solo Cello') ||
+        (code.contains('BowPressure') && code.contains('ChestResonance'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildSoloCello(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('DoubleBass') ||
+        code.contains('double_bass') ||
+        code.contains('Orchestral Double Bass') ||
+        code.contains('Contrabass') ||
+        (code.contains('BowPressure') && code.contains('SubPunch'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildDoubleBass(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('StringEnsemble') ||
+        code.contains('string_ensemble') ||
+        code.contains('Symphonic String Ensemble') ||
+        code.contains('Orchestral Strings') ||
+        (code.contains('EnsembleChorus') && code.contains('AirSheen'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildStringEnsemble(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+
+    if (code.contains('VoltaicPlasmaSynth') ||
+        code.contains('voltaic_plasma_synth') ||
+        code.contains('EatsVolts') ||
+        code.contains('eats_volts') ||
+        code.contains('Eats Volts') ||
+        code.contains('VOLTAIC') ||
+        code.contains('Plasma Arc') ||
+        code.contains('Singing Arc') ||
+        (code.contains('SparkGap') && code.contains('CrackleRate'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildVoltaicPlasmaSynth(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('PyrophoneSynth') ||
+        code.contains('pyrophone_synth') ||
+        code.contains('EatsFire') ||
+        code.contains('eats_fire') ||
+        code.contains('Eats Fire') ||
+        code.contains('PYROPHONE') ||
+        code.contains('Thermoacoustic') ||
+        code.contains('Singing Flame') ||
+        code.contains('Rijke Tube') ||
+        (code.contains('FuelPressure') && code.contains('FlameCusp'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildPyrophoneSynth(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('EatsWaterSynth') ||
+        code.contains('eats_water') ||
+        code.contains('EatsWater') ||
+        code.contains('Eats Water') ||
+        code.contains('Hydraulophone') ||
+        code.contains('Minnaert') ||
+        (code.contains('WaterFlow') && code.contains('BubblePinch'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildEatsWaterSynth(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : 0.85,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+      );
+    }
+
+    if (code.contains('DX7EPiano') ||
+        code.contains('dx7_epiano') ||
+        code.contains('DX7') ||
+        code.contains('FullTines') ||
+        (code.contains('Algorithm') && code.contains('TineBell') && code.contains('BodyWarmth'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildDX7EPiano(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('ClavinetD6') ||
+        code.contains('clavinet_d6') ||
+        code.contains('Clavinet') ||
+        code.contains('Hohner Clav') ||
+        (code.contains('PickupSelect') && code.contains('Brilliant') && code.contains('Treble'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildClavinetD6(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('Harpsichord') ||
+        code.contains('harpsichord_cembalo') ||
+        code.contains('Cembalo') ||
+        code.contains('Virginal') ||
+        (code.contains('PluckBite') && code.contains('Stop4Octave'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildHarpsichord(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('AcousticBass') ||
+        code.contains('acoustic_bass') ||
+        code.contains('Acoustic Bass') ||
+        (code.contains('PluckForce') && code.contains('AcousticAir'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildAcousticBass(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('FretlessBass') ||
+        code.contains('fretless_bass') ||
+        code.contains('Fretless') ||
+        (code.contains('MwahAmount') && code.contains('BridgePickup'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildFretlessBass(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('UprightBass') ||
+        code.contains('upright_bass') ||
+        code.contains('DoubleBass') ||
+        code.contains('Upright Bass') ||
+        (code.contains('FingerMass') && code.contains('SlapClick'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildUprightBass(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('MoogSynthBass') ||
+        code.contains('moog_synth_bass') ||
+        code.contains('Model D') ||
+        code.contains('Sub Synth Bass') ||
+        (code.contains('FilterEnv') && code.contains('AmpDecay') && code.contains('Resonance'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildMoogSynthBass(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
       );
     }
 
@@ -1067,13 +1744,23 @@ class LuaEngine {
     final cutoff = params['Cutoff'] ?? 3000.0;
     final cutoffNorm = cutoff / 5000.0;
 
+    final art = articulation?.toLowerCase();
+    final decaySec = (art == 'muted' || art == 'palm_mute' || art == 'staccato') ? 0.08 : (art == 'harmonics' ? 0.45 : 0.3);
+    final baseFreq = (art == 'harmonics') ? freq * 2.0 : freq;
+
     for (int i = 0; i < numSamples; i++) {
       final time = i / 44100.0;
-      final phase = time * freq;
+      final normTime = numSamples > 1 ? i / (numSamples - 1) : 0.0;
+      final bend = Note.interpolateCurve(pitchBendPoints, normTime, 0.0);
+      final press = Note.interpolateCurve(pressurePoints, normTime, velocity);
+      final timbre = Note.interpolateCurve(timbrePoints, normTime, 0.5);
+      final curFreq = baseFreq * math.pow(2.0, bend / 12.0);
+
+      final phase = time * curFreq;
       final saw = 2.0 * (phase - (phase + 0.5).floorToDouble());
-      final sub = math.sin(2.0 * math.pi * (freq * 0.5) * time);
-      final env = math.exp(-time / 0.3);
-      final raw = (saw * 0.7 + sub * 0.3) * env;
+      final sub = math.sin(2.0 * math.pi * (curFreq * 0.5) * time);
+      final env = math.exp(-time / decaySec);
+      final raw = (saw * (0.5 + 0.4 * timbre) + sub * 0.3) * env * press;
       buffer[i] = (raw * cutoffNorm).clamp(-1.0, 1.0);
     }
     return buffer;

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -400,5 +401,416 @@ void main() {
         expect(synthBuffer.any((s) => s.abs() > 0.01), isTrue, reason: 'Preset $id should synthesize non-silent audio');
       }
     });
+
+    test('PlasmaArcOscNode generates pitched, jittered pulses within [-1.0, 1.0]', () {
+      const arcOsc = PlasmaArcOscNode(
+        sparkWidth: 0.15,
+        jitter: 0.40,
+        subHarmonic: 0.20,
+      );
+      final ctx = GraphContext(
+        durationSec: 0.05,
+        freq: 220.0,
+        midiNote: 57,
+      );
+      final buffer = Float32List(ctx.totalSamples);
+      arcOsc.process(ctx, buffer);
+
+      expect(buffer.length, greaterThan(100));
+      for (final s in buffer) {
+        expect(s.isNaN, isFalse);
+        expect(s.isInfinite, isFalse);
+        expect(s, inInclusiveRange(-1.0, 1.0));
+      }
+      expect(buffer.any((s) => s.abs() > 0.1), isTrue);
+    });
+
+    test('PoissonCrackleNode generates stochastic corona impulses', () {
+      const crackle = PoissonCrackleNode(density: 0.50, sizzleBright: 0.80);
+      final ctx = GraphContext(
+        durationSec: 0.05,
+        freq: 440.0,
+        midiNote: 69,
+      );
+      final buffer = Float32List(ctx.totalSamples);
+      crackle.process(ctx, buffer);
+
+      expect(buffer.length, greaterThan(100));
+      for (final s in buffer) {
+        expect(s.isNaN, isFalse);
+        expect(s.isInfinite, isFalse);
+        expect(s, inInclusiveRange(-1.0, 1.0));
+      }
+    });
+
+    test('SubstationHumNode generates 60Hz transformer hum', () {
+      const hum = SubstationHumNode(humLevel: 0.40, mainsFreq: 60.0);
+      final ctx = GraphContext(
+        durationSec: 0.05,
+        freq: 60.0,
+        midiNote: 24,
+      );
+      final buffer = Float32List(ctx.totalSamples);
+      hum.process(ctx, buffer);
+
+      expect(buffer.length, greaterThan(100));
+      for (final s in buffer) {
+        expect(s.isNaN, isFalse);
+        expect(s.isInfinite, isFalse);
+        expect(s, inInclusiveRange(-1.0, 1.0));
+      }
+      expect(buffer.any((s) => s.abs() > 0.05), isTrue);
+    });
+
+    test('GraphEvaluator.buildVoltaicPlasmaSynth renders across piano roll (C1 to C6)', () {
+      final root = GraphEvaluator.buildVoltaicPlasmaSynth();
+      for (final note in [24, 36, 48, 60, 72, 84]) {
+        final freq = 440.0 * math.pow(2.0, (note - 69) / 12.0);
+        final buffer = GraphEvaluator.evaluate(
+          root: root,
+          durationSec: 0.10,
+          freq: freq,
+          note: note,
+          params: {
+            'Voltage': 1.5,
+            'SparkGap': 0.2,
+            'Jitter': 0.3,
+            'CrackleRate': 0.4,
+            'GridHum': 0.25,
+            'SnapAttack': 1.0,
+            'OzoneDrive': 1.4,
+            'Tone': 8000.0,
+          },
+        );
+
+        expect(buffer.length, greaterThan(100));
+        for (final s in buffer) {
+          expect(s.isNaN, isFalse);
+          expect(s.isInfinite, isFalse);
+          expect(s, inInclusiveRange(-1.0, 1.0));
+        }
+        expect(buffer.any((s) => s.abs() > 0.05), isTrue);
+      }
+    });
+
+    test('VOLTAIC preset compiles in LuaEngine with full GUI and valid synthesis', () {
+      final preset = LuaPresetLibrary.getPresetById('voltaic_plasma_synth');
+      expect(preset, isNotNull);
+      final comp = LuaEngine.compile(preset!.code);
+      expect(comp.isSuccess, isTrue, reason: comp.errorMessage);
+      expect(comp.guiLayout, isNotNull);
+      expect(comp.params.any((p) => p.name == 'Voltage'), isTrue);
+      expect(comp.params.any((p) => p.name == 'SparkGap'), isTrue);
+
+      final pcm = LuaEngine.synthesizeBuffer(
+        code: preset.code,
+        durationSec: 0.2,
+        freq: 220.0,
+        note: 57,
+        params: {'Voltage': 1.25, 'SparkGap': 0.15},
+      );
+      expect(pcm.length, greaterThan(100));
+      expect(pcm.any((s) => s.abs() > 0.05), isTrue);
+    });
+
+    test('ThermoacousticFlameOscNode generates pitched singing flame waveform within [-1.0, 1.0]', () {
+      const flameOsc = ThermoacousticFlameOscNode(
+        flameCusp: 0.45,
+        thermalDrift: 0.30,
+        tubeResonance: 0.50,
+      );
+      final ctx = GraphContext(
+        durationSec: 0.05,
+        freq: 261.63, // C4
+        midiNote: 60,
+      );
+      final buffer = Float32List(ctx.totalSamples);
+      flameOsc.process(ctx, buffer);
+
+      expect(buffer.length, greaterThan(100));
+      for (final s in buffer) {
+        expect(s.isNaN, isFalse);
+        expect(s.isInfinite, isFalse);
+        expect(s, inInclusiveRange(-1.0, 1.0));
+      }
+      expect(buffer.any((s) => s.abs() > 0.1), isTrue);
+    });
+
+    test('CombustionRoarNode generates low-frequency turbulent air roar', () {
+      const roar = CombustionRoarNode(roarLevel: 0.40, draftFlutter: 0.50);
+      final ctx = GraphContext(
+        durationSec: 0.05,
+        freq: 100.0,
+        midiNote: 36,
+      );
+      final buffer = Float32List(ctx.totalSamples);
+      roar.process(ctx, buffer);
+
+      expect(buffer.length, greaterThan(100));
+      for (final s in buffer) {
+        expect(s.isNaN, isFalse);
+        expect(s.isInfinite, isFalse);
+        expect(s, inInclusiveRange(-1.0, 1.0));
+      }
+      expect(buffer.any((s) => s.abs() > 0.01), isTrue);
+    });
+
+    test('SapExplosionCrackleNode generates dual-stage sap pops and ember sizzle', () {
+      const crackle = SapExplosionCrackleNode(sapDensity: 0.60, emberSizzle: 0.50);
+      final ctx = GraphContext(
+        durationSec: 0.05,
+        freq: 440.0,
+        midiNote: 69,
+      );
+      final buffer = Float32List(ctx.totalSamples);
+      crackle.process(ctx, buffer);
+
+      expect(buffer.length, greaterThan(100));
+      for (final s in buffer) {
+        expect(s.isNaN, isFalse);
+        expect(s.isInfinite, isFalse);
+        expect(s, inInclusiveRange(-1.0, 1.0));
+      }
+    });
+
+    test('GraphEvaluator.buildPyrophoneSynth renders across piano roll (C1 to C6)', () {
+      final root = GraphEvaluator.buildPyrophoneSynth();
+      for (final note in [24, 36, 48, 60, 72, 84]) {
+        final freq = 440.0 * math.pow(2.0, (note - 69) / 12.0);
+        final buffer = GraphEvaluator.evaluate(
+          root: root,
+          durationSec: 0.10,
+          freq: freq,
+          note: note,
+          params: {
+            'FuelPressure': 1.4,
+            'FlameCusp': 0.45,
+            'TubeResonance': 0.5,
+            'IgnitionSnap': 0.85,
+            'CombustionRoar': 0.35,
+            'OxygenDraft': 0.40,
+            'SapCrackle': 0.40,
+            'EmberSizzle': 0.35,
+            'Tone': 7500.0,
+          },
+        );
+
+        expect(buffer.length, greaterThan(100));
+        for (final s in buffer) {
+          expect(s.isNaN, isFalse);
+          expect(s.isInfinite, isFalse);
+          expect(s, inInclusiveRange(-1.0, 1.0));
+        }
+        expect(buffer.any((s) => s.abs() > 0.05), isTrue);
+      }
+    });
+
+    test('PYROPHONE preset compiles in LuaEngine with full GUI and valid synthesis', () {
+      final preset = LuaPresetLibrary.getPresetById('pyrophone_synth');
+      expect(preset, isNotNull);
+      final comp = LuaEngine.compile(preset!.code);
+      expect(comp.isSuccess, isTrue, reason: comp.errorMessage);
+      expect(comp.guiLayout, isNotNull);
+      expect(comp.params.any((p) => p.name == 'FuelPressure'), isTrue);
+      expect(comp.params.any((p) => p.name == 'FlameCusp'), isTrue);
+
+      final pcm = LuaEngine.synthesizeBuffer(
+        code: preset.code,
+        durationSec: 0.2,
+        freq: 261.63,
+        note: 60,
+        params: {'FuelPressure': 1.25, 'FlameCusp': 0.45},
+      );
+      expect(pcm.length, greaterThan(100));
+      expect(pcm.any((s) => s.abs() > 0.05), isTrue);
+    });
+
+    test('HydraulophoneOscNode generates pitched, bounded bubble-chirped waveform', () {
+      const waterOsc = HydraulophoneOscNode(
+        bubbleChirp: 0.45,
+        viscosity: 0.40,
+        currentDrift: 0.35,
+      );
+      final ctx = GraphContext(
+        durationSec: 0.05,
+        freq: 329.63, // E4
+        midiNote: 64,
+      );
+      final buffer = Float32List(ctx.totalSamples);
+      waterOsc.process(ctx, buffer);
+
+      expect(buffer.length, greaterThan(100));
+      for (final s in buffer) {
+        expect(s.isNaN, isFalse);
+        expect(s.isInfinite, isFalse);
+        expect(s, inInclusiveRange(-1.0, 1.0));
+      }
+      expect(buffer.any((s) => s.abs() > 0.1), isTrue);
+    });
+
+    test('HydrodynamicVortexNode generates low-frequency fluid turbulence and whirlpool rumble', () {
+      const vortex = HydrodynamicVortexNode(vortexLevel: 0.35, churnSpeed: 0.40);
+      final ctx = GraphContext(
+        durationSec: 0.05,
+        freq: 100.0,
+        midiNote: 36,
+      );
+      final buffer = Float32List(ctx.totalSamples);
+      vortex.process(ctx, buffer);
+
+      expect(buffer.length, greaterThan(100));
+      for (final s in buffer) {
+        expect(s.isNaN, isFalse);
+        expect(s.isInfinite, isFalse);
+        expect(s, inInclusiveRange(-1.0, 1.0));
+      }
+      expect(buffer.any((s) => s.abs() > 0.01), isTrue);
+    });
+
+    test('DropletSplashMatrixNode generates droplet plinks and micro-spray sizzle', () {
+      const droplet = DropletSplashMatrixNode(dropletRate: 0.50, sprayHiss: 0.40);
+      final ctx = GraphContext(
+        durationSec: 0.05,
+        freq: 440.0,
+        midiNote: 69,
+      );
+      final buffer = Float32List(ctx.totalSamples);
+      droplet.process(ctx, buffer);
+
+      expect(buffer.length, greaterThan(100));
+      for (final s in buffer) {
+        expect(s.isNaN, isFalse);
+        expect(s.isInfinite, isFalse);
+        expect(s, inInclusiveRange(-1.0, 1.0));
+      }
+    });
+
+    test('GraphEvaluator.buildEatsWaterSynth renders across piano roll (C1 to C6)', () {
+      final root = GraphEvaluator.buildEatsWaterSynth();
+      for (final note in [24, 36, 48, 60, 72, 84]) {
+        final freq = 440.0 * math.pow(2.0, (note - 69) / 12.0);
+        final buffer = GraphEvaluator.evaluate(
+          root: root,
+          durationSec: 0.10,
+          freq: freq,
+          note: note,
+          params: {
+            'WaterFlow': 1.3,
+            'BubblePinch': 0.45,
+            'Viscosity': 0.40,
+            'PlungeImpact': 0.85,
+            'Turbulence': 0.35,
+            'CurrentDrift': 0.35,
+            'DropletRate': 0.40,
+            'SprayHiss': 0.35,
+            'Depth': 6500.0,
+          },
+        );
+
+        expect(buffer.length, greaterThan(100));
+        for (final s in buffer) {
+          expect(s.isNaN, isFalse);
+          expect(s.isInfinite, isFalse);
+          expect(s, inInclusiveRange(-1.0, 1.0));
+        }
+        expect(buffer.any((s) => s.abs() > 0.05), isTrue);
+      }
+    });
+
+    test('Eats Water, Eats Fire, and Eats Volts presets compile and synthesize seamlessly', () {
+      final voltsPreset = LuaPresetLibrary.getPresetById('eats_volts');
+      final firePreset = LuaPresetLibrary.getPresetById('eats_fire');
+      final waterPreset = LuaPresetLibrary.getPresetById('eats_water');
+
+      expect(voltsPreset, isNotNull);
+      expect(firePreset, isNotNull);
+      expect(waterPreset, isNotNull);
+
+      // Verify compile & GUI
+      final compVolts = LuaEngine.compile(voltsPreset!.code);
+      final compFire = LuaEngine.compile(firePreset!.code);
+      final compWater = LuaEngine.compile(waterPreset!.code);
+
+      expect(compVolts.isSuccess, isTrue, reason: compVolts.errorMessage);
+      expect(compFire.isSuccess, isTrue, reason: compFire.errorMessage);
+      expect(compWater.isSuccess, isTrue, reason: compWater.errorMessage);
+
+      expect(compVolts.guiLayout, isNotNull);
+      expect(compFire.guiLayout, isNotNull);
+      expect(compWater.guiLayout, isNotNull);
+
+      // Verify synthesis
+      final pcmWater = LuaEngine.synthesizeBuffer(
+        code: waterPreset.code,
+        durationSec: 0.2,
+        freq: 261.63,
+        note: 60,
+        params: {'WaterFlow': 1.25, 'BubblePinch': 0.45},
+      );
+      expect(pcmWater.length, greaterThan(100));
+      expect(pcmWater.any((s) => s.abs() > 0.05), isTrue);
+    });
+
+    test('PhaserNode creates phase-shifted comb cancellations within [-1.0, 1.0]', () {
+      const sine = SineOscNode(staticFreq: 220.0);
+      const phaser = PhaserNode(
+        input: sine,
+        rate: 0.5,
+        depth: 0.75,
+        feedback: 0.40,
+        mix: 0.50,
+      );
+      final ctx = GraphContext(
+        durationSec: 0.1,
+        freq: 220.0,
+        midiNote: 57,
+      );
+      final buffer = Float32List(ctx.totalSamples);
+      phaser.process(ctx, buffer);
+
+      expect(buffer.length, greaterThan(100));
+      for (final s in buffer) {
+        expect(s.isNaN, isFalse);
+        expect(s.isInfinite, isFalse);
+        expect(s, inInclusiveRange(-1.0, 1.0));
+      }
+      expect(buffer.any((s) => s.abs() > 0.05), isTrue);
+    });
+
+    test('Elemental Trio renders bass notes (C2 = 65.4Hz) with active phaser modulation', () {
+      final voltsRoot = GraphEvaluator.buildVoltaicPlasmaSynth();
+      final fireRoot = GraphEvaluator.buildPyrophoneSynth();
+      final waterRoot = GraphEvaluator.buildEatsWaterSynth();
+
+      const c2Freq = 65.41; // C2 (MIDI 36)
+      const c2Note = 36;
+
+      for (final root in [voltsRoot, fireRoot, waterRoot]) {
+        final buffer = GraphEvaluator.evaluate(
+          root: root,
+          durationSec: 0.25,
+          freq: c2Freq,
+          note: c2Note,
+          params: {
+            'PhaserRate': 0.65,
+            'PhaserDepth': 0.75,
+            'PhaserFeedback': 0.50,
+            'PhaserMix': 0.60,
+          },
+        );
+
+        expect(buffer.length, greaterThan(100));
+        for (final s in buffer) {
+          expect(s.isNaN, isFalse);
+          expect(s.isInfinite, isFalse);
+          expect(s, inInclusiveRange(-1.0, 1.0));
+        }
+        expect(buffer.any((s) => s.abs() > 0.05), isTrue);
+      }
+    });
   });
 }
+
+
+
+

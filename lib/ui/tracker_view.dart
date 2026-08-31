@@ -72,6 +72,9 @@ class _TrackerViewState extends State<TrackerView> {
     });
   }
 
+  int _lastTabIndex = -1;
+  MusicViewType? _lastActiveView;
+
   @override
   void initState() {
     super.initState();
@@ -81,6 +84,22 @@ class _TrackerViewState extends State<TrackerView> {
         _focusNode.requestFocus();
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant TrackerView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.dawState != widget.dawState) {
+      oldWidget.dawState.removeListener(_onDawStateChanged);
+      widget.dawState.addListener(_onDawStateChanged);
+    }
+    if (widget.dawState.activeTabIndex == 1 && widget.dawState.activeTrack.activeView == MusicViewType.tracker) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_focusNode.hasFocus) {
+          _focusNode.requestFocus();
+        }
+      });
+    }
   }
 
   @override
@@ -94,6 +113,18 @@ class _TrackerViewState extends State<TrackerView> {
 
   void _onDawStateChanged() {
     if (!mounted) return;
+    final bool isEditTab = widget.dawState.activeTabIndex == 1;
+    final bool isTrackerActive = widget.dawState.activeTrack.activeView == MusicViewType.tracker;
+    if (isEditTab && isTrackerActive && (_lastTabIndex != 1 || _lastActiveView != MusicViewType.tracker)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_focusNode.hasFocus) {
+          _focusNode.requestFocus();
+        }
+      });
+    }
+    _lastTabIndex = widget.dawState.activeTabIndex;
+    _lastActiveView = widget.dawState.activeTrack.activeView;
+
     if (_followPlayback && widget.dawState.isPlaying) {
       final currentStep = widget.dawState.currentStep;
       if (currentStep != _lastFollowStep && _verticalScroll.hasClients) {
@@ -103,6 +134,7 @@ class _TrackerViewState extends State<TrackerView> {
         _verticalScroll.jumpTo(targetOffset.clamp(0.0, maxScroll));
       }
     }
+    setState(() {});
   }
 
   void _scrollToSelectedStep() {
@@ -135,6 +167,7 @@ class _TrackerViewState extends State<TrackerView> {
 
     _clearBlockSelection();
     widget.dawState.selectTrackerCell(stepIdx, colIdx);
+    setState(() {});
 
     final now = DateTime.now();
     final cellKey = '${stepIdx}_$colIdx';
@@ -228,10 +261,14 @@ class _TrackerViewState extends State<TrackerView> {
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
 
-    final totalSteps = widget.dawState.activeTrackClip.barLength * 16;
-    final totalColumns = widget.dawState.activeTrack.trackerColumns;
+    final track = widget.dawState.activeTrack;
+    final int clipSteps = (widget.dawState.activeTrackClip.barLength * 16).toInt();
+    final int patternSteps = widget.dawState.activePattern.lengthSteps;
+    final int maxNoteStep = track.notes.fold<int>(0, (int m, Note n) => math.max<int>(m, (n.startStep + n.durationSteps).ceil()));
+    final int totalSteps = math.max<int>(16, math.max<int>(clipSteps, math.max<int>(patternSteps, maxNoteStep)));
+    final int totalColumns = track.trackerColumns;
     final key = event.logicalKey;
     final isShift = HardwareKeyboard.instance.isShiftPressed;
     final isCtrlOrCmd = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
@@ -275,8 +312,8 @@ class _TrackerViewState extends State<TrackerView> {
 
     // Helper for Shift-Arrow / Arrow Navigation
     void moveSelection(int newStep, int newCol) {
-      final clampedStep = newStep.clamp(0, totalSteps - 1);
-      final clampedCol = newCol.clamp(0, totalColumns - 1);
+      final int clampedStep = newStep.clamp(0, totalSteps - 1).toInt();
+      final int clampedCol = newCol.clamp(0, totalColumns - 1).toInt();
       if (isShift) {
         setState(() {
           _selectionAnchorStep ??= widget.dawState.trackerSelectedStep;
@@ -388,6 +425,12 @@ class _TrackerViewState extends State<TrackerView> {
       LogicalKeyboardKey.keyP: 28, // E
     };
 
+    // Shift+S or Alt+S -> Toggle Slide / Bend on selected tracker cell
+    if ((HardwareKeyboard.instance.isShiftPressed || HardwareKeyboard.instance.isAltPressed) && key == LogicalKeyboardKey.keyS) {
+      widget.dawState.toggleTrackerSlideAtSelectedCell();
+      return KeyEventResult.handled;
+    }
+
     if (qwertyNoteMap.containsKey(key)) {
       final semitones = qwertyNoteMap[key]!;
       final pitch = (_qwertyBaseOctave + 1) * 12 + semitones;
@@ -406,19 +449,23 @@ class _TrackerViewState extends State<TrackerView> {
   @override
   Widget build(BuildContext context) {
     final track = widget.dawState.activeTrack;
-    final totalSteps = widget.dawState.activeTrackClip.barLength * 16;
-    final totalColumns = track.trackerColumns;
+    final int clipSteps = (widget.dawState.activeTrackClip.barLength * 16).toInt();
+    final int patternSteps = widget.dawState.activePattern.lengthSteps;
+    final int maxNoteStep = track.notes.fold<int>(0, (int m, Note n) => math.max<int>(m, (n.startStep + n.durationSteps).ceil()));
+    final int totalSteps = math.max<int>(16, math.max<int>(clipSteps, math.max<int>(patternSteps, maxNoteStep)));
+    final int totalColumns = track.trackerColumns;
 
     final noteMap = <String, Note>{};
     for (final n in track.notes) {
       noteMap['${n.startStep.toInt()}_${n.column}'] = n;
     }
 
-    const double columnWidth = 130.0;
+    const double columnWidth = 142.0;
     const double rowHeaderWidth = 44.0;
     final double tableWidth = rowHeaderWidth + (totalColumns * (columnWidth + 4.0));
 
     return Focus(
+      autofocus: true,
       focusNode: _focusNode,
       onKeyEvent: _handleKeyEvent,
       child: Column(
@@ -616,15 +663,24 @@ class _TrackerViewState extends State<TrackerView> {
 
           // High-Performance Unified Scroll Matrix Layout
           Expanded(
-            child: GestureDetector(
-              onTap: () => _focusNode.requestFocus(),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                controller: _horizontalScroll,
-                child: SizedBox(
-                  width: tableWidth,
-                  child: Column(
-                    children: [
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerUp: (_) {
+                if (_isMouseDown) setState(() => _isMouseDown = false);
+              },
+              onPointerCancel: (_) {
+                if (_isMouseDown) setState(() => _isMouseDown = false);
+              },
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () => _focusNode.requestFocus(),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  controller: _horizontalScroll,
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: Column(
+                      children: [
                       // Sub-channel Column Header Row
                       Container(
                         height: 24,
@@ -665,12 +721,12 @@ class _TrackerViewState extends State<TrackerView> {
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
-                                  'CH ${colIdx + 1} (NOTE / VEL / FX)',
+                                  'CH ${colIdx + 1} (NOTE/VOL/SLD/FX)',
                                   style: TextStyle(
                                     color: isSelectedCol
                                         ? EatsTheme.accentGold
                                         : (colIdx % 2 == 0 ? EatsTheme.primaryCyan : EatsTheme.secondaryMagenta),
-                                    fontSize: 10,
+                                    fontSize: 9.5,
                                     fontWeight: isSelectedCol ? FontWeight.bold : FontWeight.normal,
                                   ),
                                 ),
@@ -739,6 +795,7 @@ class _TrackerViewState extends State<TrackerView> {
 
                                     final noteStr = hasNote ? _formatTrackerNote(noteMatch.pitch) : '---';
                                     final volStr = hasNote ? 'V${(noteMatch.velocity * 99).toInt().toString().padLeft(2, '0')}' : '..';
+                                    final sldStr = hasNote ? (noteMatch.isSlide ? 'S' : '.') : '.';
                                     final fxStr = hasNote ? noteMatch.effectCommand : '00';
 
                                     return MouseRegion(
@@ -802,8 +859,8 @@ class _TrackerViewState extends State<TrackerView> {
                                             if (_longPressStartGlobalPos != null) {
                                               final deltaY = details.globalPosition.dy - _longPressStartGlobalPos!.dy;
                                               final deltaX = details.globalPosition.dx - _longPressStartGlobalPos!.dx;
-                                              final targetStep = (stepIdx + (deltaY / 32.0).round()).clamp(0, totalSteps - 1);
-                                              final targetCol = (colIdx + (deltaX / (columnWidth + 4.0)).round()).clamp(0, totalColumns - 1);
+                                              final int targetStep = (stepIdx + (deltaY / 32.0).round()).clamp(0, totalSteps - 1).toInt();
+                                              final int targetCol = (colIdx + (deltaX / (columnWidth + 4.0)).round()).clamp(0, totalColumns - 1).toInt();
                                               if (_selectionCurrentStep != targetStep || _selectionCurrentCol != targetCol) {
                                                 setState(() {
                                                   _selectionCurrentStep = targetStep;
@@ -825,7 +882,7 @@ class _TrackerViewState extends State<TrackerView> {
                                                   : (isSelectedCell
                                                       ? EatsTheme.highlightColor.withOpacity(0.40)
                                                       : (hasNote
-                                                          ? track.color.withOpacity(0.25)
+                                                          ? (noteMatch.isSlide ? EatsTheme.accentGold.withOpacity(0.25) : track.color.withOpacity(0.25))
                                                           : EatsTheme.controlBackground.withOpacity(0.3))),
                                               borderRadius: BorderRadius.circular(4),
                                               border: Border.all(
@@ -833,7 +890,7 @@ class _TrackerViewState extends State<TrackerView> {
                                                     ? EatsTheme.primaryCyan
                                                     : (isSelectedCell
                                                         ? EatsTheme.highlightColor
-                                                        : (hasNote ? track.color.withOpacity(0.6) : Colors.transparent)),
+                                                        : (hasNote ? (noteMatch.isSlide ? EatsTheme.accentGold.withOpacity(0.8) : track.color.withOpacity(0.6)) : Colors.transparent)),
                                                 width: (isInBlock || isSelectedCell) ? 2.0 : 1.0,
                                               ),
                                               boxShadow: (isInBlock || isSelectedCell)
@@ -847,13 +904,13 @@ class _TrackerViewState extends State<TrackerView> {
                                                   : null,
                                             ),
                                             child: Text(
-                                              '$noteStr  $volStr  $fxStr${(hasNote && noteMatch.lyric != null && noteMatch.lyric!.isNotEmpty) ? '  "${noteMatch.lyric}"' : ''}',
+                                              '$noteStr $volStr $sldStr $fxStr${(hasNote && noteMatch.lyric != null && noteMatch.lyric!.isNotEmpty) ? ' "${noteMatch.lyric}"' : ''}',
                                               overflow: TextOverflow.ellipsis,
                                               style: EatsTheme.getDisplayFontStyle(
                                                 color: (isInBlock || isSelectedCell)
                                                     ? Colors.white
-                                                    : (hasNote ? EatsTheme.textPrimary : EatsTheme.textMuted),
-                                                fontSize: 11,
+                                                    : (hasNote ? (noteMatch.isSlide ? EatsTheme.accentGold : EatsTheme.textPrimary) : EatsTheme.textMuted),
+                                                fontSize: 10.5,
                                                 fontWeight: (hasNote || isSelectedCell || isInBlock) ? FontWeight.bold : FontWeight.normal,
                                               ),
                                             ),
@@ -874,10 +931,11 @@ class _TrackerViewState extends State<TrackerView> {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   String _formatTrackerNote(int pitch) {
     if (pitch < 0) return '---';
@@ -895,6 +953,7 @@ class _TrackerViewState extends State<TrackerView> {
   ) {
     int selectedPitch = existingNote.pitch != -1 ? existingNote.pitch : 60;
     double selectedVol = existingNote.pitch != -1 ? existingNote.velocity : 0.85;
+    bool selectedSlide = existingNote.pitch != -1 ? existingNote.isSlide : false;
 
     showDialog(
       context: context,
@@ -932,6 +991,7 @@ class _TrackerViewState extends State<TrackerView> {
                           track: track,
                           midiNote: selectedPitch,
                           velocity: selectedVol,
+                          isSlide: selectedSlide,
                         );
                       },
                     ),
@@ -953,6 +1013,35 @@ class _TrackerViewState extends State<TrackerView> {
                       onChanged: (val) {
                         setDialogState(() => selectedVol = val);
                       },
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('NOTE TYPE:', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 12)),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ChoiceChip(
+                              label: const Text('Normal', style: TextStyle(fontSize: 10)),
+                              selected: !selectedSlide,
+                              selectedColor: EatsTheme.primaryCyan.withOpacity(0.35),
+                              onSelected: (val) {
+                                if (val) setDialogState(() => selectedSlide = false);
+                              },
+                            ),
+                            const SizedBox(width: 6),
+                            ChoiceChip(
+                              label: const Text('Bend (Slide)', style: TextStyle(fontSize: 10)),
+                              selected: selectedSlide,
+                              selectedColor: EatsTheme.accentGold.withOpacity(0.35),
+                              onSelected: (val) {
+                                if (val) setDialogState(() => selectedSlide = true);
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -980,6 +1069,7 @@ class _TrackerViewState extends State<TrackerView> {
                         durationSteps: 1.0,
                         velocity: selectedVol,
                         column: colIdx,
+                        isSlide: selectedSlide,
                       ),
                     );
                     Navigator.pop(context);

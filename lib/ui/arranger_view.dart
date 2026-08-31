@@ -28,7 +28,7 @@ class ArrangerView extends StatefulWidget {
 class _ArrangerViewState extends State<ArrangerView> {
   static const double barWidth = 60.0;
   static const double trackRowHeight = 82.0;
-  static const int totalBars = 32;
+  int get totalBars => widget.dawState.totalTimelineBars;
 
   final ScrollController _horizontalScroll = ScrollController();
   final ScrollController _leftTrackScroll = ScrollController();

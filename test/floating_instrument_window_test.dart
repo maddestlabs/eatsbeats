@@ -121,10 +121,10 @@ void main() {
 
       // Verify script-driven title bar and actions
       expect(find.text('ACID SYNTH 303'), findsOneWidget);
+      expect(find.byIcon(Icons.developer_board), findsOneWidget);
       expect(find.byIcon(Icons.fit_screen), findsOneWidget);
       expect(find.byIcon(Icons.fullscreen), findsOneWidget);
-      expect(find.byIcon(Icons.code), findsOneWidget);
-      expect(find.byTooltip('Unscrew Panel (Close VSTi - Esc)'), findsOneWidget);
+      expect(find.byTooltip('Close'), findsOneWidget);
 
       // Verify 1:1 FittedBox scaling container is rendered
       expect(find.byType(FittedBox), findsWidgets);
@@ -140,11 +140,160 @@ void main() {
       expect(state.isFloatingWindowMaximized, isTrue);
       expect(find.byIcon(Icons.fullscreen_exit), findsOneWidget);
 
-      // Tap Unscrew Screw to Close Panel
-      await tester.tap(find.byTooltip('Unscrew Panel (Close VSTi - Esc)'));
+      // Tap Close Screw to Close Panel
+      await tester.tap(find.byTooltip('Close'));
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
       expect(state.isFloatingWindowVisible, isFalse);
     });
+
+    testWidgets('Popout GUI controls (buttons, switches, segmented pills) respond immediately without double-tap delay', (tester) async {
+      final state = DawState();
+      final track = state.activeTrack;
+      track.name = 'TTS Voice Synth';
+      track.luaScriptCode = '''
+-- @name: TTS Voice Synth
+TTSVoiceSynth = {}
+function TTSVoiceSynth.init()
+  return { voice_mode = 0, adv = 0, bypass_engine = 0 }
+end
+function TTSVoiceSynth.gui()
+  return {
+    panel = {
+      title = "TTS VOICE SYNTH",
+      layout = {
+        { type = "button", action = "bypass", param = "bypass_engine", label = "BYPASS" },
+        { type = "segmented_pill", param = "voice_mode", label = "VOICE PROFILE", options = { "Natural", "Robot", "Whisper" } },
+        { type = "switch", param = "adv", label = "ADV" },
+      }
+    }
+  }
+end
+''';
+      track.luaParams['bypass_engine'] = 0.0;
+      track.luaParams['voice_mode'] = 0.0;
+      track.luaParams['adv'] = 0.0;
+
+      state.openFloatingInstrumentWindow(track);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (context, _) => Stack(
+                children: [
+                  if (state.isFloatingWindowVisible)
+                    Positioned(
+                      left: state.floatingWindowPosition.dx,
+                      top: state.floatingWindowPosition.dy,
+                      width: state.floatingWindowSize.width,
+                      height: state.floatingWindowSize.height,
+                      child: FloatingInstrumentWindow(
+                        dawState: state,
+                        workspaceBounds: const Size(800, 600),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 1. Single tap on "Robot" segmented pill option
+      final robotOption = find.text('Robot');
+      expect(robotOption, findsOneWidget);
+      await tester.tap(robotOption);
+      await tester.pump();
+      // Should respond immediately without needing double tap delay
+      expect(track.luaParams['voice_mode'], equals(1.0));
+
+      // 2. Single tap on "Whisper"
+      final whisperOption = find.text('Whisper');
+      await tester.tap(whisperOption);
+      await tester.pump();
+      expect(track.luaParams['voice_mode'], equals(2.0));
+
+      // 3. Single tap on ADV switch
+      final advSwitch = find.text('ADV');
+      expect(advSwitch, findsOneWidget);
+      await tester.tap(advSwitch);
+      await tester.pump();
+      expect(track.luaParams['adv'], equals(1.0));
+
+      // 4. Single tap on Bypass button
+      final bypassBtn = find.text('BYPASS');
+      expect(bypassBtn, findsOneWidget);
+      await tester.tap(bypassBtn);
+      await tester.pump();
+      expect(track.luaParams['bypass_engine'], equals(1.0));
+      await tester.pumpAndSettle();
+    });
+
+    test('Accurate natural GUI height for nested multi-column TTS Voice Synth layout', () {
+      final state = DawState();
+      final track = state.activeTrack;
+      track.name = 'TTS Voice Synth';
+      track.luaScriptCode = '''
+-- @name: TTS Voice Synth
+TTSVoiceSynth = {}
+function TTSVoiceSynth.init()
+  return { voice_mode = 0, speech_speed = 1, pitch = 1.0, tone = 0.5, volume = 0.85, space = 0.35, air = 0.30, adv = 1.0 }
+end
+function TTSVoiceSynth.gui()
+  return {
+    panel = {
+      title = "TTS VOICE SYNTH",
+      subtitle = "Vocal Speech & Formant Synthesizer",
+      background = "minimal_white",
+      accent = "#D9603B",
+      knobStyle = "minimal_white",
+      layout = {
+        {
+          type = "row",
+          children = {
+            {
+              type = "column",
+              children = {
+                { type = "spectrum", width = 210, height = 96 },
+                { type = "segmented_pill", param = "voice_mode", label = "VOICE PROFILE", options = { "Natural", "Robot", "Whisper" } },
+                { type = "segmented_pill", param = "speech_speed", label = "SPEED", options = { "Slow", "Normal", "Fast" } },
+                {
+                  type = "row",
+                  children = {
+                    { type = "knob", param = "pitch", label = "PITCH", size = 48, knobStyle = "minimal_white" },
+                    { type = "knob", param = "tone", label = "TONE", size = 48, knobStyle = "minimal_white" },
+                  }
+                },
+              }
+            },
+            {
+              type = "column",
+              children = {
+                { type = "knob", param = "volume", label = "LEVEL", size = 72, knobStyle = "minimal_white" },
+                { type = "knob", param = "space", label = "SPACE", size = 52, knobStyle = "minimal_white" },
+                { type = "knob", param = "air", label = "AIR", size = 46, knobStyle = "minimal_white" },
+                { type = "switch", param = "adv", label = "ADV", orientation = "vertical" },
+              }
+            },
+          }
+        },
+      }
+    }
+  }
+end
+''';
+      final height = state.getTrackNaturalGuiHeight(track);
+      // Height should accurately reflect the taller column (~340-420px), not be squished down to 120px
+      expect(height, greaterThanOrEqualTo(300.0));
+      expect(height, lessThanOrEqualTo(500.0));
+
+      state.fitFloatingWindowToWorkspace(const Size(1000, 700), track);
+      expect(state.floatingWindowSize.height, greaterThan(350.0));
+      expect(state.floatingWindowSize.width, greaterThan(450.0));
+    });
   });
 }
+

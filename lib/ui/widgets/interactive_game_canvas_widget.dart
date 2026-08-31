@@ -28,6 +28,7 @@ class GridPos {
 class InteractiveGameCanvasWidget extends StatefulWidget {
   final DawState dawState;
   final TrackChannel track;
+  final TrackChannel? hostTrack;
   final LuaGuiNode node;
   final Color accentColor;
   final bool isLightChassis;
@@ -36,6 +37,7 @@ class InteractiveGameCanvasWidget extends StatefulWidget {
     super.key,
     required this.dawState,
     required this.track,
+    this.hostTrack,
     required this.node,
     required this.accentColor,
     this.isLightChassis = false,
@@ -359,8 +361,9 @@ class _InteractiveGameCanvasWidgetState extends State<InteractiveGameCanvasWidge
     final height = widget.node.height ?? 200.0;
     final showControls = _isNibblesGame() || _isRunnerGame();
 
-    final trackId = widget.track.id;
-    final isMasterBus = trackId == 'master_bus' || trackId == 'master' || widget.track.name.toLowerCase().contains('master');
+    final targetTrack = widget.hostTrack ?? widget.track;
+    final trackId = targetTrack.id;
+    final isMasterBus = trackId == 'master_bus' || trackId == 'master' || targetTrack.name.toLowerCase().contains('master');
     final targetTrackId = isMasterBus ? null : trackId;
 
     final gainParam = widget.track.luaParams['Gain'] ?? 1.0;

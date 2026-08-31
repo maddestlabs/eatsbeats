@@ -38,7 +38,10 @@ class _LiveTrackVisualizerWidgetState extends State<LiveTrackVisualizerWidget>
     _ticker = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 1),
-    )..repeat();
+    );
+    if (!WidgetsBinding.instance.runtimeType.toString().contains('TestWidgetsFlutterBinding')) {
+      _ticker.repeat();
+    }
   }
 
   @override

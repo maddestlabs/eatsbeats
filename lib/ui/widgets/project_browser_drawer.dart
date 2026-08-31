@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../lua/lua_preset_library.dart';
 import '../../models/daw_state.dart';
 import '../../theme/eats_theme.dart';
@@ -6,9 +7,12 @@ import '../../audio/soundfont_engine.dart';
 import '../../audio/convolver_engine.dart';
 import '../../audio/procedural_ir_generator.dart';
 import '../../models/script_preset_model.dart';
+import '../../models/saved_project_model.dart';
 import '../../utils/soundfont_pack_manager.dart';
 import '../../utils/ir_pack_manager.dart';
 import '../../utils/audio_to_midi_pack_manager.dart';
+import '../../utils/eats_storage_helper.dart';
+import '../../utils/url_script_helper.dart';
 import '../audio_to_midi_dialog.dart';
 import '../../models/history_manager.dart';
 import '../../models/track_model.dart';
@@ -17,6 +21,7 @@ import 'command_palette_dialog.dart';
 import 'fx_rack_dialog.dart';
 import 'preset_browser_dialog.dart';
 import 'project_script_runner_dialog.dart';
+import 'skeuomorphic_hardware_button.dart';
 
 class SoundFontDragItem {
   final String fontId;
@@ -46,8 +51,11 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
   late TabController _tabController;
   final TextEditingController _scriptSearchController = TextEditingController();
   final TextEditingController _presetSearchController = TextEditingController();
+  final TextEditingController _projectSearchController = TextEditingController();
   LuaPresetCategory? _selectedCategoryFilter;
   String _selectedSoundCategory = 'ALL';
+  List<SavedProjectItem> _savedProjects = [];
+  bool _isLoadingProjects = false;
 
   @override
   void initState() {
@@ -64,6 +72,19 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
     });
     _scriptSearchController.addListener(() => setState(() {}));
     _presetSearchController.addListener(() => setState(() {}));
+    _projectSearchController.addListener(() => setState(() {}));
+    _loadSavedProjects();
+  }
+
+  Future<void> _loadSavedProjects() async {
+    setState(() => _isLoadingProjects = true);
+    final list = await EatsStorageHelper.listSavedProjects();
+    if (mounted) {
+      setState(() {
+        _savedProjects = list;
+        _isLoadingProjects = false;
+      });
+    }
   }
 
   @override
@@ -71,6 +92,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
     _tabController.dispose();
     _scriptSearchController.dispose();
     _presetSearchController.dispose();
+    _projectSearchController.dispose();
     super.dispose();
   }
 
@@ -190,8 +212,8 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                 ),
                 Tab(
                   icon: Tooltip(
-                    message: 'UI Themes & Visual Styles',
-                    child: Icon(Icons.palette_outlined, size: 18),
+                    message: 'Local Saved Projects (Projects/)',
+                    child: Icon(Icons.folder_special_outlined, size: 18),
                   ),
                 ),
                 Tab(
@@ -213,7 +235,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                 _buildScriptsTab(),
                 _buildSoundPresetsTab(),
                 _buildPacksTab(),
-                _buildThemesTab(),
+                _buildSavedProjectsTab(),
                 _buildHistoryTab(),
               ],
             ),
@@ -1424,92 +1446,535 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
     );
   }
 
-  // --- TAB 4: VISUAL THEMES ---
-  Widget _buildThemesTab() {
-    final currentTheme = EatsTheme.currentPreset;
+  // --- TAB 5: LOCAL SAVED PROJECTS (Projects/) ---
+  Widget _buildSavedProjectsTab() {
+    final filter = _projectSearchController.text.trim().toLowerCase();
+    final filteredProjects = _savedProjects.where((p) {
+      if (filter.isEmpty) return true;
+      return p.name.toLowerCase().contains(filter) || p.fileName.toLowerCase().contains(filter);
+    }).toList();
 
-    final themes = [
-      {
-        'preset': EatsThemePreset.ateTrack,
-        'name': 'Ate Track',
-        'desc': 'Skeuomorphic analog console, metallic texture & nixie tubes',
-        'color': const Color(0xFFFF8C00),
-      },
-      {
-        'preset': EatsThemePreset.midnightBites,
-        'name': 'Midnight Bites',
-        'desc': 'Obsidian dark cyber theme with neon cyan & purple accents',
-        'color': const Color(0xFF21F4E8),
-      },
-      {
-        'preset': EatsThemePreset.lightSnack,
-        'name': 'Light Snack',
-        'desc': 'Bright studio theme optimized for daylight visibility',
-        'color': const Color(0xFF0088FF),
-      },
-      {
-        'preset': EatsThemePreset.breakfast,
-        'name': 'Breakfast',
-        'desc': 'Solarized light theme with creamy parchment & warm accents',
-        'color': const Color(0xFFB58900),
-      },
-      {
-        'preset': EatsThemePreset.dinner,
-        'name': 'Dinner',
-        'desc': 'Solarized dark theme with deep ocean teal & cyan accents',
-        'color': const Color(0xFF2AA198),
-      },
-    ];
-
-    return ListView(
-      padding: const EdgeInsets.all(8),
+    return Column(
       children: [
-        _buildSectionHeader('UI THEME ENGINE', Icons.palette),
-        ...themes.map((t) {
-          final themePreset = t['preset'] as EatsThemePreset;
-          final isSelected = themePreset == currentTheme;
-          final accentColor = t['color'] as Color;
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: isSelected ? accentColor.withOpacity(0.18) : Colors.black.withOpacity(0.25),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: isSelected ? accentColor : EatsTheme.panelHeader,
-                width: isSelected ? 1.5 : 1,
+        // Top Search & Quick Action Header
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: EatsTheme.panelHeader,
+            border: Border(
+              bottom: BorderSide(
+                color: EatsTheme.controlBackground,
+                width: 1.0,
               ),
             ),
-            child: Material(
-              type: MaterialType.transparency,
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                leading: CircleAvatar(
-                  radius: 12,
-                  backgroundColor: accentColor,
-                  child: isSelected ? const Icon(Icons.check, size: 14, color: Colors.black) : null,
-                ),
-                title: Text(
-                  t['name'] as String,
-                  style: EatsTheme.getPrimaryFontStyle(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? Colors.white : EatsTheme.textLight,
+          ),
+          child: Column(
+            children: [
+              // Search Input
+              TextField(
+                controller: _projectSearchController,
+                style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12),
+                decoration: InputDecoration(
+                  hintText: 'Search saved projects in Projects/...',
+                  hintStyle: TextStyle(color: EatsTheme.textMuted, fontSize: 11),
+                  prefixIcon: Icon(Icons.search, color: EatsTheme.primaryCyan, size: 16),
+                  suffixIcon: _projectSearchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 14),
+                          onPressed: () => _projectSearchController.clear(),
+                        )
+                      : null,
+                  isDense: true,
+                  filled: true,
+                  fillColor: EatsTheme.controlBackground,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide.none,
                   ),
                 ),
-                subtitle: Text(
-                  t['desc'] as String,
-                  style: EatsTheme.getPrimaryFontStyle(fontSize: 10, color: EatsTheme.textMuted),
-                ),
-                onTap: () {
-                  widget.dawState.setThemePreset(themePreset);
-                },
               ),
-            ),
-          );
-        }),
+              const SizedBox(height: 8),
+
+              // Action Toolbar (+ SAVE CURRENT, REFRESH, OPEN FOLDER)
+              Row(
+                children: [
+                  // Save Current Project
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showSaveCurrentProjectDialog(context),
+                      icon: const Icon(Icons.add, size: 14, color: Colors.black),
+                      label: const Text('SAVE CURRENT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: EatsTheme.primaryCyan,
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+
+                  // Open Folder in OS Explorer
+                  IconButton(
+                    tooltip: 'Open Projects Folder in Explorer/Finder',
+                    icon: const Icon(Icons.folder_open, size: 16),
+                    color: EatsTheme.accentGold,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    style: IconButton.styleFrom(
+                      backgroundColor: EatsTheme.accentGold.withOpacity(0.12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    onPressed: () => EatsStorageHelper.openProjectsFolder(),
+                  ),
+                  const SizedBox(width: 4),
+
+                  // Refresh Button
+                  IconButton(
+                    tooltip: 'Refresh Projects List',
+                    icon: const Icon(Icons.refresh, size: 16),
+                    color: EatsTheme.primaryCyan,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    style: IconButton.styleFrom(
+                      backgroundColor: EatsTheme.primaryCyan.withOpacity(0.12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    onPressed: _loadSavedProjects,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        // Path indicator & Count
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          color: Colors.black.withOpacity(0.2),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${filteredProjects.length} PROJECT${filteredProjects.length == 1 ? '' : 'S'} FOUND',
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: EatsTheme.primaryCyan, letterSpacing: 0.5),
+              ),
+              Flexible(
+                child: Text(
+                  './Projects/',
+                  style: TextStyle(fontSize: 9, color: EatsTheme.textMuted),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Projects List
+        Expanded(
+          child: _isLoadingProjects
+              ? const Center(child: CircularProgressIndicator())
+              : filteredProjects.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.folder_open_outlined, size: 36, color: EatsTheme.textMuted.withOpacity(0.4)),
+                            const SizedBox(height: 8),
+                            Text(
+                              _savedProjects.isEmpty
+                                  ? 'No saved projects in ./Projects/ folder.'
+                                  : 'No projects match "$filter"',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: EatsTheme.textMuted, fontSize: 11),
+                            ),
+                            if (_savedProjects.isEmpty) ...[
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: EatsTheme.primaryCyan,
+                                  side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.5)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                ),
+                                icon: const Icon(Icons.bookmark_add, size: 14),
+                                label: const Text('Save Current Project Here', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                onPressed: () => _showSaveCurrentProjectDialog(context),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      itemCount: filteredProjects.length,
+                      itemBuilder: (context, index) {
+                        final project = filteredProjects[index];
+                        final sizeStr = _formatFileSize(project.fileSizeBytes);
+                        final dateStr = _formatDate(project.lastModified);
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 6),
+                          decoration: BoxDecoration(
+                            color: EatsTheme.controlBackground.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.08),
+                              width: 1.0,
+                            ),
+                          ),
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 26,
+                                        height: 26,
+                                        decoration: BoxDecoration(
+                                          color: EatsTheme.primaryCyan.withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Icon(Icons.audio_file, color: EatsTheme.primaryCyan, size: 15),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              project.name,
+                                              style: EatsTheme.getPrimaryFontStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color: EatsTheme.textLight,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              '$sizeStr • $dateStr',
+                                              style: TextStyle(
+                                                fontSize: 9.5,
+                                                color: EatsTheme.textMuted,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  // Action Buttons (LOAD, SHARE, RENAME, DELETE)
+                                  Row(
+                                    children: [
+                                      // Load Button
+                                      Expanded(
+                                        child: ElevatedButton.icon(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: EatsTheme.primaryCyan.withOpacity(0.2),
+                                            foregroundColor: EatsTheme.primaryCyan,
+                                            elevation: 0,
+                                            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(5),
+                                              side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.4)),
+                                            ),
+                                          ),
+                                          icon: const Icon(Icons.play_arrow, size: 14),
+                                          label: const Text('LOAD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                          onPressed: () => _handleLoadProject(context, project),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      // Share Link Button
+                                      IconButton(
+                                        tooltip: 'Copy Shareable Song URL',
+                                        icon: const Icon(Icons.share, size: 14),
+                                        color: EatsTheme.secondaryMagenta,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                        style: IconButton.styleFrom(
+                                          backgroundColor: EatsTheme.secondaryMagenta.withOpacity(0.12),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+                                        ),
+                                        onPressed: () => _handleShareProject(context, project),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      // Rename Button
+                                      IconButton(
+                                        tooltip: 'Rename Project File',
+                                        icon: const Icon(Icons.edit, size: 14),
+                                        color: EatsTheme.accentGold,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                        style: IconButton.styleFrom(
+                                          backgroundColor: EatsTheme.accentGold.withOpacity(0.12),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+                                        ),
+                                        onPressed: () => _showRenameProjectDialog(context, project),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      // Delete Button
+                                      IconButton(
+                                        tooltip: 'Delete Project File',
+                                        icon: const Icon(Icons.delete_outline, size: 14),
+                                        color: EatsTheme.muteColor,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                        style: IconButton.styleFrom(
+                                          backgroundColor: EatsTheme.muteColor.withOpacity(0.12),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+                                        ),
+                                        onPressed: () => _showDeleteProjectDialog(context, project),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+        ),
       ],
     );
+  }
+
+  void _showSaveCurrentProjectDialog(BuildContext context) {
+    final controller = TextEditingController(
+      text: widget.dawState.projectName.isNotEmpty
+          ? widget.dawState.projectName
+          : 'Project ${DateTime.now().month}-${DateTime.now().day}',
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: EatsTheme.panelBackground,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Row(
+            children: [
+              Icon(Icons.save_as, color: EatsTheme.primaryCyan, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'SAVE TO PROJECTS FOLDER',
+                style: EatsTheme.getDisplayFontStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: EatsTheme.primaryCyan,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Saves your song as a .eats.lua file inside the ./Projects/ directory.',
+                style: TextStyle(color: EatsTheme.textSecondary, fontSize: 11),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: TextStyle(color: EatsTheme.textPrimary, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'Song / Project Name',
+                  labelStyle: TextStyle(color: EatsTheme.textMuted),
+                  filled: true,
+                  fillColor: EatsTheme.controlBackground,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('CANCEL', style: TextStyle(color: EatsTheme.textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: EatsTheme.primaryCyan),
+              onPressed: () async {
+                final name = controller.text.trim();
+                if (name.isNotEmpty) {
+                  final lua = widget.dawState.exportToEatsLua();
+                  await EatsStorageHelper.saveProjectFile(name, lua);
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                  await _loadSavedProjects();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Saved project "$name.eats.lua" to Projects/ folder!')),
+                    );
+                  }
+                }
+              },
+              child: const Text('SAVE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _handleLoadProject(BuildContext context, SavedProjectItem project) async {
+    final lua = await EatsStorageHelper.loadProjectFile(project);
+    if (lua != null && lua.isNotEmpty) {
+      widget.dawState.loadFromEatsLua(lua);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Loaded project "${project.name}"')),
+        );
+      }
+    } else {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not read project file ${project.fileName}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleShareProject(BuildContext context, SavedProjectItem project) async {
+    final lua = await EatsStorageHelper.loadProjectFile(project);
+    if (lua != null && lua.isNotEmpty) {
+      final shareUrl = UrlScriptHelper.buildShareableUrl(lua);
+      await Clipboard.setData(ClipboardData(text: shareUrl));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Copied compressed song share URL to clipboard!')),
+        );
+      }
+    }
+  }
+
+  void _showRenameProjectDialog(BuildContext context, SavedProjectItem project) {
+    final controller = TextEditingController(text: project.name);
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: EatsTheme.panelBackground,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Row(
+            children: [
+              Icon(Icons.edit, color: EatsTheme.accentGold, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'RENAME PROJECT',
+                style: EatsTheme.getDisplayFontStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: EatsTheme.accentGold,
+                ),
+              ),
+            ],
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: TextStyle(color: EatsTheme.textPrimary, fontSize: 13),
+            decoration: InputDecoration(
+              labelText: 'New Project Name',
+              labelStyle: TextStyle(color: EatsTheme.textMuted),
+              filled: true,
+              fillColor: EatsTheme.controlBackground,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('CANCEL', style: TextStyle(color: EatsTheme.textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: EatsTheme.accentGold),
+              onPressed: () async {
+                final newName = controller.text.trim();
+                if (newName.isNotEmpty && newName != project.name) {
+                  await EatsStorageHelper.renameProjectFile(project, newName);
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                  await _loadSavedProjects();
+                }
+              },
+              child: const Text('RENAME', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDeleteProjectDialog(BuildContext context, SavedProjectItem project) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: EatsTheme.panelBackground,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Row(
+            children: [
+              Icon(Icons.delete_forever, color: EatsTheme.muteColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'DELETE PROJECT',
+                style: EatsTheme.getDisplayFontStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: EatsTheme.muteColor,
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to delete "${project.fileName}" from the Projects folder? This cannot be undone.',
+            style: TextStyle(color: EatsTheme.textSecondary, fontSize: 12),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('CANCEL', style: TextStyle(color: EatsTheme.textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: EatsTheme.muteColor),
+              onPressed: () async {
+                await EatsStorageHelper.deleteProjectFile(project);
+                if (ctx.mounted) Navigator.of(ctx).pop();
+                await _loadSavedProjects();
+              },
+              child: const Text('DELETE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  String _formatDate(DateTime dt) {
+    final now = DateTime.now();
+    if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+      final h = dt.hour.toString().padLeft(2, '0');
+      final m = dt.minute.toString().padLeft(2, '0');
+      return 'Today $h:$m';
+    }
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
   }
 
   // --- HELPERS & UTILITIES ---

@@ -148,9 +148,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Verify code icon exists for Open in Script Editor
-      final codeIcons = find.byIcon(Icons.code);
-      expect(codeIcons, findsOneWidget);
+      // Verify developer board icon exists for Open in Design tab
+      final designIcons = find.byIcon(Icons.developer_board);
+      expect(designIcons, findsOneWidget);
 
       // Verify window size is auto-fitted
       expect(dawState.floatingWindowSize.width, greaterThan(300.0));

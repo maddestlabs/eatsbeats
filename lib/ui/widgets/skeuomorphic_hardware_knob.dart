@@ -53,53 +53,64 @@ class SkeuomorphicHardwareKnob extends StatefulWidget {
 class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
   double _dragStartValue = 0.0;
   double _dragStartY = 0.0;
+  double _dragStartX = 0.0;
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = widget.accentColor ?? (widget.knobStyle == KnobStyle.chrome ? const Color(0xFF141416) : EatsTheme.primaryCyan);
+    final isMinimal = widget.knobStyle == KnobStyle.minimalWhite;
+    final isLight = widget.isLightChassis || isMinimal;
+    final activeColor = widget.accentColor ?? (widget.knobStyle == KnobStyle.chrome || isMinimal ? const Color(0xFF141416) : EatsTheme.primaryCyan);
     final normalized = ((widget.value - widget.min) / (widget.max - widget.min)).clamp(0.0, 1.0);
     final displayVal = widget.formatValue != null
         ? widget.formatValue!(widget.value)
         : widget.value.toStringAsFixed(2);
 
-    final labelColor = widget.isLightChassis
-        ? const Color(0xFF1B1A17)
-        : EatsTheme.textSecondary;
+    final labelColor = isLight
+        ? const Color(0xFF1E1E24)
+        : const Color(0xFFE2DDD5);
+
+    final labelWidget = (widget.label != null && widget.showLabelText)
+        ? Padding(
+            padding: EdgeInsets.only(top: isMinimal ? 6.0 : 0.0, bottom: isMinimal ? 0.0 : 4.0),
+            child: Text(
+              widget.label!.toUpperCase(),
+              style: EatsTheme.getDisplayFontStyle(
+                fontSize: isMinimal ? 10.0 : 9.5,
+                fontWeight: isMinimal ? FontWeight.w900 : FontWeight.w800,
+                letterSpacing: isMinimal ? 1.2 : 0.8,
+                color: labelColor,
+              ),
+            ),
+          )
+        : null;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (widget.label != null && widget.showLabelText) ...[
-          Text(
-            widget.label!.toUpperCase(),
-            style: EatsTheme.getDisplayFontStyle(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
-              color: labelColor,
-            ),
-          ),
-          const SizedBox(height: 4),
-        ],
+        if (!isMinimal && labelWidget != null) labelWidget,
         GestureDetector(
-          onVerticalDragStart: (details) {
+          onPanStart: (details) {
             widget.onChangeStart?.call();
             _dragStartValue = widget.value;
             _dragStartY = details.globalPosition.dy;
+            _dragStartX = details.globalPosition.dx;
           },
-          onVerticalDragUpdate: (details) {
+          onPanUpdate: (details) {
             final dy = _dragStartY - details.globalPosition.dy;
+            final dx = details.globalPosition.dx - _dragStartX;
+            final dragDelta = (dy.abs() >= dx.abs()) ? dy : dx;
             final range = widget.max - widget.min;
-            // 200 pixels drag = full scale range
-            final delta = (dy / 200.0) * range;
+            // 150 pixels drag = full scale range
+            final delta = (dragDelta / 150.0) * range;
             double newValue = (_dragStartValue + delta).clamp(widget.min, widget.max);
             if (widget.step > 0) {
               newValue = (newValue / widget.step).roundToDouble() * widget.step;
+              newValue = newValue.clamp(widget.min, widget.max);
             }
             widget.onChanged(newValue);
           },
-          onVerticalDragEnd: (_) => widget.onChangeEnd?.call(),
-          onVerticalDragCancel: () => widget.onChangeEnd?.call(),
+          onPanEnd: (_) => widget.onChangeEnd?.call(),
+          onPanCancel: () => widget.onChangeEnd?.call(),
           onDoubleTap: () {
             widget.onChangeStart?.call();
             widget.onChanged(widget.defaultValue);
@@ -109,7 +120,7 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
           onSecondaryTap: () => _showManualEditDialog(context),
           onSecondaryTapDown: (_) => _showManualEditDialog(context),
           child: Tooltip(
-            message: '${widget.label ?? "Knob"}: $displayVal (Double-tap reset, Hold/Right-click to edit)',
+            message: '${widget.label != null ? '${widget.label}: ' : ''}$displayVal (Double-tap to reset, Long-press to edit)',
             child: SizedBox(
               width: widget.size,
               height: widget.size,
@@ -118,22 +129,23 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
                   normalizedValue: normalized,
                   accentColor: activeColor,
                   knobStyle: widget.knobStyle,
-                  isLightChassis: widget.isLightChassis,
+                  isLightChassis: isLight,
                   isGrungyTheme: EatsTheme.currentPreset == EatsThemePreset.ateTrack,
                 ),
               ),
             ),
           ),
         ),
-        if (widget.showValueText) ...[
+        if (isMinimal && labelWidget != null) labelWidget,
+        if (widget.showValueText && !isMinimal) ...[
           const SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: widget.isLightChassis ? Colors.black.withOpacity(0.08) : Colors.black45,
+              color: isLight ? Colors.black.withOpacity(0.08) : Colors.black45,
               borderRadius: BorderRadius.circular(4),
               border: Border.all(
-                color: widget.isLightChassis
+                color: isLight
                     ? Colors.black.withOpacity(0.2)
                     : activeColor.withOpacity(0.3),
                 width: 0.8,
@@ -144,7 +156,7 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
               style: EatsTheme.getDisplayFontStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.bold,
-                color: widget.isLightChassis ? const Color(0xFF1B1A17) : activeColor,
+                color: isLight ? const Color(0xFF1B1A17) : activeColor,
               ),
             ),
           ),
@@ -155,7 +167,7 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
 
   void _showManualEditDialog(BuildContext context) {
     final displayVal = widget.formatValue != null ? widget.formatValue!(widget.value) : widget.value.toStringAsFixed(2);
-    final accent = widget.accentColor ?? (widget.knobStyle == KnobStyle.chrome ? const Color(0xFF141416) : EatsTheme.primaryCyan);
+    final accent = widget.accentColor ?? (widget.knobStyle == KnobStyle.chrome || widget.knobStyle == KnobStyle.minimalWhite ? const Color(0xFF141416) : EatsTheme.primaryCyan);
 
     showCompactValueEditDialog(
       context: context,
@@ -201,11 +213,71 @@ class _KnobPainter extends CustomPainter {
 
     final isChrome = knobStyle == KnobStyle.chrome;
     final isSnes = knobStyle == KnobStyle.snes;
+    final isMinimal = knobStyle == KnobStyle.minimalWhite;
 
     // ----------------------------------------------------
-    // 1. Perimeter Radial Calibration Ticks (TB-303 Dial Markings / Console Ticks)
+    // 1. Perimeter Radial Calibration Ticks / Dots & Value Stroke
     // ----------------------------------------------------
-    if (isChrome || isLightChassis || isSnes) {
+    if (isMinimal) {
+      // 1a. Background Track Arc & Active Value Arc
+      final arcRadius = outerRadius - 2.5;
+      final arcRect = Rect.fromCircle(center: center, radius: arcRadius);
+
+      final inactiveArcPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFE2E5EC);
+      canvas.drawArc(arcRect, startAngle, totalAngleRange, false, inactiveArcPaint);
+
+      if (normalizedValue > 0.005) {
+        final sweepAngle = (normalizedValue * totalAngleRange).clamp(0.005, totalAngleRange);
+        final activeArcPaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFF1E1E24);
+        canvas.drawArc(arcRect, startAngle, sweepAngle, false, activeArcPaint);
+      }
+
+      // 1b. Refined Breakpoint Dots along Radius
+      const int numTicks = 13;
+      final activeDotPaint = Paint()
+        ..color = const Color(0xFF1B1B1E)
+        ..style = PaintingStyle.fill;
+
+      final activeMajorDotPaint = Paint()
+        ..color = const Color(0xFF1B1B1E)
+        ..style = PaintingStyle.fill;
+
+      final inactiveDotPaint = Paint()
+        ..color = const Color(0xFFCAD0DC)
+        ..style = PaintingStyle.fill;
+
+      final dotBorderPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.5
+        ..color = Colors.white;
+
+      for (int i = 0; i < numTicks; i++) {
+        final normTickVal = i / (numTicks - 1);
+        final tickAngle = startAngle + normTickVal * totalAngleRange;
+        final isMajor = i == 0 || i == (numTicks - 1) || i == ((numTicks - 1) ~/ 2) || i == ((numTicks - 1) ~/ 4) || i == (3 * (numTicks - 1) ~/ 4);
+        final dotRadius = isMajor ? 1.5 : 1.0;
+        final tickPos = center + Offset(
+          math.cos(tickAngle) * arcRadius,
+          math.sin(tickAngle) * arcRadius,
+        );
+
+        final isActive = normTickVal <= (normalizedValue + 0.02);
+        final paint = isActive
+            ? (isMajor ? activeMajorDotPaint : activeDotPaint)
+            : inactiveDotPaint;
+
+        canvas.drawCircle(tickPos, dotRadius, paint);
+        canvas.drawCircle(tickPos, dotRadius, dotBorderPaint);
+      }
+    } else if (isChrome || isLightChassis || isSnes) {
       const int numTicks = 11;
       final tickPaint = Paint()
         ..color = (isSnes || isLightChassis || isChrome)
@@ -229,62 +301,130 @@ class _KnobPainter extends CustomPainter {
     // ----------------------------------------------------
     // 2. Outer Arc Value Track (Arc Meter around Perimeter)
     // ----------------------------------------------------
-    final arcRadius = outerRadius - (isChrome ? 5.0 : 3.0);
-    final arcRect = Rect.fromCircle(center: center, radius: arcRadius);
+    if (!isMinimal) {
+      final arcRadius = outerRadius - (isChrome ? 5.0 : 3.0);
+      final arcRect = Rect.fromCircle(center: center, radius: arcRadius);
 
-    // Inactive Background Track Arc
-    final inactiveArcPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = isChrome ? 2.6 : 2.5
-      ..strokeCap = StrokeCap.round
-      ..color = (isSnes || isLightChassis)
-          ? const Color(0xFFC0BCB0)
-          : (isChrome ? const Color(0xFF32363E) : (isGrungyTheme ? const Color(0xFF38322B) : const Color(0xFF222733)));
-    canvas.drawArc(arcRect, startAngle, totalAngleRange, false, inactiveArcPaint);
+      // Inactive Background Track Arc
+      final inactiveArcPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = isChrome ? 2.6 : 2.5
+        ..strokeCap = StrokeCap.round
+        ..color = (isSnes || isLightChassis)
+            ? const Color(0xFFC0BCB0)
+            : (isChrome ? const Color(0xFF32363E) : (isGrungyTheme ? const Color(0xFF38322B) : const Color(0xFF222733)));
+      canvas.drawArc(arcRect, startAngle, totalAngleRange, false, inactiveArcPaint);
 
-    // Active Value Arc
-    if (normalizedValue > 0.001) {
-      final sweepAngle = (normalizedValue * totalAngleRange).clamp(0.001, totalAngleRange);
+      // Active Value Arc
+      if (normalizedValue > 0.001) {
+        final sweepAngle = (normalizedValue * totalAngleRange).clamp(0.001, totalAngleRange);
 
-      if (isSnes || (isChrome && isLightChassis)) {
-        // Classic Silkscreen Solid Charcoal/Black Arc (Authentic TB-303 / Tau)
-        final activeArcPaint = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.6
-          ..strokeCap = StrokeCap.round
-          ..color = const Color(0xFF141416);
-        canvas.drawArc(arcRect, startAngle, sweepAngle, false, activeArcPaint);
-      } else if (isChrome) {
-        // Dark metallic chrome chassis track (deep gunmetal indicator)
-        final activeArcPaint = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.6
-          ..strokeCap = StrokeCap.round
-          ..color = accentColor == const Color(0xFF141416) ? const Color(0xFF00FF9D) : accentColor;
-        canvas.drawArc(arcRect, startAngle, sweepAngle, false, activeArcPaint);
-      } else {
-        // Standard Glowing Arc
-        final arcGlowPaint = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4.0
-          ..strokeCap = StrokeCap.round
-          ..color = accentColor.withOpacity(0.5)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
-        canvas.drawArc(arcRect, startAngle, sweepAngle, false, arcGlowPaint);
+        if (isSnes || (isChrome && isLightChassis)) {
+          // Classic Silkscreen Solid Charcoal/Black Arc (Authentic TB-303 / Tau)
+          final activeArcPaint = Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.6
+            ..strokeCap = StrokeCap.round
+            ..color = const Color(0xFF141416);
+          canvas.drawArc(arcRect, startAngle, sweepAngle, false, activeArcPaint);
+        } else if (isChrome) {
+          // Dark metallic chrome chassis track (deep gunmetal indicator)
+          final activeArcPaint = Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.6
+            ..strokeCap = StrokeCap.round
+            ..color = accentColor == const Color(0xFF141416) ? const Color(0xFF00FF9D) : accentColor;
+          canvas.drawArc(arcRect, startAngle, sweepAngle, false, activeArcPaint);
+        } else {
+          // Standard Glowing Arc
+          final arcGlowPaint = Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 4.0
+            ..strokeCap = StrokeCap.round
+            ..color = accentColor.withOpacity(0.5)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+          canvas.drawArc(arcRect, startAngle, sweepAngle, false, arcGlowPaint);
 
-        final activeArcPaint = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5
-          ..strokeCap = StrokeCap.round
-          ..color = accentColor;
-        canvas.drawArc(arcRect, startAngle, sweepAngle, false, activeArcPaint);
+          final activeArcPaint = Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.5
+            ..strokeCap = StrokeCap.round
+            ..color = accentColor;
+          canvas.drawArc(arcRect, startAngle, sweepAngle, false, activeArcPaint);
+        }
       }
     }
 
     // ----------------------------------------------------
     // 3. Physical Knob Body & Bezel (3D Skeuomorphic Rotary Dial)
     // ----------------------------------------------------
-    final knobRadius = outerRadius * (isChrome ? 0.74 : 0.76);
+    final knobRadius = outerRadius * (isMinimal ? 0.72 : (isChrome ? 0.74 : 0.76));
+
+    if (isMinimal) {
+      // Ambient soft drop shadow (Clean ceramic elevation)
+      final shadowPaint = Paint()
+        ..color = Colors.black.withOpacity(0.18)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5.0);
+      canvas.drawCircle(center + const Offset(0, 3.5), knobRadius, shadowPaint);
+
+      final subtleTopHighlight = Paint()
+        ..color = Colors.white.withOpacity(0.9)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
+      canvas.drawCircle(center + const Offset(0, -1.0), knobRadius, subtleTopHighlight);
+
+      // Outer Bezel Rim (Subtle clean border stroke)
+      final outerRimPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xFFD4D7DF);
+      canvas.drawCircle(center, knobRadius, outerRimPaint);
+
+      // Matte Ceramic White Dial Face
+      final dialGradient = RadialGradient(
+        center: const Alignment(-0.25, -0.3),
+        radius: 0.95,
+        colors: const [
+          Color(0xFFFFFFFF),
+          Color(0xFFFBFBFC),
+          Color(0xFFF0F2F5),
+          Color(0xFFE6E9EE),
+        ],
+        stops: const [0.0, 0.45, 0.85, 1.0],
+      );
+      final dialPaint = Paint()
+        ..shader = dialGradient.createShader(Rect.fromCircle(center: center, radius: knobRadius));
+      canvas.drawCircle(center, knobRadius - 0.5, dialPaint);
+
+      // Subtle Inset Groove ring around periphery of knob face
+      final insetRingPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.6
+        ..color = const Color(0xFFDCDFE5).withOpacity(0.6);
+      canvas.drawCircle(center, knobRadius * 0.88, insetRingPaint);
+
+      // Recessed Charcoal Dot Indicator near perimeter with subtle highlight bevel
+      final dotRadius = math.max(2.4, knobRadius * 0.11);
+      final dotDistance = knobRadius * 0.68;
+      final dotPos = center + Offset(math.cos(currentAngle) * dotDistance, math.sin(currentAngle) * dotDistance);
+
+      final dotShadowPaint = Paint()
+        ..color = Colors.black.withOpacity(0.3)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
+      canvas.drawCircle(dotPos + const Offset(0, 0.6), dotRadius, dotShadowPaint);
+
+      final dotBevelPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8
+        ..color = Colors.white.withOpacity(0.9);
+      canvas.drawCircle(dotPos, dotRadius + 0.4, dotBevelPaint);
+
+      final dotPaint = Paint()
+        ..color = const Color(0xFF1B1B1E)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(dotPos, dotRadius, dotPaint);
+
+      return;
+    }
 
     // Bezel Drop Shadow
     final shadowPaint = Paint()
@@ -350,7 +490,6 @@ class _KnobPainter extends CustomPainter {
       // ----------------------------------------------------
       // Smooth Polished Chrome Beveled Dial (TB-303 / Silver Hardware)
       // ----------------------------------------------------
-      // Chrome Mirror Outer Beveled Rim
       final chromeOuterBezelPaint = Paint()
         ..shader = const LinearGradient(
           begin: Alignment.topLeft,
@@ -366,7 +505,6 @@ class _KnobPainter extends CustomPainter {
         ).createShader(Rect.fromCircle(center: center, radius: knobRadius + 1.2));
       canvas.drawCircle(center, knobRadius + 1.2, chromeOuterBezelPaint);
 
-      // Chrome Body Cap with Conical Mirror Gleam Gradient
       final chromeBodyPaint = Paint()
         ..shader = SweepGradient(
           center: Alignment.center,
@@ -388,7 +526,6 @@ class _KnobPainter extends CustomPainter {
         ).createShader(Rect.fromCircle(center: center, radius: knobRadius));
       canvas.drawCircle(center, knobRadius, chromeBodyPaint);
 
-      // Inner Concentric Cap Face (Machined Silver Face)
       final innerRadius = knobRadius * 0.82;
       final innerFaceGradient = RadialGradient(
         center: const Alignment(-0.25, -0.3),
@@ -406,7 +543,6 @@ class _KnobPainter extends CustomPainter {
         ..shader = innerFaceGradient.createShader(Rect.fromCircle(center: center, radius: innerRadius));
       canvas.drawCircle(center, innerRadius, innerCapPaint);
 
-      // Inner Face Chamfer Rim Line
       final innerRimPaint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.9
@@ -479,21 +615,18 @@ class _KnobPainter extends CustomPainter {
     final p2 = center + Offset(math.cos(currentAngle) * (knobRadius * (isChrome ? 0.64 : 0.72)), math.sin(currentAngle) * (knobRadius * (isChrome ? 0.64 : 0.72)));
 
     if (isSnes) {
-      // Solid Dark Gray Level Indicator Notch
       final snesNotchPaint = Paint()
         ..color = const Color(0xFF2C2C32)
         ..strokeWidth = 2.6
         ..strokeCap = StrokeCap.round;
       canvas.drawLine(p1, p2, snesNotchPaint);
     } else if (isChrome) {
-      // Authentic TB-303 / Muon Tau Inset Black Engraved Slot
       final notchShadowPaint = Paint()
         ..color = const Color(0xFF000000)
         ..strokeWidth = 2.6
         ..strokeCap = StrokeCap.round;
       canvas.drawLine(p1, p2, notchShadowPaint);
 
-      // Subtle 3D Inset Bevel Highlight on Slot Edge
       final normalAngle = currentAngle + math.pi * 0.5;
       final offsetHl = Offset(math.cos(normalAngle) * 0.7, math.sin(normalAngle) * 0.7);
       final notchHlPaint = Paint()
@@ -502,7 +635,6 @@ class _KnobPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round;
       canvas.drawLine(p1 + offsetHl, p2 + offsetHl, notchHlPaint);
     } else {
-      // Pointer Glow
       final pointerGlowPaint = Paint()
         ..color = accentColor.withOpacity(0.7)
         ..strokeWidth = 4.0
@@ -510,7 +642,6 @@ class _KnobPainter extends CustomPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
       canvas.drawLine(p1, p2, pointerGlowPaint);
 
-      // Pointer Core Line
       final pointerCorePaint = Paint()
         ..color = accentColor
         ..strokeWidth = 2.5

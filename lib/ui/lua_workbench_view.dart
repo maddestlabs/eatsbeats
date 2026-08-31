@@ -12,6 +12,7 @@ import 'modular/eurorack_theme.dart';
 import 'modular/modular_rack_canvas.dart';
 import 'widgets/dynamic_instrument_gui_widget.dart';
 import 'widgets/eatsbeats_slider.dart';
+import 'widgets/live_track_visualizer_widget.dart';
 import 'widgets/project_script_runner_dialog.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
 import 'widgets/waveform_painter.dart';
@@ -475,6 +476,12 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
                         child: DynamicInstrumentGuiWidget(
                           dawState: widget.dawState,
                           track: activeTrack,
+                          hostTrack: activeTarget.trackId == widget.dawState.masterTrack.id
+                              ? widget.dawState.masterTrack
+                              : widget.dawState.tracks.firstWhere(
+                                  (t) => t.id == activeTarget.trackId,
+                                  orElse: () => activeTrack,
+                                ),
                         ),
                       ),
                     ),
@@ -554,53 +561,25 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
     required bool isGrungy,
     required Color targetBadgeBg,
   }) {
+    final hostTrack = activeTarget.trackId == widget.dawState.masterTrack.id
+        ? widget.dawState.masterTrack
+        : widget.dawState.tracks.firstWhere(
+            (t) => t.id == activeTarget.trackId,
+            orElse: () => widget.dawState.activeTrack,
+          );
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Real-time Audio Oscilloscope LCD Display
-          Container(
+          LiveTrackVisualizerWidget(
+            audioEngine: widget.dawState.audioEngine,
+            track: hostTrack,
+            isSpectrum: false,
+            accentColor: const Color(0xFF00FF9D),
             height: 64,
-            decoration: BoxDecoration(
-              color: const Color(0xFF0D130E),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: const Color(0xFF2A3628), width: 1.5),
-              boxShadow: const [
-                BoxShadow(color: Color(0xB3000000), offset: Offset(0, 2), blurRadius: 4),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(5),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: WaveformPainter(timeData: widget.dawState.audioEngine.waveformTimeData),
-                    ),
-                  ),
-                  Positioned(
-                    top: 4,
-                    left: 8,
-                    child: Text(
-                      'OSCILLOSCOPE [AUDIO OUT]',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: const Color(0xFF98B890).withOpacity(0.85),
-                        fontSize: 8,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ),
-                  const Positioned.fill(
-                    child: CustomPaint(
-                      painter: _LcdOscilloscopeGlassReflectionPainter(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ),
 
           const SizedBox(height: 10),

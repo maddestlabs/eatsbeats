@@ -77,6 +77,9 @@ class _PianoRollViewState extends State<PianoRollView> {
   String? _draggedAutomationPointId;
   EasingType _selectedPointEasing = EasingType.linear;
 
+  // Bend / Slide Draw Mode State
+  bool _isBendDrawMode = false;
+
   void _handleKeyPointerDown(PointerDownEvent e, int pitch, double keyWidth) {
     final normX = (e.localPosition.dx / keyWidth).clamp(0.0, 1.0);
     final velocity = (0.15 + 0.85 * normX).clamp(0.15, 1.0);
@@ -106,14 +109,51 @@ class _PianoRollViewState extends State<PianoRollView> {
     }
   }
 
+  int _lastTabIndex = -1;
+  MusicViewType? _lastActiveView;
+
   @override
   void initState() {
     super.initState();
+    widget.dawState.addListener(_onDawStateChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
+        _focusNode.requestFocus();
         _centerViewOnNotesOrDefault();
       }
     });
+  }
+
+  void _onDawStateChanged() {
+    if (!mounted) return;
+    final bool isEditTab = widget.dawState.activeTabIndex == 1;
+    final bool isPianoRoll = widget.dawState.activeTrack.activeView == MusicViewType.pianoRoll;
+    if (isEditTab && isPianoRoll && (_lastTabIndex != 1 || _lastActiveView != MusicViewType.pianoRoll)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_focusNode.hasFocus) {
+          _focusNode.requestFocus();
+        }
+      });
+    }
+    _lastTabIndex = widget.dawState.activeTabIndex;
+    _lastActiveView = widget.dawState.activeTrack.activeView;
+    setState(() {});
+  }
+
+  @override
+  void didUpdateWidget(covariant PianoRollView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.dawState != widget.dawState) {
+      oldWidget.dawState.removeListener(_onDawStateChanged);
+      widget.dawState.addListener(_onDawStateChanged);
+    }
+    if (widget.dawState.activeTabIndex == 1 && widget.dawState.activeTrack.activeView == MusicViewType.pianoRoll) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_focusNode.hasFocus) {
+          _focusNode.requestFocus();
+        }
+      });
+    }
   }
 
   void _centerViewOnNotesOrDefault({bool animate = false}) {
@@ -157,6 +197,7 @@ class _PianoRollViewState extends State<PianoRollView> {
 
   @override
   void dispose() {
+    widget.dawState.removeListener(_onDawStateChanged);
     _horizontalScroll.dispose();
     _keysScrollController.dispose();
     _gridScrollController.dispose();
@@ -690,33 +731,35 @@ class _PianoRollViewState extends State<PianoRollView> {
                     height: 8,
                     decoration: BoxDecoration(color: track.color, shape: BoxShape.circle),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'NOTE INSPECTOR',
-                    style: EatsTheme.getDisplayFontStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: EatsTheme.textLight,
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'NOTE INSPECTOR',
+                      overflow: TextOverflow.ellipsis,
+                      style: EatsTheme.getDisplayFontStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                        color: EatsTheme.textLight,
+                      ),
                     ),
                   ),
-                  const Spacer(),
                   // Delete Button
                   IconButton(
                     icon: const Icon(Icons.delete_forever, size: 16, color: Colors.redAccent),
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                     tooltip: 'Delete Note (Del)',
                     onPressed: () {
                       widget.dawState.removeNote(track, note.id);
                       setState(() => _selectedNoteIds.remove(note.id));
                     },
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 2),
                   // Close Button
                   IconButton(
                     icon: Icon(Icons.close, size: 16, color: EatsTheme.textMuted),
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                     tooltip: 'Close Inspector',
                     onPressed: () => setState(() => _selectedNoteIds.remove(note.id)),
                   ),
@@ -973,6 +1016,138 @@ class _PianoRollViewState extends State<PianoRollView> {
                           widget.dawState.setNoteLyric(track, note, null);
                           setState(() {});
                         }),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Section 6: Note Type / Pitch Bend
+                  _buildSidebarSectionHeader('NOTE TYPE / PITCH BEND'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            widget.dawState.setNoteSlide(track, note, false);
+                            setState(() {});
+                          },
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: !note.isSlide ? EatsTheme.primaryCyan.withOpacity(0.25) : EatsTheme.controlBackground,
+                              border: Border.all(color: !note.isSlide ? EatsTheme.primaryCyan : Colors.transparent),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            alignment: Alignment.center,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.music_note, size: 12, color: !note.isSlide ? EatsTheme.primaryCyan : EatsTheme.textMuted),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'REGULAR',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: !note.isSlide ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            widget.dawState.setNoteSlide(track, note, true);
+                            setState(() {});
+                          },
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: note.isSlide ? EatsTheme.accentGold.withOpacity(0.25) : EatsTheme.controlBackground,
+                              border: Border.all(color: note.isSlide ? EatsTheme.accentGold : Colors.transparent),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            alignment: Alignment.center,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.trending_up, size: 12, color: note.isSlide ? EatsTheme.accentGold : EatsTheme.textMuted),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'BEND',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: note.isSlide ? EatsTheme.accentGold : EatsTheme.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Section 7: Articulation & Expression
+                  _buildSidebarSectionHeader('ARTICULATION & EXPRESSION'),
+                  Wrap(
+                    spacing: 5,
+                    runSpacing: 5,
+                    children: [
+                      for (final art in [
+                        {'id': null, 'label': 'NORMAL'},
+                        {'id': 'staccato', 'label': 'STACCATO'},
+                        {'id': 'legato', 'label': 'LEGATO'},
+                        {'id': 'accent', 'label': 'ACCENT'},
+                        {'id': 'pizzicato', 'label': 'PIZZICATO'},
+                        {'id': 'muted', 'label': 'MUTED'},
+                        {'id': 'harmonics', 'label': 'HARMONICS'},
+                        {'id': 'tremolo', 'label': 'TREMOLO'},
+                        {'id': 'slap', 'label': 'SLAP'},
+                        {'id': 'flam', 'label': 'FLAM'},
+                      ]) ...[
+                        Builder(
+                          builder: (context) {
+                            final isSelected = note.articulation == art['id'];
+                            return InkWell(
+                              onTap: () {
+                                final updated = note.copyWith(articulation: art['id']);
+                                widget.dawState.updateNote(track, updated);
+                                setState(() {});
+                              },
+                              borderRadius: BorderRadius.circular(4),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? EatsTheme.primaryCyan.withOpacity(0.25)
+                                      : EatsTheme.controlBackground,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: isSelected ? EatsTheme.primaryCyan : Colors.transparent,
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  art['label']!,
+                                  style: TextStyle(
+                                    color: isSelected ? EatsTheme.primaryCyan : EatsTheme.textSecondary,
+                                    fontSize: 9,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ],
                   ),
@@ -1233,11 +1408,77 @@ class _PianoRollViewState extends State<PianoRollView> {
                         onTap: () => _batchQuantizeSelectedNotes(track, snap),
                       ),
                       _buildActionButton(
+                        icon: Icons.trending_up,
+                        label: 'Set All as Bend',
+                        tooltip: 'Convert all selected notes to Bend/Slide notes',
+                        onTap: () {
+                          widget.dawState.setNotesSlide(track, _selectedNoteIds, true);
+                          setState(() {});
+                        },
+                      ),
+                      _buildActionButton(
+                        icon: Icons.music_note,
+                        label: 'Set All Regular',
+                        tooltip: 'Convert all selected notes to Regular notes',
+                        onTap: () {
+                          widget.dawState.setNotesSlide(track, _selectedNoteIds, false);
+                          setState(() {});
+                        },
+                      ),
+                      _buildActionButton(
                         icon: Icons.deselect,
                         label: 'Clear',
                         tooltip: 'Clear selection (Esc)',
                         onTap: _clearSelection,
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Section 6: Batch Articulation & Expression
+                  _buildSidebarSectionHeader('BATCH ARTICULATION ($count NOTES)'),
+                  Wrap(
+                    spacing: 5,
+                    runSpacing: 5,
+                    children: [
+                      for (final art in [
+                        {'id': null, 'label': 'NORMAL'},
+                        {'id': 'staccato', 'label': 'STACCATO'},
+                        {'id': 'legato', 'label': 'LEGATO'},
+                        {'id': 'accent', 'label': 'ACCENT'},
+                        {'id': 'pizzicato', 'label': 'PIZZICATO'},
+                        {'id': 'muted', 'label': 'MUTED'},
+                        {'id': 'harmonics', 'label': 'HARMONICS'},
+                        {'id': 'tremolo', 'label': 'TREMOLO'},
+                        {'id': 'slap', 'label': 'SLAP'},
+                        {'id': 'flam', 'label': 'FLAM'},
+                      ]) ...[
+                        InkWell(
+                          onTap: () {
+                            for (final n in selectedNotes) {
+                              widget.dawState.updateNote(track, n.copyWith(articulation: art['id']));
+                            }
+                            setState(() {});
+                          },
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: EatsTheme.controlBackground,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: EatsTheme.panelHeader),
+                            ),
+                            child: Text(
+                              art['label']!,
+                              style: TextStyle(
+                                color: EatsTheme.primaryCyan,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -1355,6 +1596,29 @@ class _PianoRollViewState extends State<PianoRollView> {
       }
     }
 
+    // S key (without Ctrl) -> Toggle Slide/Bend on selected note(s), or toggle Draw Bend Mode
+    if (key == LogicalKeyboardKey.keyS && !isCtrlOrCmd) {
+      if (_selectedNoteIds.isNotEmpty) {
+        final selNotes = track.notes.where((n) => _selectedNoteIds.contains(n.id)).toList();
+        final anyNonSlide = selNotes.any((n) => !n.isSlide);
+        widget.dawState.setNotesSlide(track, _selectedNoteIds, anyNonSlide);
+        setState(() {});
+        return KeyEventResult.handled;
+      } else {
+        setState(() {
+          _isBendDrawMode = !_isBendDrawMode;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_isBendDrawMode ? 'Bend Draw Mode: ON (drawing slide notes)' : 'Bend Draw Mode: OFF (drawing normal notes)'),
+            backgroundColor: EatsTheme.panelHeader,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+        return KeyEventResult.handled;
+      }
+    }
+
     // Delete / Backspace -> Delete Selected Notes
     if (key == LogicalKeyboardKey.delete || key == LogicalKeyboardKey.backspace) {
       if (_selectedNoteIds.isNotEmpty) {
@@ -1370,7 +1634,12 @@ class _PianoRollViewState extends State<PianoRollView> {
   Widget build(BuildContext context) {
     final track = widget.dawState.activeTrack;
     final activeClip = widget.dawState.activeTrackClip;
-    final activeClipSteps = (activeClip.barLength * 4.0).clamp(4.0, 64.0);
+    final activeClipSteps = activeClip.barLength * 16.0;
+    final maxNoteStep = track.notes.fold<double>(0.0, (double m, Note n) => math.max<double>(m, n.startStep + n.durationSteps));
+    final patternSteps = widget.dawState.activePattern.lengthSteps.toDouble();
+    final double maxStepReach = math.max<double>(math.max<double>(activeClipSteps, maxNoteStep), patternSteps);
+    final double totalBars = math.max<double>(activeClip.barLength.toDouble() + 2.0, (maxStepReach / 16.0).ceilToDouble() + 2.0);
+    final int totalSteps = (totalBars * 16.0).toInt();
     final snap = widget.dawState.quantizeSnap;
     final isMobile = MediaQuery.of(context).size.width < 600;
 
@@ -1391,6 +1660,7 @@ class _PianoRollViewState extends State<PianoRollView> {
     }
 
     return Focus(
+      autofocus: true,
       focusNode: _focusNode,
       onKeyEvent: _handlePianoRollKeyEvent,
       child: Stack(
@@ -1398,181 +1668,248 @@ class _PianoRollViewState extends State<PianoRollView> {
           RepaintBoundary(
             child: Column(
               children: [
-              // Sub-toolbar for Piano Roll (Note Stepper, Snap & Zoom Controls)
-              Container(
-                height: 32,
-                color: EatsTheme.panelBackground,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                child: Row(
-                  children: [
-                    Text(
-                      'PIANO ROLL',
-                      style: EatsTheme.getPrimaryFontStyle(
-                        color: EatsTheme.textMuted,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                const SizedBox(width: 8),
+                // Sub-toolbar for Piano Roll (Note Stepper, Snap & Zoom Controls)
+                Container(
+                  height: 32,
+                  width: double.infinity,
+                  color: EatsTheme.panelBackground,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // Left Tools Group
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'PIANO ROLL',
+                                    style: EatsTheme.getPrimaryFontStyle(
+                                      color: EatsTheme.textMuted,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
 
-                IconButton(
-                  icon: const Icon(Icons.center_focus_strong, size: 14),
-                  color: EatsTheme.primaryCyan,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  tooltip: 'Center View vertically on Clip Notes (or C4)',
-                  onPressed: () => _centerViewOnNotesOrDefault(animate: true),
-                ),
+                                  IconButton(
+                                    icon: const Icon(Icons.center_focus_strong, size: 14),
+                                    color: EatsTheme.primaryCyan,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                    tooltip: 'Center View vertically on Clip Notes (or C4)',
+                                    onPressed: () => _centerViewOnNotesOrDefault(animate: true),
+                                  ),
 
-                if (track.midiFXRack.any((fx) => fx.enabled)) ...[
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                    onPressed: () {
-                      widget.dawState.bakeMidiFXToClip(track, activeClip);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Baked MIDI FX to Clip "${activeClip.name}"'),
-                          backgroundColor: EatsTheme.panelHeader,
-                          duration: const Duration(seconds: 2),
+                                  if (track.midiFXRack.any((fx) => fx.enabled)) ...[
+                                    const SizedBox(width: 8),
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        widget.dawState.bakeMidiFXToClip(track, activeClip);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Baked MIDI FX to Clip "${activeClip.name}"'),
+                                            backgroundColor: EatsTheme.panelHeader,
+                                            duration: const Duration(seconds: 2),
+                                          ),
+                                        );
+                                      },
+                                      style: TextButton.styleFrom(
+                                        backgroundColor: EatsTheme.panelHeader,
+                                        foregroundColor: EatsTheme.accentGold,
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        side: BorderSide(color: EatsTheme.accentGold.withOpacity(0.6)),
+                                      ),
+                                      icon: const Icon(Icons.auto_fix_high, size: 13),
+                                      label: const Text('BAKE MIDI FX', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+
+                                  const SizedBox(width: 8),
+
+                                  // Clipboard Actions (Copy / Cut / Paste)
+                                  IconButton(
+                                    icon: const Icon(Icons.copy, size: 14),
+                                    color: EatsTheme.primaryCyan,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                    tooltip: _selectedNoteIds.isNotEmpty
+                                        ? 'Copy ${_selectedNoteIds.length} Selected Note(s) as Lua (Ctrl+C)'
+                                        : 'Copy All Clip Notes as Lua (Ctrl+C)',
+                                    onPressed: () => _copyNotes(track),
+                                  ),
+                                  if (_selectedNoteIds.isNotEmpty)
+                                    IconButton(
+                                      icon: const Icon(Icons.cut, size: 14),
+                                      color: EatsTheme.accentGold,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                      tooltip: 'Cut ${_selectedNoteIds.length} Selected Note(s) (Ctrl+X)',
+                                      onPressed: () => _cutNotes(track),
+                                    ),
+                                  IconButton(
+                                    icon: const Icon(Icons.paste, size: 14),
+                                    color: EatsTheme.accentGreen,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                    tooltip: 'Paste Note(s) at Playhead Step (Ctrl+V)',
+                                    onPressed: () => _pasteNotes(track, snap),
+                                  ),
+
+                                  const SizedBox(width: 8),
+
+                                  // Note / Bend Draw Mode Toggle Button
+                                  Tooltip(
+                                    message: 'Draw Mode: ${_isBendDrawMode ? "Bend Note (Slide)" : "Regular Note"} (Press S to toggle)',
+                                    child: InkWell(
+                                      onTap: () {
+                                        setState(() {
+                                          _isBendDrawMode = !_isBendDrawMode;
+                                        });
+                                      },
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: _isBendDrawMode ? EatsTheme.accentGold.withOpacity(0.22) : EatsTheme.controlBackground,
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(
+                                            color: _isBendDrawMode ? EatsTheme.accentGold : EatsTheme.textMuted.withOpacity(0.35),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              _isBendDrawMode ? Icons.trending_up : Icons.music_note,
+                                              size: 12,
+                                              color: _isBendDrawMode ? EatsTheme.accentGold : EatsTheme.primaryCyan,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              _isBendDrawMode ? 'DRAW BEND' : 'DRAW NOTE',
+                                              style: TextStyle(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.bold,
+                                                color: _isBendDrawMode ? EatsTheme.accentGold : EatsTheme.textLight,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(width: 8),
+
+                                  // Automation Drawer Toggle Button
+                                  TextButton.icon(
+                                    onPressed: () {
+                                      setState(() {
+                                        _isAutomationDrawerOpen = !_isAutomationDrawerOpen;
+                                      });
+                                    },
+                                    style: TextButton.styleFrom(
+                                      backgroundColor: _isAutomationDrawerOpen
+                                          ? EatsTheme.primaryCyan.withOpacity(0.2)
+                                          : EatsTheme.controlBackground,
+                                      foregroundColor: _isAutomationDrawerOpen
+                                          ? EatsTheme.primaryCyan
+                                          : EatsTheme.textLight,
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      side: BorderSide(
+                                        color: _isAutomationDrawerOpen
+                                            ? EatsTheme.primaryCyan
+                                            : EatsTheme.textMuted.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    icon: Icon(
+                                      Icons.show_chart,
+                                      size: 13,
+                                      color: _isAutomationDrawerOpen
+                                          ? EatsTheme.primaryCyan
+                                          : EatsTheme.textMuted,
+                                    ),
+                                    label: const Text(
+                                      'AUTOMATION',
+                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              // Right Tools Group (Snap & Zoom)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Snap Quantize Dropdown
+                                  Text('SNAP:', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  const SizedBox(width: 2),
+                                  DropdownButton<double>(
+                                    value: widget.dawState.quantizeSnap,
+                                    dropdownColor: EatsTheme.panelBackground,
+                                    underline: const SizedBox(),
+                                    isDense: true,
+                                    style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold),
+                                    items: const [
+                                      DropdownMenuItem(value: 0.5, child: Text('1/32')),
+                                      DropdownMenuItem(value: 1.0, child: Text('1/16')),
+                                      DropdownMenuItem(value: 2.0, child: Text('1/8')),
+                                      DropdownMenuItem(value: 4.0, child: Text('1/4')),
+                                      DropdownMenuItem(value: 0.0, child: Text('Off')),
+                                    ],
+                                    onChanged: (val) {
+                                      if (val != null) widget.dawState.setQuantizeSnap(val);
+                                    },
+                                  ),
+                                  const SizedBox(width: 8),
+
+                                  // Zoom Controls
+                                  Text('ZOOM:', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  const SizedBox(width: 2),
+                                  IconButton(
+                                    icon: const Icon(Icons.zoom_out, size: 15),
+                                    color: EatsTheme.textSecondary,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                    tooltip: 'Zoom Out',
+                                    onPressed: () => _zoom(0.8),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.aspect_ratio, size: 13),
+                                    color: EatsTheme.textMuted,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                    tooltip: 'Reset Zoom',
+                                    onPressed: _resetZoom,
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.zoom_in, size: 15),
+                                    color: EatsTheme.textSecondary,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                    tooltip: 'Zoom In',
+                                    onPressed: () => _zoom(1.25),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     },
-                    style: TextButton.styleFrom(
-                      backgroundColor: EatsTheme.panelHeader,
-                      foregroundColor: EatsTheme.accentGold,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      side: BorderSide(color: EatsTheme.accentGold.withOpacity(0.6)),
-                    ),
-                    icon: const Icon(Icons.auto_fix_high, size: 13),
-                    label: const Text('BAKE MIDI FX', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-
-                const SizedBox(width: 8),
-
-                // Clipboard Actions (Copy / Cut / Paste)
-                IconButton(
-                  icon: const Icon(Icons.copy, size: 14),
-                  color: EatsTheme.primaryCyan,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  tooltip: _selectedNoteIds.isNotEmpty
-                      ? 'Copy ${_selectedNoteIds.length} Selected Note(s) as Lua (Ctrl+C)'
-                      : 'Copy All Clip Notes as Lua (Ctrl+C)',
-                  onPressed: () => _copyNotes(track),
-                ),
-                if (_selectedNoteIds.isNotEmpty)
-                  IconButton(
-                    icon: const Icon(Icons.cut, size: 14),
-                    color: EatsTheme.accentGold,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                    tooltip: 'Cut ${_selectedNoteIds.length} Selected Note(s) (Ctrl+X)',
-                    onPressed: () => _cutNotes(track),
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.paste, size: 14),
-                  color: EatsTheme.accentGreen,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  tooltip: 'Paste Note(s) at Playhead Step (Ctrl+V)',
-                  onPressed: () => _pasteNotes(track, snap),
-                ),
-
-                const SizedBox(width: 8),
-
-                // Automation Drawer Toggle Button
-                TextButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _isAutomationDrawerOpen = !_isAutomationDrawerOpen;
-                    });
-                  },
-                  style: TextButton.styleFrom(
-                    backgroundColor: _isAutomationDrawerOpen
-                        ? EatsTheme.primaryCyan.withOpacity(0.2)
-                        : EatsTheme.controlBackground,
-                    foregroundColor: _isAutomationDrawerOpen
-                        ? EatsTheme.primaryCyan
-                        : EatsTheme.textLight,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    side: BorderSide(
-                      color: _isAutomationDrawerOpen
-                          ? EatsTheme.primaryCyan
-                          : EatsTheme.textMuted.withOpacity(0.3),
-                    ),
-                  ),
-                  icon: Icon(
-                    Icons.show_chart,
-                    size: 13,
-                    color: _isAutomationDrawerOpen
-                        ? EatsTheme.primaryCyan
-                        : EatsTheme.textMuted,
-                  ),
-                  label: const Text(
-                    'AUTOMATION',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
                   ),
                 ),
 
-                const Spacer(),
-
-                // Snap Quantize Dropdown
-                Text('SNAP:', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
-                const SizedBox(width: 2),
-                DropdownButton<double>(
-                  value: widget.dawState.quantizeSnap,
-                  dropdownColor: EatsTheme.panelBackground,
-                  underline: const SizedBox(),
-                  isDense: true,
-                  style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold),
-                  items: const [
-                    DropdownMenuItem(value: 0.5, child: Text('1/32')),
-                    DropdownMenuItem(value: 1.0, child: Text('1/16')),
-                    DropdownMenuItem(value: 2.0, child: Text('1/8')),
-                    DropdownMenuItem(value: 4.0, child: Text('1/4')),
-                    DropdownMenuItem(value: 0.0, child: Text('Off')),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) widget.dawState.setQuantizeSnap(val);
-                  },
-                ),
-                const SizedBox(width: 8),
-
-                // Zoom Controls
-                Text('ZOOM:', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
-                const SizedBox(width: 2),
-                IconButton(
-                  icon: const Icon(Icons.zoom_out, size: 15),
-                  color: EatsTheme.textSecondary,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  tooltip: 'Zoom Out',
-                  onPressed: () => _zoom(0.8),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.aspect_ratio, size: 13),
-                  color: EatsTheme.textMuted,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  tooltip: 'Reset Zoom',
-                  onPressed: _resetZoom,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.zoom_in, size: 15),
-                  color: EatsTheme.textSecondary,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  tooltip: 'Zoom In',
-                  onPressed: () => _zoom(1.25),
-                ),
-              ],
-            ),
-          ),
-
-          // Main Piano Roll Canvas & Keyboard
-          Expanded(
-            child: Listener(
+                // Main Piano Roll Canvas & Keyboard
+                Expanded(
+                  child: Listener(
               onPointerDown: (event) {
                 if (event.buttons == kMiddleMouseButton) {
                   _isMiddleMouseDragging = true;
@@ -1870,6 +2207,7 @@ class _PianoRollViewState extends State<PianoRollView> {
                                       startStep: snappedStep,
                                       durationSteps: duration,
                                       velocity: 0.85,
+                                      isSlide: _isBendDrawMode,
                                     );
                                     widget.dawState.addNote(track, newNote);
                                     setState(() {
@@ -2149,7 +2487,7 @@ class _PianoRollViewState extends State<PianoRollView> {
                                               if (_selectedNoteIds.contains(n.id) && _batchStartSteps.containsKey(n.id)) {
                                                 final baseStep = _batchStartSteps[n.id]!;
                                                 final basePitch = _batchStartPitches[n.id]!;
-                                                n.startStep = (baseStep + candidateDx).clamp(0.0, totalSteps - n.durationSteps);
+                                                n.startStep = (baseStep + candidateDx).clamp(0.0, (totalSteps - n.durationSteps).toDouble()).toDouble();
                                                 n.pitch = (basePitch + candidateDy).clamp(minPitch, maxPitch);
                                               }
                                             }
@@ -2180,33 +2518,65 @@ class _PianoRollViewState extends State<PianoRollView> {
                                           },
                                           child: Container(
                                             decoration: BoxDecoration(
-                                              color: effectiveNoteColor,
+                                              gradient: note.isSlide
+                                                  ? LinearGradient(
+                                                      colors: [
+                                                        effectiveNoteColor,
+                                                        EatsTheme.accentGold.withOpacity(0.85),
+                                                      ],
+                                                      begin: Alignment.bottomLeft,
+                                                      end: Alignment.topRight,
+                                                    )
+                                                  : null,
+                                              color: note.isSlide ? null : effectiveNoteColor,
                                               borderRadius: BorderRadius.circular(4),
                                               border: isSelected
                                                   ? Border.all(color: EatsTheme.primaryCyan, width: 2.0)
-                                                  : (isPastClipLoop
-                                                      ? Border.all(color: EatsTheme.accentGold.withOpacity(0.5), width: 1.0)
-                                                      : Border.all(color: Colors.black45, width: 0.5)),
+                                                  : (note.isSlide
+                                                      ? Border.all(color: EatsTheme.accentGold, width: 1.5)
+                                                      : (isPastClipLoop
+                                                          ? Border.all(color: EatsTheme.accentGold.withOpacity(0.5), width: 1.0)
+                                                          : Border.all(color: Colors.black45, width: 0.5))),
                                               boxShadow: [
                                                 BoxShadow(
-                                                  color: isSelected ? EatsTheme.primaryCyan.withOpacity(0.8) : effectiveNoteColor.withOpacity(0.4),
+                                                  color: isSelected
+                                                      ? EatsTheme.primaryCyan.withOpacity(0.8)
+                                                      : (note.isSlide
+                                                          ? EatsTheme.accentGold.withOpacity(0.45)
+                                                          : effectiveNoteColor.withOpacity(0.4)),
                                                   blurRadius: isSelected ? 6 : 3,
                                                 ),
                                               ],
                                             ),
                                             child: Center(
-                                              child: Text(
-                                                note.lyric != null && note.lyric!.isNotEmpty
-                                                    ? '"${note.lyric}"'
-                                                    : _getNoteName(note.pitch),
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: isSelected
-                                                      ? EatsTheme.backgroundDark
-                                                      : (note.velocity < 0.45 ? Colors.white70 : EatsTheme.backgroundDark),
-                                                  fontSize: (_keyHeight * 0.38).clamp(8.0, 11.0),
-                                                  fontWeight: FontWeight.bold,
-                                                ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  if (note.isSlide) ...[
+                                                    Icon(
+                                                      Icons.trending_up,
+                                                      size: (_keyHeight * 0.42).clamp(9.0, 13.0),
+                                                      color: isSelected ? EatsTheme.backgroundDark : Colors.black87,
+                                                    ),
+                                                    const SizedBox(width: 2),
+                                                  ],
+                                                  Flexible(
+                                                    child: Text(
+                                                      note.lyric != null && note.lyric!.isNotEmpty
+                                                          ? '"${note.lyric}"'
+                                                          : (note.isSlide ? '⤤ ${_getNoteName(note.pitch)}' : _getNoteName(note.pitch)),
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        color: isSelected
+                                                            ? EatsTheme.backgroundDark
+                                                            : (note.isSlide ? Colors.black87 : (note.velocity < 0.45 ? Colors.white70 : EatsTheme.backgroundDark)),
+                                                        fontSize: (_keyHeight * 0.38).clamp(8.0, 11.0),
+                                                        fontWeight: FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ),
@@ -2265,7 +2635,7 @@ class _PianoRollViewState extends State<PianoRollView> {
                                               for (final n in track.notes) {
                                                 if (_batchStartDurations.containsKey(n.id)) {
                                                   final baseDur = _batchStartDurations[n.id]!;
-                                                  double candidateDur = (baseDur + dxSteps).clamp(minDur, totalSteps - n.startStep);
+                                                  double candidateDur = (baseDur + dxSteps).clamp(minDur, (totalSteps - n.startStep).toDouble()).toDouble();
                                                   if (snap > 0) {
                                                     candidateDur = (candidateDur / snap).round() * snap;
                                                     if (candidateDur < snap) candidateDur = snap;
@@ -2354,10 +2724,10 @@ class _PianoRollViewState extends State<PianoRollView> {
         ),
       ),
     ),
-    if (_isAutomationDrawerOpen) _buildAutomationDrawer(track),
-  ],
-),
-),
+              ],
+            ),
+          ),
+          if (_isAutomationDrawerOpen) _buildAutomationDrawer(track),
 
           // Right-Hand Note Inspector Sidebar (Aligns to left of Project Browser if open)
           AnimatedPositioned(
@@ -2829,14 +3199,25 @@ class _PianoRollGridPainter extends CustomPainter {
       canvas.drawRect(Rect.fromLTWH(clipX, 0, size.width - clipX, size.height), pastClipPaint);
     }
 
-    // 3. Draw Vertical Step/Bar Lines
+    final beatHeaderPaint = Paint()
+      ..color = isLight ? Colors.black.withOpacity(0.20) : Colors.white.withOpacity(0.08)
+      ..strokeWidth = 1.2;
+
+    final beatPastClipPaint = Paint()
+      ..color = Colors.white.withOpacity(0.04)
+      ..strokeWidth = 1.2;
+
+    // 3. Draw Vertical Step/Beat/Bar Lines
     for (int step = 0; step <= totalSteps; step++) {
       final x = step * stepWidth;
-      final isBarHeader = step % 4 == 0;
+      final isBar = step % 16 == 0;
+      final isBeat = step % 4 == 0;
       final isPastClip = step >= activeClipSteps;
 
-      if (isBarHeader) {
+      if (isBar) {
         canvas.drawLine(Offset(x, 0), Offset(x, size.height), isPastClip ? barHeaderPastClipPaint : barHeaderPaint);
+      } else if (isBeat) {
+        canvas.drawLine(Offset(x, 0), Offset(x, size.height), isPastClip ? beatPastClipPaint : beatHeaderPaint);
       } else {
         canvas.drawLine(Offset(x, 0), Offset(x, size.height), stepBorderPaint);
       }

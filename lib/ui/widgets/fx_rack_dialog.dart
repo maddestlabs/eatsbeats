@@ -122,6 +122,7 @@ void showFxGuiDialog(BuildContext context, DawState dawState, TrackChannel track
                       child: DynamicInstrumentGuiWidget(
                         dawState: dawState,
                         track: fxTrack,
+                        hostTrack: track,
                         hideHeader: true,
                         onParamChanged: (name, val) => dawState.updateFXParam(track, fx.id, name, val),
                       ),

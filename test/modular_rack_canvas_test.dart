@@ -611,8 +611,8 @@ return SynthLab
         ),
       );
 
-      // Tap Code icon button
-      final codeBtn = find.byIcon(Icons.code);
+      // Tap Developer Board / Code icon button
+      final codeBtn = find.byIcon(Icons.developer_board);
       expect(codeBtn, findsOneWidget);
       await tester.tap(codeBtn);
       await tester.pumpAndSettle();

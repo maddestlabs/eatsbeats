@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,137 @@ import '../utils/platform_env_helper.dart';
 import '../models/track_model.dart';
 import 'convolver_engine.dart';
 import 'procedural_ir_generator.dart';
+
+class _FxNodeBinding {
+  final FXInsert fx;
+  final WANode outputNode;
+  final WAGainNode? dryGainNode;
+  final WAGainNode? wetGainNode;
+  final WABiquadFilterNode? filterNode;
+  final WABiquadFilterNode? hpFilterNode;
+  final WABiquadFilterNode? lpFilterNode;
+  final WABiquadFilterNode? headBumpFilterNode;
+  final WADelayNode? delayNode;
+  final WAGainNode? fbGainNode;
+  final WAGainNode? preGainNode;
+  final WAGainNode? postGainNode;
+  final WAWaveShaperNode? shaperNode;
+  final WAGainNode? noiseGainNode;
+  final WAGainNode? hissGainNode;
+  final WAGainNode? crackleGainNode;
+  final WAGainNode? rumbleGainNode;
+
+  _FxNodeBinding({
+    required this.fx,
+    required this.outputNode,
+    this.dryGainNode,
+    this.wetGainNode,
+    this.filterNode,
+    this.hpFilterNode,
+    this.lpFilterNode,
+    this.headBumpFilterNode,
+    this.delayNode,
+    this.fbGainNode,
+    this.preGainNode,
+    this.postGainNode,
+    this.shaperNode,
+    this.noiseGainNode,
+    this.hissGainNode,
+    this.crackleGainNode,
+    this.rumbleGainNode,
+  });
+
+  void updateParams(FXInsert newFx) {
+    final mix = newFx.mix.clamp(0.0, 1.0);
+    final params = newFx.params;
+
+    dryGainNode?.gain.value = (1.0 - mix).clamp(0.0, 1.0);
+    wetGainNode?.gain.value = mix.clamp(0.0, 1.0);
+
+    switch (newFx.type) {
+      case FXType.biquadFilter:
+        final cutoff = (params['Cutoff'] ?? 3500.0).clamp(20.0, 20000.0);
+        final reso = (params['Resonance'] ?? 1.5).clamp(0.1, 20.0);
+        filterNode?.frequency.value = cutoff;
+        filterNode?.Q.value = reso;
+        break;
+
+      case FXType.delay:
+        final timeMs = (params['TimeMs'] ?? 250.0).clamp(10.0, 1000.0);
+        final fb = (params['Feedback'] ?? 0.4).clamp(0.0, 0.95);
+        delayNode?.delayTime.value = timeMs / 1000.0;
+        fbGainNode?.gain.value = fb;
+        break;
+
+      case FXType.bitcrusher:
+        final bits = (params['Bits'] ?? 8.0).clamp(1.0, 16.0);
+        final drive = (params['Drive'] ?? 1.0).clamp(0.1, 4.0);
+        final downsample = (params['Downsample'] ?? 1.0).clamp(1.0, 32.0);
+        preGainNode?.gain.value = drive;
+        shaperNode?.curve = TrackChannelStrip._buildBitcrusherCurve(bits, downsample);
+        break;
+
+      case FXType.distortion:
+        final preGainVal = (params['Pre'] ?? (params['Drive'] ?? 1.0)).clamp(0.1, 10.0);
+        final postGainVal = (params['Post'] ?? (params['OutGain'] ?? 1.0)).clamp(0.0, 4.0);
+        final curveType = (params['Shape'] ?? (params['Curve'] ?? 0.0)).toInt();
+        final tension = (params['Tension'] ?? 0.0).clamp(-1.0, 1.0);
+        preGainNode?.gain.value = preGainVal;
+        postGainNode?.gain.value = postGainVal;
+        shaperNode?.curve = TrackChannelStrip._buildCustomWaveShaperCurve(curveType, tension);
+        break;
+
+      case FXType.compressor:
+        final threshDb = (params['Threshold'] ?? -18.0).clamp(-60.0, 0.0);
+        final ratio = (params['Ratio'] ?? 4.0).clamp(1.0, 20.0);
+        final kneeDb = (params['Knee'] ?? 12.0).clamp(0.0, 40.0);
+        shaperNode?.curve = TrackChannelStrip._buildCompressorCurve(threshDb, ratio, kneeDb);
+        break;
+
+      case FXType.limiter:
+        final threshDb = (params['Threshold'] ?? -1.0).clamp(-24.0, 0.0);
+        final ceilingDb = (params['Ceiling'] ?? -0.1).clamp(-12.0, 0.0);
+        shaperNode?.curve = TrackChannelStrip._buildLimiterCurve(threshDb, ceilingDb);
+        break;
+
+      case FXType.vintageTape:
+        final era = (params['Era'] ?? 1974.0).clamp(1950.0, 1989.0);
+        final eraProgress = ((era - 1950.0) / 39.0).clamp(0.0, 1.0);
+        final hpCutoff = 250.0 * math.pow(20.0 / 250.0, eraProgress);
+        final lpCutoff = 4500.0 * math.pow(18500.0 / 4500.0, eraProgress);
+        final headBumpDb = (params['HeadBump'] ?? 3.0).clamp(0.0, 12.0);
+
+        hpFilterNode?.frequency.value = hpCutoff.clamp(20.0, 500.0);
+        lpFilterNode?.frequency.value = lpCutoff.clamp(1000.0, 20000.0);
+        headBumpFilterNode?.gain.value = headBumpDb;
+
+        final hissLevel = (params['HissLevel'] ?? 20.0).clamp(0.0, 100.0) / 100.0;
+        final vinylCrackle = (params['VinylCrackle'] ?? 25.0).clamp(0.0, 100.0) / 100.0;
+        final grooveRumble = (params['GrooveRumble'] ?? 15.0).clamp(0.0, 100.0) / 100.0;
+
+        hissGainNode?.gain.value = (hissLevel * 0.04).clamp(0.0, 0.12);
+        crackleGainNode?.gain.value = (math.pow(vinylCrackle, 1.2) * 0.09).clamp(0.0, 0.18);
+        rumbleGainNode?.gain.value = (grooveRumble * 0.06).clamp(0.0, 0.12);
+        noiseGainNode?.gain.value = 1.0;
+        break;
+
+      case FXType.convolutionReverb:
+        final isCab = (newFx.presetId == 'cab_designer') || (newFx.name.toLowerCase().contains('cab'));
+        final dryLevel = params['DryLevel'] ?? (isCab ? 0.0 : 1.0);
+        final wetLevel = params['WetLevel'] ?? (isCab ? 1.0 : 0.5);
+        dryGainNode?.gain.value = (dryLevel * (isCab ? 0.0 : (1.0 - mix))).clamp(0.0, 1.0);
+        wetGainNode?.gain.value = (wetLevel * (isCab ? 1.0 : mix)).clamp(0.0, 1.0);
+        final highCut = params['HighCut'];
+        if (highCut != null && filterNode != null) {
+          filterNode!.frequency.value = highCut.clamp(100.0, 20000.0);
+        }
+        break;
+
+      default:
+        break;
+    }
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  TrackChannelStrip
@@ -22,9 +154,21 @@ class TrackChannelStrip {
   late final WAGainNode inputBus;
   late final WAGainNode volumeNode;
   late final WAStereoPannerNode pannerNode;
+  late final WAAnalyserNode analyserNode;
 
   final List<WANode> _fxNodes = [];
-  int _lastFxHash = 0;
+  final List<_FxNodeBinding> _fxBindings = [];
+  int _lastStructuralHash = 0;
+
+  // Real-time Tape Stop & Wow/Flutter Modulation State
+  WADelayNode? _tapeStopDelay;
+  WABiquadFilterNode? _tapeStopFilter;
+  WAGainNode? _tapeStopGain;
+  double _baseTapeDelay = 0.020;
+  double _baseCutoffLp = 18000.0;
+  bool _isTapeStopTriggered = false;
+  Timer? _lfoTimer;
+  final Map<String, double> _vintageLfoParams = {};
 
   TrackChannelStrip({
     required this.trackId,
@@ -34,10 +178,12 @@ class TrackChannelStrip {
     inputBus = ctx.createGain()..gain.value = 1.0;
     volumeNode = ctx.createGain()..gain.value = 1.0;
     pannerNode = ctx.createStereoPanner()..pan.value = 0.0;
+    analyserNode = ctx.createAnalyser()..fftSize = 256;
 
     inputBus.connect(volumeNode);
     volumeNode.connect(pannerNode);
-    pannerNode.connect(destination);
+    pannerNode.connect(analyserNode);
+    analyserNode.connect(destination);
   }
 
   void update({
@@ -50,10 +196,25 @@ class TrackChannelStrip {
     volumeNode.gain.value = volume.clamp(0.0, 1.5);
     pannerNode.pan.value = pan.clamp(-1.0, 1.0);
 
-    final currentFxHash = _computeFxHash(fxRack);
-    if (currentFxHash != _lastFxHash) {
+    final currentStructuralHash = _computeStructuralHash(fxRack);
+    if (currentStructuralHash != _lastStructuralHash) {
       _rebuildFxChain(fxRack, irCache, loadIrAsync);
-      _lastFxHash = currentFxHash;
+      _lastStructuralHash = currentStructuralHash;
+    } else {
+      _updateFxParamsInPlace(fxRack);
+    }
+  }
+
+  void _updateFxParamsInPlace(List<FXInsert> fxRack) {
+    for (int i = 0; i < fxRack.length && i < _fxBindings.length; i++) {
+      final fx = fxRack[i];
+      final binding = _fxBindings[i];
+      if (binding.fx.id == fx.id) {
+        binding.updateParams(fx);
+      }
+      if (fx.type == FXType.vintageTape || fx.presetId == 'vintage_era_degrader') {
+        _vintageLfoParams.addAll(fx.params);
+      }
     }
   }
 
@@ -78,18 +239,84 @@ class TrackChannelStrip {
     }
   }
 
+  /// Triggers an authentic physical tape stop / motor deceleration and spin-up effect.
+  void triggerTapeStop({double stopTime = 0.8, double spinUpTime = 0.4}) {
+    if (_tapeStopDelay == null || _tapeStopFilter == null || _tapeStopGain == null) return;
+    if (_isTapeStopTriggered) return;
+    _isTapeStopTriggered = true;
+
+    final startDelay = _baseTapeDelay;
+    final targetDelay = (startDelay + (stopTime * 0.9)).clamp(0.01, 3.5);
+    final startCutoff = _baseCutoffLp;
+    const targetCutoff = 40.0;
+
+    final steps = (stopTime * 60).round().clamp(10, 180);
+    final dtMs = math.max(8, ((stopTime * 1000) / steps).round());
+
+    // 1. Deceleration Phase
+    int step = 0;
+    Timer.periodic(Duration(milliseconds: dtMs), (decelTimer) {
+      step++;
+      final t = (step / steps).clamp(0.0, 1.0);
+      final decel = t * t; // Quadratic deceleration curve
+
+      _tapeStopDelay?.delayTime.value = startDelay + (targetDelay - startDelay) * decel;
+      _tapeStopFilter?.frequency.value = (startCutoff * math.pow(targetCutoff / startCutoff, t)).clamp(20.0, 20000.0);
+      _tapeStopGain?.gain.value = (1.0 - decel * 0.98).clamp(0.0, 1.0);
+
+      if (step >= steps) {
+        decelTimer.cancel();
+
+        // 2. Brief Hold, then Spin-Up Phase
+        Future.delayed(const Duration(milliseconds: 60), () {
+          final spinSteps = (spinUpTime * 60).round().clamp(10, 120);
+          final spinDtMs = math.max(8, ((spinUpTime * 1000) / spinSteps).round());
+          int spinStep = 0;
+
+          Timer.periodic(Duration(milliseconds: spinDtMs), (spinTimer) {
+            spinStep++;
+            final st = (spinStep / spinSteps).clamp(0.0, 1.0);
+            final accel = 1.0 - math.pow(1.0 - st, 3); // Cubic ease out acceleration
+
+            _tapeStopDelay?.delayTime.value = targetDelay - (targetDelay - startDelay) * accel;
+            _tapeStopFilter?.frequency.value = (targetCutoff * math.pow(startCutoff / targetCutoff, accel)).clamp(20.0, 20000.0);
+            _tapeStopGain?.gain.value = (0.02 + accel * 0.98).clamp(0.0, 1.0);
+
+            if (spinStep >= spinSteps) {
+              spinTimer.cancel();
+              _tapeStopDelay?.delayTime.value = startDelay;
+              _tapeStopFilter?.frequency.value = startCutoff;
+              _tapeStopGain?.gain.value = 1.0;
+              _isTapeStopTriggered = false;
+            }
+          });
+        });
+      }
+    });
+  }
+
   void _rebuildFxChain(
     List<FXInsert> fxRack,
     Map<String, WABuffer?> irCache,
     Future<WABuffer?> Function(String) loadIrAsync,
   ) {
-    // Disconnect old FX chain
+    // Disconnect old FX chain and cancel any active LFO timers
+    _lfoTimer?.cancel();
+    _lfoTimer = null;
+    _tapeStopDelay = null;
+    _tapeStopFilter = null;
+    _tapeStopGain = null;
+    _isTapeStopTriggered = false;
+
     inputBus.disconnect();
     for (final node in _fxNodes) {
-      node.disconnect();
-      node.dispose();
+      try {
+        node.disconnect();
+        node.dispose();
+      } catch (_) {}
     }
     _fxNodes.clear();
+    _fxBindings.clear();
 
     WANode current = inputBus;
     for (final fx in fxRack) {
@@ -99,9 +326,9 @@ class TrackChannelStrip {
 
       switch (fx.type) {
         case FXType.distortion:
-          current = _addWaveShaper(current, fx.params, mix);
+          current = _addWaveShaper(current, fx, mix);
         case FXType.bitcrusher:
-          current = _addBitcrusher(current, fx.params, mix);
+          current = _addBitcrusher(current, fx, mix);
         case FXType.biquadFilter:
           final filter = ctx.createBiquadFilter();
           filter.type = WABiquadFilterType.lowpass;
@@ -109,16 +336,23 @@ class TrackChannelStrip {
           filter.Q.value = (fx.params['Resonance'] ?? 1.5).clamp(0.1, 20.0);
           _fxNodes.add(filter);
           current.connect(filter);
+          _fxBindings.add(_FxNodeBinding(fx: fx, outputNode: filter, filterNode: filter));
           current = filter;
         case FXType.delay:
-          current = _addDelay(current, fx.params, mix);
+          current = _addDelay(current, fx, mix);
         case FXType.compressor:
-          current = _addCompressor(current, fx.params, mix);
+          current = _addCompressor(current, fx, mix);
         case FXType.limiter:
-          current = _addLimiter(current, fx.params, mix);
+          current = _addLimiter(current, fx, mix);
         case FXType.convolutionReverb:
           current = _addConvReverb(current, fx, mix, irCache, loadIrAsync);
+        case FXType.vintageTape:
+          current = _addVintageDegrader(current, fx, mix);
         case FXType.luaFX:
+          if (fx.presetId == 'vintage_era_degrader' ||
+              (fx.luaScriptCode != null && fx.luaScriptCode!.contains('vintage_era_degrader'))) {
+            current = _addVintageDegrader(current, fx, mix);
+          }
           break;
       }
     }
@@ -126,7 +360,8 @@ class TrackChannelStrip {
     current.connect(volumeNode);
   }
 
-  WANode _addWaveShaper(WANode input, Map<String, double> params, double mix) {
+  WANode _addWaveShaper(WANode input, FXInsert fx, double mix) {
+    final params = fx.params;
     final preGainVal = (params['Pre'] ?? (params['Drive'] ?? 1.0)).clamp(0.1, 10.0);
     final postGainVal = (params['Post'] ?? (params['OutGain'] ?? 1.0)).clamp(0.0, 4.0);
     final dcFilter = (params['DCFilter'] ?? 1.0) > 0.5;
@@ -157,6 +392,13 @@ class TrackChannelStrip {
     wetChain.connect(postGain);
 
     if (mix >= 0.99 && postGainVal == 1.0 && preGainVal == 1.0 && !dcFilter) {
+      _fxBindings.add(_FxNodeBinding(
+        fx: fx,
+        outputNode: postGain,
+        preGainNode: preGain,
+        postGainNode: postGain,
+        shaperNode: shaper,
+      ));
       return postGain;
     }
 
@@ -169,10 +411,21 @@ class TrackChannelStrip {
     dry.connect(bus);
     postGain.connect(wet);
     wet.connect(bus);
+
+    _fxBindings.add(_FxNodeBinding(
+      fx: fx,
+      outputNode: bus,
+      dryGainNode: dry,
+      wetGainNode: wet,
+      preGainNode: preGain,
+      postGainNode: postGain,
+      shaperNode: shaper,
+    ));
     return bus;
   }
 
-  WANode _addCompressor(WANode input, Map<String, double> params, double mix) {
+  WANode _addCompressor(WANode input, FXInsert fx, double mix) {
+    final params = fx.params;
     final threshDb = (params['Threshold'] ?? -18.0).clamp(-60.0, 0.0);
     final ratio = (params['Ratio'] ?? 4.0).clamp(1.0, 20.0);
     final kneeDb = (params['Knee'] ?? 12.0).clamp(0.0, 40.0);
@@ -184,6 +437,7 @@ class TrackChannelStrip {
 
     if (mix >= 0.98) {
       input.connect(shaper);
+      _fxBindings.add(_FxNodeBinding(fx: fx, outputNode: shaper, shaperNode: shaper));
       return shaper;
     }
     final bus = ctx.createGain();
@@ -193,10 +447,18 @@ class TrackChannelStrip {
 
     input.connect(dry)..connect(bus);
     input.connect(shaper)..connect(wet)..connect(bus);
+    _fxBindings.add(_FxNodeBinding(
+      fx: fx,
+      outputNode: bus,
+      dryGainNode: dry,
+      wetGainNode: wet,
+      shaperNode: shaper,
+    ));
     return bus;
   }
 
-  WANode _addLimiter(WANode input, Map<String, double> params, double mix) {
+  WANode _addLimiter(WANode input, FXInsert fx, double mix) {
+    final params = fx.params;
     final threshDb = (params['Threshold'] ?? -1.0).clamp(-24.0, 0.0);
     final ceilingDb = (params['Ceiling'] ?? -0.1).clamp(-12.0, 0.0);
 
@@ -207,6 +469,7 @@ class TrackChannelStrip {
 
     if (mix >= 0.98) {
       input.connect(shaper);
+      _fxBindings.add(_FxNodeBinding(fx: fx, outputNode: shaper, shaperNode: shaper));
       return shaper;
     }
     final bus = ctx.createGain();
@@ -216,10 +479,18 @@ class TrackChannelStrip {
 
     input.connect(dry)..connect(bus);
     input.connect(shaper)..connect(wet)..connect(bus);
+    _fxBindings.add(_FxNodeBinding(
+      fx: fx,
+      outputNode: bus,
+      dryGainNode: dry,
+      wetGainNode: wet,
+      shaperNode: shaper,
+    ));
     return bus;
   }
 
-  WANode _addBitcrusher(WANode input, Map<String, double> params, double mix) {
+  WANode _addBitcrusher(WANode input, FXInsert fx, double mix) {
+    final params = fx.params;
     final bits = (params['Bits'] ?? 8.0).clamp(1.0, 16.0);
     final drive = (params['Drive'] ?? 1.0).clamp(0.1, 4.0);
     final downsample = (params['Downsample'] ?? 1.0).clamp(1.0, 32.0);
@@ -229,9 +500,10 @@ class TrackChannelStrip {
     shaper.oversample = WAOverSampleType.none;
     _fxNodes.add(shaper);
 
+    WAGainNode? driveGain;
     WANode source = input;
     if (drive != 1.0) {
-      final driveGain = ctx.createGain()..gain.value = drive;
+      driveGain = ctx.createGain()..gain.value = drive;
       _fxNodes.add(driveGain);
       input.connect(driveGain);
       source = driveGain;
@@ -240,6 +512,7 @@ class TrackChannelStrip {
     source.connect(shaper);
 
     if (mix >= 0.98 && drive == 1.0) {
+      _fxBindings.add(_FxNodeBinding(fx: fx, outputNode: shaper, shaperNode: shaper));
       return shaper;
     }
     final bus = ctx.createGain();
@@ -249,10 +522,19 @@ class TrackChannelStrip {
 
     input.connect(dry)..connect(bus);
     shaper.connect(wet)..connect(bus);
+    _fxBindings.add(_FxNodeBinding(
+      fx: fx,
+      outputNode: bus,
+      dryGainNode: dry,
+      wetGainNode: wet,
+      preGainNode: driveGain,
+      shaperNode: shaper,
+    ));
     return bus;
   }
 
-  WANode _addDelay(WANode input, Map<String, double> params, double mix) {
+  WANode _addDelay(WANode input, FXInsert fx, double mix) {
+    final params = fx.params;
     final timeMs = (params['TimeMs'] ?? 250.0).clamp(10.0, 1000.0);
     final feedback = (params['Feedback'] ?? 0.4).clamp(0.0, 0.95);
     final bus = ctx.createGain();
@@ -269,6 +551,15 @@ class TrackChannelStrip {
     input.connect(delNode);
     delNode.connect(wetGain);
     wetGain.connect(bus);
+
+    _fxBindings.add(_FxNodeBinding(
+      fx: fx,
+      outputNode: bus,
+      dryGainNode: dryGain,
+      wetGainNode: wetGain,
+      delayNode: delNode,
+      fbGainNode: fbGain,
+    ));
     return bus;
   }
 
@@ -351,9 +642,10 @@ class TrackChannelStrip {
 
     WANode wetSource = convolver;
 
+    WABiquadFilterNode? filter;
     final highCut = fx.params['HighCut'];
     if (highCut != null && highCut < 19000.0) {
-      final filter = ctx.createBiquadFilter();
+      filter = ctx.createBiquadFilter();
       filter.type = WABiquadFilterType.lowpass;
       filter.frequency.value = highCut.clamp(100.0, 20000.0);
       _fxNodes.add(filter);
@@ -407,20 +699,401 @@ class TrackChannelStrip {
     input.connect(convolver);
     wetSource.connect(wetGain);
     wetGain.connect(bus);
+
+    _fxBindings.add(_FxNodeBinding(
+      fx: fx,
+      outputNode: bus,
+      dryGainNode: dryGain,
+      wetGainNode: wetGain,
+      filterNode: filter,
+    ));
     return bus;
   }
 
-  static int _computeFxHash(List<FXInsert> fxRack) {
+  WANode _addVintageDegrader(WANode input, FXInsert fx, double mix) {
+    final params = fx.params;
+    _vintageLfoParams.clear();
+    _vintageLfoParams.addAll(params);
+
+    final era = (params['Era'] ?? 1974.0).clamp(1950.0, 1989.0);
+    final mediumIdx = (params['Medium'] ?? 2.0).round().clamp(0, 3);
+    final wowDepth = (params['WowDepth'] ?? 25.0).clamp(0.0, 100.0) / 100.0;
+    final flutterDepth = (params['FlutterDepth'] ?? 15.0).clamp(0.0, 100.0) / 100.0;
+    final motorJitter = (params['MotorJitter'] ?? 10.0).clamp(0.0, 100.0) / 100.0;
+    final warpSwell = (params['WarpSwell'] ?? 20.0).clamp(0.0, 100.0) / 100.0;
+    final tapeDropouts = (params['TapeDropouts'] ?? 15.0).clamp(0.0, 100.0) / 100.0;
+    final needleBumpFreq = (params['NeedleBumpFreq'] ?? 25.0).clamp(0.0, 100.0) / 100.0;
+    final stutterDepth = (params['StutterDepth'] ?? 35.0).clamp(0.0, 100.0) / 100.0;
+    final thudLevel = (params['ThudLevel'] ?? 30.0).clamp(0.0, 100.0) / 100.0;
+    final tapeWarmth = (params['TapeWarmth'] ?? 45.0).clamp(0.0, 100.0) / 100.0;
+    final headBumpDb = (params['HeadBump'] ?? 3.0).clamp(0.0, 12.0);
+    final hissLevel = (params['HissLevel'] ?? 20.0).clamp(0.0, 100.0) / 100.0;
+    final vinylCrackle = (params['VinylCrackle'] ?? 25.0).clamp(0.0, 100.0) / 100.0;
+    final grooveRumble = (params['GrooveRumble'] ?? 15.0).clamp(0.0, 100.0) / 100.0;
+
+    // 1. Era Bandwidth Morph Calculation (1950s - 1980s)
+    final eraProgress = ((era - 1950.0) / 39.0).clamp(0.0, 1.0);
+    final hpCutoff = 250.0 * math.pow(20.0 / 250.0, eraProgress);
+    final lpCutoff = 4500.0 * math.pow(18500.0 / 4500.0, eraProgress);
+    _baseCutoffLp = lpCutoff;
+
+    // 2. Tape Saturation & Warmth Pre-Stage
+    final shaper = ctx.createWaveShaper();
+    shaper.curve = _buildTapeSaturationCurve(tapeWarmth);
+    shaper.oversample = kIsWeb ? WAOverSampleType.x4 : WAOverSampleType.x2;
+    _fxNodes.add(shaper);
+
+    // 3. Modulated Delay Node (Wow, Flutter, Doppler Slip & Tape Stop)
+    _baseTapeDelay = 0.020;
+    final delNode = ctx.createDelay(4.0)..delayTime.value = _baseTapeDelay;
+    _tapeStopDelay = delNode;
+    _fxNodes.add(delNode);
+
+    // 4. Era EQ (Highpass + Lowpass + Peaking Head Bump)
+    final hpFilter = ctx.createBiquadFilter()
+      ..type = WABiquadFilterType.highpass
+      ..frequency.value = hpCutoff.clamp(20.0, 500.0)
+      ..Q.value = 0.707;
+
+    final lpFilter = ctx.createBiquadFilter()
+      ..type = WABiquadFilterType.lowpass
+      ..frequency.value = lpCutoff.clamp(1000.0, 20000.0)
+      ..Q.value = 0.85;
+    _tapeStopFilter = lpFilter;
+
+    final headBump = ctx.createBiquadFilter()
+      ..type = WABiquadFilterType.peaking
+      ..frequency.value = (mediumIdx == 1 ? 95.0 : (mediumIdx >= 2 ? 65.0 : 80.0))
+      ..Q.value = 1.2
+      ..gain.value = headBumpDb;
+
+    _fxNodes.addAll([hpFilter, lpFilter, headBump]);
+
+    // 5. Volume & AM Swell / Tape Stop Gain
+    final stopGain = ctx.createGain()..gain.value = 1.0;
+    _tapeStopGain = stopGain;
+    _fxNodes.add(stopGain);
+
+    // Signal Routing: input -> shaper -> delNode -> hpFilter -> headBump -> lpFilter -> stopGain
+    input.connect(shaper);
+    shaper.connect(delNode);
+    delNode.connect(hpFilter);
+    hpFilter.connect(headBump);
+    headBump.connect(lpFilter);
+    lpFilter.connect(stopGain);
+
+    // 6. Real-time LFO Modulations for Delay Time & Volume
+    if (wowDepth > 0.001 || flutterDepth > 0.001 || warpSwell > 0.001 || needleBumpFreq > 0.001 || tapeDropouts > 0.001) {
+      _startVintageLfoModulators(
+        delNode: delNode,
+        stopGain: stopGain,
+        mediumIdx: mediumIdx,
+      );
+    }
+
+    // 7. Background Noise (Hiss + Procedural Vinyl Crackle + Groove Rumble)
+    final noiseSetup = _createVintageNoiseSource(
+      hissLevel: hissLevel,
+      vinylCrackle: vinylCrackle,
+      grooveRumble: grooveRumble,
+      mediumIdx: mediumIdx,
+    );
+    if (noiseSetup != null) {
+      noiseSetup.$1.connect(stopGain);
+    }
+
+    if (mix >= 0.98) {
+      _fxBindings.add(_FxNodeBinding(
+        fx: fx,
+        outputNode: stopGain,
+        hpFilterNode: hpFilter,
+        lpFilterNode: lpFilter,
+        headBumpFilterNode: headBump,
+        delayNode: delNode,
+        noiseGainNode: noiseSetup?.$1 is WAGainNode ? noiseSetup!.$1 as WAGainNode : null,
+        hissGainNode: noiseSetup?.$2,
+        crackleGainNode: noiseSetup?.$3,
+        rumbleGainNode: noiseSetup?.$4,
+      ));
+      return stopGain;
+    }
+
+    // Dry / Wet Bus
+    final bus = ctx.createGain();
+    final dryGain = ctx.createGain()..gain.value = 1.0 - mix;
+    final wetGain = ctx.createGain()..gain.value = mix;
+    _fxNodes.addAll([bus, dryGain, wetGain]);
+
+    input.connect(dryGain)..connect(bus);
+    stopGain.connect(wetGain)..connect(bus);
+
+    _fxBindings.add(_FxNodeBinding(
+      fx: fx,
+      outputNode: bus,
+      dryGainNode: dryGain,
+      wetGainNode: wetGain,
+      hpFilterNode: hpFilter,
+      lpFilterNode: lpFilter,
+      headBumpFilterNode: headBump,
+      delayNode: delNode,
+      noiseGainNode: noiseSetup?.$1 is WAGainNode ? noiseSetup!.$1 as WAGainNode : null,
+      hissGainNode: noiseSetup?.$2,
+      crackleGainNode: noiseSetup?.$3,
+      rumbleGainNode: noiseSetup?.$4,
+    ));
+    return bus;
+  }
+
+  void _startVintageLfoModulators({
+    required WADelayNode delNode,
+    required WAGainNode stopGain,
+    required int mediumIdx,
+  }) {
+    _lfoTimer?.cancel();
+
+    double wowPhase = 0.0;
+    double flutterPhase = 0.0;
+    double bumpSlip = 0.0;
+    double bumpDuck = 1.0;
+    double dropoutGain = 1.0;
+    double smoothDelay = _baseTapeDelay;
+    final rng = math.Random();
+
+    // Medium rotation speeds
+    final wowRate = (mediumIdx == 3) ? 1.30 : ((mediumIdx == 2) ? 0.55 : ((mediumIdx == 4) ? 0.75 : 0.65));
+    final flutterRate = (mediumIdx == 1) ? 14.5 : ((mediumIdx == 4) ? 16.0 : 12.0);
+
+    const dtSec = 0.016; // 60 FPS tick rate
+    _lfoTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      if (_isTapeStopTriggered) return;
+
+      final wowDepth = (_vintageLfoParams['WowDepth'] ?? 25.0).clamp(0.0, 100.0) / 100.0;
+      final flutterDepth = (_vintageLfoParams['FlutterDepth'] ?? 15.0).clamp(0.0, 100.0) / 100.0;
+      final motorJitter = (_vintageLfoParams['MotorJitter'] ?? 10.0).clamp(0.0, 100.0) / 100.0;
+      final warpSwell = (_vintageLfoParams['WarpSwell'] ?? 20.0).clamp(0.0, 100.0) / 100.0;
+      final tapeDropouts = (_vintageLfoParams['TapeDropouts'] ?? 15.0).clamp(0.0, 100.0) / 100.0;
+      final needleBumpFreq = (_vintageLfoParams['NeedleBumpFreq'] ?? 25.0).clamp(0.0, 100.0) / 100.0;
+      final stutterDepth = (_vintageLfoParams['StutterDepth'] ?? 35.0).clamp(0.0, 100.0) / 100.0;
+
+      wowPhase = (wowPhase + (2.0 * math.pi * wowRate * dtSec)) % (2.0 * math.pi);
+      flutterPhase = (flutterPhase + (2.0 * math.pi * flutterRate * dtSec)) % (2.0 * math.pi);
+
+      // Calibrated physical delay fluctuations:
+      // Wow: low-frequency gentle tape/platter sway (~0.0035s max)
+      // Flutter: subtle sub-millisecond shimmer (~0.00035s max)
+      final wowMod = math.sin(wowPhase) * wowDepth * 0.0035;
+      final flutterMod = math.sin(flutterPhase) * flutterDepth * 0.00035;
+      final jitterMod = (rng.nextDouble() * 2.0 - 1.0) * motorJitter * 0.0003;
+
+      // Needle Bump / Stutter Trigger
+      if (needleBumpFreq > 0.001 && rng.nextDouble() < (needleBumpFreq * 0.025)) {
+        bumpSlip = (0.0015 + rng.nextDouble() * 0.003) * stutterDepth;
+        bumpDuck = (1.0 - (0.4 + rng.nextDouble() * 0.45) * stutterDepth).clamp(0.1, 1.0);
+      } else {
+        bumpSlip *= 0.85;
+        bumpDuck = (bumpDuck + (1.0 - bumpDuck) * 0.18).clamp(0.0, 1.0);
+      }
+
+      // Tape Dropouts
+      if (tapeDropouts > 0.001 && rng.nextDouble() < (tapeDropouts * 0.018)) {
+        dropoutGain = (1.0 - (0.3 + rng.nextDouble() * 0.5) * tapeDropouts).clamp(0.1, 1.0);
+      } else {
+        dropoutGain = (dropoutGain + (1.0 - dropoutGain) * 0.15).clamp(0.0, 1.0);
+      }
+
+      // AM Warp Swell
+      final swellMod = 1.0 + math.sin(wowPhase - math.pi / 2.0) * warpSwell * 0.22;
+
+      final targetDelay = (_baseTapeDelay + wowMod + flutterMod + jitterMod + bumpSlip).clamp(0.001, 3.5);
+      // Continuous exponential sub-sample smoothing eliminates stair-step discontinuities / clipping
+      smoothDelay += (targetDelay - smoothDelay) * 0.35;
+      delNode.delayTime.value = smoothDelay;
+
+      final totalGain = (swellMod * bumpDuck * dropoutGain * 0.85).clamp(0.0, 1.0);
+      stopGain.gain.value = totalGain;
+    });
+  }
+
+  static WABuffer? _cachedHissNoiseBuf;
+  static WABuffer? _cachedVinylCrackleBuf;
+
+  (WANode, WAGainNode, WAGainNode, WAGainNode)? _createVintageNoiseSource({
+    required double hissLevel,
+    required double vinylCrackle,
+    required double grooveRumble,
+    required int mediumIdx,
+  }) {
+    try {
+      const sr = 44100;
+
+      // 1. Generate Analog Tape / Floor Hiss Buffer (Pink / Thermal Noise)
+      if (_cachedHissNoiseBuf == null) {
+        const durSec = 3.0;
+        final totalSamples = (sr * durSec).toInt();
+        final hissL = Float32List(totalSamples);
+        final hissR = Float32List(totalSamples);
+
+        double b0L = 0, b1L = 0, b2L = 0;
+        double b0R = 0, b1R = 0, b2R = 0;
+        final rng = math.Random(1984);
+
+        for (int i = 0; i < totalSamples; i++) {
+          final wL = (rng.nextDouble() * 2.0 - 1.0);
+          final wR = (rng.nextDouble() * 2.0 - 1.0);
+
+          b0L = 0.99886 * b0L + wL * 0.0555179;
+          b1L = 0.99332 * b1L + wL * 0.0750759;
+          b2L = 0.96900 * b2L + wL * 0.1538520;
+          final pinkL = (b0L + b1L + b2L + wL * 0.5362) * 0.18;
+
+          b0R = 0.99886 * b0R + wR * 0.0555179;
+          b1R = 0.99332 * b1R + wR * 0.0750759;
+          b2R = 0.96900 * b2R + wR * 0.1538520;
+          final pinkR = (b0R + b1R + b2R + wR * 0.5362) * 0.18;
+
+          hissL[i] = pinkL.clamp(-1.0, 1.0);
+          hissR[i] = pinkR.clamp(-1.0, 1.0);
+        }
+
+        _cachedHissNoiseBuf = WABuffer(
+          numberOfChannels: 2,
+          length: totalSamples,
+          sampleRate: sr,
+          channels: [hissL, hissR],
+        );
+      }
+
+      // 2. Generate Authentic Procedural Vinyl Crackle Buffer (Multi-stage Poisson clicks, pops & groove rumble)
+      if (_cachedVinylCrackleBuf == null) {
+        const durSec = 6.0;
+        final totalSamples = (sr * durSec).toInt();
+        final crackleL = Float32List(totalSamples);
+        final crackleR = Float32List(totalSamples);
+        final rng = math.Random(1977);
+
+        int clickRemaining = 0;
+        double clickAmpL = 0.0;
+        double clickAmpR = 0.0;
+        double clickDecay = 0.85;
+
+        for (int i = 0; i < totalSamples; i++) {
+          // Low-frequency groove friction / rumble (33.3 RPM periodic sway ~ 0.55 Hz + 31.5 Hz turntable motor hum)
+          final grooveSway = math.sin(i * 2.0 * math.pi * 0.55 / sr);
+          final rumble = (math.sin(i * 2.0 * math.pi * 31.5 / sr) * 0.35 +
+                          math.sin(i * 2.0 * math.pi * 63.0 / sr) * 0.15) * (0.8 + 0.2 * grooveSway);
+
+          // Random Poisson Vinyl Click / Pop / Scratch Trigger
+          if (clickRemaining <= 0) {
+            final roll = rng.nextDouble();
+            if (roll < 0.0018) {
+              // Micro dust tick
+              clickRemaining = 6 + rng.nextInt(12);
+              final polarity = rng.nextBool() ? 1.0 : -1.0;
+              final amp = (0.25 + rng.nextDouble() * 0.5) * polarity;
+              clickAmpL = amp;
+              clickAmpR = amp * (0.6 + rng.nextDouble() * 0.8);
+              clickDecay = 0.65 + rng.nextDouble() * 0.20;
+            } else if (roll < 0.0021) {
+              // Medium vinyl pop / surface scratch
+              clickRemaining = 25 + rng.nextInt(60);
+              final polarity = rng.nextBool() ? 1.0 : -1.0;
+              final amp = (0.6 + rng.nextDouble() * 0.4) * polarity;
+              clickAmpL = amp;
+              clickAmpR = amp * (0.4 + rng.nextDouble() * 1.2);
+              clickDecay = 0.88 + rng.nextDouble() * 0.08;
+            } else if (roll < 0.00215) {
+              // Heavy needle pop with sub resonance
+              clickRemaining = 60 + rng.nextInt(120);
+              final amp = (0.8 + rng.nextDouble() * 0.2);
+              clickAmpL = amp;
+              clickAmpR = amp * 0.85;
+              clickDecay = 0.94;
+            }
+          }
+
+          double currentClickL = 0.0;
+          double currentClickR = 0.0;
+          if (clickRemaining > 0) {
+            currentClickL = clickAmpL;
+            currentClickR = clickAmpR;
+            clickAmpL *= clickDecay;
+            clickAmpR *= clickDecay;
+            clickRemaining--;
+          }
+
+          // Subtle groove surface friction noise
+          final surfaceFriction = (rng.nextDouble() * 2.0 - 1.0) * 0.02;
+
+          crackleL[i] = (currentClickL + surfaceFriction + rumble * 0.25).clamp(-1.0, 1.0);
+          crackleR[i] = (currentClickR + surfaceFriction + rumble * 0.25).clamp(-1.0, 1.0);
+        }
+
+        _cachedVinylCrackleBuf = WABuffer(
+          numberOfChannels: 2,
+          length: totalSamples,
+          sampleRate: sr,
+          channels: [crackleL, crackleR],
+        );
+      }
+
+      final hissSource = ctx.createBufferSource()
+        ..buffer = _cachedHissNoiseBuf
+        ..loop = true;
+
+      final crackleSource = ctx.createBufferSource()
+        ..buffer = _cachedVinylCrackleBuf
+        ..loop = true;
+
+      final hissGainNode = ctx.createGain()
+        ..gain.value = (hissLevel * 0.04).clamp(0.0, 0.12);
+
+      // Crackle gain scaled for realistic ambient vinyl crackle
+      final crackleGainNode = ctx.createGain()
+        ..gain.value = (math.pow(vinylCrackle, 1.2) * 0.09).clamp(0.0, 0.18);
+
+      final rumbleGainNode = ctx.createGain()
+        ..gain.value = (grooveRumble * 0.06).clamp(0.0, 0.12);
+
+      final noiseMixer = ctx.createGain()..gain.value = 1.0;
+      _fxNodes.addAll([hissSource, crackleSource, hissGainNode, crackleGainNode, rumbleGainNode, noiseMixer]);
+
+      hissSource.connect(hissGainNode);
+      hissGainNode.connect(noiseMixer);
+
+      crackleSource.connect(crackleGainNode);
+      crackleGainNode.connect(noiseMixer);
+
+      hissSource.start();
+      crackleSource.start();
+
+      return (noiseMixer, hissGainNode, crackleGainNode, rumbleGainNode);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static int _computeStructuralHash(List<FXInsert> fxRack) {
     int h = 0;
     for (final fx in fxRack) {
       if (!fx.enabled) continue;
       h = (h * 31) ^ fx.type.index;
-      h = (h * 31) ^ (fx.mix * 100).round();
-      for (final e in fx.params.entries) {
-        h = (h * 31) ^ e.key.hashCode ^ (e.value * 100).round();
-      }
+      h = (h * 31) ^ fx.id.hashCode;
       if (fx.irSampleName != null) {
         h = (h * 31) ^ fx.irSampleName.hashCode;
+      }
+      if (fx.type == FXType.convolutionReverb) {
+        final p = fx.params;
+        h = (h * 31) ^ (p['Material']?.toInt() ?? 0);
+        h = (h * 31) ^ ((p['Width'] ?? 0.0) * 10).round();
+        h = (h * 31) ^ ((p['Length'] ?? 0.0) * 10).round();
+        h = (h * 31) ^ ((p['Height'] ?? 0.0) * 10).round();
+        h = (h * 31) ^ ((p['RT60'] ?? 0.0) * 100).round();
+        h = (h * 31) ^ ((p['Damping'] ?? 0.0) * 100).round();
+        h = (h * 31) ^ (p['isCabinet']?.toInt() ?? 0);
+        h = (h * 31) ^ ((p['MicDistance'] ?? 0.0) * 100).round();
+        h = (h * 31) ^ ((p['MicAngle'] ?? 0.0) * 10).round();
+        h = (h * 31) ^ (p['OpenBack']?.toInt() ?? 0);
+        h = (h * 31) ^ ((p['StereoWidth'] ?? 0.0) * 100).round();
       }
     }
     return h;
@@ -428,9 +1101,12 @@ class TrackChannelStrip {
 
   void dispose() {
     try {
+      _lfoTimer?.cancel();
+      _lfoTimer = null;
       inputBus.disconnect();
       volumeNode.disconnect();
       pannerNode.disconnect();
+      try { analyserNode.disconnect(); } catch (_) {}
       for (final node in _fxNodes) {
         try {
           node.disconnect();
@@ -438,10 +1114,29 @@ class TrackChannelStrip {
         } catch (_) {}
       }
       _fxNodes.clear();
+      _fxBindings.clear();
       inputBus.dispose();
       volumeNode.dispose();
       pannerNode.dispose();
+      try { analyserNode.dispose(); } catch (_) {}
     } catch (_) {}
+  }
+
+  static Float32List _buildTapeSaturationCurve(double warmth) {
+    const n = 512;
+    final curve = Float32List(n);
+    final drive = 1.0 + warmth * 4.0;
+    for (int i = 0; i < n; i++) {
+      final x = (2.0 * i / (n - 1)) - 1.0;
+      double y;
+      if (x >= 0) {
+        y = _tanhF(x * drive) + 0.06 * x * x * warmth;
+      } else {
+        y = _tanhF(x * drive * 1.1) - 0.03 * x * x * warmth;
+      }
+      curve[i] = (y / _tanhF(drive)).clamp(-1.0, 1.0);
+    }
+    return curve;
   }
 
   static Float32List _buildDriveCurve(double drive) {
@@ -745,11 +1440,31 @@ class WajuceAudioBackend {
   // ── Meters & Point-in-Chain Analyser Taps ──────────────────────────────────
 
   WAAnalyserNode? getAnalyser({String? targetId}) {
+    if (targetId != null && targetId != 'master' && targetId != 'master_bus') {
+      final strip = _channelStrips[targetId];
+      if (strip != null) return strip.analyserNode;
+      final ctx = _ctx;
+      if (ctx != null) {
+        final destination = _masterInputBus ?? _masterGain;
+        if (destination != null) {
+          final newStrip = _channelStrips.putIfAbsent(
+            targetId,
+            () => TrackChannelStrip(
+              trackId: targetId,
+              ctx: ctx,
+              destination: destination,
+            ),
+          );
+          return newStrip.analyserNode;
+        }
+      }
+      return null;
+    }
     return _analyser;
   }
 
   void getTimeDomainData(Uint8List timeData, {String? targetId}) {
-    final analyser = _analyser;
+    final analyser = getAnalyser(targetId: targetId);
     if (!_initialized || analyser == null) {
       timeData.fillRange(0, timeData.length, 128);
       return;
@@ -762,7 +1477,7 @@ class WajuceAudioBackend {
   }
 
   void getFrequencyData(Uint8List freqData, {String? targetId}) {
-    final analyser = _analyser;
+    final analyser = getAnalyser(targetId: targetId);
     if (!_initialized || analyser == null) {
       freqData.fillRange(0, freqData.length, 0);
       return;
@@ -775,7 +1490,7 @@ class WajuceAudioBackend {
   }
 
   void updateMeters(Uint8List timeData, Function(double l, double r) setPeaks, {String? targetId}) {
-    final analyser = _analyser;
+    final analyser = getAnalyser(targetId: targetId);
     if (!_initialized || analyser == null) {
       setPeaks(0, 0);
       return;
@@ -916,6 +1631,16 @@ class WajuceAudioBackend {
         }
       }
     } catch (_) {}
+  }
+
+  /// Triggers real-time Tape Stop motor deceleration and spin-up on a track channel or master strip.
+  void triggerTapeStop(String trackId, {double stopTime = 0.8, double spinUpTime = 0.4}) {
+    if (trackId == 'master' || trackId == 'master_bus') {
+      _masterStrip?.triggerTapeStop(stopTime: stopTime, spinUpTime: spinUpTime);
+      return;
+    }
+    final strip = _channelStrips[trackId];
+    strip?.triggerTapeStop(stopTime: stopTime, spinUpTime: spinUpTime);
   }
 
   /// Panic: Stops all active audio source nodes immediately.

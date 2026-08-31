@@ -285,6 +285,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                           child: DynamicInstrumentGuiWidget(
                                             dawState: dawState,
                                             track: fxTrack,
+                                            hostTrack: track,
                                             hideHeader: true,
                                             onParamChanged: (p, v) => dawState.updateFXParam(track, fx.id, p, v),
                                           ),

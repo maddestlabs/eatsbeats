@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'graph_node.dart';
 import 'tr909_rom_data.dart';
+import '../dx7_fm_engine.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  OSCILLATORS & SOURCES
@@ -28,12 +29,12 @@ class NoiseNode extends GraphNode {
 /// Sine Oscillator supporting audio-rate frequency modulation (FM).
 class SineOscNode extends GraphNode {
   final GraphNode? freqSource;
-  final double staticFreq;
+  final double? staticFreq;
   final GraphNode? fmModSource;
 
   const SineOscNode({
     this.freqSource,
-    this.staticFreq = 440.0,
+    this.staticFreq,
     this.fmModSource,
   });
 
@@ -48,10 +49,11 @@ class SineOscNode extends GraphNode {
 
     final double sr = ctx.sampleRate;
     final double twoPi = 2.0 * math.pi;
+    final double defaultFreq = staticFreq ?? (ctx.freq > 0 ? ctx.freq : 440.0);
     double phase = 0.0;
 
     for (int i = 0; i < len; i++) {
-      final double baseF = freqBuf != null ? freqBuf[i] : staticFreq;
+      final double baseF = freqBuf != null ? freqBuf[i] : defaultFreq;
       final double fmOffset = fmBuf != null ? fmBuf[i] : 0.0;
       final double instantaneousFreq = math.max(0.0, baseF + fmOffset);
 
@@ -65,9 +67,9 @@ class SineOscNode extends GraphNode {
 /// Sawtooth Oscillator with antialiasing / leaky-integrator option.
 class SawOscNode extends GraphNode {
   final GraphNode? freqSource;
-  final double staticFreq;
+  final double? staticFreq;
 
-  const SawOscNode({this.freqSource, this.staticFreq = 440.0});
+  const SawOscNode({this.freqSource, this.staticFreq});
 
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
@@ -76,10 +78,11 @@ class SawOscNode extends GraphNode {
     if (freqSource != null) freqSource!.process(ctx, freqBuf!);
 
     final double sr = ctx.sampleRate;
+    final double defaultFreq = staticFreq ?? (ctx.freq > 0 ? ctx.freq : 440.0);
     double phase = 0.0;
 
     for (int i = 0; i < len; i++) {
-      final double curF = freqBuf != null ? freqBuf[i] : staticFreq;
+      final double curF = freqBuf != null ? freqBuf[i] : defaultFreq;
       outBuffer[i] = 2.0 * phase - 1.0;
       phase = (phase + (curF / sr)) % 1.0;
     }
@@ -89,12 +92,12 @@ class SawOscNode extends GraphNode {
 /// Square / Pulse Oscillator.
 class SquareOscNode extends GraphNode {
   final GraphNode? freqSource;
-  final double staticFreq;
+  final double? staticFreq;
   final double pulseWidth;
 
   const SquareOscNode({
     this.freqSource,
-    this.staticFreq = 440.0,
+    this.staticFreq,
     this.pulseWidth = 0.5,
   });
 
@@ -105,10 +108,11 @@ class SquareOscNode extends GraphNode {
     if (freqSource != null) freqSource!.process(ctx, freqBuf!);
 
     final double sr = ctx.sampleRate;
+    final double defaultFreq = staticFreq ?? (ctx.freq > 0 ? ctx.freq : 440.0);
     double phase = 0.0;
 
     for (int i = 0; i < len; i++) {
-      final double curF = freqBuf != null ? freqBuf[i] : staticFreq;
+      final double curF = freqBuf != null ? freqBuf[i] : defaultFreq;
       outBuffer[i] = phase < pulseWidth ? 0.75 : -0.75;
       phase = (phase + (curF / sr)) % 1.0;
     }
@@ -214,15 +218,27 @@ class DecayEnvNode extends GraphNode {
 
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
-    final double actualDecay = math.max(
+    double actualDecay = math.max(
       0.001,
       decayParam != null ? ctx.getParam(decayParam!, decaySec) : decaySec,
     );
-    final double sr = ctx.sampleRate;
 
-    for (int i = 0; i < outBuffer.length; i++) {
+    final art = ctx.articulation?.toLowerCase();
+    if (art == 'muted' || art == 'palm_mute' || art == 'staccato' || art == 'chop' || art == 'ghost') {
+      actualDecay = math.min(actualDecay, 0.07);
+    } else if (art == 'harmonics' || art == 'flageolet') {
+      actualDecay = actualDecay * 1.4;
+    }
+
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+
+    for (int i = 0; i < len; i++) {
       final double t = i / sr;
-      outBuffer[i] = math.exp(-t * (4.0 / actualDecay));
+      final double normTime = len > 1 ? i / (len - 1) : 0.0;
+      final double press = ctx.pressurePoints != null ? ctx.getPressureAt(normTime) : 1.0;
+      final double env = math.exp(-t * (4.0 / actualDecay));
+      outBuffer[i] = env * press;
     }
   }
 }
@@ -838,3 +854,2728 @@ class DistortionNode extends GraphNode {
     }
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  PHYSICAL MODELING & ACOUSTIC PRIMITIVES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Neoprene / Felt Hammer Impact Transient Exciter.
+/// Synthesizes the mechanical strike transient of a piano/EP piano hammer against
+/// a tuning fork/tine/string with velocity-dependent pulse width and hardness.
+class HammerExciterNode extends GraphNode {
+  final double hardness; // 0.1 (soft felt) to 2.0 (hard neoprene/wood)
+  final String? hardnessParam;
+  final double clickLevel;
+  final String? clickLevelParam;
+
+  const HammerExciterNode({
+    this.hardness = 1.0,
+    this.hardnessParam,
+    this.clickLevel = 1.0,
+    this.clickLevelParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double h = (hardnessParam != null ? ctx.getParam(hardnessParam!, hardness) : hardness).clamp(0.1, 4.0);
+    final double click = (clickLevelParam != null ? ctx.getParam(clickLevelParam!, clickLevel) : clickLevel).clamp(0.0, 3.0);
+    final double vel = ctx.velocity.clamp(0.1, 1.0);
+    final double sr = ctx.sampleRate;
+
+    // Contact duration shortens with higher velocity and harder hammer (0.8ms to 4.5ms)
+    final double contactSec = (0.0035 / (math.pow(vel, 0.4) * h)).clamp(0.0004, 0.010);
+    final int contactSamples = (contactSec * sr).toInt().clamp(4, outBuffer.length ~/ 2);
+
+    outBuffer.fillRange(0, outBuffer.length, 0.0);
+
+    // 1. Raised-cosine force pulse (Hertzian contact model)
+    for (int i = 0; i < contactSamples; i++) {
+      final double phase = (i / contactSamples) * math.pi;
+      final double force = math.pow(math.sin(phase), 1.5 + (1.0 - vel) * 0.8).toDouble();
+      outBuffer[i] = force * vel;
+    }
+
+    // 2. High-frequency micro-click transient (neoprene tip friction)
+    if (click > 0.01) {
+      int state = 0x5A5A5A5A ^ (ctx.midiNote * 73);
+      final int clickLen = math.min(outBuffer.length, (0.004 * sr).toInt());
+      for (int i = 0; i < clickLen; i++) {
+        state ^= (state << 13) & 0xFFFFFFFF;
+        state ^= (state >> 17) & 0xFFFFFFFF;
+        state ^= (state << 5) & 0xFFFFFFFF;
+        final double noise = ((state & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double env = math.exp(-i / (sr * 0.0008));
+        outBuffer[i] += noise * env * click * 0.25 * vel;
+      }
+    }
+  }
+}
+
+/// Plectrum / Guitar Pick Strum Exciter Node.
+/// Models the rapid micro-brush of a guitar pick across multiple strings.
+/// Produces a multi-tap comb impulse with adjustable strum spread (down/up stroke),
+/// pick scrape noise, and velocity dynamics.
+class PlectrumStrumExciterNode extends GraphNode {
+  final double strumSpreadMs; // Strum duration across strings (2.0 to 25.0 ms)
+  final String? strumSpreadParam;
+  final double pickBite; // Pick attack transient brightness
+  final String? pickBiteParam;
+
+  const PlectrumStrumExciterNode({
+    this.strumSpreadMs = 8.0,
+    this.strumSpreadParam,
+    this.pickBite = 1.0,
+    this.pickBiteParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double spreadMs = (strumSpreadParam != null ? ctx.getParam(strumSpreadParam!, strumSpreadMs) : strumSpreadMs).clamp(1.0, 40.0);
+    final double bite = (pickBiteParam != null ? ctx.getParam(pickBiteParam!, pickBite) : pickBite).clamp(0.0, 3.0);
+    final double vel = ctx.velocity.clamp(0.1, 1.0);
+    final double sr = ctx.sampleRate;
+
+    outBuffer.fillRange(0, outBuffer.length, 0.0);
+
+    // 4 string pluck taps representing a reggae chord chop brush
+    const int numTaps = 4;
+    final double tapSpacingSec = (spreadMs / 1000.0) / (numTaps - 1);
+
+    for (int t = 0; t < numTaps; t++) {
+      final double tapTime = t * tapSpacingSec;
+      final int startSample = (tapTime * sr).toInt();
+      if (startSample >= outBuffer.length) break;
+
+      // Contact pulse
+      final int pulseLen = ((0.0015 / (vel * bite + 0.2)) * sr).toInt().clamp(3, 120);
+      final double tapGain = (0.7 + 0.3 * (t / numTaps)) * vel;
+
+      for (int i = 0; i < pulseLen && (startSample + i) < outBuffer.length; i++) {
+        final double phase = (i / pulseLen) * math.pi;
+        final double pulse = math.sin(phase);
+        outBuffer[startSample + i] += pulse * tapGain;
+      }
+
+      // Pick scrape noise
+      int state = 0x1337BEEF ^ (ctx.midiNote * 37 + t * 91);
+      final int scrapeLen = ((0.0025 * sr)).toInt();
+      for (int i = 0; i < scrapeLen && (startSample + i) < outBuffer.length; i++) {
+        state ^= (state << 13) & 0xFFFFFFFF;
+        state ^= (state >> 17) & 0xFFFFFFFF;
+        state ^= (state << 5) & 0xFFFFFFFF;
+        final double noise = ((state & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double env = math.exp(-i / (sr * 0.0006));
+        outBuffer[startSample + i] += noise * env * bite * 0.35 * vel;
+      }
+    }
+  }
+}
+
+/// Asymmetric Magnetic Pickup Saturation.
+/// Models the electromagnetic pickup behavior in Rhodes/Wurlitzer/Guitars.
+/// As the vibrating metal tine/string swings closer to the magnet pole piece,
+/// the magnetic flux changes non-linearly, generating warm 2nd-order even harmonics
+/// and soft limiting on hard strikes.
+class PickupSaturationNode extends GraphNode {
+  final GraphNode input;
+  final double distance; // Pickup distance: 0.1 (very close/barky) to 2.0 (far/mellow)
+  final String? distanceParam;
+  final double symmetry; // 0.0 (symmetric) to 1.0 (strong 2nd harmonic bark)
+  final String? symmetryParam;
+
+  const PickupSaturationNode({
+    required this.input,
+    this.distance = 1.0,
+    this.distanceParam,
+    this.symmetry = 0.65,
+    this.symmetryParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+
+    final double dist = (distanceParam != null ? ctx.getParam(distanceParam!, distance) : distance).clamp(0.1, 3.0);
+    final double sym = (symmetryParam != null ? ctx.getParam(symmetryParam!, symmetry) : symmetry).clamp(0.0, 1.0);
+
+    // Closer pickup -> higher drive & stronger magnetic non-linearity
+    final double gain = 1.0 / math.sqrt(dist);
+    final double alpha = 0.35 * sym * (1.5 / dist); // 2nd harmonic quadratic term
+    final double beta = 0.15 * (1.0 / dist);        // 3rd harmonic cubic term
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double x = outBuffer[i] * gain;
+      // Asymmetric magnetic reluctance polynomial: y = x + alpha*x^2 - beta*x^3
+      double y = x + (alpha * x * x.abs()) - (beta * x * x * x);
+      // Soft-clip boundary
+      if (y > 1.2) y = 1.2 + 0.1 * DistortionNode._tanh(y - 1.2);
+      if (y < -1.2) y = -1.2 + 0.1 * DistortionNode._tanh(y + 1.2);
+      outBuffer[i] = y * 0.9;
+    }
+  }
+}
+
+/// Parallel Modal Resonator Bank.
+/// Emulates the mechanical resonant modes of acoustic bodies, soundboards,
+/// tone bars, and xylophone/marimba bars using parallel 2nd-order bandpass resonators.
+class ModalResonatorBankNode extends GraphNode {
+  final GraphNode input;
+  final List<double> modeFreqRatios; // Multipliers relative to fundamental
+  final List<double> modeGains;       // Relative amplitude per mode
+  final List<double> modeQFactors;    // Q factor (decay sharpness) per mode
+
+  const ModalResonatorBankNode({
+    required this.input,
+    required this.modeFreqRatios,
+    required this.modeGains,
+    required this.modeQFactors,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final Float32List inBuf = Float32List(len);
+    input.process(ctx, inBuf);
+    outBuffer.fillRange(0, len, 0.0);
+
+    final double baseF = ctx.freq > 0 ? ctx.freq : 440.0;
+    final double sr = ctx.sampleRate;
+
+    for (int m = 0; m < modeFreqRatios.length; m++) {
+      final double ratio = modeFreqRatios[m];
+      final double g = m < modeGains.length ? modeGains[m] : 0.5;
+      final double q = m < modeQFactors.length ? modeQFactors[m] : 10.0;
+
+      final double f = (baseF * ratio).clamp(20.0, sr * 0.48);
+      final double w0 = 2.0 * math.pi * (f / sr);
+      final double alpha = math.sin(w0) / (2.0 * q);
+
+      final double b0 = alpha;
+      final double b1 = 0.0;
+      final double b2 = -alpha;
+      final double a0 = 1.0 + alpha;
+      final double a1 = -2.0 * math.cos(w0);
+      final double a2 = 1.0 - alpha;
+
+      final double normB0 = (b0 / a0) * g;
+      final double normB1 = (b1 / a0) * g;
+      final double normB2 = (b2 / a0) * g;
+      final double normA1 = a1 / a0;
+      final double normA2 = a2 / a0;
+
+      double z1 = 0.0;
+      double z2 = 0.0;
+
+      for (int i = 0; i < len; i++) {
+        final double inSample = inBuf[i];
+        final double outSample = normB0 * inSample + z1;
+        z1 = normB1 * inSample - normA1 * outSample + z2;
+        z2 = normB2 * inSample - normA2 * outSample;
+        outBuffer[i] += outSample;
+      }
+    }
+  }
+}
+
+/// Digital Waveguide with 1-Pole Loop Loss Filtering (Karplus-Strong Extension).
+/// Synthesizes acoustic strings, nylon/steel guitars, harps, and bowed physics.
+class WaveguideNode extends GraphNode {
+  final GraphNode exciter;
+  final double feedback;
+  final String? feedbackParam;
+  final double damping; // High frequency damping (0.0 = bright, 1.0 = dark/muffled)
+  final String? dampingParam;
+
+  const WaveguideNode({
+    required this.exciter,
+    this.feedback = 0.995,
+    this.feedbackParam,
+    this.damping = 0.25,
+    this.dampingParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    exciter.process(ctx, outBuffer);
+
+    double baseFreq = ctx.freq > 10.0 ? ctx.freq : 440.0;
+    final double sr = ctx.sampleRate;
+    double fb = (feedbackParam != null ? ctx.getParam(feedbackParam!, feedback) : feedback).clamp(0.80, 0.9999);
+    double damp = (dampingParam != null ? ctx.getParam(dampingParam!, damping) : damping).clamp(0.01, 0.95);
+
+    final art = ctx.articulation?.toLowerCase();
+    if (art == 'muted' || art == 'palm_mute' || art == 'chop') {
+      damp = math.max(damp, 0.72);
+      fb = math.min(fb, 0.94);
+    } else if (art == 'harmonics' || art == 'flageolet') {
+      baseFreq *= 2.0;
+      fb = math.max(fb, 0.997);
+      damp = math.min(damp, 0.12);
+    } else if (art == 'slap' || art == 'pop') {
+      damp = math.min(damp, 0.10);
+      fb = math.max(fb, 0.992);
+    } else if (art == 'open' || art == 'sustain' || art == 'lead') {
+      damp = math.min(damp, 0.20);
+      fb = math.max(fb, 0.996);
+    } else if (art == 'hammer_on' || art == 'pull_off' || art == 'slide') {
+      fb = math.max(fb, 0.995);
+    }
+
+    final double maxDelaySamples = sr / 20.0; // Support down to 20Hz
+    final int bufSize = maxDelaySamples.toInt() + 16;
+    final delayLine = Float32List(bufSize);
+    int writeIdx = 0;
+    double filterState = 0.0;
+
+    for (int i = 0; i < len; i++) {
+      final double inSample = outBuffer[i];
+      final double normTime = len > 1 ? i / (len - 1) : 0.0;
+      final double bendSemitones = ctx.getPitchBendAt(normTime);
+      final double pressure = ctx.getPressureAt(normTime);
+      final double timbre = ctx.getTimbreAt(normTime);
+
+      final double curFreq = (baseFreq * math.pow(2.0, bendSemitones / 12.0)).clamp(20.0, 20000.0);
+      final double delaySamples = (sr / curFreq).clamp(2.0, bufSize - 4.0);
+      final int intDelay = delaySamples.floor();
+      final double frac = delaySamples - intDelay;
+
+      // Read from delay line with linear fractional interpolation
+      final double readPos = writeIdx - delaySamples;
+      double readIdxD = readPos >= 0 ? readPos : (readPos + bufSize);
+      while (readIdxD >= bufSize) readIdxD -= bufSize;
+      while (readIdxD < 0) readIdxD += bufSize;
+
+      final int i0 = readIdxD.toInt() % bufSize;
+      final int i1 = (i0 + 1) % bufSize;
+      final double delayedSample = delayLine[i0] + frac * (delayLine[i1] - delayLine[i0]);
+
+      // MPE dynamic damping & feedback modulation
+      final double curDamp = (damp * (1.0 - (timbre - 0.5) * 0.4) + pressure * 0.15).clamp(0.01, 0.98);
+      final double curFb = (fb * (1.0 - pressure * 0.04)).clamp(0.80, 0.9999);
+
+      // 1-Pole Lowpass loop damping filter
+      filterState = (1.0 - curDamp) * delayedSample + curDamp * filterState;
+      final double loopSample = filterState * curFb;
+
+      // Write excitation + recirculating string wave
+      delayLine[writeIdx] = inSample + loopSample;
+      writeIdx = (writeIdx + 1) % bufSize;
+
+      outBuffer[i] = inSample + loopSample;
+    }
+  }
+}
+
+/// Vintage Optical Tremolo & Stereo Auto-Pan Node.
+/// Models the iconic stereo suitcase Rhodes optical light/photocell vibrato circuit.
+class StereoTremoloNode extends GraphNode {
+  final GraphNode input;
+  final double rateHz;
+  final String? rateParam;
+  final double depth;
+  final String? depthParam;
+  final double stereoPhaseOffset; // 0.0 (mono tremolo) to 1.0 (180° ping-pong auto-pan)
+
+  const StereoTremoloNode({
+    required this.input,
+    this.rateHz = 4.5,
+    this.rateParam,
+    this.depth = 0.65,
+    this.depthParam,
+    this.stereoPhaseOffset = 1.0,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+
+    final double rate = (rateParam != null ? ctx.getParam(rateParam!, rateHz) : rateHz).clamp(0.5, 15.0);
+    final double dep = (depthParam != null ? ctx.getParam(depthParam!, depth) : depth).clamp(0.0, 1.0);
+    final double sr = ctx.sampleRate;
+    final double twoPi = 2.0 * math.pi;
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+      // Optical light bulb rise/fall smoothing curve
+      final double lfo = math.sin(twoPi * rate * t);
+      final double lfoShaped = math.pow((lfo + 1.0) * 0.5, 1.2).toDouble();
+      final double gainMod = (1.0 - dep) + dep * lfoShaped;
+      outBuffer[i] *= gainMod;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  HIGH-VOLTAGE ELECTRICITY & PLASMA DSP PRIMITIVES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Singing Plasma Arc Oscillator Node.
+/// Synthesizes the acoustic shockwave generated by a modulated spark discharge.
+/// Generates an asymmetric thermal expansion impulse with cycle-to-cycle stochastic jitter,
+/// duty cycle (spark gap) control, and optional sub-harmonic frequency division.
+class PlasmaArcOscNode extends GraphNode {
+  final GraphNode? freqSource;
+  final double? staticFreq;
+  final double sparkWidth; // Duty cycle: 0.02 (sharp needle spark) to 0.5 (heavy buzzing arc)
+  final String? sparkWidthParam;
+  final double jitter; // Micro-stochastic jitter: 0.0 (clean digital) to 1.0 (violent arc tear)
+  final String? jitterParam;
+  final double subHarmonic; // Sub-octave plasma division: 0.0 to 1.0
+  final String? subHarmonicParam;
+
+  const PlasmaArcOscNode({
+    this.freqSource,
+    this.staticFreq,
+    this.sparkWidth = 0.15,
+    this.sparkWidthParam,
+    this.jitter = 0.35,
+    this.jitterParam,
+    this.subHarmonic = 0.0,
+    this.subHarmonicParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final Float32List? freqBuf = freqSource != null ? Float32List(len) : null;
+    if (freqSource != null) freqSource!.process(ctx, freqBuf!);
+
+    final double sr = ctx.sampleRate;
+    final double defaultFreq = staticFreq ?? (ctx.freq > 0 ? ctx.freq : 220.0);
+    final double baseWidth = (sparkWidthParam != null ? ctx.getParam(sparkWidthParam!, sparkWidth) : sparkWidth).clamp(0.02, 0.60);
+    final double baseJitter = (jitterParam != null ? ctx.getParam(jitterParam!, jitter) : jitter).clamp(0.0, 1.0);
+    final double sub = (subHarmonicParam != null ? ctx.getParam(subHarmonicParam!, subHarmonic) : subHarmonic).clamp(0.0, 1.0);
+
+    double phase = 0.0;
+    double subPhase = 0.0;
+    int rngState = 0xDEADBEEF ^ (ctx.midiNote * 59);
+
+    for (int i = 0; i < len; i++) {
+      final double curF = freqBuf != null ? freqBuf[i] : defaultFreq;
+
+      // Cycle-to-cycle micro-stochastic spark jitter (wobbles instantaneous period)
+      rngState ^= (rngState << 13) & 0xFFFFFFFF;
+      rngState ^= (rngState >> 17) & 0xFFFFFFFF;
+      rngState ^= (rngState << 5) & 0xFFFFFFFF;
+      final double rnd = ((rngState & 0xFFFFFF) / 8388607.5) - 1.0;
+      final double jitterFactor = 1.0 + (rnd * baseJitter * 0.04);
+      final double fInst = math.max(10.0, curF * jitterFactor);
+
+      // Asymmetric thermal expansion pulse: sharp explosive leading edge + exponential cooling relaxation tail
+      final double w = baseWidth;
+      double sample = 0.0;
+      if (phase < w) {
+        final double normP = phase / w;
+        sample = math.sin(normP * math.pi) * math.exp(-normP * 1.5);
+      } else {
+        final double normTail = (phase - w) / (1.0 - w);
+        sample = -0.35 * math.exp(-normTail * 6.0) * math.sin(normTail * math.pi * 0.5);
+      }
+
+      // Add sub-harmonic sub-octave plasma rumble if configured
+      if (sub > 0.001) {
+        final double subSample = math.sin(subPhase * 2.0 * math.pi) * 0.6;
+        sample = sample * (1.0 - sub * 0.4) + subSample * sub;
+      }
+
+      outBuffer[i] = sample.clamp(-1.0, 1.0);
+
+      // Phase increment
+      final double phaseInc = fInst / sr;
+      phase += phaseInc;
+      if (phase >= 1.0) phase -= 1.0;
+
+      subPhase += (fInst * 0.5) / sr;
+      if (subPhase >= 1.0) subPhase -= 1.0;
+    }
+  }
+}
+
+/// Stochastic Corona Discharge & Ion Sizzle Node.
+/// Generates Poisson-distributed micro-spark impulses passed through highpass/bandpass
+/// resonators, modeling high-voltage corona leakage and ion wind.
+class PoissonCrackleNode extends GraphNode {
+  final double density; // Micro-spark burst density: 0.0 to 1.0
+  final String? densityParam;
+  final double sizzleBright; // Brightness/cutoff of ionization: 0.0 to 1.0
+  final String? sizzleBrightParam;
+
+  const PoissonCrackleNode({
+    this.density = 0.40,
+    this.densityParam,
+    this.sizzleBright = 0.70,
+    this.sizzleBrightParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double dens = (densityParam != null ? ctx.getParam(densityParam!, density) : density).clamp(0.0, 1.0);
+    final double bright = (sizzleBrightParam != null ? ctx.getParam(sizzleBrightParam!, sizzleBright) : sizzleBright).clamp(0.1, 1.0);
+
+    if (dens <= 0.001) {
+      outBuffer.fillRange(0, outBuffer.length, 0.0);
+      return;
+    }
+
+    final double sr = ctx.sampleRate;
+    final double threshold = (dens * 0.08) * (0.5 + 0.5 * ctx.velocity);
+    int rngState = 0xCAFEBABE ^ (ctx.midiNote * 43);
+
+    // 2-pole Highpass Filter for crisp air sizzle (~4.5kHz - 10kHz)
+    final double cutoffHz = (3500.0 + bright * 6500.0).clamp(1000.0, sr * 0.45);
+    final double w0 = 2.0 * math.pi * (cutoffHz / sr);
+    final double alpha = math.sin(w0) / (2.0 * 1.8);
+    final double cosW = math.cos(w0);
+
+    final double b0 = (1.0 + cosW) / 2.0;
+    final double b1 = -(1.0 + cosW);
+    final double b2 = (1.0 + cosW) / 2.0;
+    final double a0 = 1.0 + alpha;
+    final double a1 = -2.0 * cosW;
+    final double a2 = 1.0 - alpha;
+
+    final double nb0 = b0 / a0;
+    final double nb1 = b1 / a0;
+    final double nb2 = b2 / a0;
+    final double na1 = a1 / a0;
+    final double na2 = a2 / a0;
+
+    double x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      rngState ^= (rngState << 13) & 0xFFFFFFFF;
+      rngState ^= (rngState >> 17) & 0xFFFFFFFF;
+      rngState ^= (rngState << 5) & 0xFFFFFFFF;
+      final double r0 = (rngState & 0xFFFFFF) / 16777215.0;
+
+      double rawSpark = 0.0;
+      if (r0 < threshold) {
+        rngState ^= (rngState << 13) & 0xFFFFFFFF;
+        final double r1 = ((rngState & 0xFFFFFF) / 8388607.5) - 1.0;
+        rawSpark = r1 * (0.4 + 0.6 * r0 / threshold);
+      }
+
+      // Filter micro-spark through ionization resonator
+      final double y = nb0 * rawSpark + nb1 * x1 + nb2 * x2 - na1 * y1 - na2 * y2;
+      x2 = x1;
+      x1 = rawSpark;
+      y2 = y1;
+      y1 = y;
+
+      outBuffer[i] = (y * 1.8).clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// 50Hz/60Hz Substation Transformer Magnetostriction & Power Grid Hum Node.
+/// Models the magnetic core vibration and ground bleed with rich odd harmonics
+/// (60Hz, 180Hz, 300Hz, 420Hz) and subtle 120Hz magnetic flux ripple.
+class SubstationHumNode extends GraphNode {
+  final double humLevel; // 0.0 (clean isolated) to 1.0 (heavy industrial substation)
+  final String? humLevelParam;
+  final double mainsFreq; // 50.0 (EU) or 60.0 (US)
+  final String? mainsFreqParam;
+
+  const SubstationHumNode({
+    this.humLevel = 0.35,
+    this.humLevelParam,
+    this.mainsFreq = 60.0,
+    this.mainsFreqParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double level = (humLevelParam != null ? ctx.getParam(humLevelParam!, humLevel) : humLevel).clamp(0.0, 1.0);
+    if (level <= 0.001) {
+      outBuffer.fillRange(0, outBuffer.length, 0.0);
+      return;
+    }
+
+    final double f0 = (mainsFreqParam != null ? ctx.getParam(mainsFreqParam!, mainsFreq) : mainsFreq).clamp(40.0, 70.0);
+    final double sr = ctx.sampleRate;
+    final double twoPi = 2.0 * math.pi;
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+      // Fundamental 60Hz + 2nd (120Hz) + 3rd (180Hz) + 5th (300Hz) + 7th (420Hz)
+      final double h1 = math.sin(twoPi * f0 * t) * 0.50;
+      final double h2 = math.sin(twoPi * (f0 * 2.0) * t) * 0.35; // Core flux doubler
+      final double h3 = math.sin(twoPi * (f0 * 3.0) * t) * 0.25;
+      final double h5 = math.sin(twoPi * (f0 * 5.0) * t) * 0.15;
+      final double h7 = math.sin(twoPi * (f0 * 7.0) * t) * 0.08;
+
+      // 120Hz amplitude shudder modulation
+      final double ripple = 0.85 + 0.15 * math.sin(twoPi * (f0 * 2.0) * t);
+
+      outBuffer[i] = ((h1 + h2 + h3 + h5 + h7) * ripple * level).clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Dielectric Breakdown Snap & Sputter Exciter Node.
+/// Synthesizes the explosive initial breakdown voltage snap on Note-On (attack)
+/// and trailing plasma sputter as current collapses on Note-Off (release).
+class BreakdownExciterNode extends GraphNode {
+  final double snapLevel; // Attack snap intensity: 0.0 to 2.0
+  final String? snapLevelParam;
+  final double sputterDecay; // Extinction sputter time: 0.02 to 0.30s
+  final String? sputterDecayParam;
+
+  const BreakdownExciterNode({
+    this.snapLevel = 1.0,
+    this.snapLevelParam,
+    this.sputterDecay = 0.06,
+    this.sputterDecayParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double snap = (snapLevelParam != null ? ctx.getParam(snapLevelParam!, snapLevel) : snapLevel).clamp(0.0, 3.0);
+    final double sputter = (sputterDecayParam != null ? ctx.getParam(sputterDecayParam!, sputterDecay) : sputterDecay).clamp(0.01, 0.40);
+    final double sr = ctx.sampleRate;
+    final double vel = ctx.velocity.clamp(0.1, 1.0);
+
+    outBuffer.fillRange(0, outBuffer.length, 0.0);
+
+    // 1. Initial Breakdown Snap (3ms sharp explosive pressure wave)
+    if (snap > 0.01) {
+      final int snapSamples = (0.0035 * sr).toInt().clamp(4, outBuffer.length ~/ 2);
+      int rng = 0x19283746 ^ (ctx.midiNote * 67);
+      for (int i = 0; i < snapSamples; i++) {
+        final double env = math.exp(-i / (sr * 0.0007));
+        rng ^= (rng << 13) & 0xFFFFFFFF;
+        rng ^= (rng >> 17) & 0xFFFFFFFF;
+        rng ^= (rng << 5) & 0xFFFFFFFF;
+        final double n = ((rng & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double shockWave = math.sin((i / snapSamples) * math.pi * 3.0) * env;
+        outBuffer[i] = (shockWave * 0.7 + n * 0.3 * env) * snap * vel;
+      }
+    }
+
+    // 2. Trailing Plasma Extinguish Sputter near end of duration
+    final double gateEnd = ctx.durationSec * 0.85;
+    final int gateSample = (gateEnd * sr).toInt();
+    if (gateSample < outBuffer.length) {
+      int rng = 0x98765432 ^ (ctx.midiNote * 83);
+      final int sputterLen = (sputter * sr).toInt().clamp(10, outBuffer.length - gateSample);
+      for (int i = 0; i < sputterLen; i++) {
+        final double tNorm = i / sputterLen;
+        final double env = math.exp(-tNorm * 4.0);
+        rng ^= (rng << 13) & 0xFFFFFFFF;
+        rng ^= (rng >> 17) & 0xFFFFFFFF;
+        rng ^= (rng << 5) & 0xFFFFFFFF;
+        final double n = ((rng & 0xFFFFFF) / 8388607.5) - 1.0;
+        // Intermittent dying sparks
+        if ((rng & 0xFF) < (120 * (1.0 - tNorm))) {
+          outBuffer[gateSample + i] += n * env * 0.45 * vel;
+        }
+      }
+    }
+  }
+}
+
+/// Ozone & High-Voltage Dielectric Saturation Node.
+/// Simulates non-linear plasma channel resistance and ozone dielectric saturation.
+/// Asymmetric soft/hard curve with high-order odd/even harmonic generation.
+class OzoneSaturationNode extends GraphNode {
+  final GraphNode input;
+  final double drive; // Overdrive intensity: 1.0 to 5.0
+  final String? driveParam;
+  final double bias; // Dielectric DC bias/asymmetry: 0.0 to 0.5
+  final String? biasParam;
+
+  const OzoneSaturationNode({
+    required this.input,
+    this.drive = 1.2,
+    this.driveParam,
+    this.bias = 0.12,
+    this.biasParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+
+    final double d = (driveParam != null ? ctx.getParam(driveParam!, drive) : drive).clamp(0.5, 8.0);
+    final double b = (biasParam != null ? ctx.getParam(biasParam!, bias) : bias).clamp(0.0, 0.8);
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double x = (outBuffer[i] + b) * d;
+      // Arc non-linear resistance polynomial + smooth soft clip
+      double y = x / (1.0 + x.abs());
+      y = y - (b * 0.8); // Remove DC offset
+      outBuffer[i] = (y * 1.15).clamp(-1.0, 1.0);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  THERMOACOUSTIC COMBUSTION & SINGING FLAME DSP PRIMITIVES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Thermoacoustic Singing Flame (Rijke Tube / Pyrophone) Oscillator Node.
+/// Synthesizes acoustic standing waves generated by convective heat release inside
+/// a tuned acoustic draft tube (Rayleigh thermoacoustic criterion).
+/// Produces a warm, singing flame-front expansion wave with convective temperature
+/// drift, flame cusp harmonics, and standing wave tube resonance.
+class ThermoacousticFlameOscNode extends GraphNode {
+  final GraphNode? freqSource;
+  final double? staticFreq;
+  final double flameCusp; // Flame-front non-linearity / harmonics: 0.0 to 1.0
+  final String? flameCuspParam;
+  final double thermalDrift; // Convection temperature wobble / shimmer: 0.0 to 1.0
+  final String? thermalDriftParam;
+  final double tubeResonance; // Glass cylinder acoustic purity: 0.0 to 1.0
+  final String? tubeResonanceParam;
+
+  const ThermoacousticFlameOscNode({
+    this.freqSource,
+    this.staticFreq,
+    this.flameCusp = 0.45,
+    this.flameCuspParam,
+    this.thermalDrift = 0.30,
+    this.thermalDriftParam,
+    this.tubeResonance = 0.50,
+    this.tubeResonanceParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final Float32List? freqBuf = freqSource != null ? Float32List(len) : null;
+    if (freqSource != null) freqSource!.process(ctx, freqBuf!);
+
+    final double sr = ctx.sampleRate;
+    final double defaultFreq = staticFreq ?? (ctx.freq > 0 ? ctx.freq : 261.63);
+    final double cusp = (flameCuspParam != null ? ctx.getParam(flameCuspParam!, flameCusp) : flameCusp).clamp(0.0, 1.0);
+    final double drift = (thermalDriftParam != null ? ctx.getParam(thermalDriftParam!, thermalDrift) : thermalDrift).clamp(0.0, 1.0);
+    final double reso = (tubeResonanceParam != null ? ctx.getParam(tubeResonanceParam!, tubeResonance) : tubeResonance).clamp(0.0, 1.0);
+
+    double phase = 0.0;
+    double lfoPhase = 0.0;
+    int rngState = 0x51731942 ^ (ctx.midiNote * 53);
+
+    for (int i = 0; i < len; i++) {
+      final double curF = freqBuf != null ? freqBuf[i] : defaultFreq;
+
+      // Convective thermal air-speed drift (slow 3.2Hz temperature wobble + micro-shimmer)
+      rngState ^= (rngState << 13) & 0xFFFFFFFF;
+      rngState ^= (rngState >> 17) & 0xFFFFFFFF;
+      rngState ^= (rngState << 5) & 0xFFFFFFFF;
+      final double noiseShimmer = ((rngState & 0xFFFFFF) / 8388607.5) - 1.0;
+      final double lfoWobble = math.sin(lfoPhase * 2.0 * math.pi) * 0.7 + noiseShimmer * 0.3;
+      final double driftFactor = 1.0 + (lfoWobble * drift * 0.015);
+      final double fInst = math.max(10.0, curF * driftFactor);
+
+      // Phase accumulator
+      final double theta = phase * 2.0 * math.pi;
+
+      // Flame Cusp Non-Linear Thermal Expansion Waveform:
+      // Combines fundamental expansion sine with even (flame-front asymmetry) and odd (thermal damping) harmonics
+      final double fund = math.sin(theta);
+      final double h2 = math.sin(theta * 2.0) * (0.35 * cusp);
+      final double h3 = -math.cos(theta * 3.0) * (0.15 * cusp);
+      final double flameWave = fund + h2 + h3;
+
+      // Glass / Brass Rijke tube standing wave resonant blend
+      final double sample = flameWave * (1.0 - reso * 0.4) + fund * (reso * 0.4);
+
+      outBuffer[i] = sample.clamp(-1.0, 1.0);
+
+      phase += fInst / sr;
+      if (phase >= 1.0) phase -= 1.0;
+
+      lfoPhase += 3.2 / sr;
+      if (lfoPhase >= 1.0) lfoPhase -= 1.0;
+    }
+  }
+}
+
+/// Turbulent Combustion Roar & Vortex Shedding Node.
+/// Synthesizes the deep, low-frequency atmospheric roar of raging flames,
+/// draft updrafts, and chaotic air vortex shedding (60Hz - 450Hz).
+class CombustionRoarNode extends GraphNode {
+  final double roarLevel; // 0.0 (silent) to 1.0 (roaring furnace)
+  final String? roarLevelParam;
+  final double draftFlutter; // Convective draft flutter speed/intensity: 0.0 to 1.0
+  final String? draftFlutterParam;
+
+  const CombustionRoarNode({
+    this.roarLevel = 0.35,
+    this.roarLevelParam,
+    this.draftFlutter = 0.40,
+    this.draftFlutterParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double level = (roarLevelParam != null ? ctx.getParam(roarLevelParam!, roarLevel) : roarLevel).clamp(0.0, 1.0);
+    final double flutter = (draftFlutterParam != null ? ctx.getParam(draftFlutterParam!, draftFlutter) : draftFlutter).clamp(0.0, 1.0);
+
+    if (level <= 0.001) {
+      outBuffer.fillRange(0, outBuffer.length, 0.0);
+      return;
+    }
+
+    final double sr = ctx.sampleRate;
+    int rngState = 0x87654321 ^ (ctx.midiNote * 37);
+
+    // Dual-band resonant bandpass filters for flame acoustic vortices (120Hz & 280Hz)
+    final double w1 = 2.0 * math.pi * (120.0 / sr);
+    final double a1 = math.sin(w1) / (2.0 * 2.2);
+    final double cos1 = math.cos(w1);
+    final double b0_1 = a1 / (1.0 + a1);
+    final double b2_1 = -a1 / (1.0 + a1);
+    final double a1_1 = (-2.0 * cos1) / (1.0 + a1);
+    final double a2_1 = (1.0 - a1) / (1.0 + a1);
+
+    final double w2 = 2.0 * math.pi * (280.0 / sr);
+    final double a2 = math.sin(w2) / (2.0 * 1.8);
+    final double cos2 = math.cos(w2);
+    final double b0_2 = a2 / (1.0 + a2);
+    final double b2_2 = -a2 / (1.0 + a2);
+    final double a1_2 = (-2.0 * cos2) / (1.0 + a2);
+    final double a2_2 = (1.0 - a2) / (1.0 + a2);
+
+    double x1_1 = 0.0, x2_1 = 0.0, y1_1 = 0.0, y2_1 = 0.0;
+    double x1_2 = 0.0, x2_2 = 0.0, y1_2 = 0.0, y2_2 = 0.0;
+    double brownNoise = 0.0;
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+
+      // Generate 1/f Brownian noise for turbulent thermal motion
+      rngState ^= (rngState << 13) & 0xFFFFFFFF;
+      rngState ^= (rngState >> 17) & 0xFFFFFFFF;
+      rngState ^= (rngState << 5) & 0xFFFFFFFF;
+      final double white = ((rngState & 0xFFFFFF) / 8388607.5) - 1.0;
+      brownNoise = (brownNoise + (0.06 * white)) / 1.06;
+
+      // Filter through resonant combustion cavities
+      final double f1 = b0_1 * brownNoise + b2_1 * x2_1 - a1_1 * y1_1 - a2_1 * y2_1;
+      x2_1 = x1_1;
+      x1_1 = brownNoise;
+      y2_1 = y1_1;
+      y1_1 = f1;
+
+      final double f2 = b0_2 * brownNoise + b2_2 * x2_2 - a1_2 * y1_2 - a2_2 * y2_2;
+      x2_2 = x1_2;
+      x1_2 = brownNoise;
+      y2_2 = y1_2;
+      y1_2 = f2;
+
+      // Low-frequency convective thermal updraft flutter (3.5 Hz)
+      final double draftMod = 0.70 + 0.30 * math.sin(2.0 * math.pi * 3.5 * t) * flutter;
+      final double combined = (f1 * 1.6 + f2 * 1.2) * draftMod * level * 2.2;
+
+      outBuffer[i] = combined.clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Supercritical Wood Sap Pocket Explosions & Ember Crackle Matrix Node.
+/// Synthesizes dual-stage Poisson stochastic micro-explosions:
+/// 1. Low-frequency sap pocket steam bursts with damped wood cavity resonance (200Hz - 900Hz).
+/// 2. High-frequency flying ember sizzle ticks (3.5kHz - 9.0kHz).
+class SapExplosionCrackleNode extends GraphNode {
+  final double sapDensity; // Resin pop density: 0.0 to 1.0
+  final String? sapDensityParam;
+  final double emberSizzle; // High ember spark density: 0.0 to 1.0
+  final String? emberSizzleParam;
+
+  const SapExplosionCrackleNode({
+    this.sapDensity = 0.40,
+    this.sapDensityParam,
+    this.emberSizzle = 0.35,
+    this.emberSizzleParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sap = (sapDensityParam != null ? ctx.getParam(sapDensityParam!, sapDensity) : sapDensity).clamp(0.0, 1.0);
+    final double ember = (emberSizzleParam != null ? ctx.getParam(emberSizzleParam!, emberSizzle) : emberSizzle).clamp(0.0, 1.0);
+
+    if (sap <= 0.001 && ember <= 0.001) {
+      outBuffer.fillRange(0, outBuffer.length, 0.0);
+      return;
+    }
+
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+    outBuffer.fillRange(0, len, 0.0);
+
+    int rngState = 0xFEEDBEEF ^ (ctx.midiNote * 71);
+    final double sapThreshold = (sap * 0.0015); // Sparse, explosive bursts
+    final double emberThreshold = (ember * 0.045); // Dense, sizzling sparkles
+
+    for (int i = 0; i < len; i++) {
+      rngState ^= (rngState << 13) & 0xFFFFFFFF;
+      rngState ^= (rngState >> 17) & 0xFFFFFFFF;
+      rngState ^= (rngState << 5) & 0xFFFFFFFF;
+      final double r0 = (rngState & 0xFFFFFF) / 16777215.0;
+
+      // 1. Sap Pocket Steam Explosions (Damped 450Hz Cavity Resonant Pop)
+      if (r0 < sapThreshold && (i + 350) < len) {
+        rngState ^= (rngState << 13) & 0xFFFFFFFF;
+        final double popAmp = 0.6 + 0.4 * ((rngState & 0xFFFF) / 65535.0);
+        final int popSamples = (0.012 * sr).toInt();
+        for (int p = 0; p < popSamples && (i + p) < len; p++) {
+          final double tP = p / sr;
+          final double popEnv = math.exp(-tP * 280.0);
+          final double popTone = math.sin(2.0 * math.pi * 480.0 * tP) * popEnv;
+          outBuffer[i + p] += popTone * popAmp * sap;
+        }
+      }
+
+      // 2. High Ember Spark Sizzles (Fast 6.5kHz Micro-Impulses)
+      if (r0 < emberThreshold) {
+        rngState ^= (rngState << 13) & 0xFFFFFFFF;
+        final double sparkAmp = ((rngState & 0xFFFFFF) / 8388607.5) - 1.0;
+        outBuffer[i] += sparkAmp * ember * 0.35;
+      }
+    }
+
+    // Clamp bounds
+    for (int i = 0; i < len; i++) {
+      outBuffer[i] = outBuffer[i].clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Deflagration Flashover Ignition & Smoldering Ember Exciter Node.
+/// Synthesizes the sudden low-frequency explosive air-intake rush (*"foomph/whoosh"*)
+/// on Note-On (ignition) and trailing smoldering charcoal decay on Note-Off (extinction).
+class DeflagrationExciterNode extends GraphNode {
+  final double snapLevel; // Ignition whoosh intensity: 0.0 to 2.5
+  final String? snapLevelParam;
+  final double smolderDecay; // Extinction smolder time: 0.02 to 0.40s
+  final String? smolderDecayParam;
+
+  const DeflagrationExciterNode({
+    this.snapLevel = 0.85,
+    this.snapLevelParam,
+    this.smolderDecay = 0.08,
+    this.smolderDecayParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double snap = (snapLevelParam != null ? ctx.getParam(snapLevelParam!, snapLevel) : snapLevel).clamp(0.0, 3.0);
+    final double smolder = (smolderDecayParam != null ? ctx.getParam(smolderDecayParam!, smolderDecay) : smolderDecay).clamp(0.01, 0.50);
+    final double sr = ctx.sampleRate;
+    final double vel = ctx.velocity.clamp(0.1, 1.0);
+
+    outBuffer.fillRange(0, outBuffer.length, 0.0);
+
+    // 1. Initial Ignition Deflagration Whoosh (35ms pitch drop from 160Hz to 45Hz)
+    if (snap > 0.01) {
+      final int flashSamples = (0.040 * sr).toInt().clamp(10, outBuffer.length ~/ 2);
+      int rng = 0x31415926 ^ (ctx.midiNote * 61);
+      for (int i = 0; i < flashSamples; i++) {
+        final double tNorm = i / flashSamples;
+        final double env = math.sin(tNorm * math.pi) * math.exp(-tNorm * 2.5);
+        final double curPitch = 45.0 + 115.0 * math.exp(-tNorm * 8.0);
+        final double phase = (i / sr) * 2.0 * math.pi * curPitch;
+        rng ^= (rng << 13) & 0xFFFFFFFF;
+        rng ^= (rng >> 17) & 0xFFFFFFFF;
+        rng ^= (rng << 5) & 0xFFFFFFFF;
+        final double noise = ((rng & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double whoosh = (math.sin(phase) * 0.7 + noise * 0.3) * env;
+        outBuffer[i] = (whoosh * snap * vel).clamp(-1.0, 1.0);
+      }
+    }
+
+    // 2. Trailing Smoldering Charcoal Decay near end of duration
+    final double gateEnd = ctx.durationSec * 0.85;
+    final int gateSample = (gateEnd * sr).toInt();
+    if (gateSample < outBuffer.length) {
+      int rng = 0x27182818 ^ (ctx.midiNote * 79);
+      final int smolderLen = (smolder * sr).toInt().clamp(10, outBuffer.length - gateSample);
+      for (int i = 0; i < smolderLen; i++) {
+        final double tNorm = i / smolderLen;
+        final double env = math.exp(-tNorm * 4.5);
+        rng ^= (rng << 13) & 0xFFFFFFFF;
+        rng ^= (rng >> 17) & 0xFFFFFFFF;
+        rng ^= (rng << 5) & 0xFFFFFFFF;
+        final double n = ((rng & 0xFFFFFF) / 8388607.5) - 1.0;
+        outBuffer[gateSample + i] += (n * env * 0.30 * vel).clamp(-1.0, 1.0);
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  HYDRODYNAMIC FLUID & HYDRAULOPHONE WATER DSP PRIMITIVES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Hydraulophone & Minnaert Bubble Cavitation Oscillator Node.
+/// Synthesizes fluid acoustic standing waves generated by a pressurized waterjet column
+/// and entrained air bubble pinch-off dynamics (Minnaert bubble resonance).
+/// Produces a liquid-glass fundamental with upward pinch-off frequency chirp,
+/// surface-tension hydrodynamic waveshaping, and fluid current drift.
+class HydraulophoneOscNode extends GraphNode {
+  final GraphNode? freqSource;
+  final double? staticFreq;
+  final double bubbleChirp; // Minnaert bubble pinch-off chirp intensity: 0.0 to 1.0
+  final String? bubbleChirpParam;
+  final double viscosity; // Fluid viscosity & surface-tension damping: 0.0 to 1.0
+  final String? viscosityParam;
+  final double currentDrift; // Fluid current undulating pitch drift: 0.0 to 1.0
+  final String? currentDriftParam;
+
+  const HydraulophoneOscNode({
+    this.freqSource,
+    this.staticFreq,
+    this.bubbleChirp = 0.45,
+    this.bubbleChirpParam,
+    this.viscosity = 0.40,
+    this.viscosityParam,
+    this.currentDrift = 0.35,
+    this.currentDriftParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final Float32List? freqBuf = freqSource != null ? Float32List(len) : null;
+    if (freqSource != null) freqSource!.process(ctx, freqBuf!);
+
+    final double sr = ctx.sampleRate;
+    final double defaultFreq = staticFreq ?? (ctx.freq > 0 ? ctx.freq : 261.63);
+    final double chirp = (bubbleChirpParam != null ? ctx.getParam(bubbleChirpParam!, bubbleChirp) : bubbleChirp).clamp(0.0, 1.0);
+    final double visc = (viscosityParam != null ? ctx.getParam(viscosityParam!, viscosity) : viscosity).clamp(0.0, 1.0);
+    final double drift = (currentDriftParam != null ? ctx.getParam(currentDriftParam!, currentDrift) : currentDrift).clamp(0.0, 1.0);
+
+    double phase = 0.0;
+    double lfoPhase = 0.0;
+    int rngState = 0x48796472 ^ (ctx.midiNote * 47); // "Hydr" seed
+
+    for (int i = 0; i < len; i++) {
+      final double curF = freqBuf != null ? freqBuf[i] : defaultFreq;
+
+      // Hydrodynamic current undulating drift (2.4Hz water wave drift + micro-eddy wobble)
+      rngState ^= (rngState << 13) & 0xFFFFFFFF;
+      rngState ^= (rngState >> 17) & 0xFFFFFFFF;
+      rngState ^= (rngState << 5) & 0xFFFFFFFF;
+      final double ripple = ((rngState & 0xFFFFFF) / 8388607.5) - 1.0;
+      final double waveDrift = math.sin(lfoPhase * 2.0 * math.pi) * 0.75 + ripple * 0.25;
+      final double driftFactor = 1.0 + (waveDrift * drift * 0.012);
+
+      // Minnaert bubble pinch-off frequency chirp (instantaneous frequency sweeps upward as bubble pinches off)
+      final double chirpMod = 1.0 + (chirp * 0.18 * math.exp(-phase * 4.5));
+      final double fInst = math.max(10.0, curF * driftFactor * chirpMod);
+
+      // Surface-Tension Hydrodynamic Wave:
+      // Rounded bell-like pressure pulse with smooth hydrodynamic return
+      final double theta = phase * 2.0 * math.pi;
+      final double sineWave = math.sin(theta);
+      // Fluid viscosity rounds off high-frequency harmonics into a warm liquid tone
+      final double dropletCusp = math.sin(theta + 0.3 * chirp * math.sin(theta));
+      final double sample = dropletCusp * (1.0 - visc * 0.5) + sineWave * (visc * 0.5);
+
+      outBuffer[i] = sample.clamp(-1.0, 1.0);
+
+      phase += fInst / sr;
+      if (phase >= 1.0) phase -= 1.0;
+
+      lfoPhase += 2.4 / sr;
+      if (lfoPhase >= 1.0) lfoPhase -= 1.0;
+    }
+  }
+}
+
+/// Hydrodynamic Vortex & Whirlpool Churn Node.
+/// Synthesizes the deep, flowing acoustic roar of swirling water, submerged eddies,
+/// and whirlpool turbulence (50Hz - 350Hz).
+class HydrodynamicVortexNode extends GraphNode {
+  final double vortexLevel; // Fluid churn volume: 0.0 to 1.0
+  final String? vortexLevelParam;
+  final double churnSpeed; // Flow velocity / wave modulation: 0.0 to 1.0
+  final String? churnSpeedParam;
+
+  const HydrodynamicVortexNode({
+    this.vortexLevel = 0.35,
+    this.vortexLevelParam,
+    this.churnSpeed = 0.40,
+    this.churnSpeedParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double level = (vortexLevelParam != null ? ctx.getParam(vortexLevelParam!, vortexLevel) : vortexLevel).clamp(0.0, 1.0);
+    final double speed = (churnSpeedParam != null ? ctx.getParam(churnSpeedParam!, churnSpeed) : churnSpeed).clamp(0.0, 1.0);
+
+    if (level <= 0.001) {
+      outBuffer.fillRange(0, outBuffer.length, 0.0);
+      return;
+    }
+
+    final double sr = ctx.sampleRate;
+    int rngState = 0x90817263 ^ (ctx.midiNote * 31);
+
+    // Dual-band submerged acoustic cavity filters (95Hz & 220Hz)
+    final double w1 = 2.0 * math.pi * (95.0 / sr);
+    final double a1 = math.sin(w1) / (2.0 * 2.5);
+    final double cos1 = math.cos(w1);
+    final double b0_1 = a1 / (1.0 + a1);
+    final double b2_1 = -a1 / (1.0 + a1);
+    final double a1_1 = (-2.0 * cos1) / (1.0 + a1);
+    final double a2_1 = (1.0 - a1) / (1.0 + a1);
+
+    final double w2 = 2.0 * math.pi * (220.0 / sr);
+    final double a2 = math.sin(w2) / (2.0 * 2.0);
+    final double cos2 = math.cos(w2);
+    final double b0_2 = a2 / (1.0 + a2);
+    final double b2_2 = -a2 / (1.0 + a2);
+    final double a1_2 = (-2.0 * cos2) / (1.0 + a2);
+    final double a2_2 = (1.0 - a2) / (1.0 + a2);
+
+    double x1_1 = 0.0, x2_1 = 0.0, y1_1 = 0.0, y2_1 = 0.0;
+    double x1_2 = 0.0, x2_2 = 0.0, y1_2 = 0.0, y2_2 = 0.0;
+    double brownNoise = 0.0;
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+
+      // Brownian noise integration for viscous fluid flow
+      rngState ^= (rngState << 13) & 0xFFFFFFFF;
+      rngState ^= (rngState >> 17) & 0xFFFFFFFF;
+      rngState ^= (rngState << 5) & 0xFFFFFFFF;
+      final double white = ((rngState & 0xFFFFFF) / 8388607.5) - 1.0;
+      brownNoise = (brownNoise + (0.05 * white)) / 1.05;
+
+      // Filter through resonant hydrodynamic cavities
+      final double f1 = b0_1 * brownNoise + b2_1 * x2_1 - a1_1 * y1_1 - a2_1 * y2_1;
+      x2_1 = x1_1;
+      x1_1 = brownNoise;
+      y2_1 = y1_1;
+      y1_1 = f1;
+
+      final double f2 = b0_2 * brownNoise + b2_2 * x2_2 - a1_2 * y1_2 - a2_2 * y2_2;
+      x2_2 = x1_2;
+      x1_2 = brownNoise;
+      y2_2 = y1_2;
+      y1_2 = f2;
+
+      // 2.8Hz swirling whirlpool wave modulation
+      final double whirlMod = 0.70 + 0.30 * math.sin(2.0 * math.pi * 2.8 * t) * speed;
+      final double combined = (f1 * 1.7 + f2 * 1.3) * whirlMod * level * 2.4;
+
+      outBuffer[i] = combined.clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Droplet Splash & Cavitation Matrix Node.
+/// Synthesizes dual-stage Poisson stochastic fluid events:
+/// 1. Macro Droplets: Resonant Minnaert bubble plinks & bloops ($550\,\text{Hz} - 1.6\,\text{kHz}$) with upward pitch chirp.
+/// 2. Micro Spray & Foam: High-frequency surface bubbling foam and water spray ($4.0\,\text{kHz} - 10\,\text{kHz}$).
+class DropletSplashMatrixNode extends GraphNode {
+  final double dropletRate; // Water drop plink burst density: 0.0 to 1.0
+  final String? dropletRateParam;
+  final double sprayHiss; // High spray & foam shimmer: 0.0 to 1.0
+  final String? sprayHissParam;
+
+  const DropletSplashMatrixNode({
+    this.dropletRate = 0.40,
+    this.dropletRateParam,
+    this.sprayHiss = 0.35,
+    this.sprayHissParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double drops = (dropletRateParam != null ? ctx.getParam(dropletRateParam!, dropletRate) : dropletRate).clamp(0.0, 1.0);
+    final double spray = (sprayHissParam != null ? ctx.getParam(sprayHissParam!, sprayHiss) : sprayHiss).clamp(0.0, 1.0);
+
+    if (drops <= 0.001 && spray <= 0.001) {
+      outBuffer.fillRange(0, outBuffer.length, 0.0);
+      return;
+    }
+
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+    outBuffer.fillRange(0, len, 0.0);
+
+    int rngState = 0x1A2B3C4D ^ (ctx.midiNote * 67);
+    final double dropThreshold = (drops * 0.0018); // Sparse, plinking liquid drops
+    final double sprayThreshold = (spray * 0.050); // Shimmering fluid spray
+
+    for (int i = 0; i < len; i++) {
+      rngState ^= (rngState << 13) & 0xFFFFFFFF;
+      rngState ^= (rngState >> 17) & 0xFFFFFFFF;
+      rngState ^= (rngState << 5) & 0xFFFFFFFF;
+      final double r0 = (rngState & 0xFFFFFF) / 16777215.0;
+
+      // 1. Minnaert Bubble Plinks & Bloops (Sweeping pitch chirp from 550Hz to 950Hz)
+      if (r0 < dropThreshold && (i + 450) < len) {
+        rngState ^= (rngState << 13) & 0xFFFFFFFF;
+        final double dropAmp = 0.5 + 0.5 * ((rngState & 0xFFFF) / 65535.0);
+        final int dropSamples = (0.016 * sr).toInt();
+        for (int p = 0; p < dropSamples && (i + p) < len; p++) {
+          final double tP = p / sr;
+          final double dropEnv = math.exp(-tP * 220.0);
+          final double fP = 550.0 + 400.0 * (1.0 - math.exp(-tP * 180.0));
+          final double dropTone = math.sin(2.0 * math.pi * fP * tP) * dropEnv;
+          outBuffer[i + p] += dropTone * dropAmp * drops * 0.85;
+        }
+      }
+
+      // 2. Micro Spray & Surface Foam Sizzle (Fast 5.5kHz fluid impulses)
+      if (r0 < sprayThreshold) {
+        rngState ^= (rngState << 13) & 0xFFFFFFFF;
+        final double sprayAmp = ((rngState & 0xFFFFFF) / 8388607.5) - 1.0;
+        outBuffer[i] += sprayAmp * spray * 0.28;
+      }
+    }
+
+    // Clamp bounds
+    for (int i = 0; i < len; i++) {
+      outBuffer[i] = outBuffer[i].clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Hydrodynamic Plunge Impact & Submerged Wake Exciter Node.
+/// Synthesizes the sudden crown splash impact transient on Note-On (water displacement snap)
+/// and trailing submerged wake bubbles on Note-Off.
+class PlungeImpactExciterNode extends GraphNode {
+  final double snapLevel; // Plunge impact snap intensity: 0.0 to 2.5
+  final String? snapLevelParam;
+  final double wakeDecay; // Submerged wake bubble decay time: 0.02 to 0.40s
+  final String? wakeDecayParam;
+
+  const PlungeImpactExciterNode({
+    this.snapLevel = 0.85,
+    this.snapLevelParam,
+    this.wakeDecay = 0.09,
+    this.wakeDecayParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double snap = (snapLevelParam != null ? ctx.getParam(snapLevelParam!, snapLevel) : snapLevel).clamp(0.0, 3.0);
+    final double wake = (wakeDecayParam != null ? ctx.getParam(wakeDecayParam!, wakeDecay) : wakeDecay).clamp(0.01, 0.50);
+    final double sr = ctx.sampleRate;
+    final double vel = ctx.velocity.clamp(0.1, 1.0);
+
+    outBuffer.fillRange(0, outBuffer.length, 0.0);
+
+    // 1. Initial Crown Splash Plunge Transient (30ms hydrodynamic displacement pulse)
+    if (snap > 0.01) {
+      final int plungeSamples = (0.030 * sr).toInt().clamp(8, outBuffer.length ~/ 2);
+      int rng = 0x504C554E ^ (ctx.midiNote * 59); // "PLUN" seed
+      for (int i = 0; i < plungeSamples; i++) {
+        final double tNorm = i / plungeSamples;
+        final double env = math.sin(tNorm * math.pi) * math.exp(-tNorm * 3.0);
+        final double curPitch = 120.0 + 380.0 * (1.0 - tNorm);
+        final double phase = (i / sr) * 2.0 * math.pi * curPitch;
+        rng ^= (rng << 13) & 0xFFFFFFFF;
+        rng ^= (rng >> 17) & 0xFFFFFFFF;
+        rng ^= (rng << 5) & 0xFFFFFFFF;
+        final double noise = ((rng & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double splash = (math.sin(phase) * 0.75 + noise * 0.25) * env;
+        outBuffer[i] = (splash * snap * vel).clamp(-1.0, 1.0);
+      }
+    }
+
+    // 2. Trailing Submerged Wake Bubbles near end of duration
+    final double gateEnd = ctx.durationSec * 0.85;
+    final int gateSample = (gateEnd * sr).toInt();
+    if (gateSample < outBuffer.length) {
+      int rng = 0x57414B45 ^ (ctx.midiNote * 73); // "WAKE" seed
+      final int wakeLen = (wake * sr).toInt().clamp(10, outBuffer.length - gateSample);
+      for (int i = 0; i < wakeLen; i++) {
+        final double tNorm = i / wakeLen;
+        final double env = math.exp(-tNorm * 4.0);
+        rng ^= (rng << 13) & 0xFFFFFFFF;
+        rng ^= (rng >> 17) & 0xFFFFFFFF;
+        rng ^= (rng << 5) & 0xFFFFFFFF;
+        final double n = ((rng & 0xFFFFFF) / 8388607.5) - 1.0;
+        outBuffer[gateSample + i] += (n * env * 0.25 * vel).clamp(-1.0, 1.0);
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ANALOG-MODELED ALL-PASS PHASER & PHASE DISPERSION
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 4-Stage Analog-Modeled All-Pass Phaser Node.
+/// Cascades 4 first-order allpass filters ($H(z) = \frac{a_1 + z^{-1}}{1 + a_1 z^{-1}}$) with an LFO
+/// modulating the notch frequencies, resonant feedback, and dry/wet mixing.
+/// Creates dynamic acoustic phase cancellations and moving comb notches that eliminate
+/// static fundamental drone on low notes (e.g. C2) and impart organic physical motion.
+class PhaserNode extends GraphNode {
+  final GraphNode input;
+  final double rate; // Modulation speed in Hz: 0.05 to 10.0
+  final String? rateParam;
+  final double depth; // Sweep depth / frequency span: 0.0 to 1.0
+  final String? depthParam;
+  final double feedback; // Resonant phase notch feedback: 0.0 to 0.85
+  final String? feedbackParam;
+  final double mix; // Wet/dry blend: 0.0 to 1.0 (0.5 = maximum notch cancellation)
+  final String? mixParam;
+  final double baseFreq; // Base center frequency in Hz (default 650.0)
+
+  const PhaserNode({
+    required this.input,
+    this.rate = 0.5,
+    this.rateParam,
+    this.depth = 0.65,
+    this.depthParam,
+    this.feedback = 0.40,
+    this.feedbackParam,
+    this.mix = 0.50,
+    this.mixParam,
+    this.baseFreq = 650.0,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+
+    final double curRate = (rateParam != null ? ctx.getParam(rateParam!, rate) : rate).clamp(0.02, 20.0);
+    final double curDepth = (depthParam != null ? ctx.getParam(depthParam!, depth) : depth).clamp(0.0, 1.0);
+    final double curFb = (feedbackParam != null ? ctx.getParam(feedbackParam!, feedback) : feedback).clamp(0.0, 0.90);
+    final double curMix = (mixParam != null ? ctx.getParam(mixParam!, mix) : mix).clamp(0.0, 1.0);
+
+    if (curMix <= 0.001) return; // Completely dry bypass
+
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+
+    // 4 first-order allpass filter states: x1[k] and y1[k]
+    double x1_0 = 0.0, y1_0 = 0.0;
+    double x1_1 = 0.0, y1_1 = 0.0;
+    double x1_2 = 0.0, y1_2 = 0.0;
+    double x1_3 = 0.0, y1_3 = 0.0;
+    double lastOut = 0.0;
+
+    double lfoPhase = 0.0;
+
+    for (int i = 0; i < len; i++) {
+      final double dry = outBuffer[i];
+
+      // Modulation: LFO sweeps between baseFreq * 0.4 and baseFreq * (1 + 4 * depth)
+      final double lfo = 0.5 + 0.5 * math.sin(lfoPhase * 2.0 * math.pi);
+      final double fSweep = baseFreq * (0.35 + curDepth * 3.5 * lfo);
+      final double fc = fSweep.clamp(40.0, sr * 0.45);
+
+      // Bilinear transform coefficient for 1-pole allpass
+      final double w = math.tan(math.pi * fc / sr);
+      final double a1 = (w - 1.0) / (w + 1.0);
+
+      // Input with feedback loop
+      final double inSample = dry + (lastOut * curFb);
+
+      // Stage 1
+      final double ap1 = a1 * inSample + x1_0 - a1 * y1_0;
+      x1_0 = inSample;
+      y1_0 = ap1;
+
+      // Stage 2
+      final double ap2 = a1 * ap1 + x1_1 - a1 * y1_1;
+      x1_1 = ap1;
+      y1_1 = ap2;
+
+      // Stage 3
+      final double ap3 = a1 * ap2 + x1_2 - a1 * y1_2;
+      x1_2 = ap2;
+      y1_2 = ap3;
+
+      // Stage 4
+      final double ap4 = a1 * ap3 + x1_3 - a1 * y1_3;
+      x1_3 = ap3;
+      y1_3 = ap4;
+
+      lastOut = ap4;
+
+      // Sum Dry and Wet (curMix = 0.5 creates deep notch cancellations)
+      final double wetSample = (dry * (1.0 - curMix * 0.5)) + (ap4 * curMix * 0.7);
+      outBuffer[i] = wetSample.clamp(-1.0, 1.0);
+
+      lfoPhase += curRate / sr;
+      if (lfoPhase >= 1.0) lfoPhase -= 1.0;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  YAMAHA DX7 6-OPERATOR FM SYNTHESIS NODE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Complete 6-Operator FM Synthesis Graph Node wrapping the DX7 FM Engine.
+/// Dynamically maps context parameters (Algorithm, Brightness, TineBell, Detune, Chorus, 12BitDAC).
+class DX7VoiceNode extends GraphNode {
+  final int algorithm;
+  final String? algorithmParam;
+  final double brightness;
+  final String? brightnessParam;
+  final double tineBell;
+  final String? tineBellParam;
+  final double bodyWarmth;
+  final String? bodyWarmthParam;
+  final double chorusMix;
+  final String? chorusMixParam;
+  final bool enable12BitDac;
+
+  const DX7VoiceNode({
+    this.algorithm = 5,
+    this.algorithmParam,
+    this.brightness = 1.0,
+    this.brightnessParam,
+    this.tineBell = 0.85,
+    this.tineBellParam,
+    this.bodyWarmth = 1.0,
+    this.bodyWarmthParam,
+    this.chorusMix = 0.35,
+    this.chorusMixParam,
+    this.enable12BitDac = true,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int alg = (algorithmParam != null ? ctx.getParam(algorithmParam!, algorithm.toDouble()) : algorithm.toDouble()).round().clamp(1, 32);
+    final double bright = (brightnessParam != null ? ctx.getParam(brightnessParam!, brightness) : brightness).clamp(0.0, 3.0);
+    final double bell = (tineBellParam != null ? ctx.getParam(tineBellParam!, tineBell) : tineBell).clamp(0.0, 3.0);
+    final double body = (bodyWarmthParam != null ? ctx.getParam(bodyWarmthParam!, bodyWarmth) : bodyWarmth).clamp(0.0, 3.0);
+    final double chorus = (chorusMixParam != null ? ctx.getParam(chorusMixParam!, chorusMix) : chorusMix).clamp(0.0, 1.0);
+
+    final voice = DX7FmVoice(algorithm: alg, feedback: 6)
+      ..brightness = bright
+      ..tineBell = bell
+      ..bodyWarmth = body
+      ..chorusMix = chorus
+      ..enable12BitDac = enable12BitDac;
+
+    voice.processBuffer(
+      outBuffer: outBuffer,
+      baseFreq: ctx.freq > 0 ? ctx.freq : 440.0,
+      sampleRate: ctx.sampleRate,
+      durationSec: ctx.durationSec,
+      velocity: ctx.velocity,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  HOHNER CLAVINET D6 PHYSICAL MODELING PRIMITIVES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Models the dual electromagnetic single-coil pickups and 4-rocker EQ filter bank of the Clavinet D6.
+/// Features Neck/Bridge selection, out-of-phase comb-filtering cancellation ($A - B$ funk quack),
+/// and the 4 discrete D6 tone switches (Brilliant, Treble, Medium, Soft).
+class ClavinetPickupFilterNode extends GraphNode {
+  final GraphNode input;
+  final double pickupSelect; // 0.0 = Neck (A), 0.5 = Both (A+B), 1.0 = Bridge (B)
+  final String? pickupSelectParam;
+  final double phaseInvert; // 0.0 = In-Phase, 1.0 = Out-of-Phase (A-B Quack)
+  final String? phaseInvertParam;
+  final double brilliant; // 0.0 to 1.0 (Highpass / high-shelf bite)
+  final String? brilliantParam;
+  final double treble; // 0.0 to 1.0 (3.2kHz peaking bell)
+  final String? trebleParam;
+  final double medium; // 0.0 to 1.0 (1.1kHz mid peak/cut)
+  final String? mediumParam;
+  final double soft; // 0.0 to 1.0 (650Hz lowpass)
+  final String? softParam;
+
+  const ClavinetPickupFilterNode({
+    required this.input,
+    this.pickupSelect = 0.5,
+    this.pickupSelectParam,
+    this.phaseInvert = 0.0,
+    this.phaseInvertParam,
+    this.brilliant = 1.0,
+    this.brilliantParam,
+    this.treble = 0.8,
+    this.trebleParam,
+    this.medium = 0.5,
+    this.mediumParam,
+    this.soft = 0.0,
+    this.softParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+
+    final double pSelect = (pickupSelectParam != null ? ctx.getParam(pickupSelectParam!, pickupSelect) : pickupSelect).clamp(0.0, 1.0);
+    final double pInvert = (phaseInvertParam != null ? ctx.getParam(phaseInvertParam!, phaseInvert) : phaseInvert).clamp(0.0, 1.0);
+    final double sBrilliant = (brilliantParam != null ? ctx.getParam(brilliantParam!, brilliant) : brilliant).clamp(0.0, 1.0);
+    final double sTreble = (trebleParam != null ? ctx.getParam(trebleParam!, treble) : treble).clamp(0.0, 1.0);
+    final double sMedium = (mediumParam != null ? ctx.getParam(mediumParam!, medium) : medium).clamp(0.0, 1.0);
+    final double sSoft = (softParam != null ? ctx.getParam(softParam!, soft) : soft).clamp(0.0, 1.0);
+
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+
+    // Bridge pickup physical spacing delay (~12 samples / 0.27ms comb filter)
+    final int delaySamples = (sr * 0.00035).toInt().clamp(2, 64);
+    final Float32List neckBuf = Float32List.fromList(outBuffer);
+
+    // 1. Dual-Pickup Position Comb Filtering & Phase Inversion
+    for (int i = 0; i < len; i++) {
+      final double neckSample = neckBuf[i];
+      final double bridgeSample = (i >= delaySamples ? neckBuf[i - delaySamples] : 0.0);
+
+      // Phase calculation:
+      // In-phase: Neck * (1-pSelect) + Bridge * pSelect
+      // Out-of-phase: Neck - Bridge * 1.2
+      final double inPhase = neckSample * (1.0 - pSelect * 0.6) + bridgeSample * (0.4 + pSelect * 0.6);
+      final double outOfPhase = (neckSample - bridgeSample * 1.05) * 1.6;
+
+      outBuffer[i] = inPhase * (1.0 - pInvert) + outOfPhase * pInvert;
+    }
+
+    // 2. Clavinet D6 4-Rocker EQ Filter Matrix
+    // Highpass (Brilliant switch: 220Hz 1-pole HPF)
+    if (sBrilliant > 0.1) {
+      double lastIn = 0.0, lastOut = 0.0;
+      final double hpAlpha = 1.0 / (1.0 + (2.0 * math.pi * 220.0 / sr));
+      for (int i = 0; i < len; i++) {
+        final double inSample = outBuffer[i];
+        final double hpOut = hpAlpha * (lastOut + inSample - lastIn);
+        lastIn = inSample;
+        lastOut = hpOut;
+        outBuffer[i] = inSample * (1.0 - sBrilliant * 0.7) + hpOut * (sBrilliant * 1.4);
+      }
+    }
+
+    // Lowpass (Soft switch: 750Hz 1-pole LPF)
+    if (sSoft > 0.1) {
+      double lpfState = 0.0;
+      final double lpAlpha = (2.0 * math.pi * 750.0 / sr).clamp(0.01, 0.95);
+      for (int i = 0; i < len; i++) {
+        lpfState += lpAlpha * (outBuffer[i] - lpfState);
+        outBuffer[i] = outBuffer[i] * (1.0 - sSoft) + lpfState * sSoft;
+      }
+    }
+
+    // Peaking EQ (Treble 3.2kHz + Medium 1.2kHz boost)
+    final double peakGain = 1.0 + sTreble * 0.4 + sMedium * 0.3;
+    for (int i = 0; i < len; i++) {
+      outBuffer[i] = (outBuffer[i] * peakGain).clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Synthesizes the mechanical key-release yarn damper contact thump on the vibrating Clavinet string.
+class YarnDamperThumpNode extends GraphNode {
+  final double thumpLevel;
+  final String? thumpLevelParam;
+
+  const YarnDamperThumpNode({
+    this.thumpLevel = 0.45,
+    this.thumpLevelParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double level = (thumpLevelParam != null ? ctx.getParam(thumpLevelParam!, thumpLevel) : thumpLevel).clamp(0.0, 1.0);
+    if (level <= 0.001) return;
+
+    final double sr = ctx.sampleRate;
+    final double gateEnd = ctx.durationSec * 0.88;
+    final int gateSample = (gateEnd * sr).toInt();
+
+    if (gateSample < outBuffer.length) {
+      int rng = 0x434C4156 ^ (ctx.midiNote * 37); // "CLAV"
+      final int thumpLen = (0.025 * sr).toInt().clamp(8, outBuffer.length - gateSample);
+      for (int i = 0; i < thumpLen; i++) {
+        final double tNorm = i / thumpLen;
+        final double env = math.exp(-tNorm * 6.0);
+        rng ^= (rng << 13) & 0xFFFFFFFF;
+        rng ^= (rng >> 17) & 0xFFFFFFFF;
+        rng ^= (rng << 5) & 0xFFFFFFFF;
+        final double n = ((rng & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double thumpSine = math.sin(2.0 * math.pi * 140.0 * (i / sr));
+        outBuffer[gateSample + i] += (thumpSine * 0.6 + n * 0.4) * env * level * 0.4;
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  HARPSICHORD (CEMBALO) PHYSICAL MODELING PRIMITIVES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Delrin/Crow Quill Plectrum Pluck Exciter Node for Harpsichord.
+/// Synthesizes the sharp, high-harmonic step-pluck impulse and initial quill scrape.
+class QuillPluckExciterNode extends GraphNode {
+  final double pluckBite;
+  final String? pluckBiteParam;
+  final double scrapeLevel;
+  final String? scrapeLevelParam;
+
+  const QuillPluckExciterNode({
+    this.pluckBite = 1.35,
+    this.pluckBiteParam,
+    this.scrapeLevel = 0.45,
+    this.scrapeLevelParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double bite = (pluckBiteParam != null ? ctx.getParam(pluckBiteParam!, pluckBite) : pluckBite).clamp(0.1, 3.0);
+    final double scrape = (scrapeLevelParam != null ? ctx.getParam(scrapeLevelParam!, scrapeLevel) : scrapeLevel).clamp(0.0, 2.0);
+
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+    outBuffer.fillRange(0, len, 0.0);
+
+    // Initial 4ms quill plectrum micro-scrape & release snap
+    final int scrapeSamples = (0.004 * sr).toInt().clamp(6, len ~/ 4);
+    int rng = 0x48415250 ^ (ctx.midiNote * 83); // "HARP"
+
+    for (int i = 0; i < scrapeSamples; i++) {
+      final double tNorm = i / scrapeSamples;
+      final double env = math.sin(tNorm * math.pi);
+
+      rng ^= (rng << 13) & 0xFFFFFFFF;
+      rng ^= (rng >> 17) & 0xFFFFFFFF;
+      rng ^= (rng << 5) & 0xFFFFFFFF;
+      final double noise = ((rng & 0xFFFFFF) / 8388607.5) - 1.0;
+
+      // Sharp asymmetric step-impulse at snap release point
+      final double snapImpulse = (i == scrapeSamples - 1) ? 1.0 : (1.0 - tNorm);
+      outBuffer[i] = (snapImpulse * bite * 0.8 + noise * scrape * env * 0.35).clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Harpsichord Key-Release Wooden Jack Fall & Damper Felt Rattle Node.
+/// Synthesizes the authentic mechanical release noise when the wooden jack drops back onto the rail.
+class HarpsichordJackReleaseNode extends GraphNode {
+  final double releaseNoise;
+  final String? releaseNoiseParam;
+
+  const HarpsichordJackReleaseNode({
+    this.releaseNoise = 0.35,
+    this.releaseNoiseParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double noiseLevel = (releaseNoiseParam != null ? ctx.getParam(releaseNoiseParam!, releaseNoise) : releaseNoise).clamp(0.0, 1.0);
+    if (noiseLevel <= 0.001) return;
+
+    final double sr = ctx.sampleRate;
+    final double gateEnd = ctx.durationSec * 0.86;
+    final int gateSample = (gateEnd * sr).toInt();
+
+    if (gateSample < outBuffer.length) {
+      int rng = 0x4A41434B ^ (ctx.midiNote * 97); // "JACK"
+      final int jackLen = (0.035 * sr).toInt().clamp(10, outBuffer.length - gateSample);
+
+      for (int i = 0; i < jackLen; i++) {
+        final double tNorm = i / jackLen;
+        final double env = math.exp(-tNorm * 5.5);
+
+        rng ^= (rng << 13) & 0xFFFFFFFF;
+        rng ^= (rng >> 17) & 0xFFFFFFFF;
+        rng ^= (rng << 5) & 0xFFFFFFFF;
+        final double n = ((rng & 0xFFFFFF) / 8388607.5) - 1.0;
+
+        // Wood tap at 320Hz + Felt scrape
+        final double woodTap = math.sin(2.0 * math.pi * 320.0 * (i / sr));
+        outBuffer[gateSample + i] += (woodTap * 0.5 + n * 0.5) * env * noiseLevel * 0.30;
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  BASS COLLECTION PHYSICAL MODELING PRIMITIVES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Soft Fingertip Flesh Pluck Exciter for Acoustic & Electric Bass.
+/// Synthesizes the low-frequency fingertip mass displacement ($15\text{ms}$)
+/// and subtle fingernail click transient.
+class FleshPluckExciterNode extends GraphNode {
+  final double pluckForce;
+  final String? pluckForceParam;
+  final double nailClick;
+  final String? nailClickParam;
+
+  const FleshPluckExciterNode({
+    this.pluckForce = 1.25,
+    this.pluckForceParam,
+    this.nailClick = 0.35,
+    this.nailClickParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double force = (pluckForceParam != null ? ctx.getParam(pluckForceParam!, pluckForce) : pluckForce).clamp(0.1, 3.0);
+    final double click = (nailClickParam != null ? ctx.getParam(nailClickParam!, nailClick) : nailClick).clamp(0.0, 2.0);
+
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+    outBuffer.fillRange(0, len, 0.0);
+
+    final int pluckSamples = (0.015 * sr).toInt().clamp(8, len ~/ 4);
+    int rng = 0x464C4553 ^ (ctx.midiNote * 43); // "FLES"
+
+    for (int i = 0; i < pluckSamples; i++) {
+      final double tNorm = i / pluckSamples;
+      // Smooth raised-cosine fingertip displacement pulse
+      final double fleshPulse = math.sin(tNorm * math.pi) * math.exp(-tNorm * 2.0);
+
+      rng ^= (rng << 13) & 0xFFFFFFFF;
+      rng ^= (rng >> 17) & 0xFFFFFFFF;
+      rng ^= (rng << 5) & 0xFFFFFFFF;
+      final double noise = ((rng & 0xFFFFFF) / 8388607.5) - 1.0;
+
+      final double nailTransient = (i < pluckSamples ~/ 3) ? noise * math.exp(-tNorm * 8.0) * click : 0.0;
+      outBuffer[i] = (fleshPulse * force * ctx.velocity + nailTransient * 0.4).clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Dynamic Fretless Fingerboard Boundary Collision & "Mwah" Blooming Node.
+/// Models the string-to-wood fingerboard contact that dynamically blooms higher harmonic
+/// buzz after the initial attack as the string amplitude settles.
+class FretlessMwahNode extends GraphNode {
+  final GraphNode input;
+  final double mwahAmount;
+  final String? mwahAmountParam;
+  final double growl;
+  final String? growlParam;
+
+  const FretlessMwahNode({
+    required this.input,
+    this.mwahAmount = 0.70,
+    this.mwahAmountParam,
+    this.growl = 0.50,
+    this.growlParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+
+    final double mwah = (mwahAmountParam != null ? ctx.getParam(mwahAmountParam!, mwahAmount) : mwahAmount).clamp(0.0, 1.0);
+    final double curGrowl = (growlParam != null ? ctx.getParam(growlParam!, growl) : growl).clamp(0.0, 1.0);
+
+    if (mwah <= 0.001 && curGrowl <= 0.001) return;
+
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+
+    double envelopeFollower = 0.0;
+    final double envDecay = math.exp(-1.0 / (0.04 * sr));
+
+    for (int i = 0; i < len; i++) {
+      final double sample = outBuffer[i];
+      envelopeFollower = math.max(sample.abs(), envelopeFollower * envDecay);
+
+      final double normTime = len > 1 ? i / (len - 1) : 0.0;
+      final double pressure = ctx.getPressureAt(normTime);
+      final double timbre = ctx.getTimbreAt(normTime);
+
+      final double time = i / sr;
+      // "Mwah" blooming envelope: peaks around 60ms-180ms after attack
+      final double bloomEnv = math.sin((time * 4.5).clamp(0.0, math.pi)) * math.exp(-time * 1.8);
+
+      // Asymmetric boundary collision soft-clipping (fingerboard buzzing modulated by pressure)
+      final double dynamicMwah = (mwah + pressure * 0.40).clamp(0.0, 1.5);
+      final double dynamicGrowl = (curGrowl + (timbre - 0.5) * 0.40).clamp(0.0, 1.5);
+
+      final double collision = sample > 0 ? DistortionNode._tanh(sample * (1.0 + dynamicMwah * bloomEnv * 2.5)) : sample;
+      // Harmonic 2nd order growl
+      final double growlHarmonic = (sample * sample - 0.25) * dynamicGrowl * 0.35 * bloomEnv;
+
+      outBuffer[i] = (collision + growlHarmonic).clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Upright Double Bass Heavy Finger Pull & Wood Slap Exciter Node.
+/// Synthesizes the deep acoustic bass impulse and mechanical fingerboard slap on hard plucks.
+class UprightPluckSlapExciterNode extends GraphNode {
+  final double pluckMass;
+  final String? pluckMassParam;
+  final double slapClick;
+  final String? slapClickParam;
+
+  const UprightPluckSlapExciterNode({
+    this.pluckMass = 2.0,
+    this.pluckMassParam,
+    this.slapClick = 0.0,
+    this.slapClickParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double mass = (pluckMassParam != null ? ctx.getParam(pluckMassParam!, pluckMass) : pluckMass).clamp(0.5, 4.0);
+    double slap = (slapClickParam != null ? ctx.getParam(slapClickParam!, slapClick) : slapClick).clamp(0.0, 2.0);
+
+    final art = ctx.articulation?.toLowerCase();
+    final bool isSlapArt = (art == 'slap' || art == 'pop');
+    if (isSlapArt) {
+      slap = math.max(slap, 1.0);
+    } else if (art == 'pizzicato' || art == 'flesh' || art == 'open' || art == 'sustain') {
+      slap = 0.0;
+    }
+
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+    outBuffer.fillRange(0, len, 0.0);
+
+    // Warm, punchy side-finger flesh pull with 110Hz body thump (16ms impulse)
+    final double pulseSec = 0.016;
+    final int pluckSamples = (pulseSec * sr).toInt().clamp(16, len ~/ 2);
+
+    for (int i = 0; i < pluckSamples; i++) {
+      final double tNorm = i / pluckSamples;
+      final double fleshPulse = math.sin(tNorm * math.pi) * math.exp(-tNorm * 1.8);
+      final double woodThump = math.sin(2.0 * math.pi * 110.0 * (i / sr)) * math.exp(-tNorm * 4.0);
+      outBuffer[i] = (fleshPulse * 0.75 + woodThump * 0.25) * mass * ctx.velocity * 1.35;
+    }
+
+    // Fingerboard wood slap transient (only if explicitly enabled via SlapClick or slap articulation)
+    if (slap > 0.02) {
+      final int slapLen = (0.010 * sr).toInt().clamp(5, pluckSamples);
+      int rng = 0x44424153 ^ (ctx.midiNote * 67); // "DBAS"
+      for (int i = 0; i < slapLen && i < outBuffer.length; i++) {
+        final double tNorm = i / slapLen;
+        rng ^= (rng << 13) & 0xFFFFFFFF;
+        rng ^= (rng >> 17) & 0xFFFFFFFF;
+        rng ^= (rng << 5) & 0xFFFFFFFF;
+        final double noise = ((rng & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double slapEnv = math.exp(-tNorm * 8.0) * (1.0 - tNorm);
+        outBuffer[i] += noise * slapEnv * slap * 0.35 * ctx.velocity;
+      }
+    }
+  }
+}
+
+/// 4-Pole 24dB/oct Virtual Analog Transistor Ladder Lowpass Filter.
+/// Models the iconic Minimoog ladder topology with resonant feedback and tanh non-linear saturation.
+class MoogLadderFilterNode extends GraphNode {
+  final GraphNode input;
+  final double cutoffHz;
+  final String? cutoffParam;
+  final double resonance; // 0.0 to 0.98
+  final String? resonanceParam;
+  final double envAmount;
+  final String? envAmountParam;
+  final double envDecaySec;
+  final String? envDecayParam;
+
+  const MoogLadderFilterNode({
+    required this.input,
+    this.cutoffHz = 400.0,
+    this.cutoffParam,
+    this.resonance = 0.65,
+    this.resonanceParam,
+    this.envAmount = 0.50,
+    this.envAmountParam,
+    this.envDecaySec = 0.45,
+    this.envDecayParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+
+    final double baseCutoff = (cutoffParam != null ? ctx.getParam(cutoffParam!, cutoffHz) : cutoffHz).clamp(20.0, 18000.0);
+    final double res = (resonanceParam != null ? ctx.getParam(resonanceParam!, resonance) : resonance).clamp(0.0, 0.96);
+    final double envMod = (envAmountParam != null ? ctx.getParam(envAmountParam!, envAmount) : envAmount).clamp(0.0, 1.0);
+    final double decay = (envDecayParam != null ? ctx.getParam(envDecayParam!, envDecaySec) : envDecaySec).clamp(0.02, 4.0);
+
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+
+    // 4 1-pole filter states
+    double s0 = 0.0, s1 = 0.0, s2 = 0.0, s3 = 0.0;
+
+    for (int i = 0; i < len; i++) {
+      final double normTime = len > 1 ? i / (len - 1) : 0.0;
+      final double timbre = ctx.getTimbreAt(normTime);
+      final double pressure = ctx.getPressureAt(normTime);
+
+      final double time = i / sr;
+      final double env = math.exp(-time / decay);
+      final double timbreOffset = (timbre - 0.5) * 4500.0;
+      final double pressureOffset = pressure * 2800.0;
+      final double curCutoff = (baseCutoff + envMod * env * 4500.0 + timbreOffset + pressureOffset).clamp(20.0, sr * 0.45);
+
+      // Bilinear cutoff tuning coefficient
+      final double g = 1.0 - math.exp(-2.0 * math.pi * curCutoff / sr);
+      final double feedbackGain = res * 3.95;
+
+      final double inSample = outBuffer[i];
+      // Feedback with non-linear saturation
+      final double u = DistortionNode._tanh(inSample - feedbackGain * s3);
+
+      s0 += g * (DistortionNode._tanh(u) - s0);
+      s1 += g * (s0 - s1);
+      s2 += g * (s1 - s2);
+      s3 += g * (s2 - s3);
+
+      outBuffer[i] = s3.clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Coupled Double-Course Digital Waveguide.
+/// Synthesizes paired string physics (Lute, Baroque Guitar, Vihuela, 12-String Guitar, Mandolin)
+/// with micro-detuning, octave pairing, and acoustic bridge energy exchange.
+class CoupledWaveguideNode extends GraphNode {
+  final GraphNode exciter;
+  final double feedback;
+  final String? feedbackParam;
+  final double damping;
+  final String? dampingParam;
+  final double courseDetuneCents; // Inter-string detune (0.0 to 12.0 cents)
+  final String? courseDetuneParam;
+  final bool octavePair; // True if second string is 1 octave higher (Baroque guitar / Lute diapason)
+  final String? octavePairParam;
+  final double coupling; // Bridge coupling coefficient (0.0 to 0.25)
+  final String? couplingParam;
+
+  const CoupledWaveguideNode({
+    required this.exciter,
+    this.feedback = 0.994,
+    this.feedbackParam,
+    this.damping = 0.22,
+    this.dampingParam,
+    this.courseDetuneCents = 3.5,
+    this.courseDetuneParam,
+    this.octavePair = false,
+    this.octavePairParam,
+    this.coupling = 0.08,
+    this.couplingParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    exciter.process(ctx, outBuffer);
+
+    double baseFreq = ctx.freq > 10.0 ? ctx.freq : 440.0;
+    final double sr = ctx.sampleRate;
+    double fb = (feedbackParam != null ? ctx.getParam(feedbackParam!, feedback) : feedback).clamp(0.80, 0.9999);
+    double damp = (dampingParam != null ? ctx.getParam(dampingParam!, damping) : damping).clamp(0.01, 0.95);
+    final double detuneCents = (courseDetuneParam != null ? ctx.getParam(courseDetuneParam!, courseDetuneCents) : courseDetuneCents).clamp(0.0, 25.0);
+    final double coup = (couplingParam != null ? ctx.getParam(couplingParam!, coupling) : coupling).clamp(0.0, 0.35);
+    final bool isOctave = octavePairParam != null ? (ctx.getParam(octavePairParam!, octavePair ? 1.0 : 0.0) >= 0.5) : octavePair;
+
+    final art = ctx.articulation?.toLowerCase();
+    if (art == 'muted' || art == 'palm_mute' || art == 'chop') {
+      damp = math.max(damp, 0.72);
+      fb = math.min(fb, 0.94);
+    } else if (art == 'harmonics' || art == 'flageolet') {
+      baseFreq *= 2.0;
+      fb = math.max(fb, 0.997);
+      damp = math.min(damp, 0.12);
+    }
+
+    final double maxDelaySamples = sr / 20.0;
+    final int bufSize = maxDelaySamples.toInt() + 32;
+    final delay1 = Float32List(bufSize);
+    final delay2 = Float32List(bufSize);
+    int writeIdx1 = 0;
+    int writeIdx2 = 0;
+    double filter1 = 0.0;
+    double filter2 = 0.0;
+
+    final double detuneRatio1 = math.pow(2.0, -(detuneCents * 0.5) / 1200.0).toDouble();
+    final double detuneRatio2 = isOctave
+        ? 2.0 * math.pow(2.0, (detuneCents * 0.5) / 1200.0).toDouble()
+        : math.pow(2.0, (detuneCents * 0.5) / 1200.0).toDouble();
+
+    for (int i = 0; i < len; i++) {
+      final double inSample = outBuffer[i];
+      final double normTime = len > 1 ? i / (len - 1) : 0.0;
+      final double bendSemitones = ctx.getPitchBendAt(normTime);
+      final double bendMultiplier = math.pow(2.0, bendSemitones / 12.0).toDouble();
+
+      final double f1 = (baseFreq * bendMultiplier * detuneRatio1).clamp(20.0, 20000.0);
+      final double f2 = (baseFreq * bendMultiplier * detuneRatio2).clamp(20.0, 20000.0);
+
+      final double d1Samples = (sr / f1).clamp(2.0, bufSize - 4.0);
+      final double d2Samples = (sr / f2).clamp(2.0, bufSize - 4.0);
+
+      // Interpolate Delay Line 1
+      final double rPos1 = writeIdx1 - d1Samples;
+      double rIdx1 = rPos1 >= 0 ? rPos1 : (rPos1 + bufSize);
+      while (rIdx1 >= bufSize) rIdx1 -= bufSize;
+      while (rIdx1 < 0) rIdx1 += bufSize;
+      final int i0_1 = rIdx1.toInt() % bufSize;
+      final int i1_1 = (i0_1 + 1) % bufSize;
+      final double frac1 = d1Samples - d1Samples.floor();
+      final double s1 = delay1[i0_1] + frac1 * (delay1[i1_1] - delay1[i0_1]);
+
+      // Interpolate Delay Line 2
+      final double rPos2 = writeIdx2 - d2Samples;
+      double rIdx2 = rPos2 >= 0 ? rPos2 : (rPos2 + bufSize);
+      while (rIdx2 >= bufSize) rIdx2 -= bufSize;
+      while (rIdx2 < 0) rIdx2 += bufSize;
+      final int i0_2 = rIdx2.toInt() % bufSize;
+      final int i1_2 = (i0_2 + 1) % bufSize;
+      final double frac2 = d2Samples - d2Samples.floor();
+      final double s2 = delay2[i0_2] + frac2 * (delay2[i1_2] - delay2[i0_2]);
+
+      // Lowpass damping
+      filter1 = (1.0 - damp) * s1 + damp * filter1;
+      filter2 = (1.0 - damp) * s2 + damp * filter2;
+
+      // Bridge mutual energy coupling
+      final double coupled1 = (filter1 * (1.0 - coup) + filter2 * coup) * fb;
+      final double coupled2 = (filter2 * (1.0 - coup) + filter1 * coup) * fb;
+
+      delay1[writeIdx1] = inSample + coupled1;
+      delay2[writeIdx2] = (inSample * (isOctave ? 0.75 : 1.0)) + coupled2;
+
+      writeIdx1 = (writeIdx1 + 1) % bufSize;
+      writeIdx2 = (writeIdx2 + 1) % bufSize;
+
+      outBuffer[i] = (coupled1 + (isOctave ? coupled2 * 0.8 : coupled2)) * 0.65 + inSample;
+    }
+  }
+}
+
+/// Advanced Acoustic Pluck & Rasgueado Exciter Node.
+/// Models fingertip flesh (warm, wide) vs fingernail (crisp, narrow) attack dynamics,
+/// multi-finger rasgueado strum fan rakes, gut string scrape transients, and soundboard golpe wood taps.
+class AcousticPluckExciterNode extends GraphNode {
+  final double fleshRatio; // 0.0 (crisp nail/plectrum) to 1.0 (warm soft fingertip flesh)
+  final String? fleshRatioParam;
+  final double scrapeNoise; // Gut/nylon string friction scrape amplitude
+  final String? scrapeNoiseParam;
+  final double strumSpreadMs; // Strum duration across strings (1.0 to 45.0 ms)
+  final String? strumSpreadParam;
+  final int numStrumTaps;
+  final double golpeGain; // Soundboard wood tap transient gain
+  final String? golpeGainParam;
+
+  const AcousticPluckExciterNode({
+    this.fleshRatio = 0.35,
+    this.fleshRatioParam,
+    this.scrapeNoise = 0.40,
+    this.scrapeNoiseParam,
+    this.strumSpreadMs = 6.0,
+    this.strumSpreadParam,
+    this.numStrumTaps = 1,
+    this.golpeGain = 0.0,
+    this.golpeGainParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double flesh = (fleshRatioParam != null ? ctx.getParam(fleshRatioParam!, fleshRatio) : fleshRatio).clamp(0.0, 1.0);
+    final double scrape = (scrapeNoiseParam != null ? ctx.getParam(scrapeNoiseParam!, scrapeNoise) : scrapeNoise).clamp(0.0, 2.0);
+    double spreadMs = (strumSpreadParam != null ? ctx.getParam(strumSpreadParam!, strumSpreadMs) : strumSpreadMs).clamp(1.0, 50.0);
+    final double golpe = (golpeGainParam != null ? ctx.getParam(golpeGainParam!, golpeGain) : golpeGain).clamp(0.0, 2.0);
+    final double vel = ctx.velocity.clamp(0.05, 1.0);
+    final double sr = ctx.sampleRate;
+
+    outBuffer.fillRange(0, outBuffer.length, 0.0);
+
+    final art = ctx.articulation?.toLowerCase();
+    int taps = numStrumTaps;
+    double actualFlesh = flesh;
+
+    if (art == 'rasgueado' || art == 'strum' || art == 'fan') {
+      taps = math.max(taps, 5);
+      spreadMs = math.max(spreadMs, 14.0);
+    } else if (art == 'flesh' || art == 'tirando' || art == 'thumb') {
+      actualFlesh = 1.0;
+      taps = 1;
+    } else if (art == 'nail' || art == 'apoyando' || art == 'rest_stroke') {
+      actualFlesh = 0.05;
+      taps = 1;
+    }
+
+    final double tapSpacingSec = taps > 1 ? (spreadMs / 1000.0) / (taps - 1) : 0.0;
+
+    for (int t = 0; t < taps; t++) {
+      final double tapTime = t * tapSpacingSec;
+      final int startSample = (tapTime * sr).toInt();
+      if (startSample >= outBuffer.length) break;
+
+      // Pulse width: Soft flesh creates a wider, smoother hump (~2.5ms); hard nail creates a narrow, sharp spike (~0.4ms)
+      final double pulseSec = 0.0004 + 0.0022 * actualFlesh;
+      final int pulseLen = (pulseSec * sr).toInt().clamp(3, 140);
+      final double tapGain = (0.75 + 0.25 * (t / (taps > 1 ? taps : 1))) * vel;
+
+      for (int i = 0; i < pulseLen && (startSample + i) < outBuffer.length; i++) {
+        final double phase = (i / pulseLen) * math.pi;
+        final double pulse = math.sin(phase) * (1.0 - 0.3 * actualFlesh * math.sin(2.0 * phase));
+        outBuffer[startSample + i] += pulse * tapGain;
+      }
+
+      // String friction scrape noise (gut / wound strings)
+      if (scrape > 0.01) {
+        int state = 0x5EEDCAFE ^ (ctx.midiNote * 43 + t * 107);
+        final int scrapeLen = ((0.0035 * sr)).toInt();
+        for (int i = 0; i < scrapeLen && (startSample + i) < outBuffer.length; i++) {
+          state ^= (state << 13) & 0xFFFFFFFF;
+          state ^= (state >> 17) & 0xFFFFFFFF;
+          state ^= (state << 5) & 0xFFFFFFFF;
+          final double noise = ((state & 0xFFFFFF) / 8388607.5) - 1.0;
+          final double env = math.exp(-i / (sr * (0.0005 + 0.0010 * actualFlesh)));
+          outBuffer[startSample + i] += noise * env * scrape * 0.30 * (1.1 - actualFlesh * 0.5) * vel;
+        }
+      }
+    }
+
+    // Soundboard Golpe (wood tap percussive strike)
+    if (golpe > 0.01 || art == 'golpe') {
+      final double gGain = (art == 'golpe' ? 1.0 : golpe) * vel;
+      final int golpeLen = ((0.025 * sr)).toInt();
+      int gState = 0xDEADC0DE ^ ctx.midiNote;
+      for (int i = 0; i < golpeLen && i < outBuffer.length; i++) {
+        gState ^= (gState << 13) & 0xFFFFFFFF;
+        gState ^= (gState >> 17) & 0xFFFFFFFF;
+        gState ^= (gState << 5) & 0xFFFFFFFF;
+        final double noise = ((gState & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double thump = math.sin(2.0 * math.pi * 110.0 * (i / sr));
+        final double env = math.exp(-i / (sr * 0.008));
+        outBuffer[i] += (thump * 0.7 + noise * 0.3) * env * gGain * 0.65;
+      }
+    }
+  }
+}
+
+/// Morphable Acoustic Guitar Body Resonator.
+/// Smoothly morphs Helmholtz air cavity and soundboard/backplate modal peaks
+/// across Parlor/000 (0.0), Dreadnought (0.5), and Jumbo (1.0) acoustic geometries.
+class MorphableAcousticBodyNode extends GraphNode {
+  final GraphNode input;
+  final double bodyProfile; // 0.0 = Parlor/000, 0.5 = Dreadnought, 1.0 = Jumbo
+  final String? bodyProfileParam;
+  final double woodGain;
+  final String? woodGainParam;
+
+  const MorphableAcousticBodyNode({
+    required this.input,
+    this.bodyProfile = 0.5,
+    this.bodyProfileParam,
+    this.woodGain = 0.45,
+    this.woodGainParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final Float32List inBuf = Float32List(len);
+    input.process(ctx, inBuf);
+    outBuffer.fillRange(0, len, 0.0);
+
+    final double profile = (bodyProfileParam != null ? ctx.getParam(bodyProfileParam!, bodyProfile) : bodyProfile).clamp(0.0, 1.0);
+    final double gain = (woodGainParam != null ? ctx.getParam(woodGainParam!, woodGain) : woodGain).clamp(0.0, 1.5);
+    final double sr = ctx.sampleRate;
+
+    // Interpolate Helmholtz Air Cavity & Top Plate Resonances:
+    // Parlor: Air 120Hz, Top 220Hz, Back 270Hz
+    // Dreadnought: Air 95Hz, Top 195Hz, Back 235Hz
+    // Jumbo: Air 82Hz, Top 175Hz, Back 215Hz
+    final double airFreq = 120.0 - profile * 38.0;
+    final double topFreq = 220.0 - profile * 45.0;
+    final double backFreq = 270.0 - profile * 55.0;
+    final double bridgeFreq = 380.0 - profile * 60.0;
+
+    final freqs = [airFreq, topFreq, backFreq, bridgeFreq];
+    final gains = [0.55 * gain, 0.45 * gain, 0.30 * gain, 0.18 * gain];
+    final qFactors = [16.0 + profile * 4.0, 20.0, 18.0, 26.0];
+
+    for (int m = 0; m < freqs.length; m++) {
+      final double f = freqs[m].clamp(20.0, sr * 0.48);
+      final double g = gains[m];
+      final double q = qFactors[m];
+
+      final double w0 = 2.0 * math.pi * (f / sr);
+      final double alpha = math.sin(w0) / (2.0 * q);
+
+      final double b0 = alpha;
+      final double b2 = -alpha;
+      final double a0 = 1.0 + alpha;
+      final double a1 = -2.0 * math.cos(w0);
+      final double a2 = 1.0 - alpha;
+
+      final double normB0 = (b0 / a0) * g;
+      final double normB2 = (b2 / a0) * g;
+      final double normA1 = a1 / a0;
+      final double normA2 = a2 / a0;
+
+      double z1 = 0.0;
+      double z2 = 0.0;
+
+      for (int i = 0; i < len; i++) {
+        final double inSample = inBuf[i];
+        final double outSample = normB0 * inSample + z1;
+        z1 = -normA1 * outSample + z2;
+        z2 = normB2 * inSample - normA2 * outSample;
+        outBuffer[i] += outSample;
+      }
+    }
+  }
+}
+
+/// Spun Aluminum Mechanical Resonator Cone Node (Dobro / Resonator Guitar).
+/// Emulates the signature metallic nasal formants and mechanical cone coupling of spider/biscuit cones.
+class AluminumConeResonatorNode extends GraphNode {
+  final GraphNode input;
+  final double coneType; // 0.0 = Spider Bridge (warm, singing), 1.0 = Biscuit Bridge (punchy, gritty blues)
+  final String? coneTypeParam;
+  final double metalBark;
+  final String? metalBarkParam;
+
+  const AluminumConeResonatorNode({
+    required this.input,
+    this.coneType = 0.35,
+    this.coneTypeParam,
+    this.metalBark = 0.50,
+    this.metalBarkParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final Float32List inBuf = Float32List(len);
+    input.process(ctx, inBuf);
+    outBuffer.fillRange(0, len, 0.0);
+
+    final double type = (coneTypeParam != null ? ctx.getParam(coneTypeParam!, coneType) : coneType).clamp(0.0, 1.0);
+    final double bark = (metalBarkParam != null ? ctx.getParam(metalBarkParam!, metalBark) : metalBark).clamp(0.0, 2.0);
+    final double sr = ctx.sampleRate;
+
+    // Spun aluminum cone modal formants (strong nasal peaks in 650Hz - 2200Hz)
+    final f1 = 720.0 + type * 140.0;
+    final f2 = 1450.0 + type * 220.0;
+    final f3 = 2150.0 + type * 350.0;
+
+    final freqs = [f1, f2, f3];
+    final gains = [0.60 * (1.0 + bark * 0.5), 0.48 * (1.0 + bark * 0.6), 0.32 * (1.0 + bark * 0.4)];
+    final qFactors = [24.0, 32.0, 40.0];
+
+    for (int m = 0; m < freqs.length; m++) {
+      final double f = freqs[m].clamp(20.0, sr * 0.48);
+      final double g = gains[m];
+      final double q = qFactors[m];
+
+      final double w0 = 2.0 * math.pi * (f / sr);
+      final double alpha = math.sin(w0) / (2.0 * q);
+
+      final double b0 = alpha;
+      final double b2 = -alpha;
+      final double a0 = 1.0 + alpha;
+      final double a1 = -2.0 * math.cos(w0);
+      final double a2 = 1.0 - alpha;
+
+      final double normB0 = (b0 / a0) * g;
+      final double normB2 = (b2 / a0) * g;
+      final double normA1 = a1 / a0;
+      final double normA2 = a2 / a0;
+
+      double z1 = 0.0;
+      double z2 = 0.0;
+
+      for (int i = 0; i < len; i++) {
+        final double inSample = inBuf[i];
+        final double outSample = normB0 * inSample + z1;
+        z1 = -normA1 * outSample + z2;
+        z2 = normB2 * inSample - normA2 * outSample;
+        // Mild metallic non-linear aluminum diaphragm rattle
+        outBuffer[i] += outSample + 0.12 * DistortionNode._tanh(outSample * outSample * bark);
+      }
+    }
+  }
+}
+
+/// 5-String Banjo Skin / Mylar Drumhead Membrane Exciter Node.
+/// Models the ultra-fast transient impact, tight head tension, and metallic bridge contact snap.
+class MembraneHeadExciterNode extends GraphNode {
+  final double headTension; // 0.0 (loose calfskin, thumpy) to 1.0 (tight mylar, bright twang)
+  final String? headTensionParam;
+  final double twangSnap;
+  final String? twangSnapParam;
+
+  const MembraneHeadExciterNode({
+    this.headTension = 0.75,
+    this.headTensionParam,
+    this.twangSnap = 1.2,
+    this.twangSnapParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double tension = (headTensionParam != null ? ctx.getParam(headTensionParam!, headTension) : headTension).clamp(0.0, 1.0);
+    final double snap = (twangSnapParam != null ? ctx.getParam(twangSnapParam!, twangSnap) : twangSnap).clamp(0.0, 3.0);
+    final double vel = ctx.velocity.clamp(0.05, 1.0);
+    final double sr = ctx.sampleRate;
+
+    outBuffer.fillRange(0, outBuffer.length, 0.0);
+
+    // Tight membrane head pulse: ultra-narrow (~0.3ms to 1.0ms)
+    final double pulseSec = 0.0003 + (1.0 - tension) * 0.0009;
+    final int pulseLen = (pulseSec * sr).toInt().clamp(3, 80);
+
+    for (int i = 0; i < pulseLen && i < outBuffer.length; i++) {
+      final double tNorm = i / pulseLen;
+      // Asymmetric drumhead shockwave
+      final double pulse = math.sin(tNorm * math.pi) * (1.0 - tNorm * 0.6);
+      outBuffer[i] += pulse * vel * (0.8 + snap * 0.4);
+    }
+
+    // High-frequency brass tone-ring snap
+    final int ringLen = (0.004 * sr).toInt();
+    int rng = 0x42414E4A ^ ctx.midiNote; // "BANJ"
+    for (int i = 0; i < ringLen && i < outBuffer.length; i++) {
+      rng ^= (rng << 13) & 0xFFFFFFFF;
+      rng ^= (rng >> 17) & 0xFFFFFFFF;
+      rng ^= (rng << 5) & 0xFFFFFFFF;
+      final double n = ((rng & 0xFFFFFF) / 8388607.5) - 1.0;
+      final double env = math.exp(-i / (sr * (0.0004 + (1.0 - tension) * 0.0006)));
+      outBuffer[i] += n * env * snap * 0.40 * vel;
+    }
+  }
+}
+
+/// Pedal Steel Volume Swell & Bar Vibrato Node.
+/// Models the iconic volume pedal swell dynamics and singing bar glissando.
+class VolumePedalSwellNode extends GraphNode {
+  final GraphNode input;
+  final double swellSec; // Volume swell time (0.0 = instantaneous pick, 0.4 = deep pedal swell)
+  final String? swellSecParam;
+  final double barVibrato;
+  final String? barVibratoParam;
+
+  const VolumePedalSwellNode({
+    required this.input,
+    this.swellSec = 0.12,
+    this.swellSecParam,
+    this.barVibrato = 0.35,
+    this.barVibratoParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+
+    final double swell = (swellSecParam != null ? ctx.getParam(swellSecParam!, swellSec) : swellSec).clamp(0.0, 1.2);
+    final double vib = (barVibratoParam != null ? ctx.getParam(barVibratoParam!, barVibrato) : barVibrato).clamp(0.0, 1.0);
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+
+    for (int i = 0; i < len; i++) {
+      final double time = i / sr;
+      // Volume pedal curve: logarithmic fade in
+      double gain = 1.0;
+      if (swell > 0.005) {
+        gain = (time / swell).clamp(0.05, 1.0);
+        gain = gain * gain * (3.0 - 2.0 * gain); // Smoothstep curve
+      }
+
+      // Bar vibrato LFO (5.2 Hz gentle hand motion)
+      final double vibMod = 1.0 + vib * 0.12 * math.sin(2.0 * math.pi * 5.2 * time);
+
+      outBuffer[i] = (outBuffer[i] * gain * vibMod).clamp(-1.0, 1.0);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  BOWED STRING FAMILY PHYSICAL MODELING (Violin, Viola, Cello, Double Bass)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Bowed String Friction & Multi-Articulation Exciter Node.
+/// Models stick-slip bow hair friction (McIntyre-Schumacher-Woodhouse MSW curve),
+/// rosin scratch noise, bowing position (sul ponticello vs sul tasto),
+/// and per-note articulation switching (pizzicato, snap, spiccato, tremolo, col legno).
+class BowedFrictionExciterNode extends GraphNode {
+  final double bowPressure; // 0.1 to 2.5 (Normal ~ 1.0)
+  final String? bowPressureParam;
+  final double bowSpeed; // 0.1 to 3.0 (Normal ~ 1.0)
+  final String? bowSpeedParam;
+  final double bowPosition; // 0.0 (Sul Tasto) <-> 0.5 (Normale) <-> 1.0 (Sul Ponticello)
+  final String? bowPositionParam;
+  final double rosinGrit; // Rosin friction scrape amount (0.0 to 1.5)
+  final String? rosinGritParam;
+  final double tremoloSpeed; // Hz for tremolo articulation (8.0 to 18.0 Hz)
+  final String? tremoloSpeedParam;
+
+  const BowedFrictionExciterNode({
+    this.bowPressure = 1.0,
+    this.bowPressureParam,
+    this.bowSpeed = 1.0,
+    this.bowSpeedParam,
+    this.bowPosition = 0.5,
+    this.bowPositionParam,
+    this.rosinGrit = 0.35,
+    this.rosinGritParam,
+    this.tremoloSpeed = 13.5,
+    this.tremoloSpeedParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double pressure = (bowPressureParam != null ? ctx.getParam(bowPressureParam!, bowPressure) : bowPressure).clamp(0.05, 3.0);
+    final double speed = (bowSpeedParam != null ? ctx.getParam(bowSpeedParam!, bowSpeed) : bowSpeed).clamp(0.05, 3.0);
+    double pos = (bowPositionParam != null ? ctx.getParam(bowPositionParam!, bowPosition) : bowPosition).clamp(0.0, 1.0);
+    final double rosin = (rosinGritParam != null ? ctx.getParam(rosinGritParam!, rosinGrit) : rosinGrit).clamp(0.0, 2.0);
+    final double tremRate = (tremoloSpeedParam != null ? ctx.getParam(tremoloSpeedParam!, tremoloSpeed) : tremoloSpeed).clamp(4.0, 24.0);
+
+    final double vel = ctx.velocity.clamp(0.05, 1.0);
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+    final art = ctx.articulation?.toLowerCase();
+
+    outBuffer.fillRange(0, len, 0.0);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 1. PLUCKED / PERCUSSIVE ARTICULATIONS (Pizzicato, Snap, Col Legno)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (art == 'pizz' || art == 'pizzicato' || art == 'pluck') {
+      // Fingertip flesh pluck: warm transient pulse ~1.8ms
+      final double pulseSec = 0.0018;
+      final int pulseLen = (pulseSec * sr).toInt().clamp(4, 120);
+      for (int i = 0; i < pulseLen && i < len; i++) {
+        final double phase = (i / pulseLen) * math.pi;
+        outBuffer[i] = math.sin(phase) * (1.0 - 0.25 * math.sin(2.0 * phase)) * vel * 1.4;
+      }
+      // Finger release scrape
+      int state = 0x50495A5A ^ ctx.midiNote; // "PIZZ"
+      final int scrapeLen = (0.004 * sr).toInt();
+      for (int i = 0; i < scrapeLen && i < len; i++) {
+        state ^= (state << 13) & 0xFFFFFFFF;
+        state ^= (state >> 17) & 0xFFFFFFFF;
+        state ^= (state << 5) & 0xFFFFFFFF;
+        final double noise = ((state & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double env = math.exp(-i / (sr * 0.0008));
+        outBuffer[i] += noise * env * 0.22 * vel;
+      }
+      return;
+    }
+
+    if (art == 'snap' || art == 'bartok' || art == 'slap') {
+      // Bartók snap pizzicato: string snaps back violently onto fingerboard wood
+      final int snapLen = (0.015 * sr).toInt();
+      int state = 0x534E4150 ^ ctx.midiNote; // "SNAP"
+      for (int i = 0; i < snapLen && i < len; i++) {
+        state ^= (state << 13) & 0xFFFFFFFF;
+        state ^= (state >> 17) & 0xFFFFFFFF;
+        state ^= (state << 5) & 0xFFFFFFFF;
+        final double noise = ((state & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double woodThump = math.sin(2.0 * math.pi * 180.0 * (i / sr));
+        final double env = math.exp(-i / (sr * 0.0025));
+        outBuffer[i] = (woodThump * 0.6 + noise * 0.8) * env * vel * 1.8;
+      }
+      return;
+    }
+
+    if (art == 'col_legno' || art == 'battuto' || art == 'wood') {
+      // Bow stick wood tapping string: ultra-short woody spike with fast damping
+      final int woodLen = (0.006 * sr).toInt();
+      int state = 0x434F4C4C ^ ctx.midiNote; // "COLL"
+      for (int i = 0; i < woodLen && i < len; i++) {
+        state ^= (state << 13) & 0xFFFFFFFF;
+        state ^= (state >> 17) & 0xFFFFFFFF;
+        state ^= (state << 5) & 0xFFFFFFFF;
+        final double noise = ((state & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double stickClick = math.sin(2.0 * math.pi * 2200.0 * (i / sr));
+        final double env = math.exp(-i / (sr * 0.0012));
+        outBuffer[i] = (stickClick * 0.7 + noise * 0.5) * env * vel * 1.5;
+      }
+      return;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 2. BOWED ARTICULATION MODIFIERS (Spiccato, Tremolo, Sul Ponticello, Sul Tasto)
+    // ─────────────────────────────────────────────────────────────────────────
+    double effectiveSpeed = speed;
+    double effectivePressure = pressure;
+
+    if (art == 'ponticello' || art == 'sul_ponticello') {
+      pos = 0.92; // Very near the bridge: bright, overtone-rich, glassy
+      effectivePressure *= 1.3;
+    } else if (art == 'tasto' || art == 'sul_tasto' || art == 'flautando') {
+      pos = 0.08; // Over fingerboard: soft, hollow, fundamental-heavy
+      effectivePressure *= 0.6;
+      effectiveSpeed *= 0.8;
+    } else if (art == 'spiccato' || art == 'staccato' || art == 'sautille') {
+      effectiveSpeed *= 1.6;
+      effectivePressure *= 1.4;
+    }
+
+    // Pseudo-random state for rosin grain texture
+    int rState = 0x524F5349 ^ (ctx.midiNote * 37); // "ROSI"
+
+    final double baseFreq = ctx.freq > 10.0 ? ctx.freq : 440.0;
+
+    for (int i = 0; i < len; i++) {
+      final double t = i / sr;
+
+      // Tremolo agitation LFO (rapid bow direction reversals)
+      double tremMod = 1.0;
+      if (art == 'tremolo') {
+        tremMod = 0.55 + 0.45 * math.cos(2.0 * math.pi * tremRate * t);
+      }
+
+      // Attack Envelope: smooth bow catch for arco (~45ms); sharp burst for spiccato/staccato
+      double attackEnv = (t / 0.045).clamp(0.0, 1.0);
+      if (art == 'spiccato' || art == 'staccato') {
+        // Fast impulsive bounce burst then short sustain
+        attackEnv = math.exp(-t / 0.05);
+      }
+
+      // Stick-slip Helmholtz trigger excitation
+      final double phase = (t * baseFreq) % 1.0;
+      // Positional node reflection: bow position creates comb notch at harmonic (1 / pos)
+      final double bridgeHarmonicMod = 1.0 + (pos - 0.5) * 0.9 * math.sin(math.pi * phase / math.max(0.04, pos));
+      final double helmholtzSaw = (2.0 * phase - 1.0) * bridgeHarmonicMod;
+
+      // Rosin grain friction noise
+      rState ^= (rState << 13) & 0xFFFFFFFF;
+      rState ^= (rState >> 17) & 0xFFFFFFFF;
+      rState ^= (rState << 5) & 0xFFFFFFFF;
+      final double noise = ((rState & 0xFFFFFF) / 8388607.5) - 1.0;
+
+      // Rosin noise: dynamic scrape during stick-to-slip transition with persistent subtle bow hair friction
+      final double slipTrigger = math.exp(-math.pow((phase - 0.5) * 5.0, 2));
+      final double rosinScrape = noise * rosin * (0.06 + 0.40 * slipTrigger * math.exp(-t / 0.09));
+
+      final double exciterSig = (helmholtzSaw * effectivePressure + rosinScrape) * effectiveSpeed * attackEnv * tremMod * vel;
+      outBuffer[i] = exciterSig.clamp(-2.0, 2.0);
+    }
+  }
+}
+
+/// Specialized Acoustic Body Cavity Resonator for the Bowed String Family.
+/// Models the Helmholtz Air Cavity ($f_{A0}$), Top Plate ($f_{T1}$), Back Plate ($f_{B1}$),
+/// and Bridge Rocking resonances for Violin, Viola, Cello, and Double Bass.
+/// Also models Con Sordino (mute) top-end dampening.
+class ViolinFamilyBodyResonatorNode extends GraphNode {
+  final GraphNode input;
+  final int instrumentType; // 0 = Violin, 1 = Viola, 2 = Cello, 3 = Double Bass
+  final String? instrumentTypeParam;
+  final double woodWarmth; // 0.0 to 2.0 (Resonator gain)
+  final String? woodWarmthParam;
+  final double conSordino; // 0.0 (Unmuted) to 1.0 (Full mute damper)
+  final String? conSordinoParam;
+
+  const ViolinFamilyBodyResonatorNode({
+    required this.input,
+    this.instrumentType = 0,
+    this.instrumentTypeParam,
+    this.woodWarmth = 0.50,
+    this.woodWarmthParam,
+    this.conSordino = 0.0,
+    this.conSordinoParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final Float32List inBuf = Float32List(len);
+    input.process(ctx, inBuf);
+    outBuffer.fillRange(0, len, 0.0);
+
+    int type = instrumentType;
+    if (instrumentTypeParam != null) {
+      type = ctx.getParam(instrumentTypeParam!, instrumentType.toDouble()).toInt().clamp(0, 3);
+    }
+
+    final double warmth = (woodWarmthParam != null ? ctx.getParam(woodWarmthParam!, woodWarmth) : woodWarmth).clamp(0.0, 2.0);
+    double mute = (conSordinoParam != null ? ctx.getParam(conSordinoParam!, conSordino) : conSordino).clamp(0.0, 1.0);
+    final art = ctx.articulation?.toLowerCase();
+    if (art == 'sordino' || art == 'con_sordino' || art == 'mute') {
+      mute = 1.0;
+    }
+
+    final double sr = ctx.sampleRate;
+
+    // Resonant modes (Air Cavity f_A0, Main Top f_T1, Backplate f_B1, Formant Peak, Bridge/Air)
+    List<double> freqs;
+    List<double> gains;
+    List<double> qFactors;
+
+    switch (type) {
+      case 0: // Violin: Soprano brilliance, Stradivarius spruce & bridge bite
+        freqs = [280.0, 480.0, 580.0, 3100.0, 5600.0];
+        gains = [0.75 * warmth, 0.70 * warmth, 0.55 * warmth, (1.0 - mute * 0.8) * 0.50 * warmth, (1.0 - mute * 0.9) * 0.28 * warmth];
+        qFactors = [14.0, 18.0, 16.0, 9.0, 6.0];
+        break;
+      case 1: // Viola: Signature undersized body, reedy nasal 1.45kHz resonance, warm dark wood
+        freqs = [220.0, 360.0, 480.0, 1450.0, 2400.0];
+        gains = [0.65 * warmth, 0.58 * warmth, 0.45 * warmth, 0.62 * warmth, (1.0 - mute * 0.8) * 0.22 * warmth];
+        qFactors = [14.0, 18.0, 16.0, 8.5, 12.0];
+        break;
+      case 2: // Cello: Singing tenor/baritone, deep chest cavity 98Hz/180Hz/380Hz, singing 1.2kHz
+        freqs = [98.0, 180.0, 280.0, 420.0, 1200.0];
+        gains = [0.85 * warmth, 0.78 * warmth, 0.62 * warmth, 0.55 * warmth, (1.0 - mute * 0.8) * 0.38 * warmth];
+        qFactors = [12.0, 15.0, 14.0, 10.0, 8.0];
+        break;
+      case 3: // Double Bass: Sub air 58Hz, wood plate 98Hz, woody body punch 160Hz/280Hz
+      default:
+        freqs = [58.0, 98.0, 160.0, 280.0, 850.0];
+        gains = [0.80 * warmth, 0.75 * warmth, 0.60 * warmth, 0.48 * warmth, (1.0 - mute * 0.8) * 0.25 * warmth];
+        qFactors = [10.0, 12.0, 11.0, 9.0, 6.0];
+        break;
+    }
+
+    for (int m = 0; m < freqs.length; m++) {
+      final double f = freqs[m].clamp(20.0, sr * 0.48);
+      final double g = gains[m];
+      final double q = qFactors[m];
+
+      final double w0 = 2.0 * math.pi * (f / sr);
+      final double alpha = math.sin(w0) / (2.0 * q);
+
+      final double b0 = alpha;
+      final double b2 = -alpha;
+      final double a0 = 1.0 + alpha;
+      final double a1 = -2.0 * math.cos(w0);
+      final double a2 = 1.0 - alpha;
+
+      final double normB0 = (b0 / a0) * g;
+      final double normB2 = (b2 / a0) * g;
+      final double normA1 = a1 / a0;
+      final double normA2 = a2 / a0;
+
+      double z1 = 0.0;
+      double z2 = 0.0;
+
+      for (int i = 0; i < len; i++) {
+        final double inSample = inBuf[i];
+        final double outSample = normB0 * inSample + z1;
+        z1 = -normA1 * outSample + z2;
+        z2 = normB2 * inSample - normA2 * outSample;
+        outBuffer[i] += outSample;
+      }
+    }
+
+    // Direct sound bleed: 10% direct string presence so 90% is physical body wood radiation
+    final double directGain = 0.10;
+    for (int i = 0; i < len; i++) {
+      outBuffer[i] += inBuf[i] * directGain;
+    }
+  }
+}
+
+/// Advanced Bowed String Waveguide Node.
+/// Models physical string displacement with non-linear McIntyre-Schumacher-Woodhouse (MSW)
+/// friction loop interaction, pitch bend tracking, expressive delayed vibrato, and string damping.
+class BowedStringWaveguideNode extends GraphNode {
+  final GraphNode exciter;
+  final double sustain;
+  final String? sustainParam;
+  final double stringDamping;
+  final String? stringDampingParam;
+  final double vibratoDepth; // Pitch modulation depth (0.0 to 1.0 semitone)
+  final String? vibratoDepthParam;
+  final double vibratoRate; // Hz (typically 4.8 - 6.5 Hz)
+  final String? vibratoRateParam;
+  final double vibratoDelaySec; // Delay before vibrato blossoms naturally (~0.12 - 0.25s)
+  final String? vibratoDelayParam;
+
+  const BowedStringWaveguideNode({
+    required this.exciter,
+    this.sustain = 0.996,
+    this.sustainParam,
+    this.stringDamping = 0.18,
+    this.stringDampingParam,
+    this.vibratoDepth = 0.28,
+    this.vibratoDepthParam,
+    this.vibratoRate = 5.4,
+    this.vibratoRateParam,
+    this.vibratoDelaySec = 0.16,
+    this.vibratoDelayParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    exciter.process(ctx, outBuffer);
+
+    double baseFreq = ctx.freq > 10.0 ? ctx.freq : 440.0;
+    final double sr = ctx.sampleRate;
+    double fb = (sustainParam != null ? ctx.getParam(sustainParam!, sustain) : sustain).clamp(0.85, 0.9998);
+    double damp = (stringDampingParam != null ? ctx.getParam(stringDampingParam!, stringDamping) : stringDamping).clamp(0.01, 0.92);
+    final double vibDepth = (vibratoDepthParam != null ? ctx.getParam(vibratoDepthParam!, vibratoDepth) : vibratoDepth).clamp(0.0, 2.0);
+    final double vibRate = (vibratoRateParam != null ? ctx.getParam(vibratoRateParam!, vibratoRate) : vibratoRate).clamp(1.0, 10.0);
+    final double vibDelay = (vibratoDelayParam != null ? ctx.getParam(vibratoDelayParam!, vibratoDelaySec) : vibratoDelaySec).clamp(0.0, 1.0);
+
+    final art = ctx.articulation?.toLowerCase();
+    if (art == 'pizz' || art == 'pizzicato' || art == 'pluck') {
+      // Natural decay of plucked acoustic string
+      fb = math.min(fb, 0.991);
+      damp = math.max(damp, 0.28);
+    } else if (art == 'snap' || art == 'bartok') {
+      fb = math.min(fb, 0.988);
+      damp = math.max(damp, 0.35);
+    } else if (art == 'spiccato' || art == 'staccato') {
+      fb = math.min(fb, 0.982);
+      damp = math.max(damp, 0.30);
+    } else if (art == 'harmonics' || art == 'flageolet') {
+      baseFreq *= 2.0;
+      fb = math.max(fb, 0.997);
+      damp = math.min(damp, 0.08);
+    } else if (art == 'sordino' || art == 'con_sordino' || art == 'mute') {
+      damp = math.max(damp, 0.45);
+    }
+
+    final double maxDelaySamples = sr / 20.0;
+    final int bufSize = maxDelaySamples.toInt() + 32;
+    final delayLine = Float32List(bufSize);
+    int writeIdx = 0;
+    double filterState = 0.0;
+
+    for (int i = 0; i < len; i++) {
+      final double t = i / sr;
+      final double inSample = outBuffer[i];
+      final double normTime = len > 1 ? i / (len - 1) : 0.0;
+      final double bendSemitones = ctx.getPitchBendAt(normTime);
+
+      // Delayed natural vibrato onset curve
+      double currentVib = 0.0;
+      if (t > vibDelay && vibDepth > 0.001) {
+        final double vibRamp = ((t - vibDelay) / 0.25).clamp(0.0, 1.0);
+        currentVib = math.sin(2.0 * math.pi * vibRate * t) * vibDepth * vibRamp;
+      }
+
+      final double totalSemitoneShift = bendSemitones + currentVib;
+      final double curFreq = (baseFreq * math.pow(2.0, totalSemitoneShift / 12.0)).clamp(20.0, 20000.0);
+      final double delaySamples = (sr / curFreq).clamp(2.0, bufSize - 4.0);
+
+      // Read from delay line with linear interpolation
+      final double readPos = writeIdx - delaySamples;
+      double readIdxD = readPos >= 0 ? readPos : (readPos + bufSize);
+      while (readIdxD >= bufSize) readIdxD -= bufSize;
+      while (readIdxD < 0) readIdxD += bufSize;
+
+      final int i0 = readIdxD.toInt() % bufSize;
+      final int i1 = (i0 + 1) % bufSize;
+      final double frac = readIdxD - readIdxD.floor();
+
+      final double delayedSample = delayLine[i0] * (1.0 - frac) + delayLine[i1] * frac;
+
+      // 1-Pole Lowpass loop damping filter
+      filterState = (1.0 - damp) * delayedSample + damp * filterState;
+
+      // Non-linear bow-string friction interaction: tanh soft limiting on loop feedback
+      final double feedbackSignal = DistortionNode._tanh(filterState * fb + inSample * 0.7);
+
+      delayLine[writeIdx] = feedbackSignal;
+      writeIdx = (writeIdx + 1) % bufSize;
+
+      outBuffer[i] = feedbackSignal;
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
