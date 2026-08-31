@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'graph_node.dart';
 import 'tr909_rom_data.dart';
+import 'piano_physical_tables.dart';
 import '../dx7_fm_engine.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3570,6 +3571,630 @@ class BowedStringWaveguideNode extends GraphNode {
     }
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  PIANO & KEYBOARD PHYSICAL MODELING PRIMITIVES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Nonlinear Piano Felt Hammer Exciter.
+/// Simulates felt compression dynamics where higher velocity produces a narrower,
+/// sharper strike pulse with increased high-frequency harmonic energy, blended
+/// with wooden hammer core contact transient.
+class PianoHammerExciterNode extends GraphNode {
+  final double hammerHardness; // 0.0 Soft Felt <-> 1.0 Hard Lacquered Felt
+  final String? hammerHardnessParam;
+  final double feltSoftness;   // 0.0 Concert Hammer <-> 1.0 Muted Felt Blanket
+  final String? feltSoftnessParam;
+  final double strikeNoise;    // Wooden hammer knock transient level
+  final String? strikeNoiseParam;
+
+  const PianoHammerExciterNode({
+    this.hammerHardness = 0.5,
+    this.hammerHardnessParam,
+    this.feltSoftness = 0.0,
+    this.feltSoftnessParam,
+    this.strikeNoise = 0.25,
+    this.strikeNoiseParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double vel = ctx.velocity.clamp(0.01, 1.0);
+    final double hardness = (hammerHardnessParam != null ? ctx.getParam(hammerHardnessParam!, hammerHardness) : hammerHardness).clamp(0.05, 2.0);
+    final double softFelt = (feltSoftnessParam != null ? ctx.getParam(feltSoftnessParam!, feltSoftness) : feltSoftness).clamp(0.0, 1.0);
+    final double knock = (strikeNoiseParam != null ? ctx.getParam(strikeNoiseParam!, strikeNoise) : strikeNoise).clamp(0.0, 1.0);
+
+    // Pulse duration narrows with velocity & hammer hardness (nonlinear compliance F ~ y^p)
+    final double basePulseMs = 3.8 * (1.0 + softFelt * 1.5) / (math.pow(vel, 0.45) * math.sqrt(hardness));
+    final int pulseSamples = ((basePulseMs / 1000.0) * sr).round().clamp(3, (0.015 * sr).toInt());
+
+    int seed = 0x51A07 + ctx.midiNote * 19;
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      double sample = 0.0;
+      if (i < pulseSamples) {
+        final double phase = i / pulseSamples;
+        // Non-linear half-cosine raised pulse
+        final double shape = math.sin(phase * math.pi);
+        // Exponent sharpens waveform on harder hits
+        final double exponent = 1.0 + hardness * 1.2 * vel * (1.0 - softFelt * 0.7);
+        sample = math.pow(shape, exponent).toDouble() * vel;
+
+        // Wood hammer core strike knock (bandpass-shaped transient)
+        if (knock > 0.001 && i < (pulseSamples ~/ 2 + 6)) {
+          seed ^= (seed << 13) & 0xFFFFFFFF;
+          seed ^= (seed >> 17) & 0xFFFFFFFF;
+          seed ^= (seed << 5) & 0xFFFFFFFF;
+          final double rand = ((seed & 0xFFFFFF) / 8388607.5) - 1.0;
+          final double knockDecay = math.exp(-i / 6.0);
+          sample += rand * knock * 0.35 * vel * knockDecay;
+        }
+      }
+      outBuffer[i] = sample;
+    }
+  }
+}
+
+/// Acoustic Piano Spruce Soundboard Resonator.
+/// Simulates 2D spruce soundboard plate modes, bridge impedance coupling,
+/// and morphs between a compact Upright Piano cabinet and a 9-foot Concert Grand plate.
+class PianoSoundboardNode extends GraphNode {
+  final GraphNode input;
+  final double soundboardProfile; // 0.0 Compact Upright <-> 1.0 9ft Concert Grand
+  final String? soundboardProfileParam;
+  final double bridgeCoupling;    // 0.0 Dry <-> 1.0 Rich modal resonance
+  final String? bridgeCouplingParam;
+  final double duplexSheen;       // High-frequency duplex scaling shimmer
+  final String? duplexSheenParam;
+
+  const PianoSoundboardNode({
+    required this.input,
+    this.soundboardProfile = 0.75,
+    this.soundboardProfileParam,
+    this.bridgeCoupling = 0.45,
+    this.bridgeCouplingParam,
+    this.duplexSheen = 0.35,
+    this.duplexSheenParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    input.process(ctx, outBuffer);
+
+    final double profile = (soundboardProfileParam != null ? ctx.getParam(soundboardProfileParam!, soundboardProfile) : soundboardProfile).clamp(0.0, 1.0);
+    final double coupling = (bridgeCouplingParam != null ? ctx.getParam(bridgeCouplingParam!, bridgeCoupling) : bridgeCoupling).clamp(0.0, 1.5);
+    final double sheen = (duplexSheenParam != null ? ctx.getParam(duplexSheenParam!, duplexSheen) : duplexSheen).clamp(0.0, 1.0);
+    final double sr = ctx.sampleRate;
+
+    // Resonant modal frequencies morph with cabinet/grand plate dimensions
+    // Low air mode: 110Hz (Upright) -> 68Hz (Concert Grand)
+    final double fAir = 110.0 - profile * 42.0;
+    // Main spruce plate bending modes
+    final double fMode1 = 220.0 - profile * 45.0;
+    final double fMode2 = 380.0 - profile * 60.0;
+    final double fMode3 = 680.0 + profile * 140.0;
+    final double fDuplex = 4200.0 + profile * 800.0;
+
+    // Bi-quad bandpass filter states for 4 soundboard modes + duplex scale
+    double s1Air = 0.0, s2Air = 0.0;
+    double s1M1 = 0.0, s2M1 = 0.0;
+    double s1M2 = 0.0, s2M2 = 0.0;
+    double s1M3 = 0.0, s2M3 = 0.0;
+    double s1Dup = 0.0, s2Dup = 0.0;
+
+    // Filter coefficients helper
+    List<double> bpfCoeffs(double f0, double q) {
+      final double omega = 2.0 * math.pi * f0 / sr;
+      final double alpha = math.sin(omega) / (2.0 * q);
+      final double b0 = alpha;
+      final double b1 = 0.0;
+      final double b2 = -alpha;
+      final double a0 = 1.0 + alpha;
+      final double a1 = -2.0 * math.cos(omega);
+      final double a2 = 1.0 - alpha;
+      return [b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0];
+    }
+
+    final cAir = bpfCoeffs(fAir, 3.2 + profile * 1.5);
+    final cM1 = bpfCoeffs(fMode1, 4.0);
+    final cM2 = bpfCoeffs(fMode2, 4.5);
+    final cM3 = bpfCoeffs(fMode3, 5.0);
+    final cDup = bpfCoeffs(fDuplex, 6.0);
+
+    for (int i = 0; i < len; i++) {
+      final double x = outBuffer[i];
+
+      // Air mode
+      final double yAir = cAir[0] * x - cAir[3] * s1Air - cAir[4] * s2Air;
+      s2Air = s1Air;
+      s1Air = yAir;
+
+      // Mode 1
+      final double yM1 = cM1[0] * x - cM1[3] * s1M1 - cM1[4] * s2M1;
+      s2M1 = s1M1;
+      s1M1 = yM1;
+
+      // Mode 2
+      final double yM2 = cM2[0] * x - cM2[3] * s1M2 - cM2[4] * s2M2;
+      s2M2 = s1M2;
+      s1M2 = yM2;
+
+      // Mode 3
+      final double yM3 = cM3[0] * x - cM3[3] * s1M3 - cM3[4] * s2M3;
+      s2M3 = s1M3;
+      s1M3 = yM3;
+
+      // Duplex scale high shimmer
+      final double yDup = cDup[0] * x - cDup[3] * s1Dup - cDup[4] * s2Dup;
+      s2Dup = s1Dup;
+      s1Dup = yDup;
+
+      final double soundboardReso = (yAir * 0.45 + yM1 * 0.35 + yM2 * 0.30 + yM3 * 0.25 + yDup * (0.35 * sheen)) * coupling;
+      outBuffer[i] = x + soundboardReso;
+    }
+  }
+}
+
+/// Tack Piano Hammer Exciter.
+/// Simulates a metallic thumb-tack inserted into the hammer felt,
+/// producing a razor-sharp metallic transient ping and punchy vintage bite.
+class TackExciterNode extends GraphNode {
+  final double tackBite;     // 0.0 Muted Tack <-> 1.0 Bright Steel Tack
+  final String? tackBiteParam;
+  final double hammerKnock;
+  final String? hammerKnockParam;
+
+  const TackExciterNode({
+    this.tackBite = 0.70,
+    this.tackBiteParam,
+    this.hammerKnock = 0.40,
+    this.hammerKnockParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double vel = ctx.velocity.clamp(0.01, 1.0);
+    final double bite = (tackBiteParam != null ? ctx.getParam(tackBiteParam!, tackBite) : tackBite).clamp(0.0, 1.5);
+    final double knock = (hammerKnockParam != null ? ctx.getParam(hammerKnockParam!, hammerKnock) : hammerKnock).clamp(0.0, 1.0);
+
+    final double tackFreq = 4200.0 + ctx.midiNote * 35.0;
+    final int pulseSamples = ((0.0035 / (math.pow(vel, 0.35))) * sr).round().clamp(2, (0.008 * sr).toInt());
+
+    int seed = 0x7AC11 + ctx.midiNote * 23;
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      double sample = 0.0;
+      final double t = i / sr;
+
+      // Felt impact baseline
+      if (i < pulseSamples) {
+        final double phase = i / pulseSamples;
+        sample = math.sin(phase * math.pi) * vel;
+      }
+
+      // High-frequency metallic tack ping (decaying 4.2kHz sine ring)
+      if (t < 0.025) {
+        final double pingDecay = math.exp(-t * 220.0);
+        final double ping = math.sin(2.0 * math.pi * tackFreq * t) * pingDecay * bite * vel;
+        sample += ping;
+      }
+
+      // Wooden action clack
+      if (knock > 0.001 && i < (pulseSamples + 12)) {
+        seed ^= (seed << 13) & 0xFFFFFFFF;
+        seed ^= (seed >> 17) & 0xFFFFFFFF;
+        seed ^= (seed << 5) & 0xFFFFFFFF;
+        final double rand = ((seed & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double knockDecay = math.exp(-i / 8.0);
+        sample += rand * knock * 0.45 * vel * knockDecay;
+      }
+
+      outBuffer[i] = sample;
+    }
+  }
+}
+
+/// Physical Modal Bar Resonator for Toy Piano / Metallophone.
+/// Simulates clamped metal tines/rods struck by plastic/wood hammers,
+/// producing non-harmonic cantilever modal frequencies (1.0, 2.756, 5.404, 8.933),
+/// realistic chime decay, and wooden toy enclosure resonance.
+class ToyPianoMetalRodNode extends GraphNode {
+  final double clangRatio;   // Metallic clang / inharmonic overtone mix
+  final String? clangRatioParam;
+  final double tineDecay;    // Ring decay time
+  final String? tineDecayParam;
+  final double hammerClack;  // Plastic/wood strike transient
+  final String? hammerClackParam;
+  final double boxResonance; // Miniature wooden casing resonance
+  final String? boxResonanceParam;
+
+  const ToyPianoMetalRodNode({
+    this.clangRatio = 0.65,
+    this.clangRatioParam,
+    this.tineDecay = 1.2,
+    this.tineDecayParam,
+    this.hammerClack = 0.50,
+    this.hammerClackParam,
+    this.boxResonance = 0.40,
+    this.boxResonanceParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double f0 = ctx.freq > 0 ? ctx.freq : 440.0;
+    final double vel = ctx.velocity.clamp(0.01, 1.0);
+    final double clang = (clangRatioParam != null ? ctx.getParam(clangRatioParam!, clangRatio) : clangRatio).clamp(0.0, 1.5);
+    final double decay = (tineDecayParam != null ? ctx.getParam(tineDecayParam!, tineDecay) : tineDecay).clamp(0.1, 4.0);
+    final double clack = (hammerClackParam != null ? ctx.getParam(hammerClackParam!, hammerClack) : hammerClack).clamp(0.0, 1.0);
+    final double boxReso = (boxResonanceParam != null ? ctx.getParam(boxResonanceParam!, boxResonance) : boxResonance).clamp(0.0, 1.0);
+
+    // Cantilever clamped steel rod non-harmonic mode ratios
+    final double fMode1 = f0;
+    final double fMode2 = f0 * 2.7565;
+    final double fMode3 = f0 * 5.404;
+    final double fMode4 = math.min(18000.0, f0 * 8.933);
+
+    // Damping rates per mode
+    final double d1 = (1.8 / decay);
+    final double d2 = (5.5 / decay) + (f0 / 300.0);
+    final double d3 = (14.0 / decay) + (f0 / 150.0);
+    final double d4 = (32.0 / decay) + (f0 / 80.0);
+
+    // Wooden toy body box formant (~340Hz cavity)
+    final double fBox = 340.0;
+
+    int seed = 0x33B10 + ctx.midiNote * 29;
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+
+      // Mode 1: Fundamental ring
+      final double y1 = math.sin(2.0 * math.pi * fMode1 * t) * math.exp(-t * d1);
+
+      // Mode 2: Clang 1st overtone
+      final double y2 = math.sin(2.0 * math.pi * fMode2 * t) * math.exp(-t * d2) * 0.65 * clang;
+
+      // Mode 3: High chime
+      final double y3 = math.sin(2.0 * math.pi * fMode3 * t) * math.exp(-t * d3) * 0.35 * clang;
+
+      // Mode 4: Initial metallic strike shimmer
+      final double y4 = math.sin(2.0 * math.pi * fMode4 * t) * math.exp(-t * d4) * 0.20 * clang;
+
+      // Plastic / wooden hammer strike clack
+      double clackTransient = 0.0;
+      if (clack > 0.001 && t < 0.02) {
+        seed ^= (seed << 13) & 0xFFFFFFFF;
+        seed ^= (seed >> 17) & 0xFFFFFFFF;
+        seed ^= (seed << 5) & 0xFFFFFFFF;
+        final double rand = ((seed & 0xFFFFFF) / 8388607.5) - 1.0;
+        clackTransient = rand * math.exp(-t * 260.0) * clack * 0.4;
+      }
+
+      // Wooden housing cavity boom
+      final double boxTransient = math.sin(2.0 * math.pi * fBox * t) * math.exp(-t * 45.0) * (0.25 * boxReso);
+
+      final double raw = (y1 * 0.85 + y2 + y3 + y4 + clackTransient + boxTransient) * vel;
+      outBuffer[i] = DistortionNode._tanh(raw * 1.15) * 0.95;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  CCRMA / BANK-BENSA COMMUTED WAVEGUIDE PIANO ENGINE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Commuted Soundboard Exciter based on Stanford CCRMA / Bank-Bensa physical model.
+/// Synthesizes dual dry-tap and sympathetic sustain-pedal noise bursts shaped by
+/// empirical T60 time constants per MIDI note.
+class CommutedSoundboardExciterNode extends GraphNode {
+  final double hammerHardness;
+  final String? hammerHardnessParam;
+  final double pedalResonance;
+  final String? pedalResonanceParam;
+  final double soundboardGain;
+  final String? soundboardGainParam;
+
+  const CommutedSoundboardExciterNode({
+    this.hammerHardness = 0.5,
+    this.hammerHardnessParam,
+    this.pedalResonance = 0.5,
+    this.pedalResonanceParam,
+    this.soundboardGain = 1.0,
+    this.soundboardGainParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double note = ctx.midiNote.toDouble();
+    final double vel = ctx.velocity.clamp(0.01, 1.0);
+    final double hardness = (hammerHardnessParam != null ? ctx.getParam(hammerHardnessParam!, hammerHardness) : hammerHardness).clamp(0.05, 2.0);
+    final double pReso = (pedalResonanceParam != null ? ctx.getParam(pedalResonanceParam!, pedalResonance) : pedalResonance).clamp(0.0, 2.0);
+    final double sbGain = (soundboardGainParam != null ? ctx.getParam(soundboardGainParam!, soundboardGain) : soundboardGain).clamp(0.0, 2.0);
+
+    final double noteCutoffT60 = PianoPhysicalTables.dryTapAmpT60.lookup(note) * (0.8 + 0.4 * vel);
+    final double pedalEnvValue = PianoPhysicalTables.sustainPedalLevel.lookup(note) * 0.2 * pReso;
+    final double pedalCutoffT60 = 1.4;
+
+    final double attDurSec = math.max(0.0005, (0.015 / hardness));
+    final double factorNote = math.exp(-7.0 / (noteCutoffT60 * sr));
+    final double factorPedal = math.exp(-7.0 / (pedalCutoffT60 * sr));
+
+    double envDry = 0.85 * vel;
+    double envPedal = pedalEnvValue * vel * 2.0;
+    int seed = 0x1A2B3C ^ (ctx.midiNote * 37);
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+      seed ^= (seed << 13) & 0xFFFFFFFF;
+      seed ^= (seed >> 17) & 0xFFFFFFFF;
+      seed ^= (seed << 5) & 0xFFFFFFFF;
+      final double noise = ((seed & 0xFFFFFF) / 8388607.5) - 1.0;
+
+      double curEnvDry;
+      if (t < attDurSec) {
+        curEnvDry = (t / attDurSec) * envDry;
+      } else {
+        curEnvDry = envDry;
+        envDry *= factorNote;
+      }
+
+      final double curEnvPedal = envPedal;
+      envPedal *= factorPedal;
+
+      outBuffer[i] = (noise * curEnvDry + noise * curEnvPedal) * sbGain;
+    }
+  }
+}
+
+/// 4-Stage 1-Pole Non-Linear Hammer Filter Cascade.
+/// Models dynamic felt compression where velocity and brightness shift the filter
+/// poles and gains according to Bank-Bensa empirical measurements.
+class CommutedHammerFilterCascadeNode extends GraphNode {
+  final GraphNode input;
+  final double brightnessFactor;
+  final String? brightnessFactorParam;
+  final double hardnessScale;
+  final String? hardnessScaleParam;
+
+  const CommutedHammerFilterCascadeNode({
+    required this.input,
+    this.brightnessFactor = 0.5,
+    this.brightnessFactorParam,
+    this.hardnessScale = 1.0,
+    this.hardnessScaleParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+
+    final double note = ctx.midiNote.toDouble();
+    final double vel = ctx.velocity.clamp(0.01, 1.0);
+    final double bright = (brightnessFactorParam != null ? ctx.getParam(brightnessFactorParam!, brightnessFactor) : brightnessFactor).clamp(0.0, 1.0);
+    final double hScale = (hardnessScaleParam != null ? ctx.getParam(hardnessScaleParam!, hardnessScale) : hardnessScale).clamp(0.1, 3.0);
+
+    final double loudP = (PianoPhysicalTables.loudPole.lookup(note) + (bright * -0.25) + 0.02) * (1.0 / math.sqrt(hScale));
+    final double softP = PianoPhysicalTables.softPole.lookup(note);
+    final double loudG = PianoPhysicalTables.loudGain.lookup(note) * hScale;
+    final double softG = PianoPhysicalTables.softGain.lookup(note);
+
+    final double normVel = math.pow(vel, 0.65).toDouble().clamp(0.0, 1.0);
+    final double hammerPole = (softP + (loudP - softP) * normVel).clamp(0.01, 0.995);
+    final double hammerGain = (softG + (loudG - softG) * normVel).clamp(0.01, 5.0);
+
+    // 4-pole cascade with 6x input scaling matching Faust STK
+    final double b0 = (1.0 - hammerPole) * hammerGain;
+    final double a1 = -hammerPole;
+
+    final s = Float64List(4);
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      double x = outBuffer[i] * 6.0;
+      for (int stage = 0; stage < 4; stage++) {
+        final double y = b0 * x - a1 * s[stage];
+        s[stage] = y;
+        x = y;
+      }
+      outBuffer[i] = x;
+    }
+  }
+}
+
+/// Strike Position Comb Filter EQ.
+/// Models the notch transfer function at the physical hammer strike position along the string.
+class CommutedStrikeCombNode extends GraphNode {
+  final GraphNode input;
+
+  const CommutedStrikeCombNode({required this.input});
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+
+    final double sr = ctx.sampleRate;
+    final double note = ctx.midiNote.toDouble();
+    final double f0 = ctx.freq > 0 ? ctx.freq : 440.0;
+
+    final double strikePos = PianoPhysicalTables.strikePosition.lookup(note).clamp(0.02, 0.5);
+    final double bwFactor = PianoPhysicalTables.eqBandwidthFactor.lookup(note);
+    final double eqG = PianoPhysicalTables.eqGain.lookup(note);
+
+    final double eqTuning = (f0 / strikePos).clamp(20.0, sr * 0.45);
+    final double eqBw = (bwFactor * f0).clamp(10.0, sr * 0.45);
+
+    final double a2 = math.pow(eqBw / sr, 2.0).toDouble().clamp(0.0, 0.999);
+    final double a1 = -2.0 * (eqBw / sr) * math.cos(2.0 * math.pi * eqTuning / sr);
+    final double b0 = (0.5 - 0.5 * a2) * eqG;
+    final double b1 = 0.0;
+    final double b2 = -b0;
+
+    double s1 = 0.0, s2 = 0.0;
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double x = outBuffer[i];
+      final double y = b0 * x + b1 * s1 + b2 * s2 - a1 * s1 - a2 * s2;
+      s2 = s1;
+      s1 = y;
+      outBuffer[i] = x + y * 0.5;
+    }
+  }
+}
+
+/// Commuted Piano Coupled Waveguide with All-Pass Inharmonic Dispersion.
+/// Features dual parallel delay lines, 3-stage allpass string stiffness dispersion,
+/// bridge coupling matrix (double decay / singing tail), and note-off release damping.
+class CommutedPianoWaveguideNode extends GraphNode {
+  final GraphNode exciter;
+  final double stiffnessFactor;
+  final String? stiffnessFactorParam;
+  final double detuningFactor;
+  final String? detuningFactorParam;
+  final double sustainScale;
+  final String? sustainScaleParam;
+
+  const CommutedPianoWaveguideNode({
+    required this.exciter,
+    this.stiffnessFactor = 1.0,
+    this.stiffnessFactorParam,
+    this.detuningFactor = 1.0,
+    this.detuningFactorParam,
+    this.sustainScale = 1.0,
+    this.sustainScaleParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    exciter.process(ctx, outBuffer);
+
+    final double sr = ctx.sampleRate;
+    final double note = ctx.midiNote.toDouble();
+    final double f0 = ctx.freq > 0 ? ctx.freq : 440.0;
+    final double stiffMult = (stiffnessFactorParam != null ? ctx.getParam(stiffnessFactorParam!, stiffnessFactor) : stiffnessFactor).clamp(0.0, 4.0);
+    final double detuneMult = (detuningFactorParam != null ? ctx.getParam(detuningFactorParam!, detuningFactor) : detuningFactor).clamp(0.0, 5.0);
+    final double susMult = (sustainScaleParam != null ? ctx.getParam(sustainScaleParam!, sustainScale) : sustainScale).clamp(0.5, 1.2);
+
+    // Single-string decay & bridge coupling filter parameters
+    final double singleDecay = PianoPhysicalTables.singleStringDecayRate.lookup(note);
+    final double gAtt = math.pow(10.0, (singleDecay / f0) / 20.0).toDouble().clamp(0.90, 0.9999);
+    final double bCoupl = PianoPhysicalTables.singleStringZero.lookup(note);
+    final double aCoupl = PianoPhysicalTables.singleStringPole.lookup(note);
+
+    final double tempD = 3.0 * (1.0 - bCoupl) - gAtt * (1.0 - aCoupl);
+    final double b0C = (tempD.abs() > 0.0001) ? (2.0 * (gAtt * (1.0 - aCoupl) - (1.0 - bCoupl)) / tempD) : 0.0;
+    final double b1C = (tempD.abs() > 0.0001) ? (2.0 * (aCoupl * (1.0 - bCoupl) - gAtt * (1.0 - aCoupl) * bCoupl) / tempD) : 0.0;
+    final double a1C = (tempD.abs() > 0.0001) ? ((gAtt * (1.0 - aCoupl) * bCoupl - 3.0 * aCoupl * (1.0 - bCoupl)) / tempD) : 0.0;
+
+    // String stiffness coefficient for all-pass dispersion
+    final double stiffness = (stiffMult * PianoPhysicalTables.stiffnessCoefficient.lookup(note)).clamp(-0.95, 0.95);
+
+    // Detuning for 2 coupled string courses
+    final double hzDetune = PianoPhysicalTables.detuningHz.lookup(note) * detuneMult;
+    final double freq1 = math.max(20.0, f0 + 0.5 * hzDetune);
+    final double freq2 = math.max(20.0, f0 - 0.5 * hzDetune);
+
+    // Delay lengths with all-pass group delay compensation
+    double calcDelayLength(double f) {
+      final double wT = (f * 2.0 * math.pi / sr).clamp(0.001, math.pi * 0.95);
+      final double apPhase = math.atan2(
+        (stiffness * stiffness - 1.0) * math.sin(wT),
+        2.0 * stiffness + (stiffness * stiffness + 1.0) * math.cos(wT),
+      );
+      final double pzPhase = math.atan2(
+        -b1C * math.sin(wT) * (1.0 + a1C * math.cos(wT)) + a1C * math.sin(wT) * (b0C + b1C * math.cos(wT)),
+        (b0C + b1C * math.cos(wT)) * (1.0 + a1C * math.cos(wT)) + b1C * math.sin(wT) * a1C * math.sin(wT),
+      );
+      final double dLen = (2.0 * math.pi + 3.0 * apPhase + pzPhase) / wT;
+      return dLen.clamp(2.0, (sr / 18.0));
+    }
+
+    final double dLen1 = calcDelayLength(freq1);
+    final double dLen2 = calcDelayLength(freq2);
+
+    final int bufSize = (sr / 18.0).toInt() + 64;
+    final delayLine1 = Float64List(bufSize);
+    final delayLine2 = Float64List(bufSize);
+    int writeIdx = 0;
+
+    // Allpass dispersion filter state (3 stages per string)
+    final ap1_x = Float64List(3);
+    final ap1_y = Float64List(3);
+    final ap2_x = Float64List(3);
+    final ap2_y = Float64List(3);
+
+    // Bridge coupling filter state
+    double cFilter_x = 0.0;
+    double cFilter_y = 0.0;
+
+    final double loopGain = (0.9996 * susMult).clamp(0.90, 0.9999);
+
+    double bridgeFeedback1 = 0.0;
+    double bridgeFeedback2 = 0.0;
+
+    for (int i = 0; i < len; i++) {
+      final double exc = outBuffer[i];
+
+      // String 1 input
+      double in1 = (exc + bridgeFeedback1) * loopGain;
+      // String 2 input
+      double in2 = (exc + bridgeFeedback2) * loopGain;
+
+      // 3-stage allpass dispersion filter on String 1
+      for (int s = 0; s < 3; s++) {
+        final double y = stiffness * in1 + ap1_x[s] - stiffness * ap1_y[s];
+        ap1_x[s] = in1;
+        ap1_y[s] = y;
+        in1 = y;
+      }
+
+      // 3-stage allpass dispersion filter on String 2
+      for (int s = 0; s < 3; s++) {
+        final double y = stiffness * in2 + ap2_x[s] - stiffness * ap2_y[s];
+        ap2_x[s] = in2;
+        ap2_y[s] = y;
+        in2 = y;
+      }
+
+      // Write to delay lines
+      delayLine1[writeIdx] = in1;
+      delayLine2[writeIdx] = in2;
+
+      // Read from delay line 1 with linear interpolation
+      final double rPos1 = (writeIdx - dLen1 + bufSize) % bufSize;
+      final int i1_0 = rPos1.toInt() % bufSize;
+      final int i1_1 = (i1_0 + 1) % bufSize;
+      final double frac1 = rPos1 - rPos1.floor();
+      final double out1 = delayLine1[i1_0] * (1.0 - frac1) + delayLine1[i1_1] * frac1;
+
+      // Read from delay line 2 with linear interpolation
+      final double rPos2 = (writeIdx - dLen2 + bufSize) % bufSize;
+      final int i2_0 = rPos2.toInt() % bufSize;
+      final int i2_1 = (i2_0 + 1) % bufSize;
+      final double frac2 = rPos2 - rPos2.floor();
+      final double out2 = delayLine2[i2_0] * (1.0 - frac2) + delayLine2[i2_1] * frac2;
+
+      // Bridge coupling: coupling filter on sum of delayed outputs
+      final double sumOut = out1 + out2;
+      final double bridgeCoupled = b0C * sumOut + b1C * cFilter_x - a1C * cFilter_y;
+      cFilter_x = sumOut;
+      cFilter_y = bridgeCoupled;
+
+      bridgeFeedback1 = out1 + bridgeCoupled;
+      bridgeFeedback2 = out2 + bridgeCoupled;
+
+      writeIdx = (writeIdx + 1) % bufSize;
+
+      outBuffer[i] = (out1 + out2) * 0.5;
+    }
+  }
+}
+
+
 
 
 

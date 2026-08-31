@@ -1272,6 +1272,9 @@ class WajuceAudioBackend {
   // Per-track active source nodes (for monophonic stop)
   final Map<String, WABufferSourceNode> _activeSources = {};
 
+  // Per-track active frozen audio streams
+  final Map<String, WABufferSourceNode> _frozenSources = {};
+
   // WABuffer cache – reuse sample data between note-on events
   final Map<String, WABuffer> _bufferCache = {};
 
@@ -1643,6 +1646,110 @@ class WajuceAudioBackend {
     strip?.triggerTapeStop(stopTime: stopTime, spinUpTime: spinUpTime);
   }
 
+  /// Plays or seeks a pre-rendered frozen audio buffer stream for a track channel.
+  void playFrozenStream({
+    required String trackId,
+    required Float32List samples,
+    double startOffsetSec = 0.0,
+    double volume = 1.0,
+    double pan = 0.0,
+    List<FXInsert>? fxRack,
+    double? scheduledTime,
+  }) {
+    if (samples.isEmpty) return;
+    final ctx = _ctx;
+    if (ctx == null) return;
+
+    try {
+      // 1. Stop existing frozen stream for this track
+      stopFrozenStream(trackId);
+
+      // 2. Resolve TrackChannelStrip
+      final strip = _channelStrips.putIfAbsent(
+        trackId,
+        () => TrackChannelStrip(
+          trackId: trackId,
+          ctx: ctx,
+          destination: _masterInputBus ?? ctx.destination,
+        ),
+      );
+
+      // 3. Update strip volume, pan, and FX rack
+      strip.update(
+        volume: volume,
+        pan: pan,
+        fxRack: fxRack ?? const [],
+        irCache: _irCache,
+        loadIrAsync: _loadIrAsync,
+      );
+
+      final int offsetSamples = (startOffsetSec * 44100).round().clamp(0, samples.length);
+      final Float32List streamSamples = (offsetSamples > 0 && offsetSamples < samples.length)
+          ? Float32List.sublistView(samples, offsetSamples)
+          : samples;
+
+      if (streamSamples.isEmpty) return;
+
+      // 4. Create WABuffer
+      final buf = WABuffer(
+        numberOfChannels: 1,
+        length: streamSamples.length,
+        sampleRate: 44100,
+        channels: [streamSamples],
+      );
+
+      final source = ctx.createBufferSource();
+      source.buffer = buf;
+      _frozenSources[trackId] = source;
+
+      source.connect(strip.inputBus);
+
+      source.onEnded = () {
+        try {
+          source.disconnect();
+          source.dispose();
+          if (_frozenSources[trackId] == source) {
+            _frozenSources.remove(trackId);
+          }
+        } catch (_) {}
+      };
+
+      final double startTime = scheduledTime ?? ctx.currentTime;
+      source.start(startTime);
+    } catch (e) {
+      debugPrint('[WajuceAudioBackend] playFrozenStream error: $e');
+    }
+  }
+
+  /// Stops any active frozen audio stream for a track channel.
+  void stopFrozenStream(String trackId) {
+    try {
+      final src = _frozenSources.remove(trackId);
+      if (src != null) {
+        try {
+          src.stop((_ctx?.currentTime ?? 0) + 0.02);
+        } catch (_) {
+          try { src.stop(); } catch (_) {}
+        }
+        try {
+          src.disconnect();
+          src.dispose();
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  /// Stops all active frozen audio streams.
+  void stopAllFrozenStreams() {
+    try {
+      for (final src in _frozenSources.values) {
+        try { src.stop(); } catch (_) {}
+        try { src.disconnect(); src.dispose(); } catch (_) {}
+      }
+      _frozenSources.clear();
+    } catch (_) {}
+  }
+
   /// Panic: Stops all active audio source nodes immediately.
   void stopAllSound() {
     try {
@@ -1652,6 +1759,7 @@ class WajuceAudioBackend {
         } catch (_) {}
       }
       _activeSources.clear();
+      stopAllFrozenStreams();
     } catch (_) {}
   }
 

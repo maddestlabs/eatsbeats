@@ -616,6 +616,101 @@ class LuaEngine {
       );
     }
 
+    if (code.contains('ConcertGrandPiano') ||
+        code.contains('concert_grand_piano') ||
+        code.contains('Concert Grand') ||
+        code.contains('Grand Piano') ||
+        code.contains('Steinway') ||
+        (code.contains('HammerHardness') && code.contains('Soundboard') && code.contains('PedalReso'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildConcertGrandPiano(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('FeltUprightPiano') ||
+        code.contains('felt_upright_piano') ||
+        code.contains('Felt Piano') ||
+        code.contains('Upright Piano') ||
+        code.contains('Studio Upright') ||
+        (code.contains('FeltThickness') && code.contains('MechanicalThud'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildFeltUprightPiano(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('HonkyTonkPiano') ||
+        code.contains('honky_tonk_piano') ||
+        code.contains('Honky Tonk') ||
+        code.contains('Tack Piano') ||
+        code.contains('Saloon Piano') ||
+        (code.contains('TackBite') && code.contains('ActionClack'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildHonkyTonkPiano(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('ToyPiano') ||
+        code.contains('toy_piano') ||
+        code.contains('Toy Piano') ||
+        code.contains('Metallophone') ||
+        (code.contains('ClangRatio') && code.contains('TineDecay'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildToyPiano(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
     if (code.contains('ReggaeGuitar') ||
         code.contains('reggae_guitar') ||
         code.contains('Reggae Skank') ||

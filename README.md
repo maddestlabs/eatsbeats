@@ -15,6 +15,7 @@ Mobile-first and web-first, totally unprofessional digital audio workstation (DA
 - Made with Flutter (using wajuce for native Web Audio): Easy portability for native mobile and desktop
 - Lua scripting: Everything is Lua scripts, built on a WebAudio based API
 - Rebirth template: 2 303s, an 808, and a 909
+- Tons of physical modelling synths built in
 
 ---
 

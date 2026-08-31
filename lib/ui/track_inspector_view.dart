@@ -170,6 +170,46 @@ class TrackInspectorView extends StatelessWidget {
                         child: Text('SOLO', style: EatsTheme.getPrimaryFontStyle(color: track.isSoloed ? Colors.black : EatsTheme.textMuted, fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
                     ),
+                    if (!track.isFolder) ...[
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () => dawState.toggleFreezeTrack(track),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: track.isFrozen ? EatsTheme.primaryCyan.withOpacity(0.25) : EatsTheme.panelHeader,
+                            borderRadius: BorderRadius.circular(4),
+                            border: track.isFrozen ? Border.all(color: EatsTheme.primaryCyan, width: 1) : null,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (track.isBaking) ...[
+                                SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(EatsTheme.primaryCyan)),
+                                ),
+                                const SizedBox(width: 4),
+                              ] else ...[
+                                Icon(Icons.ac_unit, size: 13, color: track.isFrozen ? EatsTheme.primaryCyan : EatsTheme.textMuted),
+                                const SizedBox(width: 4),
+                              ],
+                              Text(
+                                track.isBaking
+                                    ? 'BAKING...'
+                                    : (track.isFrozen ? 'FROZEN' : 'FREEZE'),
+                                style: EatsTheme.getPrimaryFontStyle(
+                                  color: track.isFrozen ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],

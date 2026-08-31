@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'automation_model.dart';
 import 'lyric_model.dart';
@@ -702,6 +703,16 @@ class TrackChannel {
   bool isMonophonic;
   ChordFollowMode chordFollowMode;
 
+  // Track Freeze / Bake State (Pre-rendered offline PCM stream)
+  bool isFrozen;
+  bool isBaking;
+  Float32List? frozenAudioBuffer; // Contiguous rendered stereo/mono PCM Float32 stream
+  int frozenSampleRate;
+  double frozenDurationSec;
+  String? frozenContentHash; // Deterministic hash of Lua code, parameters, notes & FX
+
+  bool get hasValidBake => isFrozen && frozenAudioBuffer != null && frozenAudioBuffer!.isNotEmpty;
+
   // Folder & Grouping Configuration
   String? parentFolderId; // ID of parent folder track (null if top-level)
   bool isCollapsed; // When true, child tracks are collapsed/hidden in Arranger/Mixer
@@ -809,6 +820,12 @@ class TrackChannel {
     this.isCollapsed = false,
     this.isFolderBus = true,
     this.syncColorWithChildren = true,
+    this.isFrozen = false,
+    this.isBaking = false,
+    this.frozenAudioBuffer,
+    this.frozenSampleRate = 44100,
+    this.frozenDurationSec = 0.0,
+    this.frozenContentHash,
     Map<String, double>? luaParams,
     List<StepEvent>? steps,
     List<Note>? notes,
@@ -871,6 +888,12 @@ class TrackChannel {
     MusicViewType? activeView,
     bool? isMonophonic,
     ChordFollowMode? chordFollowMode,
+    bool? isFrozen,
+    bool? isBaking,
+    Float32List? frozenAudioBuffer,
+    int? frozenSampleRate,
+    double? frozenDurationSec,
+    String? frozenContentHash,
     String? parentFolderId,
     bool? isCollapsed,
     bool? isFolderBus,
@@ -910,6 +933,12 @@ class TrackChannel {
       activeView: activeView ?? this.activeView,
       isMonophonic: isMonophonic ?? this.isMonophonic,
       chordFollowMode: chordFollowMode ?? this.chordFollowMode,
+      isFrozen: isFrozen ?? this.isFrozen,
+      isBaking: isBaking ?? this.isBaking,
+      frozenAudioBuffer: frozenAudioBuffer ?? this.frozenAudioBuffer,
+      frozenSampleRate: frozenSampleRate ?? this.frozenSampleRate,
+      frozenDurationSec: frozenDurationSec ?? this.frozenDurationSec,
+      frozenContentHash: frozenContentHash ?? this.frozenContentHash,
       parentFolderId: parentFolderId ?? this.parentFolderId,
       isCollapsed: isCollapsed ?? this.isCollapsed,
       isFolderBus: isFolderBus ?? this.isFolderBus,
@@ -951,6 +980,8 @@ class TrackChannel {
     'activeView': activeView.name,
     'isMonophonic': isMonophonic,
     'chordFollowMode': chordFollowMode.name,
+    'isFrozen': isFrozen,
+    if (frozenContentHash != null) 'frozenContentHash': frozenContentHash,
     if (parentFolderId != null) 'parentFolderId': parentFolderId,
     'isCollapsed': isCollapsed,
     'isFolderBus': isFolderBus,
@@ -990,6 +1021,8 @@ class TrackChannel {
     activeView: MusicViewType.values.firstWhere((e) => e.name == json['activeView'], orElse: () => MusicViewType.pianoRoll),
     isMonophonic: json['isMonophonic'] ?? false,
     chordFollowMode: ChordFollowMode.values.firstWhere((e) => e.name == json['chordFollowMode'], orElse: () => ChordFollowMode.off),
+    isFrozen: json['isFrozen'] ?? false,
+    frozenContentHash: json['frozenContentHash'] as String?,
     parentFolderId: json['parentFolderId'] as String?,
     isCollapsed: json['isCollapsed'] ?? false,
     isFolderBus: json['isFolderBus'] ?? true,

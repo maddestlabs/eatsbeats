@@ -636,6 +636,8 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                        _buildMuteButton(track),
                                                        const SizedBox(width: 2),
                                                        _buildSoloButton(track),
+                                                       const SizedBox(width: 2),
+                                                       _buildFreezeButton(track),
                                                      ],
                                                    ),
                                                   const SizedBox(height: 4),
@@ -2029,6 +2031,47 @@ class _ArrangerViewState extends State<ArrangerView> {
           borderRadius: BorderRadius.circular(3),
         ),
         child: Text('S', style: TextStyle(color: track.isSoloed ? Colors.black : EatsTheme.textMuted, fontSize: 9, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _buildFreezeButton(TrackChannel track) {
+    if (track.isFolder) return const SizedBox.shrink();
+
+    if (track.isBaking) {
+      return Container(
+        margin: const EdgeInsets.only(left: 2),
+        padding: const EdgeInsets.all(2),
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          valueColor: AlwaysStoppedAnimation<Color>(EatsTheme.primaryCyan),
+        ),
+      );
+    }
+
+    final isFrozen = track.isFrozen;
+    return Tooltip(
+      message: isFrozen
+          ? 'Track is Frozen (${track.frozenDurationSec.toStringAsFixed(1)}s audio). Click to unfreeze.'
+          : 'Freeze / Bake track to static audio (saves CPU)',
+      child: GestureDetector(
+        onTap: () => widget.dawState.toggleFreezeTrack(track),
+        child: Container(
+          margin: const EdgeInsets.only(left: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          decoration: BoxDecoration(
+            color: isFrozen ? EatsTheme.primaryCyan.withOpacity(0.25) : EatsTheme.panelHeader,
+            borderRadius: BorderRadius.circular(3),
+            border: isFrozen ? Border.all(color: EatsTheme.primaryCyan.withOpacity(0.6), width: 0.8) : null,
+          ),
+          child: Icon(
+            Icons.ac_unit,
+            size: 10,
+            color: isFrozen ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+          ),
+        ),
       ),
     );
   }

@@ -364,6 +364,18 @@ class LuaScriptLibrary {
     if (luaCode.contains('Harpsichord') || luaCode.contains('harpsichord_cembalo') || luaCode.contains('Cembalo') || luaCode.contains('Virginal')) {
       return getPresetById('harpsichord_cembalo');
     }
+    if (luaCode.contains('ConcertGrandPiano') || luaCode.contains('concert_grand_piano') || luaCode.contains('Concert Grand') || luaCode.contains('Grand Piano') || (luaCode.contains('HammerHardness') && luaCode.contains('Soundboard') && luaCode.contains('PedalReso'))) {
+      return getPresetById('concert_grand_piano');
+    }
+    if (luaCode.contains('FeltUprightPiano') || luaCode.contains('felt_upright_piano') || luaCode.contains('Felt Piano') || luaCode.contains('Studio Upright') || (luaCode.contains('FeltThickness') && luaCode.contains('MechanicalThud'))) {
+      return getPresetById('felt_upright_piano');
+    }
+    if (luaCode.contains('HonkyTonkPiano') || luaCode.contains('honky_tonk_piano') || luaCode.contains('Honky Tonk') || luaCode.contains('Tack Piano') || (luaCode.contains('TackBite') && luaCode.contains('ActionClack'))) {
+      return getPresetById('honky_tonk_piano');
+    }
+    if (luaCode.contains('ToyPiano') || luaCode.contains('toy_piano') || luaCode.contains('Toy Piano') || (luaCode.contains('ClangRatio') && luaCode.contains('TineDecay'))) {
+      return getPresetById('toy_piano');
+    }
 
     return null;
   }
@@ -3088,6 +3100,558 @@ end
 return RhodesEPiano
 ''',
     ),
+
+    // 00a1. Concert Grand Piano Physical Model (9ft Steinway Model D)
+    LuaPreset(
+      id: 'concert_grand_piano',
+      name: 'Concert Grand Piano',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modeling of a 9-foot Concert Grand Piano: non-linear felt hammer compression, coupled trichord string waveguides with inharmonic dispersion, 2D spruce soundboard modal resonance, duplex scaling high shimmer, and sympathetic pedal resonance.',
+      code: '''
+-- @id: concert_grand_piano
+-- @name: Concert Grand Piano
+-- @category: instrument
+-- @description: Physical modeling of a 9-foot Concert Grand Piano: non-linear felt hammer compression, coupled trichord string waveguides with inharmonic dispersion, 2D spruce soundboard modal resonance, duplex scaling high shimmer, and sympathetic pedal resonance.
+
+local ConcertGrandPiano = {}
+
+function ConcertGrandPiano.init()
+  -- Hammer Felt & Action Dynamics
+  Param.add("HammerHardness", 0.1, 2.0, 0.85) -- 0.1 Mellow <-> 2.0 Bright Lacquered Felt
+  Param.add("HammerFelt", 0.0, 1.0, 0.15)     -- Soft felt damper layer
+  Param.add("HammerKnock", 0.0, 1.0, 0.22)    -- Wood hammer core knock
+  
+  -- Soundboard & Acoustic Cavity
+  Param.add("Soundboard", 0.0, 1.0, 0.90)     -- 0.0 Upright Box <-> 1.0 9ft Concert Grand Plate
+  Param.add("PedalReso", 0.0, 1.0, 0.55)      -- Sympathetic undamped string bloom
+  Param.add("DuplexScale", 0.0, 1.0, 0.40)    -- High-frequency duplex scale chime
+  
+  -- String Physics & Dispersion
+  Param.add("UnisonDetune", 0.5, 5.0, 1.8)    -- Trichord micro-detuning (cents)
+  Param.add("Sustain", 0.90, 0.9995, 0.9975)  -- String energy feedback
+  Param.add("Damping", 0.02, 0.50, 0.12)      -- High frequency string absorption
+  Param.add("LidOpen", -6.0, 8.0, 2.0)        -- Lid position high-shelf air (dB)
+  Param.add("Tone", 1000.0, 18000.0, 12000.0) -- Master brilliance cut
+end
+
+function ConcertGrandPiano.process(time, freq, note, params)
+  local hardness = params["HammerHardness"] or 0.85
+  local sboard = params["Soundboard"] or 0.90
+  local pReso = params["PedalReso"] or 0.55
+  local sustain = params["Sustain"] or 0.9975
+  local detune = params["UnisonDetune"] or 1.8
+  local lid = params["LidOpen"] or 2.0
+  local tone = params["Tone"] or 12000.0
+
+  -- Procedural fallback single-cycle synthesizer
+  local detuneHz = freq * (detune / 1200.0)
+  local phase1 = 2.0 * math.pi * freq * time
+  local phase2 = 2.0 * math.pi * (freq + detuneHz) * time
+  local phase3 = 2.0 * math.pi * (freq - detuneHz) * time
+
+  -- Inharmonic partials (string stiffness B factor)
+  local bFactor = 0.0004 * (88.0 - math.min(note, 88.0)) / 88.0
+  local fHarm2 = freq * 2.0 * math.sqrt(1.0 + bFactor * 4.0)
+  local fHarm3 = freq * 3.0 * math.sqrt(1.0 + bFactor * 9.0)
+
+  local tri1 = math.sin(phase1)
+  local tri2 = math.sin(phase2) * 0.95
+  local tri3 = math.sin(phase3) * 0.95
+  local h2 = math.sin(2.0 * math.pi * fHarm2 * time) * (0.35 * hardness)
+  local h3 = math.sin(2.0 * math.pi * fHarm3 * time) * (0.18 * hardness)
+
+  -- Spruce soundboard mode simulation
+  local sboardAir = math.sin(2.0 * math.pi * 68.0 * time) * math.exp(-time * 12.0) * (0.25 * sboard)
+  local sboardWood = math.sin(2.0 * math.pi * 210.0 * time) * math.exp(-time * 18.0) * (0.20 * sboard)
+
+  local decayRate = 1.8 + (freq / 250.0)
+  local ampEnv = math.exp(-time * decayRate * (1.0 - sustain * 0.4))
+  local raw = (tri1 + tri2 + tri3 + h2 + h3 + sboardAir + sboardWood) * ampEnv * 0.35
+
+  return math.tanh(raw * 1.2) * 0.95
+end
+
+function ConcertGrandPiano.gui()
+  return {
+    panel = {
+      title = "CONCERT GRAND PIANO",
+      subtitle = "9-Foot Spruce Soundboard & Coupled Trichord Waveguides",
+      accent = "#D4AF37",
+      background = "matte_metal",
+      rackSides = "brushed_steel",
+      layout = {
+        -- GOLD SECTION: Hammer Felt & Action
+        {
+          type = "group",
+          label = "FELT HAMMER COMPRESSION & ACTION (GOLD)",
+          accent = "#D4AF37",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "HammerHardness", label = "HARDNESS", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "HammerFelt", label = "FELT MUTE", unit = "%", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "HammerKnock", label = "ACTION KNOCK", unit = "%", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "UnisonDetune", label = "TRICHORD", unit = "cents", knobStyle = "chrome", size = 52 },
+              }
+            }
+          }
+        },
+        -- BRONZE SECTION: 2D Spruce Soundboard & Duplex Scale
+        {
+          type = "group",
+          label = "SPRUCE SOUNDBOARD & SYMPATHETIC RESONANCE (BRONZE)",
+          accent = "#CD7F32",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "Soundboard", label = "PLATE SIZE", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "PedalReso", label = "PEDAL BLOOM", unit = "%", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "DuplexScale", label = "DUPLEX AIR", unit = "%", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "Sustain", label = "SUSTAIN", knobStyle = "vintage", size = 52 },
+              }
+            },
+            {
+              type = "row",
+              children = {
+                { type = "hslider", param = "Soundboard", label = "SOUNDBOARD GEOMETRY (UPRIGHT <-> 9FT CONCERT GRAND)", style = "capsule" },
+              }
+            }
+          }
+        },
+        -- PLATINUM SECTION: Acoustic Environment & Tone
+        {
+          type = "group",
+          label = "LID ACOUSTICS & TONE (PLATINUM)",
+          accent = "#E5E4E2",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "LidOpen", label = "LID AIR", unit = "dB", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "Damping", label = "DAMPING", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "Tone", label = "BRILLIANCE", unit = "Hz", knobStyle = "vintage", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function ConcertGrandPiano.rack()
+  return {
+    rows = {
+      {
+        { id = "hammer_exciter", title = "FELT HAMMER EXCITOR",  hp = 16, row = 1, category = "VCO" },
+        { id = "trichord_lines", title = "TRICHORD WAVEGUIDES", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "spruce_board",   title = "SPRUCE SOUNDBOARD",   hp = 16, row = 2, category = "VCF" },
+        { id = "lid_output",     title = "LID ACOUSTICS OUT",   hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return ConcertGrandPiano
+''',
+    ),
+
+    // 00a2. Warm Felt Studio Upright Piano Physical Model
+    LuaPreset(
+      id: 'felt_upright_piano',
+      name: 'Warm Felt Studio Upright',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modeling of a warm, felt-damped studio upright piano: thick wool felt compression layer, shortened upright string scale, intimate wooden action knock, compact soundboard resonance, and warm harmonic roll-off designed to sit beneath acoustic guitars.',
+      code: '''
+-- @id: felt_upright_piano
+-- @name: Warm Felt Studio Upright
+-- @category: instrument
+-- @description: Physical modeling of a warm, felt-damped studio upright piano: thick wool felt compression layer, shortened upright string scale, intimate wooden action knock, compact soundboard resonance, and warm harmonic roll-off designed to sit beneath acoustic guitars.
+
+local FeltUprightPiano = {}
+
+function FeltUprightPiano.init()
+  -- Felt & Action Dynamics
+  Param.add("FeltThickness", 0.0, 1.0, 0.85)   -- Wool felt dampening blanket
+  Param.add("HammerHardness", 0.1, 1.5, 0.35)  -- Soft felt core
+  Param.add("MechanicalThud", 0.0, 1.0, 0.45)  -- Wooden keybed & hammer action thud
+  
+  -- Cabinet & Soundboard
+  Param.add("CabinetSize", 0.0, 1.0, 0.20)     -- Compact Upright Box Resonance
+  Param.add("BodyReso", 0.0, 1.0, 0.40)        -- Soundboard wood warmth
+  Param.add("AirSheen", 0.0, 1.0, 0.15)        -- Room air bleed
+  
+  -- String Sustain & Intimacy
+  Param.add("UnisonDetune", 0.5, 6.0, 2.4)     -- Upright organic unison drift
+  Param.add("Sustain", 0.90, 0.998, 0.9945)    -- Natural warm decay
+  Param.add("Tone", 800.0, 8000.0, 3800.0)     -- Warm felt lowpass filter
+end
+
+function FeltUprightPiano.process(time, freq, note, params)
+  local felt = params["FeltThickness"] or 0.85
+  local thud = params["MechanicalThud"] or 0.45
+  local sustain = params["Sustain"] or 0.9945
+  local detune = params["UnisonDetune"] or 2.4
+  local tone = params["Tone"] or 3800.0
+
+  local detuneHz = freq * (detune / 1200.0)
+  local phase1 = 2.0 * math.pi * freq * time
+  local phase2 = 2.0 * math.pi * (freq + detuneHz) * time
+
+  -- Rounded, soft felt waveforms (fundamental dominant)
+  local fund1 = math.sin(phase1)
+  local fund2 = math.sin(phase2) * 0.9
+  local subHarm = math.sin(phase1 * 2.0) * (0.15 * (1.0 - felt * 0.6))
+
+  -- Wooden action thud transient
+  local woodThud = math.sin(2.0 * math.pi * 115.0 * time) * math.exp(-time * 50.0) * (0.35 * thud)
+
+  local decayRate = 2.6 + (freq / 200.0)
+  local ampEnv = math.exp(-time * decayRate * (1.0 - sustain * 0.4))
+  local raw = (fund1 + fund2 + subHarm + woodThud) * ampEnv * 0.40
+
+  return math.tanh(raw * 1.1) * 0.95
+end
+
+function FeltUprightPiano.gui()
+  return {
+    panel = {
+      title = "WARM FELT STUDIO UPRIGHT",
+      subtitle = "Muted Wool Felt Damper & Intimate Action Modeling",
+      accent = "#C19A6B",
+      background = "minimal_white",
+      knobStyle = "minimal_white",
+      layout = {
+        -- WARM WALNUT SECTION: Felt Muting & Action
+        {
+          type = "group",
+          label = "WOOL FELT DAMPING & MECHANICAL ACTION",
+          accent = "#C19A6B",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "FeltThickness", label = "FELT THICK", unit = "%", size = 52 },
+                { type = "knob", param = "HammerHardness", label = "HAMMER", size = 52 },
+                { type = "knob", param = "MechanicalThud", label = "ACTION THUD", unit = "%", size = 52 },
+                { type = "knob", param = "UnisonDetune", label = "DETUNE", unit = "cents", size = 52 },
+              }
+            }
+          }
+        },
+        -- OAK SECTION: Upright Cabinet Cavity & Tone
+        {
+          type = "group",
+          label = "UPRIGHT CABINET & WARM TONE",
+          accent = "#A0522D",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "CabinetSize", label = "CABINET", size = 52 },
+                { type = "knob", param = "BodyReso", label = "WOOD RESO", unit = "%", size = 52 },
+                { type = "knob", param = "Tone", label = "FELT WARMTH", unit = "Hz", size = 52 },
+                { type = "knob", param = "Sustain", label = "SUSTAIN", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function FeltUprightPiano.rack()
+  return {
+    rows = {
+      {
+        { id = "felt_exciter",   title = "WOOL FELT EXCITOR",   hp = 16, row = 1, category = "VCO" },
+        { id = "upright_strings",title = "UPRIGHT STRING PAIR", hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "cabinet_box",    title = "CABINET CAVITY RESO", hp = 16, row = 2, category = "VCF" },
+        { id = "warmth_out",     title = "WARM FELT MASTER",    hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return FeltUprightPiano
+''',
+    ),
+
+    // 00a3. Honky-Tonk / Tack Saloon Piano Physical Model
+    LuaPreset(
+      id: 'honky_tonk_piano',
+      name: 'Honky-Tonk / Tack Piano',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modeling of a vintage Honky-Tonk / Tack Saloon Piano: metallic thumb-tack hammer strike, pronounced trichord unison chorus detuning (5–10 cents), wooden action clack, and bright midrange bite suited for roots, bluegrass, and ragtime.',
+      code: '''
+-- @id: honky_tonk_piano
+-- @name: Honky-Tonk / Tack Piano
+-- @category: instrument
+-- @description: Physical modeling of a vintage Honky-Tonk / Tack Saloon Piano: metallic thumb-tack hammer strike, pronounced trichord unison chorus detuning (5–10 cents), wooden action clack, and bright midrange bite suited for roots, bluegrass, and ragtime.
+
+local HonkyTonkPiano = {}
+
+function HonkyTonkPiano.init()
+  -- Tack Hammer Impact
+  Param.add("TackBite", 0.0, 1.5, 0.85)       -- Metallic tack ping intensity
+  Param.add("ActionClack", 0.0, 1.0, 0.50)    -- Wooden action & keybed clack
+  
+  -- Detuned Trichords & Saloon Chorus
+  Param.add("DetuneCents", 2.0, 15.0, 7.5)    -- Unison course detuning
+  Param.add("SaloonReso", 0.0, 1.0, 0.35)     -- Old wooden saloon upright body
+  Param.add("MetalSheen", 0.0, 1.0, 0.60)     -- High metal tack resonance
+  
+  -- Tone & Bite
+  Param.add("Bite", -3.0, 9.0, 3.5)           -- 3.2kHz Midrange bite EQ (dB)
+  Param.add("Sustain", 0.90, 0.998, 0.9960)   -- String sustain
+  Param.add("Tone", 1000.0, 16000.0, 9500.0)  -- High presence cutoff
+end
+
+function HonkyTonkPiano.process(time, freq, note, params)
+  local tack = params["TackBite"] or 0.85
+  local clack = params["ActionClack"] or 0.50
+  local detune = params["DetuneCents"] or 7.5
+  local sustain = params["Sustain"] or 0.9960
+  local bite = params["Bite"] or 3.5
+
+  local dHz = freq * (detune / 1200.0)
+  local phase1 = 2.0 * math.pi * freq * time
+  local phase2 = 2.0 * math.pi * (freq + dHz) * time
+  local phase3 = 2.0 * math.pi * (freq - dHz * 1.3) * time
+
+  local t1 = math.sin(phase1)
+  local t2 = math.sin(phase2) * 0.95
+  local t3 = math.sin(phase3) * 0.90
+
+  -- Metallic tack high-frequency ping (4.5kHz burst)
+  local tackPing = math.sin(2.0 * math.pi * 4500.0 * time) * math.exp(-time * 220.0) * (0.55 * tack)
+
+  -- Saloon wood clack
+  local woodClack = math.sin(2.0 * math.pi * 180.0 * time) * math.exp(-time * 60.0) * (0.30 * clack)
+
+  local decayRate = 2.2 + (freq / 220.0)
+  local ampEnv = math.exp(-time * decayRate * (1.0 - sustain * 0.4))
+  local raw = (t1 + t2 + t3 + tackPing + woodClack) * ampEnv * 0.35
+
+  return math.tanh(raw * 1.3) * 0.95
+end
+
+function HonkyTonkPiano.gui()
+  return {
+    panel = {
+      title = "HONKY-TONK / TACK PIANO",
+      subtitle = "Metallic Tack Strike & Detuned Saloon Unison Modeling",
+      accent = "#E67E22",
+      background = "vintage_tweed",
+      rackSides = "dark_wood",
+      layout = {
+        -- BRASS/ORANGE SECTION: Tack Hammer & Action
+        {
+          type = "group",
+          label = "BRASS TACK IMPACT & SALOON DETUNING",
+          accent = "#E67E22",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "TackBite", label = "TACK PING", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "ActionClack", label = "ACTION CLACK", unit = "%", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "DetuneCents", label = "DETUNE", unit = "cents", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "SaloonReso", label = "SALOON BOX", unit = "%", knobStyle = "vintage", size = 52 },
+              }
+            }
+          }
+        },
+        -- YELLOW/AMBER SECTION: Presence & Tone
+        {
+          type = "group",
+          label = "PRESENCE BITE & SUSTAIN",
+          accent = "#F39C12",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "Bite", label = "MID BITE", unit = "dB", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "MetalSheen", label = "METAL SHEEN", unit = "%", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "Sustain", label = "SUSTAIN", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "Tone", label = "TONE", unit = "Hz", knobStyle = "vintage", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function HonkyTonkPiano.rack()
+  return {
+    rows = {
+      {
+        { id = "tack_strike",    title = "METALLIC TACK EXCITOR", hp = 16, row = 1, category = "VCO" },
+        { id = "saloon_chorus",  title = "DETUNED TRICHORDS",    hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "saloon_body",    title = "SALOON WOOD BODY",     hp = 16, row = 2, category = "VCF" },
+        { id = "tack_master",    title = "BITE & PRESENCE OUT",  hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return HonkyTonkPiano
+''',
+    ),
+
+    // 00a4. Toy Piano / Metallophone Physical Model
+    LuaPreset(
+      id: 'toy_piano',
+      name: 'Toy Piano',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modal modeling of a classic Toy Piano / Metallophone: clamped cantilever steel bar overtones (1.0, 2.756, 5.404, 8.933 modal ratios), plastic/wood hammer clack, fast bell-chime decay, and miniature wooden soundbox resonance.',
+      code: '''
+-- @id: toy_piano
+-- @name: Toy Piano
+-- @category: instrument
+-- @description: Physical modal modeling of a classic Toy Piano / Metallophone: clamped cantilever steel bar overtones (1.0, 2.756, 5.404, 8.933 modal ratios), plastic/wood hammer clack, fast bell-chime decay, and miniature wooden soundbox resonance.
+
+local ToyPiano = {}
+
+function ToyPiano.init()
+  -- Metal Rod Modal Physics
+  Param.add("ClangRatio", 0.0, 1.5, 0.70)     -- Inharmonic bar overtone mix
+  Param.add("TineDecay", 0.2, 3.5, 1.25)      -- Ring decay time (seconds)
+  Param.add("HammerClack", 0.0, 1.0, 0.55)    -- Plastic / wood strike clack
+  
+  -- Soundbox Cavity & Air
+  Param.add("BoxResonance", 0.0, 1.0, 0.45)   -- Miniature toy box cavity boom
+  Param.add("ChimeAir", -4.0, 8.0, 2.0)       -- High chime sheen EQ (dB)
+  Param.add("Tone", 1000.0, 18000.0, 11000.0) -- Lowpass cutoff
+end
+
+function ToyPiano.process(time, freq, note, params)
+  local clang = params["ClangRatio"] or 0.70
+  local decay = params["TineDecay"] or 1.25
+  local clack = params["HammerClack"] or 0.55
+  local boxReso = params["BoxResonance"] or 0.45
+
+  -- Cantilever rod non-harmonic mode series
+  local f1 = freq
+  local f2 = freq * 2.7565
+  local f3 = freq * 5.404
+  local f4 = math.min(18000.0, freq * 8.933)
+
+  local d1 = 1.8 / decay
+  local d2 = (5.5 / decay) + (freq / 300.0)
+  local d3 = (14.0 / decay) + (freq / 150.0)
+  local d4 = (32.0 / decay) + (freq / 80.0)
+
+  local y1 = math.sin(2.0 * math.pi * f1 * time) * math.exp(-time * d1)
+  local y2 = math.sin(2.0 * math.pi * f2 * time) * math.exp(-time * d2) * 0.65 * clang
+  local y3 = math.sin(2.0 * math.pi * f3 * time) * math.exp(-time * d3) * 0.35 * clang
+  local y4 = math.sin(2.0 * math.pi * f4 * time) * math.exp(-time * d4) * 0.20 * clang
+
+  -- Plastic strike clack
+  local clackTransient = math.sin(2.0 * math.pi * 3200.0 * time) * math.exp(-time * 260.0) * (0.45 * clack)
+  -- Wooden housing cavity
+  local boxTransient = math.sin(2.0 * math.pi * 340.0 * time) * math.exp(-time * 45.0) * (0.25 * boxReso)
+
+  local raw = (y1 * 0.85 + y2 + y3 + y4 + clackTransient + boxTransient) * 0.55
+  return math.tanh(raw * 1.15) * 0.95
+end
+
+function ToyPiano.gui()
+  return {
+    panel = {
+      title = "TOY PIANO / METALLOPHONE",
+      subtitle = "Cantilever Steel Bar Modal Physics & Toy Soundbox",
+      accent = "#FF3366",
+      background = "minimal_white",
+      knobStyle = "minimal_white",
+      layout = {
+        -- RED/CORAL SECTION: Steel Bar Modal Physics
+        {
+          type = "group",
+          label = "CANTILEVER STEEL ROD RESONANCE",
+          accent = "#FF3366",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "ClangRatio", label = "CLANG OVERTONE", unit = "%", size = 52 },
+                { type = "knob", param = "TineDecay", label = "CHIME DECAY", unit = "s", size = 52 },
+                { type = "knob", param = "HammerClack", label = "STRIKE CLACK", unit = "%", size = 52 },
+                { type = "knob", param = "BoxResonance", label = "TOY BOX BOOM", unit = "%", size = 52 },
+              }
+            }
+          }
+        },
+        -- TEAL/CYAN SECTION: Tone & Brilliance
+        {
+          type = "group",
+          label = "CHIME BRILLIANCE & AIR",
+          accent = "#00B4D8",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "ChimeAir", label = "CHIME AIR", unit = "dB", size = 52 },
+                { type = "knob", param = "Tone", label = "TONE CUT", unit = "Hz", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function ToyPiano.rack()
+  return {
+    rows = {
+      {
+        { id = "plastic_strike", title = "PLASTIC HAMMER CLACK", hp = 16, row = 1, category = "VCO" },
+        { id = "cantilever_rod", title = "MODAL STEEL ROD TINES",hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "toy_soundbox",   title = "TOY SOUNDBOX CAVITY",  hp = 16, row = 2, category = "VCF" },
+        { id = "chime_master",   title = "CHIME & TONE OUT",     hp = 14, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return ToyPiano
+''',
+    ),
+
 
     // 00b. Yamaha DX7 6-Operator FM Electric Piano ("FullTines")
     LuaPreset(

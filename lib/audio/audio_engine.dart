@@ -354,6 +354,82 @@ class AudioEngine {
     );
   }
 
+  /// Plays a pre-rendered frozen audio stream for a track channel.
+  void playFrozenTrack({
+    required TrackChannel track,
+    double startOffsetSec = 0.0,
+    double? scheduledTime,
+  }) {
+    if (track.isMuted) return;
+    final samples = track.frozenAudioBuffer;
+    if (samples == null || samples.isEmpty) return;
+
+    ensureContextRunning();
+
+    final double normVol = (track.volume / 1.5).clamp(0.0, 1.0);
+    final double panVal = track.pan.clamp(-1.0, 1.0);
+    final double leftPanFactor = panVal <= 0 ? 1.0 : (1.0 - panVal);
+    final double rightPanFactor = panVal >= 0 ? 1.0 : (1.0 + panVal);
+    final double trkLeft = (normVol * leftPanFactor).clamp(0.0, 1.0);
+    final double trkRight = (normVol * rightPanFactor).clamp(0.0, 1.0);
+
+    _trackLeftPeaks[track.id] = math.max(_trackLeftPeaks[track.id] ?? 0.0, trkLeft);
+    _trackRightPeaks[track.id] = math.max(_trackRightPeaks[track.id] ?? 0.0, trkRight);
+    _leftPeak = math.max(_leftPeak, trkLeft * 0.85);
+    _rightPeak = math.max(_rightPeak, trkRight * 0.85);
+
+    _backend.playFrozenStream(
+      trackId: track.id,
+      samples: samples,
+      startOffsetSec: startOffsetSec,
+      volume: normVol,
+      pan: track.pan,
+      fxRack: track.fxRack,
+      scheduledTime: scheduledTime,
+    );
+  }
+
+  /// Stops frozen stream on a specific track.
+  void stopFrozenTrack(String trackId) {
+    _backend.stopFrozenStream(trackId);
+  }
+
+  /// Stops all active frozen audio streams.
+  void stopAllFrozenTracks() {
+    _backend.stopAllFrozenStreams();
+  }
+
+  /// Synthesizes a note PCM buffer for a given track (used for live synthesis and offline baking).
+  Float32List synthesizeBufferForTrack({
+    required TrackChannel track,
+    required int midiNote,
+    required double velocity,
+    required double durationSec,
+    int? targetMidiNote,
+    bool isSlide = false,
+    bool isAccent = false,
+    String? articulation,
+    double releaseVelocity = 0.5,
+    List<List<double>>? pitchBendPoints,
+    List<List<double>>? pressurePoints,
+    List<List<double>>? timbrePoints,
+  }) {
+    return _synthesizeTrackBuffer(
+      track: track,
+      midiNote: midiNote,
+      velocity: velocity,
+      durationSec: durationSec,
+      targetMidiNote: targetMidiNote,
+      isSlide: isSlide,
+      isAccent: isAccent,
+      articulation: articulation,
+      releaseVelocity: releaseVelocity,
+      pitchBendPoints: pitchBendPoints,
+      pressurePoints: pressurePoints,
+      timbrePoints: timbrePoints,
+    );
+  }
+
   // ── Buffer Generation & Caching ────────────────────────────────────────────
 
   (Float32List, String?) _getOrCreateBuffer({

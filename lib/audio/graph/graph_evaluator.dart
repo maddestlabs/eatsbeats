@@ -2539,7 +2539,213 @@ class GraphEvaluator {
 
     return ensembleGain;
   }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  //  PIANO & KEYBOARD PHYSICAL MODELS
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /// Authentic Concert Grand Piano Physical Model (Stanford CCRMA / Bank-Bensa Commuted Waveguide).
+  /// Architecture:
+  /// - Commuted soundboard noise burst with empirical T60 note & sustain-pedal resonance envelopes
+  /// - 4-stage 1-pole non-linear felt hammer filter cascade calibrated per MIDI note & velocity
+  /// - Hammer strike position comb filter EQ (harmonic notch modeling)
+  /// - Coupled dual-string waveguides with 3-stage allpass dispersion filters and bridge transfer matrix
+  /// - 2D acoustic spruce soundboard resonator with duplex scale air sheen
+  static GraphNode buildConcertGrandPiano() {
+    const soundboardExciter = CommutedSoundboardExciterNode(
+      hammerHardness: 0.85,
+      hammerHardnessParam: 'HammerHardness',
+      pedalResonance: 0.55,
+      pedalResonanceParam: 'PedalReso',
+      soundboardGain: 1.2,
+    );
+
+    const hammerCascade = CommutedHammerFilterCascadeNode(
+      input: soundboardExciter,
+      brightnessFactor: 0.50,
+      brightnessFactorParam: 'Brightness',
+      hardnessScale: 1.0,
+      hardnessScaleParam: 'HammerHardness',
+    );
+
+    const strikeComb = CommutedStrikeCombNode(
+      input: hammerCascade,
+    );
+
+    const commutedWaveguide = CommutedPianoWaveguideNode(
+      exciter: strikeComb,
+      stiffnessFactor: 1.0,
+      stiffnessFactorParam: 'Stiffness',
+      detuningFactor: 1.0,
+      detuningFactorParam: 'UnisonDetune',
+      sustainScale: 1.0,
+      sustainScaleParam: 'Sustain',
+    );
+
+    const soundboard = PianoSoundboardNode(
+      input: commutedWaveguide,
+      soundboardProfile: 1.0, // 9ft Concert Grand
+      soundboardProfileParam: 'Soundboard',
+      bridgeCoupling: 0.55,
+      bridgeCouplingParam: 'PedalReso',
+      duplexSheen: 0.40,
+      duplexSheenParam: 'DuplexScale',
+    );
+
+    const toneAir = BiquadFilterNode(
+      input: soundboard,
+      type: BiquadType.highshelf,
+      frequency: 6500.0,
+      gainDb: 2.0,
+      gainDbParam: 'LidOpen',
+    );
+
+    const outputGain = GainNode(
+      input: toneAir,
+      staticGain: 0.55,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Warm Felt Studio Upright Piano Physical Model.
+  /// Architecture:
+  /// - Thick felt-damped hammer exciter with intimate wooden action thud
+  /// - Shortened upright cabinet string waveguides with quick warm decay
+  /// - Boxy upright cabinet cavity formants tailored to sit under acoustic guitars
+  static GraphNode buildFeltUprightPiano() {
+    const exciter = PianoHammerExciterNode(
+      hammerHardness: 0.35,
+      hammerHardnessParam: 'HammerHardness',
+      feltSoftness: 0.85,
+      feltSoftnessParam: 'FeltThickness',
+      strikeNoise: 0.45,
+      strikeNoiseParam: 'MechanicalThud',
+    );
+
+    const coupledStrings = CoupledWaveguideNode(
+      exciter: exciter,
+      feedback: 0.9945,
+      feedbackParam: 'Sustain',
+      damping: 0.28,
+      dampingParam: 'Damping',
+      courseDetuneCents: 2.4,
+      courseDetuneParam: 'UnisonDetune',
+      coupling: 0.10,
+    );
+
+    const soundboard = PianoSoundboardNode(
+      input: coupledStrings,
+      soundboardProfile: 0.0, // Upright Cabinet
+      soundboardProfileParam: 'CabinetSize',
+      bridgeCoupling: 0.40,
+      bridgeCouplingParam: 'BodyReso',
+      duplexSheen: 0.05,
+      duplexSheenParam: 'AirSheen',
+    );
+
+    // Warm low-pass characteristic of felt-damped studio upright
+    const feltWarmth = BiquadFilterNode(
+      input: soundboard,
+      type: BiquadType.lowpass,
+      frequency: 4500.0,
+      freqParam: 'Tone',
+      q: 0.707,
+    );
+
+    const outputGain = GainNode(
+      input: feltWarmth,
+      staticGain: 0.45,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Honky-Tonk / Tack Saloon Piano Physical Model.
+  /// Architecture:
+  /// - Metallic thumb-tack hammer impact exciter with sharp transient burst
+  /// - Widely detuned parallel trichord waveguides (6–10 cents)
+  /// - Resonant saloon wooden body cavity with punchy mid bite
+  static GraphNode buildHonkyTonkPiano() {
+    const exciter = TackExciterNode(
+      tackBite: 0.85,
+      tackBiteParam: 'TackBite',
+      hammerKnock: 0.50,
+      hammerKnockParam: 'ActionClack',
+    );
+
+    const detunedTrichords = CoupledWaveguideNode(
+      exciter: exciter,
+      feedback: 0.9960,
+      feedbackParam: 'Sustain',
+      damping: 0.18,
+      dampingParam: 'Damping',
+      courseDetuneCents: 7.5,
+      courseDetuneParam: 'DetuneCents',
+      coupling: 0.08,
+    );
+
+    const soundboard = PianoSoundboardNode(
+      input: detunedTrichords,
+      soundboardProfile: 0.25, // Saloon Upright
+      soundboardProfileParam: 'BodyWood',
+      bridgeCoupling: 0.35,
+      bridgeCouplingParam: 'SaloonReso',
+      duplexSheen: 0.60,
+      duplexSheenParam: 'MetalSheen',
+    );
+
+    const midBite = BiquadFilterNode(
+      input: soundboard,
+      type: BiquadType.peaking,
+      frequency: 3200.0,
+      gainDb: 3.5,
+      gainDbParam: 'Bite',
+      q: 1.8,
+    );
+
+    const outputGain = GainNode(
+      input: midBite,
+      staticGain: 0.38,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Toy Piano / Metal Tine Metallophone Physical Model.
+  /// Architecture:
+  /// - Physical modal cantilever steel rod resonator (1.0, 2.756, 5.404, 8.933 modal series)
+  /// - Plastic/wooden hammer strike clack
+  /// - Miniature toy box soundbox cavity resonance
+  static GraphNode buildToyPiano() {
+    const modalRod = ToyPianoMetalRodNode(
+      clangRatio: 0.70,
+      clangRatioParam: 'ClangRatio',
+      tineDecay: 1.25,
+      tineDecayParam: 'TineDecay',
+      hammerClack: 0.55,
+      hammerClackParam: 'HammerClack',
+      boxResonance: 0.45,
+      boxResonanceParam: 'BoxResonance',
+    );
+
+    const bellBrightness = BiquadFilterNode(
+      input: modalRod,
+      type: BiquadType.highshelf,
+      frequency: 5000.0,
+      gainDb: 2.0,
+      gainDbParam: 'ChimeAir',
+    );
+
+    const outputGain = GainNode(
+      input: bellBrightness,
+      staticGain: 0.50,
+    );
+
+    return outputGain;
+  }
 }
+
 
 
 

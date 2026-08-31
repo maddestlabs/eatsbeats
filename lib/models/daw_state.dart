@@ -42,6 +42,7 @@ import 'script_target_model.dart';
 import 'script_preset_model.dart';
 import 'automation_model.dart';
 import '../audio/easing.dart';
+import '../audio/track_freeze_engine.dart';
 
 class DawState extends ChangeNotifier {
   final AudioEngine audioEngine = AudioEngine();
@@ -2299,6 +2300,20 @@ return MidiFx
     currentStepNotifier.value = _currentStep;
     arrangerStepNotifier.value = _arrangerStep;
     currentBarNotifier.value = _currentBar;
+    if (_isPlaying) {
+      final double stepDurationSec = 60.0 / _bpm / 4.0;
+      final double startOffsetSec = _currentStep * stepDurationSec;
+      audioEngine.stopAllFrozenTracks();
+      for (final track in activePattern.tracks) {
+        if (track.hasValidBake) {
+          audioEngine.playFrozenTrack(
+            track: track,
+            startOffsetSec: startOffsetSec,
+            scheduledTime: audioEngine.currentTime + 0.02,
+          );
+        }
+      }
+    }
     notifyListeners();
   }
 
@@ -2310,6 +2325,20 @@ return MidiFx
     currentStepNotifier.value = _currentStep;
     arrangerStepNotifier.value = _arrangerStep;
     currentBarNotifier.value = _currentBar;
+    if (_isPlaying) {
+      final double stepDurationSec = 60.0 / _bpm / 4.0;
+      final double startOffsetSec = _currentStep * stepDurationSec;
+      audioEngine.stopAllFrozenTracks();
+      for (final track in activePattern.tracks) {
+        if (track.hasValidBake) {
+          audioEngine.playFrozenTrack(
+            track: track,
+            startOffsetSec: startOffsetSec,
+            scheduledTime: audioEngine.currentTime + 0.02,
+          );
+        }
+      }
+    }
     notifyListeners();
   }
 
@@ -2335,10 +2364,24 @@ return MidiFx
       _playbackStopwatch.start();
       _playbackBaseAudioTime = audioEngine.currentTime;
       _nextNoteTime = _playbackBaseAudioTime + 0.02;
+
+      // Start streaming pre-rendered audio for any frozen tracks
+      final double startOffsetSec = _currentStep * stepDurationSec;
+      for (final track in activePattern.tracks) {
+        if (track.hasValidBake) {
+          audioEngine.playFrozenTrack(
+            track: track,
+            startOffsetSec: startOffsetSec,
+            scheduledTime: _nextNoteTime,
+          );
+        }
+      }
+
       _startSchedulerTimer();
     } else {
       _playbackStopwatch.stop();
       _playbackTimer?.cancel();
+      audioEngine.stopAllFrozenTracks();
     }
     notifyListeners();
   }
@@ -2358,6 +2401,7 @@ return MidiFx
     arrangerStepNotifier.value = _arrangerStep;
     currentBarNotifier.value = _currentBar;
     audioEngine.stopAllSound();
+    audioEngine.stopAllFrozenTracks();
     audioEngine.clearPcmCache();
     TtsEngine().stop();
     notifyListeners();
@@ -2407,11 +2451,27 @@ return MidiFx
       _scheduleStep(_currentStep, _nextNoteTime, stepDurationSec);
       _nextNoteTime += stepDurationSec;
 
+      bool didLoop = false;
       _currentStep++;
       if (_isLooping && _currentStep >= _loopEndBar * 16) {
         _currentStep = _loopStartBar * 16;
+        didLoop = true;
       } else if (_currentStep >= maxSteps) {
         _currentStep = _isLooping ? _loopStartBar * 16 : 0;
+        didLoop = true;
+      }
+
+      if (didLoop) {
+        final double loopOffsetSec = _currentStep * stepDurationSec;
+        for (final track in activePattern.tracks) {
+          if (track.hasValidBake) {
+            audioEngine.playFrozenTrack(
+              track: track,
+              startOffsetSec: loopOffsetSec,
+              scheduledTime: _nextNoteTime,
+            );
+          }
+        }
       }
 
       _arrangerStep = _currentStep;
@@ -2431,6 +2491,7 @@ return MidiFx
     for (final track in currentPattern.tracks) {
       if (track.isMuted) continue;
       if (hasSolo && !track.isSoloed) continue;
+      if (track.hasValidBake) continue; // Streamed continuously via WABufferSourceNode without Lua synthesis overhead
 
       int remapPitch(int pitch) {
         if (activeChord != null && track.chordFollowMode != ChordFollowMode.off) {
@@ -3191,6 +3252,72 @@ return MidiFx
     track.isSoloed = !track.isSoloed;
     recordHistory('${track.isSoloed ? "Solo" : "Unsolo"} ${track.name}', icon: Icons.headphones);
     notifyListeners();
+  }
+
+  /// Bakes a track down into a static Float32 PCM audio stream.
+  Future<void> freezeTrack(
+    TrackChannel track, {
+    bool includeFx = true,
+    FreezeProgressCallback? onProgress,
+  }) async {
+    if (track.isBaking || track.isFolder) return;
+    track.isBaking = true;
+    notifyListeners();
+
+    try {
+      final buffer = await TrackFreezeEngine.renderTrackOffline(
+        track: track,
+        audioEngine: audioEngine,
+        bpm: _bpm,
+        totalTimelineBars: totalTimelineBars,
+        includeFx: includeFx,
+        onProgress: onProgress,
+      );
+
+      track.frozenAudioBuffer = buffer;
+      track.frozenDurationSec = buffer.length / 44100.0;
+      track.frozenContentHash = TrackFreezeEngine.computeTrackHash(track, bpm: _bpm, timelineBars: totalTimelineBars);
+      track.isFrozen = true;
+      track.isBaking = false;
+
+      recordHistory('Freeze Track "${track.name}" (${track.frozenDurationSec.toStringAsFixed(1)}s)', icon: Icons.ac_unit);
+      triggerAutoSave();
+    } catch (e) {
+      track.isBaking = false;
+      debugPrint('[DawState] freezeTrack error: $e');
+    }
+
+    notifyListeners();
+  }
+
+  /// Unfreezes a track, returning it to live Lua script / synthesizer evaluation.
+  void unfreezeTrack(TrackChannel track) {
+    if (!track.isFrozen && track.frozenAudioBuffer == null) return;
+    audioEngine.stopFrozenTrack(track.id);
+    track.isFrozen = false;
+    track.isBaking = false;
+    track.frozenAudioBuffer = null;
+    track.frozenContentHash = null;
+    track.frozenDurationSec = 0.0;
+    recordHistory('Unfreeze Track "${track.name}"', icon: Icons.whatshot);
+    triggerAutoSave();
+    notifyListeners();
+  }
+
+  /// Toggles freeze / unfreeze state for a track.
+  Future<void> toggleFreezeTrack(TrackChannel track) async {
+    if (track.isFrozen) {
+      unfreezeTrack(track);
+    } else {
+      await freezeTrack(track);
+    }
+  }
+
+  /// Invalidates frozen buffer if track source content was modified.
+  void invalidateTrackFreeze(TrackChannel track) {
+    if (track.isFrozen) {
+      unfreezeTrack(track);
+    }
   }
 
   void setTrackColor(TrackChannel track, Color color) {
