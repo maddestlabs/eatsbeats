@@ -8,6 +8,7 @@ import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../theme/eats_theme.dart';
 import 'widgets/compact_value_dialog.dart';
+import 'widgets/keyboard_touch_controller.dart';
 
 class PianoRollView extends StatefulWidget {
   final DawState dawState;
@@ -60,8 +61,30 @@ class _PianoRollViewState extends State<PianoRollView> {
   Offset? _resizeStartPos;
   final Map<String, double> _batchStartDurations = {};
 
-  // Active keyboard pressed keys map (pitch -> velocity) for visual feedback
-  final Map<int, double> _activeKeyboardPitches = {};
+  late final KeyboardTouchController _pianoRollKeyController = KeyboardTouchController(
+    orientation: KeyboardOrientation.vertical,
+    minPitch: minPitch,
+    maxPitch: maxPitch,
+    keyHeight: _keyHeight,
+    onNoteOn: (pitch, velocity) {
+      final track = widget.dawState.activeTrack;
+      widget.dawState.audioEngine.noteOn(
+        track: track,
+        midiNote: pitch,
+        velocity: velocity,
+        sustainDurationSec: 3.5,
+      );
+    },
+    onNoteOff: (pitch) {
+      final track = widget.dawState.activeTrack;
+      widget.dawState.audioEngine.noteOff(
+        track: track,
+        midiNote: pitch,
+        releaseSec: 0.12,
+      );
+    },
+  );
+
   bool _isMiddleMouseDragging = false;
   DateTime? _lastNoteTapTime;
   String? _lastNoteTapId;
@@ -80,41 +103,13 @@ class _PianoRollViewState extends State<PianoRollView> {
   // Bend / Slide Draw Mode State
   bool _isBendDrawMode = false;
 
-  void _handleKeyPointerDown(PointerDownEvent e, int pitch, double keyWidth) {
-    final normX = (e.localPosition.dx / keyWidth).clamp(0.0, 1.0);
-    final velocity = (0.15 + 0.85 * normX).clamp(0.15, 1.0);
-    _activeKeyboardPitches[pitch] = velocity;
-    final track = widget.dawState.activeTrack;
-    widget.dawState.audioEngine.playNoteOrSample(
-      track: track,
-      midiNote: pitch,
-      velocity: velocity,
-    );
-    setState(() {});
-  }
-
-  void _handleKeyPointerMove(PointerMoveEvent e, int pitch, double keyWidth) {
-    final normX = (e.localPosition.dx / keyWidth).clamp(0.0, 1.0);
-    final velocity = (0.15 + 0.85 * normX).clamp(0.15, 1.0);
-    if (_activeKeyboardPitches[pitch] != velocity) {
-      _activeKeyboardPitches[pitch] = velocity;
-      setState(() {});
-    }
-  }
-
-  void _handleKeyPointerUp(int pitch) {
-    if (_activeKeyboardPitches.containsKey(pitch)) {
-      _activeKeyboardPitches.remove(pitch);
-      setState(() {});
-    }
-  }
-
   int _lastTabIndex = -1;
   MusicViewType? _lastActiveView;
 
   @override
   void initState() {
     super.initState();
+    _pianoRollKeyController.addListener(_onPianoRollKeysChanged);
     widget.dawState.addListener(_onDawStateChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -122,6 +117,10 @@ class _PianoRollViewState extends State<PianoRollView> {
         _centerViewOnNotesOrDefault();
       }
     });
+  }
+
+  void _onPianoRollKeysChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onDawStateChanged() {
@@ -197,6 +196,9 @@ class _PianoRollViewState extends State<PianoRollView> {
 
   @override
   void dispose() {
+    _pianoRollKeyController.removeListener(_onPianoRollKeysChanged);
+    _pianoRollKeyController.clearAllTouches();
+    _pianoRollKeyController.dispose();
     widget.dawState.removeListener(_onDawStateChanged);
     _horizontalScroll.dispose();
     _keysScrollController.dispose();
@@ -205,17 +207,9 @@ class _PianoRollViewState extends State<PianoRollView> {
     super.dispose();
   }
 
-  bool _isBlackKey(int midiPitch) {
-    final noteInOctave = midiPitch % 12;
-    return noteInOctave == 1 || noteInOctave == 3 || noteInOctave == 6 || noteInOctave == 8 || noteInOctave == 10;
-  }
+  bool _isBlackKey(int midiPitch) => KeyboardTouchController.isBlackKey(midiPitch);
 
-  String _getNoteName(int midiPitch) {
-    const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    final name = names[midiPitch % 12];
-    final octave = (midiPitch / 12).floor() - 1;
-    return '$name$octave';
-  }
+  String _getNoteName(int midiPitch) => KeyboardTouchController.getNoteName(midiPitch);
 
   void _syncKeysScroll() {
     if (!_isSyncingScroll && _keysScrollController.hasClients && _gridScrollController.hasClients) {
@@ -1988,7 +1982,7 @@ class _PianoRollViewState extends State<PianoRollView> {
                       RepaintBoundary(
                         child: SizedBox(
                           width: 70,
-                          child: ScrollConfiguration(
+child: ScrollConfiguration(
                           behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
                           child: SingleChildScrollView(
                             controller: _keysScrollController,
@@ -1996,38 +1990,62 @@ class _PianoRollViewState extends State<PianoRollView> {
                             physics: const NeverScrollableScrollPhysics(),
                             child: SizedBox(
                               height: totalKeys * _keyHeight,
-                              child: Column(
-                                children: List.generate(totalKeys, (idx) {
-                                  final pitch = maxPitch - idx;
-                                  final isBlackKey = _isBlackKey(pitch);
-                                  final noteName = _getNoteName(pitch);
-                                  final isActive = _activeKeyboardPitches.containsKey(pitch);
-                                  final activeVel = _activeKeyboardPitches[pitch];
+                              child: Listener(
+                                onPointerDown: (e) {
+                                  if (e.buttons & kSecondaryMouseButton != 0) {
+                                    // Right-click: select all notes matching this pitch
+                                    final int keyIdx = (e.localPosition.dy / _keyHeight).floor();
+                                    final int pitch = (maxPitch - keyIdx).clamp(minPitch, maxPitch);
+                                    _selectNotesByPitch(track, pitch);
+                                    return;
+                                  }
+                                  _pianoRollKeyController.handlePointerDown(
+                                    e,
+                                    e.localPosition,
+                                    Size(70.0, totalKeys * _keyHeight),
+                                    maxPitchOverride: maxPitch,
+                                    keyHeightOverride: _keyHeight,
+                                  );
+                                },
+                                onPointerMove: (e) {
+                                  _pianoRollKeyController.handlePointerMove(
+                                    e,
+                                    e.localPosition,
+                                    Size(70.0, totalKeys * _keyHeight),
+                                    maxPitchOverride: maxPitch,
+                                    keyHeightOverride: _keyHeight,
+                                  );
+                                },
+                                onPointerUp: (e) => _pianoRollKeyController.handlePointerUpOrCancel(e.pointer),
+                                onPointerCancel: (e) => _pianoRollKeyController.handlePointerUpOrCancel(e.pointer),
+                                child: Column(
+                                  children: List.generate(totalKeys, (idx) {
+                                    final pitch = maxPitch - idx;
+                                    final isBlackKey = _isBlackKey(pitch);
+                                    final noteName = _getNoteName(pitch);
+                                    final activeTouch = _pianoRollKeyController.activeTouches.values
+                                        .where((t) => t.pitch == pitch)
+                                        .firstOrNull;
+                                    final isActive = activeTouch != null;
+                                    final activeVel = activeTouch?.velocity;
 
-                                  return Listener(
-                                    onPointerDown: (e) => _handleKeyPointerDown(e, pitch, 70.0),
-                                    onPointerMove: (e) => _handleKeyPointerMove(e, pitch, 70.0),
-                                    onPointerUp: (_) => _handleKeyPointerUp(pitch),
-                                    onPointerCancel: (_) => _handleKeyPointerUp(pitch),
-                                    child: GestureDetector(
-                                      onLongPress: () => _selectNotesByPitch(track, pitch),
-                                      child: Container(
-                                        height: _keyHeight,
-                                        decoration: BoxDecoration(
-                                          color: isActive
-                                              ? Color.lerp(
-                                                  isBlackKey ? const Color(0xFF2A2E3D) : const Color(0xFFE2EAFA),
-                                                  track.color,
-                                                  0.5,
-                                                )!
-                                              : (isBlackKey ? const Color(0xFF1E222D) : const Color(0xFFDCDFE5)),
-                                          border: Border(
-                                            bottom: BorderSide(
-                                              color: isBlackKey ? Colors.black45 : Colors.grey.shade400,
-                                              width: 1.0,
-                                            ),
+                                    return Container(
+                                      height: _keyHeight,
+                                      decoration: BoxDecoration(
+                                        color: isActive
+                                            ? Color.lerp(
+                                                isBlackKey ? const Color(0xFF2A2E3D) : const Color(0xFFE2EAFA),
+                                                track.color,
+                                                0.5,
+                                              )!
+                                            : (isBlackKey ? const Color(0xFF1E222D) : const Color(0xFFDCDFE5)),
+                                        border: Border(
+                                          bottom: BorderSide(
+                                            color: isBlackKey ? Colors.black45 : Colors.grey.shade400,
+                                            width: 1.0,
                                           ),
                                         ),
+                                      ),
                                         child: Stack(
                                           children: [
                                             // Horizontal Velocity Fill Bar on active touch (no gradient)
@@ -2059,10 +2077,9 @@ class _PianoRollViewState extends State<PianoRollView> {
                                             ),
                                           ],
                                         ),
-                                      ),
-                                    ),
-                                  );
-                                }),
+                                      );
+                                    }),
+                                ),
                               ),
                             ),
                           ),

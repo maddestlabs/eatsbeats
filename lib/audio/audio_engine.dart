@@ -90,6 +90,8 @@ class AudioEngine {
     _pcmCache.removeWhere((key, _) => key.startsWith('${trackId}_'));
   }
 
+  int get pcmCacheCount => _pcmCache.length;
+
   Map<String, double> getMeterSnapshot() {
     updateMeters();
     return {
@@ -607,13 +609,100 @@ class AudioEngine {
   }
 
   /// Flushes backend channel strips, active sources, and PCM caches when changing songs.
+  /// Plays a live sustaining note with proper ADSR note-on lifecycle.
+  void noteOn({
+    required TrackChannel track,
+    required int midiNote,
+    required double velocity,
+    double sustainDurationSec = 3.0,
+    String? articulation,
+  }) {
+    if (track.isMuted) return;
+
+    if (!_backend.isInitialized) {
+      _backend.ready.then((_) {
+        if (!_backend.isInitialized) return;
+        noteOn(
+          track: track,
+          midiNote: midiNote,
+          velocity: velocity,
+          sustainDurationSec: sustainDurationSec,
+          articulation: articulation,
+        );
+      });
+      return;
+    }
+
+    final double normVol = (track.volume / 1.5).clamp(0.0, 1.0);
+    final double effectiveVel = velocity.clamp(0.0, 1.0);
+    final double outVol = (normVol * effectiveVel).clamp(0.0, 1.0);
+
+    final double panVal = track.pan.clamp(-1.0, 1.0);
+    final double leftPanFactor = panVal <= 0 ? 1.0 : (1.0 - panVal);
+    final double rightPanFactor = panVal >= 0 ? 1.0 : (1.0 + panVal);
+    final double trkLeft = (outVol * leftPanFactor).clamp(0.0, 1.0);
+    final double trkRight = (outVol * rightPanFactor).clamp(0.0, 1.0);
+
+    _trackLeftPeaks[track.id] = math.max(_trackLeftPeaks[track.id] ?? 0.0, trkLeft);
+    _trackRightPeaks[track.id] = math.max(_trackRightPeaks[track.id] ?? 0.0, trkRight);
+    _leftPeak = math.max(_leftPeak, trkLeft * 0.85);
+    _rightPeak = math.max(_rightPeak, trkRight * 0.85);
+
+    ensureContextRunning();
+
+    final (samples, cacheKey) = _getOrCreateBuffer(
+      track: track,
+      midiNote: midiNote,
+      velocity: velocity,
+      durationSec: sustainDurationSec,
+      articulation: articulation,
+    );
+
+    _backend.noteOn(
+      samples: samples,
+      volume: outVol,
+      pan: track.pan,
+      trackId: track.id,
+      midiNote: midiNote,
+      fxRack: track.fxRack,
+      isMonophonic: track.isMonophonicTrack,
+      bufferCacheKey: cacheKey,
+    );
+  }
+
+  /// Releases a live note with smooth ADSR release phase.
+  void noteOff({
+    required TrackChannel track,
+    required int midiNote,
+    double releaseSec = 0.12,
+  }) {
+    _backend.noteOff(
+      trackId: track.id,
+      midiNote: midiNote,
+      releaseSec: releaseSec,
+    );
+  }
+
+  /// Stops all active live sustaining notes.
+  void stopAllLiveNotes({String? trackId}) {
+    _backend.stopAllLiveNotes(trackId: trackId);
+  }
+
   void clearChannelStrips() {
     _backend.clearChannelStrips();
     clearPcmCache();
   }
 
   /// Pre-warms the PCM cache and IR samples so playback has 0 latency.
-  void prewarmPatternCache(List<TrackChannel> tracks, double stepDurationSec) {
+  /// Uses a JIT lookahead window [lookaheadSteps] (default 16 steps / 1 bar)
+  /// from [startStep] to prevent blocking the UI thread on lengthy 24+ bar clips.
+  void prewarmPatternCache(
+    List<TrackChannel> tracks,
+    double stepDurationSec, {
+    int startStep = 0,
+    int lookaheadSteps = 16,
+    bool eagerAll = false,
+  }) {
     final Set<String> activeIrNames = {};
     for (final track in tracks) {
       if (track.isMuted) continue;
@@ -626,12 +715,29 @@ class AudioEngine {
     if (activeIrNames.isNotEmpty) {
       _backend.preloadIrSamples(activeIrNames);
     }
+
+    final int endStep = eagerAll ? 999999 : (startStep + lookaheadSteps);
+
     for (final track in tracks) {
       if (track.isMuted) continue;
       for (final clip in track.clips) {
+        final int clipStart = clip.startBar * 16;
+        final int clipEnd = (clip.startBar + clip.barLength) * 16;
+
+        // Skip clips completely outside the lookahead window
+        if (!eagerAll && (clipEnd <= startStep || clipStart >= endStep)) {
+          continue;
+        }
+
         final notes = clip.notes;
         for (int nIdx = 0; nIdx < notes.length; nIdx++) {
           final note = notes[nIdx];
+          final double absoluteNoteStep = clipStart + note.startStep;
+
+          if (!eagerAll && (absoluteNoteStep < startStep || absoluteNoteStep >= endStep)) {
+            continue;
+          }
+
           final dur = stepDurationSec * note.durationSteps;
           int? targetPitch;
           if (track.isMonophonicTrack) {

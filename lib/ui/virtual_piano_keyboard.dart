@@ -4,6 +4,8 @@ import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../theme/eats_theme.dart';
 
+import 'widgets/keyboard_touch_controller.dart';
+
 class VirtualPianoKeyboard extends StatefulWidget {
   final DawState dawState;
 
@@ -29,14 +31,53 @@ class _VirtualPianoKeyboardState extends State<VirtualPianoKeyboard>
   int _baseOctave = 3; // MIDI note 48 (C3)
   static const int _octavesCount = 3; // Shows 3 octaves (36 keys)
 
-  // Active touch states for multi-touch note triggering
-  // Maps pointerId -> _ActiveTouch
-  final Map<int, _ActiveTouch> _activeTouches = {};
+  late final KeyboardTouchController _touchController = KeyboardTouchController(
+    orientation: KeyboardOrientation.horizontal,
+    baseOctave: _baseOctave,
+    octavesCount: _octavesCount,
+    onNoteOn: (pitch, velocity) {
+      final track = widget.dawState.activeTrack;
+      widget.dawState.audioEngine.noteOn(
+        track: track,
+        midiNote: pitch,
+        velocity: velocity,
+        sustainDurationSec: 3.5,
+      );
+      if (track.activeView == MusicViewType.tracker) {
+        widget.dawState.addOrUpdateTrackerNote(
+          pitch: pitch,
+          velocity: velocity,
+          autoAdvance: true,
+        );
+      }
+    },
+    onNoteOff: (pitch) {
+      final track = widget.dawState.activeTrack;
+      widget.dawState.audioEngine.noteOff(
+        track: track,
+        midiNote: pitch,
+        releaseSec: 0.12,
+      );
+    },
+  );
 
   final ScrollController _scrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    _touchController.addListener(_onTouchesChanged);
+  }
+
+  void _onTouchesChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _touchController.removeListener(_onTouchesChanged);
+    _touchController.clearAllTouches();
+    _touchController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -50,139 +91,12 @@ class _VirtualPianoKeyboardState extends State<VirtualPianoKeyboard>
   void _shiftOctave(int delta) {
     setState(() {
       _baseOctave = (_baseOctave + delta).clamp(1, 6);
+      _touchController.setBaseOctave(_baseOctave);
     });
   }
 
-  // Determine note name from MIDI pitch
-  String _getNoteName(int midiPitch) {
-    const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    final name = names[midiPitch % 12];
-    final octave = (midiPitch / 12).floor() - 1;
-    return '$name$octave';
-  }
-
-  bool _isBlackKey(int midiPitch) {
-    final noteInOctave = midiPitch % 12;
-    return noteInOctave == 1 ||
-        noteInOctave == 3 ||
-        noteInOctave == 6 ||
-        noteInOctave == 8 ||
-        noteInOctave == 10;
-  }
-
-  // Calculate pitch and velocity from touch relative position
-  void _handlePointerDown(PointerDownEvent event, RenderBox box, double keyWidth, double keyHeight) {
-    final localPos = box.globalToLocal(event.position);
-    final touchInfo = _pitchAndVelocityFromPos(localPos, keyWidth, keyHeight);
-    if (touchInfo == null) return;
-
-    _activeTouches[event.pointer] = touchInfo;
-    _triggerNote(touchInfo.pitch, touchInfo.velocity);
-    setState(() {});
-  }
-
-  void _handlePointerMove(PointerMoveEvent event, RenderBox box, double keyWidth, double keyHeight) {
-    final localPos = box.globalToLocal(event.position);
-    final touchInfo = _pitchAndVelocityFromPos(localPos, keyWidth, keyHeight);
-    final prevTouch = _activeTouches[event.pointer];
-
-    if (touchInfo != null) {
-      if (prevTouch == null || prevTouch.pitch != touchInfo.pitch) {
-        _activeTouches[event.pointer] = touchInfo;
-        _triggerNote(touchInfo.pitch, touchInfo.velocity);
-        setState(() {});
-      } else if ((prevTouch.velocity - touchInfo.velocity).abs() > 0.1) {
-        // Update velocity if shifted significantly
-        _activeTouches[event.pointer] = touchInfo;
-        setState(() {});
-      }
-    } else {
-      if (_activeTouches.containsKey(event.pointer)) {
-        _activeTouches.remove(event.pointer);
-        setState(() {});
-      }
-    }
-  }
-
-  void _handlePointerUpOrCancel(int pointer) {
-    if (_activeTouches.containsKey(pointer)) {
-      _activeTouches.remove(pointer);
-      setState(() {});
-    }
-  }
-
-  void _triggerNote(int pitch, double velocity) {
-    final track = widget.dawState.activeTrack;
-    widget.dawState.audioEngine.playNoteOrSample(
-      track: track,
-      midiNote: pitch,
-      velocity: velocity,
-      durationSec: 0.8,
-    );
-    if (track.activeView == MusicViewType.tracker) {
-      widget.dawState.addOrUpdateTrackerNote(
-        pitch: pitch,
-        velocity: velocity,
-        autoAdvance: true,
-      );
-    }
-  }
-
-  // Map 2D touch inside piano canvas to MIDI pitch & vertical velocity
-  _ActiveTouch? _pitchAndVelocityFromPos(Offset pos, double keyWidth, double keyHeight) {
-    if (pos.dy < 0 || pos.dy > keyHeight || pos.dx < 0) return null;
-
-    final startPitch = (_baseOctave + 1) * 12; // C3 = 48
-    const totalNotes = _octavesCount * 12; // 36 keys
-
-    // Count white keys to find key width positioning
-    int whiteKeyCount = 0;
-    for (int p = startPitch; p < startPitch + totalNotes; p++) {
-      if (!_isBlackKey(p)) whiteKeyCount++;
-    }
-
-    final double whiteKeyWidth = keyWidth / whiteKeyCount;
-    final double blackKeyWidth = whiteKeyWidth * 0.65;
-    final double blackKeyHeight = keyHeight * 0.60;
-
-    // Check Black keys first since they overlay upper portion of white keys
-    if (pos.dy <= blackKeyHeight) {
-      int currentWhiteIdx = 0;
-      for (int p = startPitch; p < startPitch + totalNotes; p++) {
-        if (_isBlackKey(p)) {
-          // Black key is positioned centered over boundary between currentWhiteIdx-1 and currentWhiteIdx
-          final double left = (currentWhiteIdx * whiteKeyWidth) - (blackKeyWidth / 2.0);
-          final double right = left + blackKeyWidth;
-
-          if (pos.dx >= left && pos.dx <= right) {
-            // Y-velocity calculation: bottom tip of black key (blackKeyHeight) = 1.0, top (0) = 0.15
-            final double normY = (pos.dy / blackKeyHeight).clamp(0.0, 1.0);
-            final double velocity = (0.15 + 0.85 * normY).clamp(0.15, 1.0);
-            return _ActiveTouch(pitch: p, velocity: velocity, isBlack: true);
-          }
-        } else {
-          currentWhiteIdx++;
-        }
-      }
-    }
-
-    // Check White keys
-    int whiteIdx = (pos.dx / whiteKeyWidth).floor().clamp(0, whiteKeyCount - 1);
-    int currentWhiteIdx = 0;
-    for (int p = startPitch; p < startPitch + totalNotes; p++) {
-      if (!_isBlackKey(p)) {
-        if (currentWhiteIdx == whiteIdx) {
-          // Y-velocity calculation: bottom tip of key (keyHeight) = 1.0, top (0) = 0.15
-          final double normY = (pos.dy / keyHeight).clamp(0.0, 1.0);
-          final double velocity = (0.15 + 0.85 * normY).clamp(0.15, 1.0);
-          return _ActiveTouch(pitch: p, velocity: velocity, isBlack: false);
-        }
-        currentWhiteIdx++;
-      }
-    }
-
-    return null;
-  }
+  String _getNoteName(int midiPitch) => KeyboardTouchController.getNoteName(midiPitch);
+  bool _isBlackKey(int midiPitch) => KeyboardTouchController.isBlackKey(midiPitch);
 
   @override
   Widget build(BuildContext context) {
@@ -370,9 +284,9 @@ class _VirtualPianoKeyboardState extends State<VirtualPianoKeyboard>
                         const Spacer(),
 
                         // Active Pressed Note & Velocity Display
-                        if (_activeTouches.isNotEmpty)
+                        if (_touchController.activeTouches.isNotEmpty)
                           Builder(builder: (context) {
-                            final touch = _activeTouches.values.last;
+                            final touch = _touchController.activeTouches.values.last;
                             final noteName = _getNoteName(touch.pitch);
                             final velPercent = (touch.velocity * 100).round();
                             return Container(
@@ -452,21 +366,19 @@ class _VirtualPianoKeyboardState extends State<VirtualPianoKeyboard>
 
                         return Listener(
                           onPointerDown: (e) {
-                            final box = context.findRenderObject() as RenderBox;
-                            _handlePointerDown(e, box, keyWidth, keyHeight);
+                            _touchController.handlePointerDown(e, e.localPosition, Size(keyWidth, keyHeight));
                           },
                           onPointerMove: (e) {
-                            final box = context.findRenderObject() as RenderBox;
-                            _handlePointerMove(e, box, keyWidth, keyHeight);
+                            _touchController.handlePointerMove(e, e.localPosition, Size(keyWidth, keyHeight));
                           },
-                          onPointerUp: (e) => _handlePointerUpOrCancel(e.pointer),
-                          onPointerCancel: (e) => _handlePointerUpOrCancel(e.pointer),
+                          onPointerUp: (e) => _touchController.handlePointerUpOrCancel(e.pointer),
+                          onPointerCancel: (e) => _touchController.handlePointerUpOrCancel(e.pointer),
                           child: CustomPaint(
                             size: Size(keyWidth, keyHeight),
                             painter: _PianoKeyboardPainter(
                               baseOctave: _baseOctave,
                               octavesCount: _octavesCount,
-                              activeTouches: _activeTouches.values.toList(),
+                              activeTouches: _touchController.activeTouches.values.toList(),
                               trackColor: trackColor,
                               isGrungy: isGrungy,
                             ),
@@ -485,22 +397,10 @@ class _VirtualPianoKeyboardState extends State<VirtualPianoKeyboard>
   }
 }
 
-class _ActiveTouch {
-  final int pitch;
-  final double velocity; // 0.15 to 1.0 (Y-axis velocity)
-  final bool isBlack;
-
-  _ActiveTouch({
-    required this.pitch,
-    required this.velocity,
-    required this.isBlack,
-  });
-}
-
 class _PianoKeyboardPainter extends CustomPainter {
   final int baseOctave;
   final int octavesCount;
-  final List<_ActiveTouch> activeTouches;
+  final List<KeyboardActiveTouch> activeTouches;
   final Color trackColor;
   final bool isGrungy;
 
@@ -544,7 +444,7 @@ class _PianoKeyboardPainter extends CustomPainter {
     final double blackKeyHeight = size.height * 0.60;
 
     // Active touch pitch map
-    final activePitches = <int, _ActiveTouch>{};
+    final activePitches = <int, KeyboardActiveTouch>{};
     for (final t in activeTouches) {
       activePitches[t.pitch] = t;
     }

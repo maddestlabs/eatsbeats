@@ -1842,8 +1842,11 @@ class LuaEngine {
     final cutoffNorm = cutoff / 5000.0;
 
     final art = articulation?.toLowerCase();
-    final decaySec = (art == 'muted' || art == 'palm_mute' || art == 'staccato') ? 0.08 : (art == 'harmonics' ? 0.45 : 0.3);
+    final isStaccato = (art == 'muted' || art == 'palm_mute' || art == 'staccato');
     final baseFreq = (art == 'harmonics') ? freq * 2.0 : freq;
+    final attack = 0.005;
+    final release = 0.12;
+    final gateTime = isStaccato ? 0.08 : math.max(attack, durationSec - release);
 
     for (int i = 0; i < numSamples; i++) {
       final time = i / 44100.0;
@@ -1856,7 +1859,19 @@ class LuaEngine {
       final phase = time * curFreq;
       final saw = 2.0 * (phase - (phase + 0.5).floorToDouble());
       final sub = math.sin(2.0 * math.pi * (curFreq * 0.5) * time);
-      final env = math.exp(-time / decaySec);
+
+      double env;
+      if (isStaccato) {
+        env = math.exp(-time / 0.08);
+      } else if (time < attack) {
+        env = time / attack;
+      } else if (time < gateTime) {
+        env = 0.85;
+      } else {
+        final relT = time - gateTime;
+        env = (0.85 * math.exp(-relT / release)).clamp(0.0, 1.0);
+      }
+
       final raw = (saw * (0.5 + 0.4 * timbre) + sub * 0.3) * env * press;
       buffer[i] = (raw * cutoffNorm).clamp(-1.0, 1.0);
     }

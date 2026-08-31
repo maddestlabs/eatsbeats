@@ -10,6 +10,18 @@ import '../models/track_model.dart';
 import 'convolver_engine.dart';
 import 'procedural_ir_generator.dart';
 
+class _LiveVoiceBinding {
+  final WABufferSourceNode source;
+  final WAGainNode voiceGain;
+  final String voiceKey;
+
+  _LiveVoiceBinding({
+    required this.source,
+    required this.voiceGain,
+    required this.voiceKey,
+  });
+}
+
 class _FxNodeBinding {
   final FXInsert fx;
   final WANode outputNode;
@@ -1623,6 +1635,174 @@ class WajuceAudioBackend {
     }
   }
 
+  final Map<String, _LiveVoiceBinding> _activeLiveNoteSources = {};
+
+  void noteOn({
+    required Float32List samples,
+    required double volume,
+    required double pan,
+    required String trackId,
+    required int midiNote,
+    required List<FXInsert> fxRack,
+    bool isMonophonic = false,
+    String? bufferCacheKey,
+    bool loop = true,
+  }) {
+    final ctx = _ctx;
+    final masterGain = _masterGain;
+    if (!_initialized || ctx == null || masterGain == null) return;
+    try {
+      final voiceKey = '${trackId}_$midiNote';
+
+      // Stop previous note if monophonic or if retriggering the same pitch
+      if (isMonophonic) {
+        stopTrackNotes(trackId);
+        stopAllLiveNotes(trackId: trackId);
+      } else {
+        final prev = _activeLiveNoteSources.remove(voiceKey);
+        if (prev != null) {
+          try {
+            prev.source.stop((ctx.currentTime) + 0.02);
+            prev.source.disconnect();
+            prev.voiceGain.disconnect();
+            prev.source.dispose();
+            prev.voiceGain.dispose();
+          } catch (_) {
+            try { prev.source.stop(); } catch (_) {}
+          }
+        }
+      }
+
+      final destination = _masterInputBus ?? masterGain;
+      final strip = _channelStrips.putIfAbsent(
+        trackId,
+        () => TrackChannelStrip(
+          trackId: trackId,
+          ctx: ctx,
+          destination: destination,
+        ),
+      );
+
+      strip.update(
+        volume: volume,
+        pan: pan,
+        fxRack: fxRack,
+        irCache: _irCache,
+        loadIrAsync: _loadIrAsync,
+      );
+
+      WABuffer buf;
+      if (bufferCacheKey != null && _bufferCache.containsKey(bufferCacheKey)) {
+        buf = _bufferCache[bufferCacheKey]!;
+      } else {
+        buf = WABuffer(
+          numberOfChannels: 1,
+          length: samples.length,
+          sampleRate: 44100,
+          channels: [samples],
+        );
+        if (bufferCacheKey != null) {
+          if (_bufferCache.length >= 128) {
+            _bufferCache.remove(_bufferCache.keys.first);
+          }
+          _bufferCache[bufferCacheKey] = buf;
+        }
+      }
+
+      final voiceGain = ctx.createGain();
+      voiceGain.gain.value = 1.0;
+
+      final source = ctx.createBufferSource();
+      source.buffer = buf;
+      source.loop = loop;
+
+      source.connect(voiceGain);
+      voiceGain.connect(strip.inputBus);
+
+      final binding = _LiveVoiceBinding(
+        source: source,
+        voiceGain: voiceGain,
+        voiceKey: voiceKey,
+      );
+      _activeLiveNoteSources[voiceKey] = binding;
+
+      source.onEnded = () {
+        try {
+          source.disconnect();
+          voiceGain.disconnect();
+          source.dispose();
+          voiceGain.dispose();
+          if (_activeLiveNoteSources[voiceKey] == binding) {
+            _activeLiveNoteSources.remove(voiceKey);
+          }
+        } catch (_) {}
+      };
+
+      source.start();
+    } catch (e) {
+      debugPrint('[WajuceAudioBackend] noteOn error: $e');
+    }
+  }
+
+  void noteOff({
+    required String trackId,
+    required int midiNote,
+    double releaseSec = 0.12,
+  }) {
+    try {
+      final voiceKey = '${trackId}_$midiNote';
+      final binding = _activeLiveNoteSources.remove(voiceKey);
+      if (binding != null) {
+        final curTime = _ctx?.currentTime ?? 0;
+        final stopTime = curTime + releaseSec;
+        try {
+          binding.voiceGain.gain.setValueAtTime(1.0, curTime);
+          binding.voiceGain.gain.linearRampToValueAtTime(0.0, stopTime);
+          binding.source.stop(stopTime + 0.02);
+          Timer(Duration(milliseconds: ((releaseSec + 0.05) * 1000).round()), () {
+            try {
+              binding.source.disconnect();
+              binding.voiceGain.disconnect();
+              binding.source.dispose();
+              binding.voiceGain.dispose();
+            } catch (_) {}
+          });
+        } catch (_) {
+          try { binding.source.stop(); } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+
+  void stopAllLiveNotes({String? trackId}) {
+    try {
+      if (trackId != null) {
+        final keysToRemove = _activeLiveNoteSources.keys.where((k) => k.startsWith('${trackId}_')).toList();
+        for (final k in keysToRemove) {
+          final binding = _activeLiveNoteSources.remove(k);
+          try {
+            binding?.source.stop();
+            binding?.source.disconnect();
+            binding?.voiceGain.disconnect();
+            binding?.source.dispose();
+            binding?.voiceGain.dispose();
+          } catch (_) {}
+        }
+      } else {
+        for (final binding in _activeLiveNoteSources.values) {
+          try {
+            binding.source.stop();
+            binding.source.disconnect();
+            binding.voiceGain.disconnect();
+            binding.source.dispose();
+            binding.voiceGain.dispose();
+          } catch (_) {}
+        }
+        _activeLiveNoteSources.clear();
+      }
+    } catch (_) {}
+  }
+
   void stopTrackNotes(String trackId) {
     try {
       final src = _activeSources.remove(trackId);
@@ -1759,6 +1939,7 @@ class WajuceAudioBackend {
         } catch (_) {}
       }
       _activeSources.clear();
+      stopAllLiveNotes();
       stopAllFrozenStreams();
     } catch (_) {}
   }

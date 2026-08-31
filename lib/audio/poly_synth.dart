@@ -144,12 +144,16 @@ class PolySynth {
           break;
       }
 
-      // Envelope ADSR
+      // Envelope ADSR with sustain
       double env = 0.0;
+      final double gateTime = math.max(attack, lengthSec);
       if (t < attack) {
-        env = t / attack;
+        env = attack > 0.0001 ? (t / attack) : 1.0;
+      } else if (t < gateTime) {
+        env = 0.9;
       } else {
-        env = math.exp(-(t - attack) / release);
+        final relT = t - gateTime;
+        env = (0.9 * math.exp(-relT / math.max(0.01, release))).clamp(0.0, 1.0);
       }
 
       buffer[i] = (raw * env * 0.8).clamp(-1.0, 1.0);

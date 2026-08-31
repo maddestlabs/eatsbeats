@@ -57,11 +57,12 @@ class TrackFreezeEngine {
     }
 
     final raw = buffer.toString();
-    // 64-bit FNV-1a hash formatted as hex
-    int hash = 0xcbf29ce484222325;
+    // 64-bit FNV-1a hash formatted as hex (using BigInt for cross-platform Web/JS compatibility)
+    final fnvPrime = BigInt.parse('100000001b3', radix: 16);
+    final mask64 = BigInt.parse('ffffffffffffffff', radix: 16);
+    var hash = BigInt.parse('cbf29ce484222325', radix: 16);
     for (int i = 0; i < raw.length; i++) {
-      hash ^= raw.codeUnitAt(i);
-      hash = (hash * 0x100000001b3) & 0x7FFFFFFFFFFFFFFF;
+      hash = ((hash ^ BigInt.from(raw.codeUnitAt(i))) * fnvPrime) & mask64;
     }
     return hash.toRadixString(16).padLeft(16, '0');
   }

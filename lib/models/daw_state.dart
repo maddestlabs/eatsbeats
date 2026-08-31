@@ -2210,7 +2210,12 @@ return MidiFx
       // Step duration changed — re-warm the cache at the new BPM so the
       // restarted scheduler immediately finds correctly-sized buffers.
       final double stepDurationSec = 60.0 / _bpm / 4.0;
-      audioEngine.prewarmPatternCache(activePattern.tracks, stepDurationSec);
+      audioEngine.prewarmPatternCache(
+        activePattern.tracks,
+        stepDurationSec,
+        startStep: _currentStep,
+        lookaheadSteps: 16,
+      );
       _restartTimer();
     }
     recordHistory('Set BPM to ${_bpm.toStringAsFixed(1)}', icon: Icons.speed);
@@ -2353,12 +2358,16 @@ return MidiFx
     _isPlaying = !_isPlaying;
     isPlayingNotifier.value = _isPlaying;
     if (_isPlaying) {
-      // Pre-warm the PCM cache for every non-slide note in the active pattern
-      // BEFORE starting the scheduler. This guarantees the first loop runs
-      // entirely from cache (sub-millisecond buffer lookups), making timing
-      // consistent from beat 1 rather than only after the first pass.
+      // Pre-warm the PCM cache for immediate upcoming notes (JIT lookahead window)
+      // from the current playhead step. This ensures 0ms delay when pressing play
+      // even for lengthy 24+ bar clips, while keeping beat 1 timing sub-millisecond.
       final double stepDurationSec = 60.0 / _bpm / 4.0;
-      audioEngine.prewarmPatternCache(activePattern.tracks, stepDurationSec);
+      audioEngine.prewarmPatternCache(
+        activePattern.tracks,
+        stepDurationSec,
+        startStep: _currentStep,
+        lookaheadSteps: 16,
+      );
 
       _playbackStopwatch.reset();
       _playbackStopwatch.start();
