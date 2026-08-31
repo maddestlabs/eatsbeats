@@ -107,7 +107,7 @@ void main() {
         durationSec: 0.3,
         freq: 261.63,
         note: 60,
-        params: {'HammerHardness': 1.0, 'Soundboard': 0.9, 'PedalReso': 0.6},
+        params: {'HammerHardness': 0.85, 'Brightness': 0.5, 'Stiffness': 1.0, 'PedalReso': 0.55},
         velocity: 0.85,
       );
       expect(buffer.every((s) => !s.isNaN && !s.isInfinite), isTrue);

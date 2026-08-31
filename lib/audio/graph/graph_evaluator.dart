@@ -2557,7 +2557,7 @@ class GraphEvaluator {
       hammerHardnessParam: 'HammerHardness',
       pedalResonance: 0.55,
       pedalResonanceParam: 'PedalReso',
-      soundboardGain: 1.2,
+      soundboardGain: 1.0,
     );
 
     const hammerCascade = CommutedHammerFilterCascadeNode(
@@ -2568,12 +2568,8 @@ class GraphEvaluator {
       hardnessScaleParam: 'HammerHardness',
     );
 
-    const strikeComb = CommutedStrikeCombNode(
-      input: hammerCascade,
-    );
-
     const commutedWaveguide = CommutedPianoWaveguideNode(
-      exciter: strikeComb,
+      exciter: hammerCascade,
       stiffnessFactor: 1.0,
       stiffnessFactorParam: 'Stiffness',
       detuningFactor: 1.0,
@@ -2582,131 +2578,152 @@ class GraphEvaluator {
       sustainScaleParam: 'Sustain',
     );
 
-    const soundboard = PianoSoundboardNode(
+    const strikeComb = CommutedStrikeCombNode(
       input: commutedWaveguide,
-      soundboardProfile: 1.0, // 9ft Concert Grand
-      soundboardProfileParam: 'Soundboard',
-      bridgeCoupling: 0.55,
-      bridgeCouplingParam: 'PedalReso',
-      duplexSheen: 0.40,
-      duplexSheenParam: 'DuplexScale',
     );
 
     const toneAir = BiquadFilterNode(
-      input: soundboard,
+      input: strikeComb,
       type: BiquadType.highshelf,
       frequency: 6500.0,
       gainDb: 2.0,
       gainDbParam: 'LidOpen',
     );
 
-    const outputGain = GainNode(
+    const masterBrilliance = BiquadFilterNode(
       input: toneAir,
-      staticGain: 0.55,
+      type: BiquadType.lowpass,
+      frequency: 14000.0,
+      freqParam: 'Tone',
+      q: 0.707,
+    );
+
+    const outputGain = GainNode(
+      input: masterBrilliance,
+      staticGain: 5.5,
     );
 
     return outputGain;
   }
 
-  /// Authentic Warm Felt Studio Upright Piano Physical Model.
+  /// Authentic Warm Felt Studio Upright Piano Physical Model (Commuted Waveguide).
   /// Architecture:
-  /// - Thick felt-damped hammer exciter with intimate wooden action thud
-  /// - Shortened upright cabinet string waveguides with quick warm decay
-  /// - Boxy upright cabinet cavity formants tailored to sit under acoustic guitars
+  /// - Soft wool felt compliance filter cascade with intimate wooden action knock
+  /// - Shortened upright cabinet string waveguides with quick warm decay and upright unison drift
+  /// - Warm acoustic lowpass roll-off tailored to sit beneath acoustic guitars
   static GraphNode buildFeltUprightPiano() {
-    const exciter = PianoHammerExciterNode(
-      hammerHardness: 0.35,
+    const soundboardExciter = CommutedSoundboardExciterNode(
+      hammerHardness: 0.80,
       hammerHardnessParam: 'HammerHardness',
-      feltSoftness: 0.85,
-      feltSoftnessParam: 'FeltThickness',
-      strikeNoise: 0.45,
-      strikeNoiseParam: 'MechanicalThud',
+      pedalResonance: 0.40,
+      pedalResonanceParam: 'PedalReso',
+      soundboardGain: 1.1,
     );
 
-    const coupledStrings = CoupledWaveguideNode(
-      exciter: exciter,
-      feedback: 0.9945,
-      feedbackParam: 'Sustain',
-      damping: 0.28,
-      dampingParam: 'Damping',
-      courseDetuneCents: 2.4,
-      courseDetuneParam: 'UnisonDetune',
-      coupling: 0.10,
+    const hammerCascade = CommutedHammerFilterCascadeNode(
+      input: soundboardExciter,
+      brightnessFactor: 0.30,
+      brightnessFactorParam: 'FeltThickness',
+      hardnessScale: 0.80,
+      hardnessScaleParam: 'HammerHardness',
     );
 
-    const soundboard = PianoSoundboardNode(
-      input: coupledStrings,
-      soundboardProfile: 0.0, // Upright Cabinet
-      soundboardProfileParam: 'CabinetSize',
-      bridgeCoupling: 0.40,
-      bridgeCouplingParam: 'BodyReso',
-      duplexSheen: 0.05,
-      duplexSheenParam: 'AirSheen',
+    const commutedWaveguide = CommutedPianoWaveguideNode(
+      exciter: hammerCascade,
+      stiffnessFactor: 1.10,
+      stiffnessFactorParam: 'Stiffness',
+      detuningFactor: 1.25,
+      detuningFactorParam: 'UnisonDetune',
+      sustainScale: 0.92,
+      sustainScaleParam: 'Sustain',
     );
 
-    // Warm low-pass characteristic of felt-damped studio upright
+    const strikeComb = CommutedStrikeCombNode(
+      input: commutedWaveguide,
+    );
+
     const feltWarmth = BiquadFilterNode(
-      input: soundboard,
+      input: strikeComb,
       type: BiquadType.lowpass,
-      frequency: 4500.0,
+      frequency: 5200.0,
       freqParam: 'Tone',
       q: 0.707,
     );
 
     const outputGain = GainNode(
       input: feltWarmth,
-      staticGain: 0.45,
+      staticGain: 5.5,
     );
 
     return outputGain;
   }
 
-  /// Authentic Honky-Tonk / Tack Saloon Piano Physical Model.
+  /// Authentic Honky-Tonk / Tack Saloon Piano Physical Model (Commuted Waveguide).
   /// Architecture:
-  /// - Metallic thumb-tack hammer impact exciter with sharp transient burst
-  /// - Widely detuned parallel trichord waveguides (6–10 cents)
-  /// - Resonant saloon wooden body cavity with punchy mid bite
+  /// - Metallic thumb-tack hammer impact exciter blended with commuted saloon soundboard
+  /// - Widely detuned parallel trichord waveguides (5–12 cents chorus)
+  /// - Resonant saloon wooden body cavity with punchy 3.2kHz mid bite
   static GraphNode buildHonkyTonkPiano() {
-    const exciter = TackExciterNode(
+    const soundboardExciter = CommutedSoundboardExciterNode(
+      hammerHardness: 1.25,
+      hammerHardnessParam: 'TackBite',
+      pedalResonance: 0.40,
+      pedalResonanceParam: 'SaloonReso',
+      soundboardGain: 1.1,
+    );
+
+    const tackImpact = TackExciterNode(
       tackBite: 0.85,
       tackBiteParam: 'TackBite',
       hammerKnock: 0.50,
       hammerKnockParam: 'ActionClack',
     );
 
-    const detunedTrichords = CoupledWaveguideNode(
-      exciter: exciter,
-      feedback: 0.9960,
-      feedbackParam: 'Sustain',
-      damping: 0.18,
-      dampingParam: 'Damping',
-      courseDetuneCents: 7.5,
-      courseDetuneParam: 'DetuneCents',
-      coupling: 0.08,
+    const exciterMixer = MixerNode(
+      [soundboardExciter, tackImpact],
+      [0.85, 0.45],
     );
 
-    const soundboard = PianoSoundboardNode(
-      input: detunedTrichords,
-      soundboardProfile: 0.25, // Saloon Upright
-      soundboardProfileParam: 'BodyWood',
-      bridgeCoupling: 0.35,
-      bridgeCouplingParam: 'SaloonReso',
-      duplexSheen: 0.60,
-      duplexSheenParam: 'MetalSheen',
+    const hammerCascade = CommutedHammerFilterCascadeNode(
+      input: exciterMixer,
+      brightnessFactor: 0.80,
+      brightnessFactorParam: 'TackBite',
+      hardnessScale: 1.45,
+    );
+
+    const commutedWaveguide = CommutedPianoWaveguideNode(
+      exciter: hammerCascade,
+      stiffnessFactor: 1.25,
+      detuningFactor: 3.2,
+      detuningFactorParam: 'DetuneCents',
+      sustainScale: 0.95,
+      sustainScaleParam: 'Sustain',
+    );
+
+    const strikeComb = CommutedStrikeCombNode(
+      input: commutedWaveguide,
     );
 
     const midBite = BiquadFilterNode(
-      input: soundboard,
+      input: strikeComb,
       type: BiquadType.peaking,
       frequency: 3200.0,
-      gainDb: 3.5,
+      gainDb: 4.0,
       gainDbParam: 'Bite',
       q: 1.8,
     );
 
-    const outputGain = GainNode(
+    const toneCut = BiquadFilterNode(
       input: midBite,
-      staticGain: 0.38,
+      type: BiquadType.lowpass,
+      frequency: 11000.0,
+      freqParam: 'Tone',
+      q: 0.707,
+    );
+
+    const outputGain = GainNode(
+      input: toneCut,
+      staticGain: 4.8,
     );
 
     return outputGain;

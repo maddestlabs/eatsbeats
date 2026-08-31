@@ -3978,14 +3978,24 @@ class CommutedHammerFilterCascadeNode extends GraphNode {
     final double bright = (brightnessFactorParam != null ? ctx.getParam(brightnessFactorParam!, brightnessFactor) : brightnessFactor).clamp(0.0, 1.0);
     final double hScale = (hardnessScaleParam != null ? ctx.getParam(hardnessScaleParam!, hardnessScale) : hardnessScale).clamp(0.1, 3.0);
 
-    final double loudP = (PianoPhysicalTables.loudPole.lookup(note) + (bright * -0.25) + 0.02) * (1.0 / math.sqrt(hScale));
-    final double softP = PianoPhysicalTables.softPole.lookup(note);
-    final double loudG = PianoPhysicalTables.loudGain.lookup(note) * hScale;
-    final double softG = PianoPhysicalTables.softGain.lookup(note);
+    final double baseLoudP = PianoPhysicalTables.loudPole.lookup(note);
+    final double baseSoftP = PianoPhysicalTables.softPole.lookup(note);
+    final double hardOffset = (hScale - 1.0) * 0.08;
+    final double brightOffset = (bright - 0.5) * 0.10;
+
+    final double loudP = (baseLoudP - hardOffset - brightOffset).clamp(0.40, 0.92);
+    final double softP = (baseSoftP - hardOffset * 0.5).clamp(0.70, 0.98);
+
+    final double baseLoudG = PianoPhysicalTables.loudGain.lookup(note);
+    final double baseSoftG = PianoPhysicalTables.softGain.lookup(note);
+    final double gainScale = math.sqrt(hScale).clamp(0.70, 2.0);
+
+    final double loudG = baseLoudG * gainScale;
+    final double softG = baseSoftG * math.sqrt(gainScale);
 
     final double normVel = math.pow(vel, 0.65).toDouble().clamp(0.0, 1.0);
-    final double hammerPole = (softP + (loudP - softP) * normVel).clamp(0.01, 0.995);
-    final double hammerGain = (softG + (loudG - softG) * normVel).clamp(0.01, 5.0);
+    final double hammerPole = (softP + (loudP - softP) * normVel).clamp(0.40, 0.985);
+    final double hammerGain = (softG + (loudG - softG) * normVel).clamp(0.40, 5.0);
 
     // 4-pole cascade with 6x input scaling matching Faust STK
     final double b0 = (1.0 - hammerPole) * hammerGain;
@@ -4098,17 +4108,26 @@ class CommutedPianoWaveguideNode extends GraphNode {
     final double freq1 = math.max(20.0, f0 + 0.5 * hzDetune);
     final double freq2 = math.max(20.0, f0 - 0.5 * hzDetune);
 
-    // Delay lengths with all-pass group delay compensation
+    // Delay lengths with exact all-pass and pole-zero group delay compensation (Faust STK)
     double calcDelayLength(double f) {
       final double wT = (f * 2.0 * math.pi / sr).clamp(0.001, math.pi * 0.95);
-      final double apPhase = math.atan2(
-        (stiffness * stiffness - 1.0) * math.sin(wT),
-        2.0 * stiffness + (stiffness * stiffness + 1.0) * math.cos(wT),
-      );
-      final double pzPhase = math.atan2(
-        -b1C * math.sin(wT) * (1.0 + a1C * math.cos(wT)) + a1C * math.sin(wT) * (b0C + b1C * math.cos(wT)),
-        (b0C + b1C * math.cos(wT)) * (1.0 + a1C * math.cos(wT)) + b1C * math.sin(wT) * a1C * math.sin(wT),
-      );
+      final double sinWT = math.sin(wT);
+      final double cosWT = math.cos(wT);
+
+      // All-pass dispersion phase
+      final double numAp = (stiffness * stiffness - 1.0) * sinWT;
+      final double denAp = 2.0 * stiffness + (stiffness * stiffness + 1.0) * cosWT;
+      final double apPhase = math.atan2(numAp, denAp);
+
+      // Bridge coupling pole-zero phase: poleZeroPhase(1 + 2*b0C, a1C + 2*b1C, a1C, wT)
+      final double b0P = 1.0 + 2.0 * b0C;
+      final double b1P = a1C + 2.0 * b1C;
+      final double a1P = a1C;
+
+      final double numPz = -b1P * sinWT * (1.0 + a1P * cosWT) + a1P * sinWT * (b0P + b1P * cosWT);
+      final double denPz = (b0P + b1P * cosWT) * (1.0 + a1P * cosWT) + b1P * sinWT * a1P * sinWT;
+      final double pzPhase = math.atan2(numPz, denPz);
+
       final double dLen = (2.0 * math.pi + 3.0 * apPhase + pzPhase) / wT;
       return dLen.clamp(2.0, (sr / 18.0));
     }

@@ -621,6 +621,8 @@ class LuaEngine {
         code.contains('Concert Grand') ||
         code.contains('Grand Piano') ||
         code.contains('Steinway') ||
+        (code.contains('HammerHardness') && code.contains('Stiffness')) ||
+        (code.contains('HammerHardness') && code.contains('Brightness')) ||
         (code.contains('HammerHardness') && code.contains('Soundboard') && code.contains('PedalReso'))) {
       return GraphEvaluator.evaluate(
         root: GraphEvaluator.buildConcertGrandPiano(),

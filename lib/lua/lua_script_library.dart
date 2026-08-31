@@ -364,7 +364,7 @@ class LuaScriptLibrary {
     if (luaCode.contains('Harpsichord') || luaCode.contains('harpsichord_cembalo') || luaCode.contains('Cembalo') || luaCode.contains('Virginal')) {
       return getPresetById('harpsichord_cembalo');
     }
-    if (luaCode.contains('ConcertGrandPiano') || luaCode.contains('concert_grand_piano') || luaCode.contains('Concert Grand') || luaCode.contains('Grand Piano') || (luaCode.contains('HammerHardness') && luaCode.contains('Soundboard') && luaCode.contains('PedalReso'))) {
+    if (luaCode.contains('ConcertGrandPiano') || luaCode.contains('concert_grand_piano') || luaCode.contains('Concert Grand') || luaCode.contains('Grand Piano') || (luaCode.contains('HammerHardness') && luaCode.contains('Stiffness')) || (luaCode.contains('HammerHardness') && luaCode.contains('Brightness')) || (luaCode.contains('HammerHardness') && luaCode.contains('Soundboard') && luaCode.contains('PedalReso'))) {
       return getPresetById('concert_grand_piano');
     }
     if (luaCode.contains('FeltUprightPiano') || luaCode.contains('felt_upright_piano') || luaCode.contains('Felt Piano') || luaCode.contains('Studio Upright') || (luaCode.contains('FeltThickness') && luaCode.contains('MechanicalThud'))) {
@@ -3116,66 +3116,61 @@ return RhodesEPiano
 local ConcertGrandPiano = {}
 
 function ConcertGrandPiano.init()
-  -- Hammer Felt & Action Dynamics
-  Param.add("HammerHardness", 0.1, 2.0, 0.85) -- 0.1 Mellow <-> 2.0 Bright Lacquered Felt
-  Param.add("HammerFelt", 0.0, 1.0, 0.15)     -- Soft felt damper layer
-  Param.add("HammerKnock", 0.0, 1.0, 0.22)    -- Wood hammer core knock
+  -- Hammer Felt & Compliance
+  Param.add("HammerHardness", 0.1, 2.0, 0.85) -- 0.1 Soft Felt <-> 2.0 Hard Lacquered Felt
+  Param.add("Brightness", 0.0, 1.0, 0.50)     -- 4-Stage Felt Cutoff Compliance
   
-  -- Soundboard & Acoustic Cavity
-  Param.add("Soundboard", 0.0, 1.0, 0.90)     -- 0.0 Upright Box <-> 1.0 9ft Concert Grand Plate
-  Param.add("PedalReso", 0.0, 1.0, 0.55)      -- Sympathetic undamped string bloom
-  Param.add("DuplexScale", 0.0, 1.0, 0.40)    -- High-frequency duplex scale chime
+  -- String Physics & Inharmonicity
+  Param.add("Stiffness", 0.0, 3.0, 1.0)       -- 3-Stage All-Pass String Inharmonicity
+  Param.add("UnisonDetune", 0.0, 3.0, 1.0)    -- Coupled String Micro-Detuning
+  Param.add("PedalReso", 0.0, 2.0, 0.55)      -- Sympathetic Sustain Pedal Bloom
+  Param.add("Sustain", 0.5, 1.2, 1.0)         -- String Energy Loss Feedback
   
-  -- String Physics & Dispersion
-  Param.add("UnisonDetune", 0.5, 5.0, 1.8)    -- Trichord micro-detuning (cents)
-  Param.add("Sustain", 0.90, 0.9995, 0.9975)  -- String energy feedback
-  Param.add("Damping", 0.02, 0.50, 0.12)      -- High frequency string absorption
-  Param.add("LidOpen", -6.0, 8.0, 2.0)        -- Lid position high-shelf air (dB)
-  Param.add("Tone", 1000.0, 18000.0, 12000.0) -- Master brilliance cut
+  -- Acoustic Environment & Tone
+  Param.add("LidOpen", -6.0, 8.0, 2.0)        -- Lid Reflection Air (dB)
+  Param.add("Tone", 1000.0, 18000.0, 14000.0) -- Master Brilliance Cutoff (Hz)
 end
 
 function ConcertGrandPiano.process(time, freq, note, params)
   local hardness = params["HammerHardness"] or 0.85
-  local sboard = params["Soundboard"] or 0.90
+  local bright = params["Brightness"] or 0.50
   local pReso = params["PedalReso"] or 0.55
-  local sustain = params["Sustain"] or 0.9975
-  local detune = params["UnisonDetune"] or 1.8
+  local sustain = params["Sustain"] or 1.0
+  local detune = params["UnisonDetune"] or 1.0
+  local stiff = params["Stiffness"] or 1.0
   local lid = params["LidOpen"] or 2.0
-  local tone = params["Tone"] or 12000.0
+  local tone = params["Tone"] or 14000.0
 
   -- Procedural fallback single-cycle synthesizer
-  local detuneHz = freq * (detune / 1200.0)
-  local phase1 = 2.0 * math.pi * freq * time
-  local phase2 = 2.0 * math.pi * (freq + detuneHz) * time
-  local phase3 = 2.0 * math.pi * (freq - detuneHz) * time
+  local detuneHz = 0.25 * detune
+  local phase1 = 2.0 * math.pi * (freq + detuneHz * 0.5) * time
+  local phase2 = 2.0 * math.pi * (freq - detuneHz * 0.5) * time
 
   -- Inharmonic partials (string stiffness B factor)
-  local bFactor = 0.0004 * (88.0 - math.min(note, 88.0)) / 88.0
+  local bFactor = 0.0004 * stiff * (88.0 - math.min(note, 88.0)) / 88.0
   local fHarm2 = freq * 2.0 * math.sqrt(1.0 + bFactor * 4.0)
   local fHarm3 = freq * 3.0 * math.sqrt(1.0 + bFactor * 9.0)
 
   local tri1 = math.sin(phase1)
   local tri2 = math.sin(phase2) * 0.95
-  local tri3 = math.sin(phase3) * 0.95
-  local h2 = math.sin(2.0 * math.pi * fHarm2 * time) * (0.35 * hardness)
-  local h3 = math.sin(2.0 * math.pi * fHarm3 * time) * (0.18 * hardness)
+  local h2 = math.sin(2.0 * math.pi * fHarm2 * time) * (0.35 * hardness * bright)
+  local h3 = math.sin(2.0 * math.pi * fHarm3 * time) * (0.18 * hardness * bright)
 
-  -- Spruce soundboard mode simulation
-  local sboardAir = math.sin(2.0 * math.pi * 68.0 * time) * math.exp(-time * 12.0) * (0.25 * sboard)
-  local sboardWood = math.sin(2.0 * math.pi * 210.0 * time) * math.exp(-time * 18.0) * (0.20 * sboard)
+  -- Commuted soundboard noise burst
+  local sbBurst = (math.random() * 2.0 - 1.0) * math.exp(-time * 45.0) * 0.25 * (1.0 + pReso * 0.4)
 
   local decayRate = 1.8 + (freq / 250.0)
-  local ampEnv = math.exp(-time * decayRate * (1.0 - sustain * 0.4))
-  local raw = (tri1 + tri2 + tri3 + h2 + h3 + sboardAir + sboardWood) * ampEnv * 0.35
+  local ampEnv = math.exp(-time * decayRate * (1.0 - sustain * 0.3))
+  local raw = (tri1 + tri2 + h2 + h3 + sbBurst) * ampEnv * 0.55
 
-  return math.tanh(raw * 1.2) * 0.95
+  return math.tanh(raw * 1.3) * 0.95
 end
 
 function ConcertGrandPiano.gui()
   return {
     panel = {
       title = "CONCERT GRAND PIANO",
-      subtitle = "9-Foot Spruce Soundboard & Coupled Trichord Waveguides",
+      subtitle = "Stanford CCRMA / Bank-Bensa Commuted Waveguide Model",
       accent = "#D4AF37",
       background = "matte_metal",
       rackSides = "brushed_steel",
@@ -3183,54 +3178,32 @@ function ConcertGrandPiano.gui()
         -- GOLD SECTION: Hammer Felt & Action
         {
           type = "group",
-          label = "FELT HAMMER COMPRESSION & ACTION (GOLD)",
+          label = "FELT HAMMER COMPRESSION & BRIGHTNESS (GOLD)",
           accent = "#D4AF37",
           children = {
             {
               type = "row",
               children = {
                 { type = "knob", param = "HammerHardness", label = "HARDNESS", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "HammerFelt", label = "FELT MUTE", unit = "%", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "HammerKnock", label = "ACTION KNOCK", unit = "%", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "UnisonDetune", label = "TRICHORD", unit = "cents", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "Brightness", label = "FELT CUTOFF", unit = "%", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "Stiffness", label = "INHARMONIC", unit = "x", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "UnisonDetune", label = "DETUNE", unit = "x", knobStyle = "chrome", size = 52 },
               }
             }
           }
         },
-        -- BRONZE SECTION: 2D Spruce Soundboard & Duplex Scale
+        -- BRONZE SECTION: Acoustic Environment & Sustain
         {
           type = "group",
-          label = "SPRUCE SOUNDBOARD & SYMPATHETIC RESONANCE (BRONZE)",
+          label = "ACOUSTIC ENVIRONMENT & BLOOM (BRONZE)",
           accent = "#CD7F32",
           children = {
             {
               type = "row",
               children = {
-                { type = "knob", param = "Soundboard", label = "PLATE SIZE", knobStyle = "vintage", size = 52 },
                 { type = "knob", param = "PedalReso", label = "PEDAL BLOOM", unit = "%", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "DuplexScale", label = "DUPLEX AIR", unit = "%", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "Sustain", label = "SUSTAIN", knobStyle = "vintage", size = 52 },
-              }
-            },
-            {
-              type = "row",
-              children = {
-                { type = "hslider", param = "Soundboard", label = "SOUNDBOARD GEOMETRY (UPRIGHT <-> 9FT CONCERT GRAND)", style = "capsule" },
-              }
-            }
-          }
-        },
-        -- PLATINUM SECTION: Acoustic Environment & Tone
-        {
-          type = "group",
-          label = "LID ACOUSTICS & TONE (PLATINUM)",
-          accent = "#E5E4E2",
-          children = {
-            {
-              type = "row",
-              children = {
+                { type = "knob", param = "Sustain", label = "SUSTAIN", unit = "x", knobStyle = "vintage", size = 52 },
                 { type = "knob", param = "LidOpen", label = "LID AIR", unit = "dB", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "Damping", label = "DAMPING", knobStyle = "vintage", size = 52 },
                 { type = "knob", param = "Tone", label = "BRILLIANCE", unit = "Hz", knobStyle = "vintage", size = 52 },
               }
             }
@@ -3245,12 +3218,12 @@ function ConcertGrandPiano.rack()
   return {
     rows = {
       {
-        { id = "hammer_exciter", title = "FELT HAMMER EXCITOR",  hp = 16, row = 1, category = "VCO" },
-        { id = "trichord_lines", title = "TRICHORD WAVEGUIDES", hp = 14, row = 1, category = "MOD" },
+        { id = "sb_exciter",     title = "COMMUTED SOUNDBOARD", hp = 16, row = 1, category = "VCO" },
+        { id = "hammer_cascade", title = "4-STAGE FELT CASCADE",hp = 14, row = 1, category = "VCF" },
       },
       {
-        { id = "spruce_board",   title = "SPRUCE SOUNDBOARD",   hp = 16, row = 2, category = "VCF" },
-        { id = "lid_output",     title = "LID ACOUSTICS OUT",   hp = 14, row = 2, category = "OUT" },
+        { id = "waveguide_pair", title = "COUPLED WAVEGUIDES",  hp = 16, row = 2, category = "MOD" },
+        { id = "lid_master",     title = "LID & BRILLIANCE OUT",hp = 14, row = 2, category = "OUT" },
       },
     },
     cables = {
