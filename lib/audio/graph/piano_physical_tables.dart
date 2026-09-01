@@ -1,3 +1,14 @@
+// ─────────────────────────────────────────────────────────────────────────────
+//  Eatsbeats Physical Modeling Piano Tables
+//
+//  Based on research by Balázs Bank and Julien Bensa (2005):
+//  "A commuted digital waveguide piano synthesis model with allpass dispersion filters"
+//  Julius O. Smith & Scott Van Duyne (CCRMA, Stanford University)
+//  Romain Michon (Faust STK-4.3 physmodels.lib, GRAME / Stanford CCRMA)
+//  David Braun (DBraun) physical modeling adaptation
+//  Licensed under STK-4.3 / MIT License.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import 'dart:math' as math;
 
 /// Piecewise-linear breakpoint table lookup from Stanford CCRMA / Bank-Bensa / Faust physical piano model.

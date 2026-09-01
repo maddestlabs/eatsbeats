@@ -3,13 +3,17 @@ import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../models/lyric_model.dart';
 import '../../models/chord_model.dart';
+import '../../lua/lua_engine.dart';
 import '../../lua/lua_preset_library.dart';
+import '../../models/script_target_model.dart';
+import 'preset_browser_dialog.dart';
 import '../../audio/audio_to_midi_engine.dart';
 import '../../audio/sampler_engine.dart';
 import '../../utils/midi_file_parser.dart';
 import '../../theme/eats_theme.dart';
 import 'midi_fx_rack_widget.dart';
 import 'modular_fx_rack_widget.dart';
+import 'dynamic_instrument_gui_widget.dart';
 import 'eats_color_picker_dialog.dart';
 import 'compact_value_dialog.dart';
 import 'note_splitter_dialog.dart';
@@ -51,6 +55,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
   double _transcriptionProgress = 0.0;
   String _transcriptionStatus = '';
   CancellationToken? _activeCancellationToken;
+  final Set<String> _collapsedInstrumentTrackIds = {};
 
   static const List<Color> _quickColorPalette = [
     Color(0xFF21F4E8), // Neon Cyan
@@ -167,11 +172,10 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
         if (track.isFolder) ...[
           const SizedBox(height: 10),
           _buildFolderGroupCard(context, track),
+        ] else ...[
+          const SizedBox(height: 10),
+          _buildTrackInstrumentCard(context, track),
         ],
-        const SizedBox(height: 10),
-        _buildTrackColorCard(context, track),
-        const SizedBox(height: 10),
-        _buildLyricsAndTtsCard(context, track),
         const SizedBox(height: 10),
         MidiFxRackWidget(
           dawState: widget.dawState,
@@ -183,8 +187,286 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
           track: track,
         ),
         const SizedBox(height: 10),
+        _buildTrackColorCard(context, track),
+        const SizedBox(height: 10),
+        _buildLyricsAndTtsCard(context, track),
+        const SizedBox(height: 10),
         _buildTrackActionsCard(context, track, isSingleTrack, isFirstTrack, isLastTrack),
       ],
+    );
+  }
+
+  Widget _buildTrackInstrumentCard(BuildContext context, TrackChannel track) {
+    if (track.isFolder) return const SizedBox.shrink();
+
+    final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
+    final accentColor = isGrungy ? const Color(0xFFFF8C00) : track.color;
+    final isExpanded = !_collapsedInstrumentTrackIds.contains(track.id);
+
+    // Resolve specific instrument/script name rather than replicating editable track name
+    String instrumentTitle = '';
+    if (track.luaScriptCode.isNotEmpty) {
+      final compilation = LuaEngine.compile(track.luaScriptCode);
+      instrumentTitle = compilation.guiLayout?.title ?? '';
+    }
+    if (instrumentTitle.isEmpty) {
+      if (track.type == TrackType.sampler) {
+        instrumentTitle = 'SAMPLER (${track.sampleName.toUpperCase()})';
+      } else if (track.type == TrackType.synth) {
+        instrumentTitle = 'SYNTH (${track.synthWaveform.toUpperCase()})';
+      } else if (track.type == TrackType.tts) {
+        instrumentTitle = 'TTS SYNTH';
+      } else {
+        instrumentTitle = 'INSTRUMENT';
+      }
+    }
+
+    return RepaintBoundary(
+      child: Container(
+        decoration: BoxDecoration(
+          color: isGrungy ? const Color(0xFF1B1714) : EatsTheme.panelHeader,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: accentColor.withOpacity(0.4), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.35),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Module Header Bar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: isGrungy ? const Color(0xFF24201C) : EatsTheme.controlBackground,
+                borderRadius: isExpanded
+                    ? const BorderRadius.vertical(top: Radius.circular(7))
+                    : BorderRadius.circular(7),
+                border: Border(
+                  bottom: BorderSide(
+                    color: isExpanded ? accentColor.withOpacity(0.25) : Colors.transparent,
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: accentColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: accentColor.withOpacity(0.7), blurRadius: 4),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // Instrument Script Name & Expand/Collapse Chevron
+                  Expanded(
+                    child: InkWell(
+                      onTap: () {
+                        setState(() {
+                          if (_collapsedInstrumentTrackIds.contains(track.id)) {
+                            _collapsedInstrumentTrackIds.remove(track.id);
+                          } else {
+                            _collapsedInstrumentTrackIds.add(track.id);
+                          }
+                        });
+                      },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              instrumentTitle.toUpperCase(),
+                              style: TextStyle(
+                                color: EatsTheme.textPrimary,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+                            size: 16,
+                            color: EatsTheme.textSecondary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Design / Script Editor Raw Icon Button (power users / dev tool)
+                  Tooltip(
+                    message: 'Open in Design / Script Editor',
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(3),
+                      onTap: () {
+                        final target = ScriptTarget(
+                          id: 'track_${track.id}_dsp',
+                          type: ScriptTargetType.trackDsp,
+                          title: '${track.name} ($instrumentTitle)',
+                          subtitle: track.luaScriptCode.isNotEmpty ? 'Custom Lua Synth / DSP' : 'Instrument DSP Script',
+                          trackId: track.id,
+                          trackName: track.name,
+                          trackColor: track.color,
+                        );
+                        widget.dawState.openScriptInEditor(target);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        margin: const EdgeInsets.only(right: 5),
+                        decoration: BoxDecoration(
+                          color: EatsTheme.panelHeader,
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(color: EatsTheme.textMuted.withOpacity(0.3), width: 0.8),
+                        ),
+                        child: Icon(Icons.developer_board, size: 12, color: EatsTheme.primaryCyan.withOpacity(0.85)),
+                      ),
+                    ),
+                  ),
+                  // Presets Dropdown Button
+                  InkWell(
+                    borderRadius: BorderRadius.circular(3),
+                    onTap: () => PresetBrowserDialog.show(context, widget.dawState, track),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      margin: const EdgeInsets.only(right: 4),
+                      decoration: BoxDecoration(
+                        color: EatsTheme.panelHeader,
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(color: EatsTheme.textMuted.withOpacity(0.4), width: 0.8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.tune, size: 10, color: EatsTheme.textSecondary),
+                          const SizedBox(width: 2),
+                          Text(
+                            'PRESETS',
+                            style: TextStyle(
+                              color: EatsTheme.textSecondary,
+                              fontSize: 7.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Full Button
+                  InkWell(
+                    borderRadius: BorderRadius.circular(3),
+                    onTap: () => widget.dawState.openFullscreenDevice(track),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: accentColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(color: accentColor.withOpacity(0.7), width: 0.8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.fullscreen, size: 11, color: accentColor),
+                          const SizedBox(width: 2),
+                          Text(
+                            'FULL',
+                            style: TextStyle(
+                              color: accentColor,
+                              fontSize: 7.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Mini Dynamic GUI Body & Bottom Change Instrument Action
+            if (isExpanded) ...[
+              Padding(
+                padding: const EdgeInsets.all(6),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    const designWidth = 520.0;
+                    return SizedBox(
+                      width: constraints.maxWidth,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.topLeft,
+                        child: SizedBox(
+                          width: designWidth,
+                          child: DynamicInstrumentGuiWidget(
+                            dawState: widget.dawState,
+                            track: track,
+                            hideHeader: true,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              // Bottom Change Instrument Action Row
+              Padding(
+                padding: const EdgeInsets.only(left: 6, right: 6, bottom: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    InkWell(
+                      borderRadius: BorderRadius.circular(3),
+                      onTap: () {
+                        PresetSearchDialog.show(
+                          context,
+                          dawState: widget.dawState,
+                          track: track,
+                          initialCategory: LuaPresetCategory.instrument,
+                          customTitle: 'CHANGE INSTRUMENT • ${instrumentTitle.toUpperCase()}',
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: EatsTheme.controlBackground,
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(color: EatsTheme.textMuted.withOpacity(0.4), width: 0.8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.swap_horiz, size: 11, color: EatsTheme.textSecondary),
+                            const SizedBox(width: 3),
+                            Text(
+                              'CHANGE INSTRUMENT',
+                              style: TextStyle(
+                                color: EatsTheme.textSecondary,
+                                fontSize: 7.5,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -450,80 +732,6 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                     ),
                 ],
               ),
-            ),
-          ],
-          if (!track.isFolder) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(4),
-                    onTap: () => widget.dawState.openFloatingInstrumentWindow(track),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: EatsTheme.controlBackground,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: EatsTheme.panelHeader),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.tune, size: 11, color: EatsTheme.textPrimary),
-                          const SizedBox(width: 4),
-                          Text(
-                            'SHOW GUI',
-                            style: TextStyle(
-                              color: EatsTheme.textPrimary,
-                              fontSize: 8.5,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(4),
-                    onTap: () {
-                      PresetSearchDialog.show(
-                        context,
-                        dawState: widget.dawState,
-                        track: track,
-                        initialCategory: LuaPresetCategory.instrument,
-                        customTitle: 'CHANGE INSTRUMENT • ${track.name.toUpperCase()}',
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: EatsTheme.primaryCyan.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.5)),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.swap_horiz, size: 12, color: EatsTheme.primaryCyan),
-                          const SizedBox(width: 4),
-                          Text(
-                            'CHANGE',
-                            style: TextStyle(
-                              color: EatsTheme.primaryCyan,
-                              fontSize: 8.5,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
             ),
           ],
         ],

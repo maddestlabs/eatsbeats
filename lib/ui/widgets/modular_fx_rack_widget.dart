@@ -247,52 +247,62 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                       setState(() {
                                         _expandedGuiFxIds.remove(fx.id);
                                       });
-                                      dawState.openFloatingFxWindow(track, fx);
+                                      dawState.openFullscreenFx(track, fx);
                                     },
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.open_in_new, size: 12, color: EatsTheme.primaryCyan),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          'POPOUT',
-                                          style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.primaryCyan),
-                                        ),
-                                      ],
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: EatsTheme.secondaryMagenta.withOpacity(0.18),
+                                        borderRadius: BorderRadius.circular(3),
+                                        border: Border.all(color: EatsTheme.secondaryMagenta.withOpacity(0.6), width: 0.8),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.fullscreen, size: 12, color: EatsTheme.secondaryMagenta),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            'FULL',
+                                            style: EatsTheme.getDisplayFontStyle(fontSize: 8.5, color: EatsTheme.secondaryMagenta, fontWeight: FontWeight.bold),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 4),
-                              Container(
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.35),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: EatsTheme.secondaryMagenta.withOpacity(0.4)),
-                                ),
-                                padding: const EdgeInsets.all(8),
-                                child: LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    const designWidth = 520.0;
-                                    return SizedBox(
-                                      width: constraints.maxWidth,
-                                      child: FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        alignment: Alignment.topLeft,
-                                        child: SizedBox(
-                                          width: designWidth,
-                                          child: DynamicInstrumentGuiWidget(
-                                            dawState: dawState,
-                                            track: fxTrack,
-                                            hostTrack: track,
-                                            hideHeader: true,
-                                            onParamChanged: (p, v) => dawState.updateFXParam(track, fx.id, p, v),
+                              RepaintBoundary(
+                                child: Container(
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.35),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: EatsTheme.secondaryMagenta.withOpacity(0.4)),
+                                  ),
+                                  padding: const EdgeInsets.all(8),
+                                  child: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      const designWidth = 520.0;
+                                      return SizedBox(
+                                        width: constraints.maxWidth,
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          alignment: Alignment.topLeft,
+                                          child: SizedBox(
+                                            width: designWidth,
+                                            child: DynamicInstrumentGuiWidget(
+                                              dawState: dawState,
+                                              track: fxTrack,
+                                              hostTrack: track,
+                                              hideHeader: true,
+                                              onParamChanged: (p, v) => dawState.updateFXParam(track, fx.id, p, v),
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                    );
-                                  },
+                                      );
+                                    },
+                                  ),
                                 ),
                               ),
                             ] else if (isExpanded && fx.type == FXType.convolutionReverb) ...[

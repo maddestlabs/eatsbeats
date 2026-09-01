@@ -291,102 +291,102 @@ class _ArrangerViewState extends State<ArrangerView> {
                                 padding: EdgeInsets.zero,
                                 controller: _leftTrackScroll,
                                 itemCount: tracks.length + 1,
-                            itemBuilder: (context, trackIdx) {
-                              if (trackIdx == tracks.length) {
-                                return DragTarget<Object>(
-                                  onWillAcceptWithDetails: (details) {
-                                    final data = details.data;
-                                    if (data is SoundFontDragItem) return true;
-                                    if (data is LuaPreset) return data.isInstrument;
-                                    return false;
-                                  },
-                                  onAcceptWithDetails: (details) {
-                                    final data = details.data;
-                                    if (data is SoundFontDragItem) {
-                                      widget.dawState.addNewSoundFontTrack(data.fontId, displayName: data.displayName);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Created new track with SoundFont "${data.displayName}"'),
-                                          backgroundColor: EatsTheme.panelHeader,
-                                          duration: const Duration(seconds: 2),
-                                        ),
-                                      );
-                                    } else if (data is LuaPreset && data.isInstrument) {
-                                      widget.dawState.addNewPresetTrack(data);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Created new track with instrument "${data.name}"'),
-                                          backgroundColor: EatsTheme.panelHeader,
-                                          duration: const Duration(seconds: 2),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                  builder: (context, hoverData, _) {
-                                    final isHover = hoverData.isNotEmpty;
-                                    return Container(
-                                      height: 44,
-                                      margin: const EdgeInsets.only(top: 4, bottom: 28),
-                                      decoration: BoxDecoration(
-                                        color: isHover
-                                            ? EatsTheme.primaryCyan.withOpacity(0.2)
-                                            : EatsTheme.controlBackground.withOpacity(0.5),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: isHover ? EatsTheme.primaryCyan : EatsTheme.panelHeader,
-                                          width: 1.5,
-                                        ),
-                                      ),
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(6),
-                                        onTap: () => PresetSearchDialog.showAddTrack(
-                                          context,
-                                          dawState: widget.dawState,
-                                        ),
-                                        child: Center(
-                                          child: Text(
-                                            '+ ADD',
-                                            style: TextStyle(
-                                              color: isHover ? EatsTheme.primaryCyan : EatsTheme.textSecondary,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: 0.8,
+                                itemBuilder: (context, trackIdx) {
+                                  if (trackIdx == tracks.length) {
+                                    return DragTarget<Object>(
+                                      onWillAcceptWithDetails: (details) {
+                                        final data = details.data;
+                                        if (data is SoundFontDragItem) return true;
+                                        if (data is LuaPreset) return data.isInstrument;
+                                        return false;
+                                      },
+                                      onAcceptWithDetails: (details) {
+                                        final data = details.data;
+                                        if (data is SoundFontDragItem) {
+                                          widget.dawState.addNewSoundFontTrack(data.fontId, displayName: data.displayName);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Created new track with SoundFont "${data.displayName}"'),
+                                              backgroundColor: EatsTheme.panelHeader,
+                                              duration: const Duration(seconds: 2),
+                                            ),
+                                          );
+                                        } else if (data is LuaPreset && data.isInstrument) {
+                                          widget.dawState.addNewPresetTrack(data);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Created new track with instrument "${data.name}"'),
+                                              backgroundColor: EatsTheme.panelHeader,
+                                              duration: const Duration(seconds: 2),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      builder: (context, hoverData, _) {
+                                        final isHover = hoverData.isNotEmpty;
+                                        return Container(
+                                          height: 44,
+                                          margin: const EdgeInsets.only(top: 4, bottom: 28),
+                                          decoration: BoxDecoration(
+                                            color: isHover
+                                                ? EatsTheme.primaryCyan.withOpacity(0.2)
+                                                : EatsTheme.controlBackground.withOpacity(0.5),
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(
+                                              color: isHover ? EatsTheme.primaryCyan : EatsTheme.panelHeader,
+                                              width: 1.5,
                                             ),
                                           ),
-                                        ),
-                                      ),
+                                          child: InkWell(
+                                            borderRadius: BorderRadius.circular(6),
+                                            onTap: () => PresetSearchDialog.showAddTrack(
+                                              context,
+                                              dawState: widget.dawState,
+                                            ),
+                                            child: Center(
+                                              child: Text(
+                                                '+ ADD',
+                                                style: TextStyle(
+                                                  color: isHover ? EatsTheme.primaryCyan : EatsTheme.textSecondary,
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                  letterSpacing: 0.8,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     );
-                                  },
-                                );
-                              }
+                                  }
 
-                               final track = tracks[trackIdx];
-                               final allIdx = widget.dawState.activePattern.tracks.indexOf(track);
-                               final isSelected = widget.dawState.activeTrack.id == track.id;
+                                  final track = tracks[trackIdx];
+                                  final allIdx = widget.dawState.activePattern.tracks.indexOf(track);
+                                  final isSelected = widget.dawState.activeTrack.id == track.id;
 
-                               return DragTarget<Object>(
-                                 onWillAcceptWithDetails: (details) {
-                                   final data = details.data;
-                                   if (data is TrackChannel) return data.id != track.id;
-                                   if (data is SoundFontDragItem) return true;
-                                   if (data is LuaPreset) {
-                                     return data.isInstrument || data.isAudioFx || data.isMidiFx;
-                                   }
-                                   return false;
-                                 },
-                                 onAcceptWithDetails: (details) {
-                                   final data = details.data;
-                                   if (data is TrackChannel) {
-                                     if (track.isFolder && !data.isFolder) {
-                                       widget.dawState.setTrackFolder(data.id, track.id);
-                                       ScaffoldMessenger.of(context).showSnackBar(
-                                         SnackBar(
-                                           content: Text('Added "${data.name}" to folder "${track.name}"'),
-                                           backgroundColor: EatsTheme.panelHeader,
-                                           duration: const Duration(seconds: 2),
-                                         ),
-                                       );
-                                     } else {
+                                  return DragTarget<Object>(
+                                    onWillAcceptWithDetails: (details) {
+                                      final data = details.data;
+                                      if (data is TrackChannel) return data.id != track.id;
+                                      if (data is SoundFontDragItem) return true;
+                                      if (data is LuaPreset) {
+                                        return data.isInstrument || data.isAudioFx || data.isMidiFx;
+                                      }
+                                      return false;
+                                    },
+                                    onAcceptWithDetails: (details) {
+                                      final data = details.data;
+                                      if (data is TrackChannel) {
+                                        if (track.isFolder && !data.isFolder) {
+                                          widget.dawState.setTrackFolder(data.id, track.id);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Added "' + data.name + '" to folder "' + track.name + '"'),
+                                              backgroundColor: EatsTheme.panelHeader,
+                                              duration: const Duration(seconds: 2),
+                                            ),
+                                          );
+                                        } else {
                                        final oldIdx = widget.dawState.activePattern.tracks.indexOf(data);
                                        final newIdx = allIdx != -1 ? allIdx : trackIdx;
                                        if (oldIdx != -1 && oldIdx != newIdx) {
@@ -447,14 +447,16 @@ class _ArrangerViewState extends State<ArrangerView> {
 
                                        if (allIdx != -1) widget.dawState.activeTrackIndex = allIdx;
                                        widget.dawState.selectClip(null);
-                                       if (isDoubleTap) {
-                                         if (track.isFolder) {
-                                           widget.dawState.toggleFolderCollapsed(track);
-                                         } else {
-                                           // DOUBLE-TAP TRACK HEADER: Open Floating In-App VSTi GUI Window
-                                           widget.dawState.openFloatingInstrumentWindow(track);
-                                         }
-                                       }
+                                        if (isDoubleTap) {
+                                          if (track.isFolder) {
+                                            widget.dawState.toggleFolderCollapsed(track);
+                                          } else {
+                                            // DOUBLE-TAP TRACK HEADER: Expose the Instrument in the Track Properties sidebar
+                                            setState(() {
+                                              _isPropertiesExpanded = true;
+                                            });
+                                          }
+                                        }
                                      },
                                      child: Container(
                                        height: trackRowHeight,
@@ -723,8 +725,18 @@ class _ArrangerViewState extends State<ArrangerView> {
 
               // Right Multitrack Timeline Grid with Top Bar Ruler & Live Playhead
               Expanded(
-                child: Listener(
-                  onPointerDown: (event) {
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return AnimatedBuilder(
+                      animation: _horizontalScroll,
+                      builder: (context, _) {
+                        final double scrollX = _horizontalScroll.hasClients ? _horizontalScroll.offset : 0.0;
+                        final double viewW = constraints.maxWidth;
+                        final int minVisibleBar = math.max(0, (scrollX / barWidth).floor() - 2);
+                        final int maxVisibleBar = math.min(totalBars, ((scrollX + viewW) / barWidth).ceil() + 2);
+
+                        return Listener(
+                          onPointerDown: (event) {
                     if (event.buttons == kMiddleMouseButton) {
                       _isMiddleMouseDragging = true;
                       setState(() {});
@@ -907,8 +919,10 @@ class _ArrangerViewState extends State<ArrangerView> {
                                 }),
                               ),
 
-                              // Rendered Chord Blocks (Drag & Drop Move, Resize Handle & Context Menu)
-                              ...widget.dawState.chordTrack.map((chord) {
+                              // Rendered Chord Blocks (Drag & Drop Move, Resize Handle & Context Menu) - Viewport Culled
+                              ...widget.dawState.chordTrack
+                                  .where((chord) => (chord.startBar + chord.barLength) >= minVisibleBar && chord.startBar <= maxVisibleBar)
+                                  .map((chord) {
                                 final double chordX = chord.startBar * barWidth;
                                 final double chordW = math.max(20.0, chord.barLength * barWidth - 2.0);
                                 final roman = ChordTheory.getRomanNumeral(
@@ -1135,11 +1149,12 @@ class _ArrangerViewState extends State<ArrangerView> {
                                               ),
                                               child: Center(
                                                 child: Text(
-                                                  isHover ? 'Drop preset or SoundFont to create track' : '+ Drop preset here or click + ADD',
+                                                  '+ ADD',
                                                   style: TextStyle(
-                                                    color: isHover ? EatsTheme.primaryCyan : EatsTheme.textMuted.withOpacity(0.4),
-                                                    fontSize: 10,
-                                                    fontStyle: FontStyle.italic,
+                                                    color: isHover ? EatsTheme.primaryCyan : EatsTheme.textSecondary,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                    letterSpacing: 0.8,
                                                   ),
                                                 ),
                                               ),
@@ -1233,656 +1248,670 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                    ],
                                                  ),
                                                ),
-                                             ),
-
-                                           // Time-Synced Track Lyrics Ribbon
-                                           if (track.lyrics.isNotEmpty) ...[
-                                             ...track.lyrics.map((cue) {
-                                               final cueLeft = (cue.startStep / 16.0) * barWidth + 2;
-                                               return Positioned(
-                                                 left: cueLeft,
-                                                 bottom: 3,
-                                                 height: 16,
-                                                 child: Tooltip(
-                                                   message: 'Lyric: "${cue.text}" @ step ${cue.startStep.toStringAsFixed(1)}',
-                                                   child: Container(
-                                                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                                     decoration: BoxDecoration(
-                                                       color: EatsTheme.backgroundDark.withOpacity(0.85),
-                                                       borderRadius: BorderRadius.circular(3),
-                                                       border: Border.all(color: track.color.withOpacity(0.8), width: 0.8),
-                                                     ),
-                                                     child: Row(
-                                                       mainAxisSize: MainAxisSize.min,
-                                                       children: [
-                                                         Icon(Icons.chat_bubble_outline, size: 8, color: track.color),
-                                                         const SizedBox(width: 3),
-                                                         Text(
-                                                           cue.text,
-                                                           style: const TextStyle(
-                                                             color: Colors.white,
-                                                             fontSize: 8.5,
-                                                             fontWeight: FontWeight.bold,
-                                                           ),
-                                                         ),
-                                                       ],
-                                                     ),
                                                    ),
-                                                 ),
-                                               );
-                                             }),
-                                           ],
 
-                                           // Render Aggregated Ghost Clips when Folder is Collapsed
-                                           if (track.isFolder && track.isCollapsed) ...[
-                                             ...() {
-                                               final children = widget.dawState.getFolderChildren(track.id);
-                                               final List<Widget> ghostWidgets = [];
-                                               for (final child in children) {
-                                                 for (final clip in child.clips) {
-                                                   ghostWidgets.add(
-                                                     Positioned(
-                                                       left: clip.startBar * barWidth + 2,
-                                                       top: 6.0,
-                                                       width: math.max(20.0, (clip.barLength * barWidth) - 4),
-                                                       height: trackRowHeight - 12.0,
-                                                       child: Tooltip(
-                                                         message: '${child.name}: ${clip.name} (Double-tap to expand folder)',
-                                                         child: GestureDetector(
-                                                           onDoubleTap: () => widget.dawState.toggleFolderCollapsed(track),
-                                                           child: Container(
-                                                             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                                             decoration: BoxDecoration(
-                                                               color: child.color.withOpacity(0.35),
-                                                               borderRadius: BorderRadius.circular(4),
-                                                               border: Border.all(color: child.color.withOpacity(0.8), width: 1),
+                                               // Time-Synced Track Lyrics Ribbon - Viewport Culled
+                                               if (track.lyrics.isNotEmpty) ...[
+                                                 ...track.lyrics
+                                                     .where((cue) {
+                                                       final cueBar = cue.startStep / 16.0;
+                                                       return cueBar >= minVisibleBar - 1 && cueBar <= maxVisibleBar + 1;
+                                                     })
+                                                     .map((cue) {
+                                                   final cueLeft = (cue.startStep / 16.0) * barWidth + 2;
+                                                   return Positioned(
+                                                     left: cueLeft,
+                                                     bottom: 3,
+                                                     height: 16,
+                                                     child: Tooltip(
+                                                       message: 'Lyric: "${cue.text}" @ step ${cue.startStep.toStringAsFixed(1)}',
+                                                       child: Container(
+                                                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                                         decoration: BoxDecoration(
+                                                           color: EatsTheme.backgroundDark.withOpacity(0.85),
+                                                           borderRadius: BorderRadius.circular(3),
+                                                           border: Border.all(color: track.color.withOpacity(0.8), width: 0.8),
+                                                         ),
+                                                         child: Row(
+                                                           mainAxisSize: MainAxisSize.min,
+                                                           children: [
+                                                             Icon(Icons.chat_bubble_outline, size: 8, color: track.color),
+                                                             const SizedBox(width: 3),
+                                                             Text(
+                                                               cue.text,
+                                                               style: const TextStyle(
+                                                                 color: Colors.white,
+                                                                 fontSize: 8.5,
+                                                                 fontWeight: FontWeight.bold,
+                                                               ),
                                                              ),
-                                                             alignment: Alignment.centerLeft,
-                                                             child: Row(
-                                                               mainAxisSize: MainAxisSize.min,
-                                                               children: [
-                                                                 Icon(child.iconData, size: 10, color: Colors.white),
-                                                                 const SizedBox(width: 3),
-                                                                 Flexible(
-                                                                   child: Text(
-                                                                     '${child.name}: ${clip.name}',
-                                                                     maxLines: 1,
-                                                                     overflow: TextOverflow.ellipsis,
-                                                                     style: const TextStyle(
-                                                                       color: Colors.white,
-                                                                       fontSize: 9,
-                                                                       fontWeight: FontWeight.bold,
-                                                                     ),
-                                                                   ),
-                                                                 ),
-                                                               ],
-                                                             ),
-                                                           ),
+                                                           ],
                                                          ),
                                                        ),
                                                      ),
                                                    );
-                                                 }
-                                               }
-                                               return ghostWidgets;
-                                             }(),
-                                           ] else ...[
-                                             // Per-track Pattern Clips with Smooth Drag-Move, Edge-Resize, and Preset DragTarget
-                                             ...track.clips.map((clip) {
-                                               final isClipSelected = widget.dawState.activeClip?.id == clip.id;
+                                                 }),
+                                               ],
 
-                                               return Positioned(
-                                                 left: clip.startBar * barWidth + 2,
-                                                 top: 6,
-                                                 width: (clip.barLength * barWidth) - 4,
-                                                 height: trackRowHeight - 12,
-                                                 child: DragTarget<Object>(
-                                                   onWillAcceptWithDetails: (details) {
-                                                     final data = details.data;
-                                                     if (data is LuaPreset) {
-                                                       return data.isMidiSeq || data.isMidiFx;
-                                                     }
-                                                     return false;
-                                                   },
-                                                   onAcceptWithDetails: (details) {
-                                                     final data = details.data;
-                                                     if (data is LuaPreset) {
-                                                       if (data.isMidiSeq) {
-                                                         widget.dawState.activeTrackIndex = trackIdx;
-                                                         widget.dawState.selectClip(clip);
-                                                         widget.dawState.applyPresetToClip(track, clip, data);
-                                                         ScaffoldMessenger.of(context).showSnackBar(
-                                                           SnackBar(
-                                                             content: Text('Applied sequence "${data.name}" to clip "${clip.name}"'),
-                                                             backgroundColor: EatsTheme.panelHeader,
-                                                             duration: const Duration(seconds: 2),
+                                               // Render Aggregated Ghost Clips when Folder is Collapsed
+                                               if (track.isFolder && track.isCollapsed) ...[
+                                                 ...() {
+                                                   final children = widget.dawState.getFolderChildren(track.id);
+                                                   final List<Widget> ghostWidgets = [];
+                                                   for (final child in children) {
+                                                     for (final clip in child.clips) {
+                                                       if ((clip.startBar + clip.barLength) < minVisibleBar || clip.startBar > maxVisibleBar) continue;
+                                                       ghostWidgets.add(
+                                                         Positioned(
+                                                           left: clip.startBar * barWidth + 2,
+                                                           top: 6.0,
+                                                           width: math.max(20.0, (clip.barLength * barWidth) - 4),
+                                                           height: trackRowHeight - 12.0,
+                                                           child: Tooltip(
+                                                             message: '${child.name}: ${clip.name} (Double-tap to expand folder)',
+                                                             child: GestureDetector(
+                                                               onDoubleTap: () => widget.dawState.toggleFolderCollapsed(track),
+                                                               child: Container(
+                                                                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                                 decoration: BoxDecoration(
+                                                                   color: child.color.withOpacity(0.35),
+                                                                   borderRadius: BorderRadius.circular(4),
+                                                                   border: Border.all(color: child.color.withOpacity(0.8), width: 1),
+                                                                 ),
+                                                                 alignment: Alignment.centerLeft,
+                                                                 child: Row(
+                                                                   mainAxisSize: MainAxisSize.min,
+                                                                   children: [
+                                                                     Icon(child.iconData, size: 10, color: Colors.white),
+                                                                     const SizedBox(width: 3),
+                                                                     Flexible(
+                                                                       child: Text(
+                                                                         '${child.name}: ${clip.name}',
+                                                                         maxLines: 1,
+                                                                         overflow: TextOverflow.ellipsis,
+                                                                         style: const TextStyle(
+                                                                           color: Colors.white,
+                                                                           fontSize: 9,
+                                                                           fontWeight: FontWeight.bold,
+                                                                         ),
+                                                                       ),
+                                                                     ),
+                                                                   ],
+                                                                 ),
+                                                               ),
+                                                             ),
                                                            ),
-                                                         );
-                                                       } else if (data.isMidiFx) {
-                                                         widget.dawState.activeTrackIndex = trackIdx;
-                                                         widget.dawState.addMidiFXInsert(
-                                                           track,
-                                                           name: data.name,
-                                                           luaScriptCode: data.code,
-                                                         );
-                                                         ScaffoldMessenger.of(context).showSnackBar(
-                                                           SnackBar(
-                                                             content: Text('Added MIDI FX "${data.name}" to ${track.name}'),
-                                                             backgroundColor: EatsTheme.panelHeader,
-                                                             duration: const Duration(seconds: 2),
-                                                           ),
-                                                         );
-                                                       }
+                                                         ),
+                                                       );
                                                      }
-                                                   },
-                                                   builder: (context, hoverData, _) {
-                                                     final isPresetHover = hoverData.isNotEmpty;
+                                                   }
+                                                   return ghostWidgets;
+                                                 }(),
+                                               ] else ...[
+                                                 // Per-track Pattern Clips with Smooth Drag-Move, Edge-Resize, and Preset DragTarget (Viewport Culled)
+                                                 ...track.clips
+                                                     .where((clip) => clip == _draggedClip ||
+                                                         widget.dawState.activeClip == clip ||
+                                                         ((clip.startBar + clip.barLength) >= minVisibleBar && clip.startBar <= maxVisibleBar))
+                                                     .map((clip) {
+                                                   final isClipSelected = widget.dawState.activeClip?.id == clip.id;
 
-                                                     return GestureDetector(
-                                                       behavior: HitTestBehavior.opaque,
-                                                       onTapDown: (_) {
-                                                         final now = DateTime.now();
-                                                         final isDoubleTap = _lastClipTapId == clip.id &&
-                                                             _lastClipTapTime != null &&
-                                                             now.difference(_lastClipTapTime!).inMilliseconds < 300;
-                                                         _lastClipTapTime = now;
-                                                         _lastClipTapId = clip.id;
-
-                                                         widget.dawState.activeTrackIndex = trackIdx;
-                                                         widget.dawState.selectClip(clip);
-                                                         if (isDoubleTap) {
-                                                           // DOUBLE-TAP CLIP: Open MIDI clip in Piano Roll / Tracker; for Audio clips, focus clip properties inspector
-                                                           if (track.type != TrackType.sampler && !clip.isAudioClip) {
-                                                             widget.dawState.openClipInEditor(clip);
-                                                           } else {
-                                                             setState(() => _isPropertiesExpanded = true);
-                                                           }
+                                                   return Positioned(
+                                                     left: clip.startBar * barWidth + 2,
+                                                     top: 6,
+                                                     width: (clip.barLength * barWidth) - 4,
+                                                     height: trackRowHeight - 12,
+                                                     child: DragTarget<Object>(
+                                                       onWillAcceptWithDetails: (details) {
+                                                         final data = details.data;
+                                                         if (data is LuaPreset) {
+                                                           return data.isMidiSeq || data.isMidiFx;
                                                          }
+                                                         return false;
                                                        },
-                                                       onSecondaryTap: () {
-                                                         setState(() => _isPropertiesExpanded = true);
-                                                         widget.dawState.activeTrackIndex = trackIdx;
-                                                         widget.dawState.selectClip(clip);
-                                                       },
-                                                       onLongPress: () {
-                                                         setState(() => _isPropertiesExpanded = true);
-                                                         widget.dawState.activeTrackIndex = trackIdx;
-                                                         widget.dawState.selectClip(clip);
-                                                       },
-                                                       onPanStart: (details) {
-                                                         _moveDragDxAccumulator = 0.0;
-                                                         _moveDragDyAccumulator = 0.0;
-                                                         _draggedClip = clip;
-                                                         _draggedClipSourceTrack = track;
-                                                         _dragSourceTrackIdx = trackIdx;
-                                                         _dragHoverTrackIdx = trackIdx;
-                                                         widget.dawState.beginHistoryTransaction('Move Clip "${clip.name}"', icon: Icons.open_with);
-                                                       },
-                                                       onPanUpdate: (details) {
-                                                         _moveDragDxAccumulator += details.delta.dx;
-                                                         _moveDragDyAccumulator += details.delta.dy;
-
-                                                         // Horizontal Bar Drag Shift
-                                                         if (_moveDragDxAccumulator.abs() >= barWidth * 0.5) {
-                                                           final shiftBars = (_moveDragDxAccumulator / barWidth).round();
-                                                           if (shiftBars != 0) {
-                                                             setState(() {
-                                                               clip.startBar = (clip.startBar + shiftBars).clamp(0, totalBars - clip.barLength);
-                                                             });
-                                                             _moveDragDxAccumulator -= shiftBars * barWidth;
-                                                           }
-                                                         }
-
-                                                         // Vertical Track Drag Shift
-                                                         final trackShift = (_moveDragDyAccumulator / (trackRowHeight + 2.0)).round();
-                                                         if (_dragSourceTrackIdx != null) {
-                                                           final targetIdx = (_dragSourceTrackIdx! + trackShift).clamp(0, tracks.length - 1);
-                                                           if (targetIdx != _dragHoverTrackIdx) {
-                                                             setState(() {
-                                                               _dragHoverTrackIdx = targetIdx;
-                                                             });
-                                                           }
-                                                         }
-                                                       },
-                                                       onPanEnd: (_) {
-                                                         if (_dragHoverTrackIdx != null && _dragSourceTrackIdx != null && _dragHoverTrackIdx != _dragSourceTrackIdx) {
-                                                           final targetTrack = tracks[_dragHoverTrackIdx!];
-                                                           if (widget.dawState.canMoveClipToTrack(clip, targetTrack)) {
-                                                             widget.dawState.moveClipToTrack(clip, track, targetTrack, targetStartBar: clip.startBar);
+                                                       onAcceptWithDetails: (details) {
+                                                         final data = details.data;
+                                                         if (data is LuaPreset) {
+                                                           if (data.isMidiSeq) {
+                                                             widget.dawState.activeTrackIndex = trackIdx;
+                                                             widget.dawState.selectClip(clip);
+                                                             widget.dawState.applyPresetToClip(track, clip, data);
                                                              ScaffoldMessenger.of(context).showSnackBar(
                                                                SnackBar(
-                                                                 content: Text('Moved pattern clip "${clip.name}" to ${targetTrack.name}'),
+                                                                 content: Text('Applied sequence "${data.name}" to clip "${clip.name}"'),
                                                                  backgroundColor: EatsTheme.panelHeader,
-                                                                 duration: const Duration(seconds: 1),
+                                                                 duration: const Duration(seconds: 2),
                                                                ),
                                                              );
-                                                           } else {
+                                                           } else if (data.isMidiFx) {
+                                                             widget.dawState.activeTrackIndex = trackIdx;
+                                                             widget.dawState.addMidiFXInsert(
+                                                               track,
+                                                               name: data.name,
+                                                               luaScriptCode: data.code,
+                                                             );
                                                              ScaffoldMessenger.of(context).showSnackBar(
                                                                SnackBar(
-                                                                 content: Text('Cannot drop pattern clip onto ${targetTrack.type == TrackType.sampler ? "Audio Wave Track" : "Folder Track"}'),
-                                                                 backgroundColor: Colors.redAccent.shade700,
+                                                                 content: Text('Added MIDI FX "${data.name}" to ${track.name}'),
+                                                                 backgroundColor: EatsTheme.panelHeader,
                                                                  duration: const Duration(seconds: 2),
                                                                ),
                                                              );
                                                            }
                                                          }
-                                                         setState(() {
-                                                           _draggedClip = null;
-                                                           _draggedClipSourceTrack = null;
-                                                           _dragSourceTrackIdx = null;
-                                                           _dragHoverTrackIdx = null;
-                                                         });
-                                                         widget.dawState.commitHistoryTransaction();
                                                        },
-                                                       onPanCancel: () {
-                                                         setState(() {
-                                                           _draggedClip = null;
-                                                           _draggedClipSourceTrack = null;
-                                                           _dragSourceTrackIdx = null;
-                                                           _dragHoverTrackIdx = null;
-                                                         });
-                                                         widget.dawState.commitHistoryTransaction();
-                                                       },
-                                                       child: AnimatedContainer(
-                                                         duration: const Duration(milliseconds: 120),
-                                                         decoration: BoxDecoration(
-                                                           color: isPresetHover
-                                                               ? EatsTheme.accentGold.withOpacity(0.3)
-                                                               : (isClipSelected
-                                                                   ? Color.alphaBlend(Colors.white.withOpacity(0.18), track.color)
-                                                                   : track.color),
-                                                           borderRadius: BorderRadius.circular(6),
-                                                           border: Border.all(
-                                                             color: isPresetHover
-                                                                 ? EatsTheme.accentGold
-                                                                 : (isClipSelected ? EatsTheme.highlightColor : Colors.white.withOpacity(0.15)),
-                                                             width: isPresetHover ? 2.0 : (isClipSelected ? 2.0 : 1.0),
-                                                           ),
-                                                           boxShadow: [
-                                                             if (isPresetHover)
-                                                               BoxShadow(
-                                                                 color: EatsTheme.accentGold.withOpacity(0.6),
-                                                                 blurRadius: 12,
-                                                                 spreadRadius: 2,
-                                                               )
-                                                             else if (isClipSelected)
-                                                               BoxShadow(
-                                                                 color: EatsTheme.highlightColor.withOpacity(0.6),
-                                                                 blurRadius: 10,
-                                                                 spreadRadius: 1,
-                                                               ),
-                                                             BoxShadow(color: track.color.withOpacity(0.4), blurRadius: 6),
-                                                           ],
-                                                         ),
-                                                         child: ClipRRect(
-                                                           borderRadius: BorderRadius.circular(5),
-                                                           child: Stack(
-                                                             children: [
-                                                               // Full Dimensions Note Content Preview Canvas
-                                                               Positioned.fill(
-                                                                 child: CustomPaint(
-                                                                   painter: PatternClipNotePainter(
-                                                                     clip: clip,
-                                                                     track: track,
-                                                                     isSelected: isClipSelected,
-                                                                   ),
-                                                                 ),
-                                                               ),
+                                                       builder: (context, hoverData, _) {
+                                                         final isPresetHover = hoverData.isNotEmpty;
 
-                                                               // 2. Full-Width Top Clip Title Header Bar (Tightly aligned to top-left)
-                                                               Positioned(
-                                                                 left: 0,
-                                                                 right: 0,
-                                                                 top: 0,
-                                                                 child: Container(
-                                                                   height: 18,
-                                                                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                                                   decoration: BoxDecoration(
-                                                                     color: EatsTheme.backgroundDark.withOpacity(0.78),
-                                                                     border: Border(
-                                                                       bottom: BorderSide(
-                                                                         color: isClipSelected
-                                                                             ? EatsTheme.highlightColor.withOpacity(0.55)
-                                                                             : Colors.white.withOpacity(0.12),
-                                                                         width: 0.8,
+                                                         return GestureDetector(
+                                                           behavior: HitTestBehavior.opaque,
+                                                           onTapDown: (_) {
+                                                             final now = DateTime.now();
+                                                             final isDoubleTap = _lastClipTapId == clip.id &&
+                                                                 _lastClipTapTime != null &&
+                                                                 now.difference(_lastClipTapTime!).inMilliseconds < 300;
+                                                             _lastClipTapTime = now;
+                                                             _lastClipTapId = clip.id;
+
+                                                             widget.dawState.activeTrackIndex = trackIdx;
+                                                             widget.dawState.selectClip(clip);
+                                                             if (isDoubleTap) {
+                                                               // DOUBLE-TAP CLIP: Open MIDI clip in Piano Roll / Tracker; for Audio clips, focus clip properties inspector
+                                                               if (track.type != TrackType.sampler && !clip.isAudioClip) {
+                                                                 widget.dawState.openClipInEditor(clip);
+                                                               } else {
+                                                                 setState(() => _isPropertiesExpanded = true);
+                                                               }
+                                                             }
+                                                           },
+                                                           onSecondaryTap: () {
+                                                             setState(() => _isPropertiesExpanded = true);
+                                                             widget.dawState.activeTrackIndex = trackIdx;
+                                                             widget.dawState.selectClip(clip);
+                                                           },
+                                                           onLongPress: () {
+                                                             setState(() => _isPropertiesExpanded = true);
+                                                             widget.dawState.activeTrackIndex = trackIdx;
+                                                             widget.dawState.selectClip(clip);
+                                                           },
+                                                           onPanStart: (details) {
+                                                             _moveDragDxAccumulator = 0.0;
+                                                             _moveDragDyAccumulator = 0.0;
+                                                             _draggedClip = clip;
+                                                             _draggedClipSourceTrack = track;
+                                                             _dragSourceTrackIdx = trackIdx;
+                                                             _dragHoverTrackIdx = trackIdx;
+                                                             widget.dawState.beginHistoryTransaction('Move Clip "${clip.name}"', icon: Icons.open_with);
+                                                           },
+                                                           onPanUpdate: (details) {
+                                                             _moveDragDxAccumulator += details.delta.dx;
+                                                             _moveDragDyAccumulator += details.delta.dy;
+
+                                                             // Horizontal Bar Drag Shift
+                                                             if (_moveDragDxAccumulator.abs() >= barWidth * 0.5) {
+                                                               final shiftBars = (_moveDragDxAccumulator / barWidth).round();
+                                                               if (shiftBars != 0) {
+                                                                 setState(() {
+                                                                   clip.startBar = (clip.startBar + shiftBars).clamp(0, totalBars - clip.barLength);
+                                                                 });
+                                                                 _moveDragDxAccumulator -= shiftBars * barWidth;
+                                                               }
+                                                             }
+
+                                                             // Vertical Track Drag Shift
+                                                             final trackShift = (_moveDragDyAccumulator / (trackRowHeight + 2.0)).round();
+                                                             if (_dragSourceTrackIdx != null) {
+                                                               final targetIdx = (_dragSourceTrackIdx! + trackShift).clamp(0, tracks.length - 1);
+                                                               if (targetIdx != _dragHoverTrackIdx) {
+                                                                 setState(() {
+                                                                   _dragHoverTrackIdx = targetIdx;
+                                                                 });
+                                                               }
+                                                             }
+                                                           },
+                                                           onPanEnd: (_) {
+                                                             if (_dragHoverTrackIdx != null && _dragSourceTrackIdx != null && _dragHoverTrackIdx != _dragSourceTrackIdx) {
+                                                               final targetTrack = tracks[_dragHoverTrackIdx!];
+                                                               if (widget.dawState.canMoveClipToTrack(clip, targetTrack)) {
+                                                                 widget.dawState.moveClipToTrack(clip, track, targetTrack, targetStartBar: clip.startBar);
+                                                                 ScaffoldMessenger.of(context).showSnackBar(
+                                                                   SnackBar(
+                                                                     content: Text('Moved pattern clip "${clip.name}" to ${targetTrack.name}'),
+                                                                     backgroundColor: EatsTheme.panelHeader,
+                                                                     duration: const Duration(seconds: 1),
+                                                                   ),
+                                                                 );
+                                                               } else {
+                                                                 ScaffoldMessenger.of(context).showSnackBar(
+                                                                   SnackBar(
+                                                                     content: Text('Cannot drop pattern clip onto ${targetTrack.type == TrackType.sampler ? "Audio Wave Track" : "Folder Track"}'),
+                                                                     backgroundColor: Colors.redAccent.shade700,
+                                                                     duration: const Duration(seconds: 2),
+                                                                   ),
+                                                                 );
+                                                               }
+                                                             }
+                                                             setState(() {
+                                                               _draggedClip = null;
+                                                               _draggedClipSourceTrack = null;
+                                                               _dragSourceTrackIdx = null;
+                                                               _dragHoverTrackIdx = null;
+                                                             });
+                                                             widget.dawState.commitHistoryTransaction();
+                                                           },
+                                                           onPanCancel: () {
+                                                             setState(() {
+                                                               _draggedClip = null;
+                                                               _draggedClipSourceTrack = null;
+                                                               _dragSourceTrackIdx = null;
+                                                               _dragHoverTrackIdx = null;
+                                                             });
+                                                             widget.dawState.commitHistoryTransaction();
+                                                           },
+                                                           child: AnimatedContainer(
+                                                             duration: const Duration(milliseconds: 120),
+                                                             decoration: BoxDecoration(
+                                                               color: isPresetHover
+                                                                   ? EatsTheme.accentGold.withOpacity(0.3)
+                                                                   : (isClipSelected
+                                                                       ? Color.alphaBlend(Colors.white.withOpacity(0.18), track.color)
+                                                                       : track.color),
+                                                               borderRadius: BorderRadius.circular(6),
+                                                               border: Border.all(
+                                                                 color: isPresetHover
+                                                                     ? EatsTheme.accentGold
+                                                                     : (isClipSelected ? EatsTheme.highlightColor : Colors.white.withOpacity(0.15)),
+                                                                 width: isPresetHover ? 2.0 : (isClipSelected ? 2.0 : 1.0),
+                                                               ),
+                                                               boxShadow: [
+                                                                 if (isPresetHover)
+                                                                   BoxShadow(
+                                                                     color: EatsTheme.accentGold.withOpacity(0.6),
+                                                                     blurRadius: 12,
+                                                                     spreadRadius: 2,
+                                                                   )
+                                                                 else if (isClipSelected)
+                                                                   BoxShadow(
+                                                                     color: EatsTheme.highlightColor.withOpacity(0.6),
+                                                                     blurRadius: 10,
+                                                                     spreadRadius: 1,
+                                                                   ),
+                                                                 BoxShadow(color: track.color.withOpacity(0.4), blurRadius: 6),
+                                                               ],
+                                                             ),
+                                                             child: ClipRRect(
+                                                               borderRadius: BorderRadius.circular(5),
+                                                               child: Stack(
+                                                                 children: [
+                                                                   // Full Dimensions Note Content Preview Canvas
+                                                                   Positioned.fill(
+                                                                     child: CustomPaint(
+                                                                       painter: PatternClipNotePainter(
+                                                                         clip: clip,
+                                                                         track: track,
+                                                                         isSelected: isClipSelected,
                                                                        ),
                                                                      ),
                                                                    ),
-                                                                   child: Row(
-                                                                     children: [
-                                                                       if (isClipSelected) ...[
-                                                                         Container(
-                                                                           width: 5,
-                                                                           height: 5,
-                                                                           margin: const EdgeInsets.only(right: 4),
-                                                                           decoration: BoxDecoration(
-                                                                             color: EatsTheme.highlightColor,
-                                                                             shape: BoxShape.circle,
-                                                                             boxShadow: [
-                                                                               BoxShadow(
-                                                                                 color: EatsTheme.highlightColor.withOpacity(0.8),
-                                                                                 blurRadius: 4,
-                                                                               ),
-                                                                             ],
+
+                                                                   // 2. Full-Width Top Clip Title Header Bar (Tightly aligned to top-left)
+                                                                   Positioned(
+                                                                     left: 0,
+                                                                     right: 0,
+                                                                     top: 0,
+                                                                     child: Container(
+                                                                       height: 18,
+                                                                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                                                       decoration: BoxDecoration(
+                                                                         color: EatsTheme.backgroundDark.withOpacity(0.78),
+                                                                         border: Border(
+                                                                           bottom: BorderSide(
+                                                                             color: isClipSelected
+                                                                                 ? EatsTheme.highlightColor.withOpacity(0.55)
+                                                                                 : Colors.white.withOpacity(0.12),
+                                                                             width: 0.8,
                                                                            ),
-                                                                         ),
-                                                                       ],
-                                                                       Expanded(
-                                                                         child: Text(
-                                                                           clip.name,
-                                                                           style: TextStyle(
-                                                                             color: isClipSelected ? EatsTheme.highlightColor : EatsTheme.clipTextColor,
-                                                                             fontWeight: FontWeight.bold,
-                                                                             fontSize: 9,
-                                                                           ),
-                                                                           overflow: TextOverflow.ellipsis,
-                                                                           maxLines: 1,
                                                                          ),
                                                                        ),
-                                                                        if (clip.isLooped) ...[
-                                                                          const SizedBox(width: 4),
-                                                                          Container(
-                                                                            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                                                                            decoration: BoxDecoration(
-                                                                              color: EatsTheme.accentGold.withOpacity(0.35),
-                                                                              borderRadius: BorderRadius.circular(2),
-                                                                              border: Border.all(color: EatsTheme.accentGold.withOpacity(0.8), width: 0.5),
-                                                                            ),
-                                                                            child: Row(
-                                                                              mainAxisSize: MainAxisSize.min,
-                                                                              children: [
-                                                                                const Icon(Icons.loop, size: 7.5, color: EatsTheme.accentGold),
-                                                                                const SizedBox(width: 2),
-                                                                                Text(
-                                                                                  '${clip.loopLengthBars}b LOOP',
-                                                                                  style: const TextStyle(
-                                                                                    color: EatsTheme.accentGold,
-                                                                                    fontSize: 7.0,
-                                                                                    fontWeight: FontWeight.bold,
-                                                                                  ),
+                                                                       child: Row(
+                                                                         children: [
+                                                                           if (isClipSelected) ...[
+                                                                             Container(
+                                                                               width: 5,
+                                                                               height: 5,
+                                                                               margin: const EdgeInsets.only(right: 4),
+                                                                               decoration: BoxDecoration(
+                                                                                 color: EatsTheme.highlightColor,
+                                                                                 shape: BoxShape.circle,
+                                                                                 boxShadow: [
+                                                                                   BoxShadow(
+                                                                                     color: EatsTheme.highlightColor.withOpacity(0.8),
+                                                                                     blurRadius: 4,
+                                                                                   ),
+                                                                                 ],
+                                                                               ),
+                                                                             ),
+                                                                           ],
+                                                                           Expanded(
+                                                                             child: Text(
+                                                                               clip.name,
+                                                                               style: TextStyle(
+                                                                                 color: isClipSelected ? EatsTheme.highlightColor : EatsTheme.clipTextColor,
+                                                                                 fontWeight: FontWeight.bold,
+                                                                                 fontSize: 9,
+                                                                               ),
+                                                                               overflow: TextOverflow.ellipsis,
+                                                                               maxLines: 1,
+                                                                             ),
+                                                                           ),
+                                                                            if (clip.isLooped) ...[
+                                                                              const SizedBox(width: 4),
+                                                                              Container(
+                                                                                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                                                                                decoration: BoxDecoration(
+                                                                                  color: EatsTheme.accentGold.withOpacity(0.35),
+                                                                                  borderRadius: BorderRadius.circular(2),
+                                                                                  border: Border.all(color: EatsTheme.accentGold.withOpacity(0.8), width: 0.5),
                                                                                 ),
-                                                                              ],
-                                                                            ),
-                                                                          ),
-                                                                        ],
-                                                                        if (clip.hasLyrics) ...[
-                                                                          const SizedBox(width: 4),
-                                                                          Container(
-                                                                            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                                                                            decoration: BoxDecoration(
-                                                                              color: EatsTheme.secondaryMagenta.withOpacity(0.35),
-                                                                              borderRadius: BorderRadius.circular(2),
-                                                                              border: Border.all(color: EatsTheme.secondaryMagenta.withOpacity(0.8), width: 0.5),
-                                                                            ),
-                                                                            child: Row(
-                                                                              mainAxisSize: MainAxisSize.min,
-                                                                              children: [
-                                                                                const Icon(Icons.chat_bubble, size: 7, color: EatsTheme.secondaryMagenta),
-                                                                                const SizedBox(width: 2),
-                                                                                Text(
-                                                                                  'LYRIC',
-                                                                                  style: TextStyle(
-                                                                                    color: EatsTheme.secondaryMagenta,
-                                                                                    fontSize: 7.0,
-                                                                                    fontWeight: FontWeight.bold,
-                                                                                  ),
+                                                                                child: Row(
+                                                                                  mainAxisSize: MainAxisSize.min,
+                                                                                  children: [
+                                                                                    const Icon(Icons.loop, size: 7.5, color: EatsTheme.accentGold),
+                                                                                    const SizedBox(width: 2),
+                                                                                    Text(
+                                                                                      '${clip.loopLengthBars}b LOOP',
+                                                                                      style: const TextStyle(
+                                                                                        color: EatsTheme.accentGold,
+                                                                                        fontSize: 7.0,
+                                                                                        fontWeight: FontWeight.bold,
+                                                                                      ),
+                                                                                    ),
+                                                                                  ],
                                                                                 ),
-                                                                              ],
-                                                                            ),
-                                                                          ),
-                                                                        ],
-                                                                        if (track.midiFXRack.any((fx) => fx.enabled)) ...[
-                                                                          const SizedBox(width: 4),
-                                                                          Container(
-                                                                            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                                                                            decoration: BoxDecoration(
-                                                                              color: EatsTheme.primaryCyan.withOpacity(0.3),
-                                                                              borderRadius: BorderRadius.circular(2),
-                                                                              border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.8), width: 0.5),
-                                                                            ),
-                                                                            child: Row(
-                                                                              mainAxisSize: MainAxisSize.min,
-                                                                              children: [
-                                                                                const Icon(Icons.bolt, size: 8, color: EatsTheme.accentGold),
-                                                                                const SizedBox(width: 1),
-                                                                                Text(
-                                                                                  track.midiFXRack.isNotEmpty
-                                                                                      ? track.midiFXRack.first.name.split(' ').first.toUpperCase()
-                                                                                      : 'MIDI FX',
-                                                                                  style: TextStyle(
-                                                                                    color: EatsTheme.primaryCyan,
-                                                                                    fontSize: 7.5,
-                                                                                    fontWeight: FontWeight.bold,
-                                                                                  ),
+                                                                              ),
+                                                                            ],
+                                                                            if (clip.hasLyrics) ...[
+                                                                              const SizedBox(width: 4),
+                                                                              Container(
+                                                                                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                                                                                decoration: BoxDecoration(
+                                                                                  color: EatsTheme.secondaryMagenta.withOpacity(0.35),
+                                                                                  borderRadius: BorderRadius.circular(2),
+                                                                                  border: Border.all(color: EatsTheme.secondaryMagenta.withOpacity(0.8), width: 0.5),
                                                                                 ),
-                                                                              ],
-                                                                            ),
-                                                                          ),
-                                                                        ],
-                                                                      ],
-                                                                    ),
-                                                                  ),
-                                                                ),
-
-                                                                // 2.5 Clip Lyrics Sub-Banner
-                                                                if (clip.hasLyrics)
-                                                                  Positioned(
-                                                                    left: 0,
-                                                                    right: 0,
-                                                                    bottom: 0,
-                                                                    height: 15,
-                                                                    child: Container(
-                                                                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                                                                      decoration: BoxDecoration(
-                                                                        color: EatsTheme.backgroundDark.withOpacity(0.82),
-                                                                        border: Border(
-                                                                          top: BorderSide(
-                                                                            color: isClipSelected ? EatsTheme.highlightColor.withOpacity(0.4) : Colors.white.withOpacity(0.1),
-                                                                            width: 0.5,
-                                                                          ),
+                                                                                child: Row(
+                                                                                  mainAxisSize: MainAxisSize.min,
+                                                                                  children: [
+                                                                                    const Icon(Icons.chat_bubble, size: 7, color: EatsTheme.secondaryMagenta),
+                                                                                    const SizedBox(width: 2),
+                                                                                    Text(
+                                                                                      'LYRIC',
+                                                                                      style: TextStyle(
+                                                                                        color: EatsTheme.secondaryMagenta,
+                                                                                        fontSize: 7.0,
+                                                                                        fontWeight: FontWeight.bold,
+                                                                                      ),
+                                                                                    ),
+                                                                                  ],
+                                                                                ),
+                                                                              ),
+                                                                            ],
+                                                                            if (track.midiFXRack.any((fx) => fx.enabled)) ...[
+                                                                              const SizedBox(width: 4),
+                                                                              Container(
+                                                                                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                                                                                decoration: BoxDecoration(
+                                                                                  color: EatsTheme.primaryCyan.withOpacity(0.3),
+                                                                                  borderRadius: BorderRadius.circular(2),
+                                                                                  border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.8), width: 0.5),
+                                                                                ),
+                                                                                child: Row(
+                                                                                  mainAxisSize: MainAxisSize.min,
+                                                                                  children: [
+                                                                                    const Icon(Icons.bolt, size: 8, color: EatsTheme.accentGold),
+                                                                                    const SizedBox(width: 1),
+                                                                                    Text(
+                                                                                      track.midiFXRack.isNotEmpty
+                                                                                          ? track.midiFXRack.first.name.split(' ').first.toUpperCase()
+                                                                                          : 'MIDI FX',
+                                                                                      style: TextStyle(
+                                                                                        color: EatsTheme.primaryCyan,
+                                                                                        fontSize: 7.5,
+                                                                                        fontWeight: FontWeight.bold,
+                                                                                      ),
+                                                                                    ),
+                                                                                  ],
+                                                                                ),
+                                                                              ),
+                                                                            ],
+                                                                          ],
                                                                         ),
                                                                       ),
-                                                                      child: Row(
-                                                                        children: [
-                                                                          Icon(Icons.format_quote, size: 8.5, color: isClipSelected ? EatsTheme.highlightColor : EatsTheme.primaryCyan),
-                                                                          const SizedBox(width: 3),
-                                                                          Expanded(
-                                                                            child: Text(
-                                                                              clip.lyrics.isNotEmpty
-                                                                                  ? clip.lyrics.map((c) => c.text).join(' ')
-                                                                                  : clip.notes.where((n) => n.lyric != null && n.lyric!.isNotEmpty).map((n) => n.lyric).join(' '),
-                                                                              maxLines: 1,
-                                                                              overflow: TextOverflow.ellipsis,
-                                                                              style: TextStyle(
-                                                                                color: isClipSelected ? EatsTheme.highlightColor : Colors.white.withOpacity(0.92),
-                                                                                fontSize: 8.5,
-                                                                                fontWeight: FontWeight.w600,
-                                                                                fontStyle: FontStyle.italic,
+                                                                    ),
+
+                                                                    // 2.5 Clip Lyrics Sub-Banner
+                                                                    if (clip.hasLyrics)
+                                                                      Positioned(
+                                                                        left: 0,
+                                                                        right: 0,
+                                                                        bottom: 0,
+                                                                        height: 15,
+                                                                        child: Container(
+                                                                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                                                                          decoration: BoxDecoration(
+                                                                            color: EatsTheme.backgroundDark.withOpacity(0.82),
+                                                                            border: Border(
+                                                                              top: BorderSide(
+                                                                                color: isClipSelected ? EatsTheme.highlightColor.withOpacity(0.4) : Colors.white.withOpacity(0.1),
+                                                                                width: 0.5,
                                                                               ),
                                                                             ),
                                                                           ),
-                                                                        ],
+                                                                          child: Row(
+                                                                            children: [
+                                                                              Icon(Icons.format_quote, size: 8.5, color: isClipSelected ? EatsTheme.highlightColor : EatsTheme.primaryCyan),
+                                                                              const SizedBox(width: 3),
+                                                                              Expanded(
+                                                                                child: Text(
+                                                                                  clip.lyrics.isNotEmpty
+                                                                                      ? clip.lyrics.map((c) => c.text).join(' ')
+                                                                                      : clip.notes.where((n) => n.lyric != null && n.lyric!.isNotEmpty).map((n) => n.lyric).join(' '),
+                                                                                  maxLines: 1,
+                                                                                  overflow: TextOverflow.ellipsis,
+                                                                                  style: TextStyle(
+                                                                                    color: isClipSelected ? EatsTheme.highlightColor : Colors.white.withOpacity(0.92),
+                                                                                    fontSize: 8.5,
+                                                                                    fontWeight: FontWeight.w600,
+                                                                                    fontStyle: FontStyle.italic,
+                                                                                  ),
+                                                                                ),
+                                                                              ),
+                                                                            ],
+                                                                          ),
+                                                                        ),
                                                                       ),
-                                                                    ),
-                                                                  ),
 
-                                                               // 3. Drop Hover Overlay
-                                                               if (isPresetHover)
-                                                                 Positioned.fill(
-                                                                   child: Container(
-                                                                     color: Colors.black54,
-                                                                     alignment: Alignment.center,
-                                                                     child: const Text(
-                                                                       'APPLY',
-                                                                       style: TextStyle(
-                                                                         color: EatsTheme.accentGold,
-                                                                         fontWeight: FontWeight.bold,
-                                                                         fontSize: 10,
-                                                                         letterSpacing: 1.0,
+                                                                   // 3. Drop Hover Overlay
+                                                                   if (isPresetHover)
+                                                                     Positioned.fill(
+                                                                       child: Container(
+                                                                         color: Colors.black54,
+                                                                         alignment: Alignment.center,
+                                                                         child: const Text(
+                                                                           'APPLY',
+                                                                           style: TextStyle(
+                                                                             color: EatsTheme.accentGold,
+                                                                             fontWeight: FontWeight.bold,
+                                                                             fontSize: 10,
+                                                                             letterSpacing: 1.0,
+                                                                           ),
+                                                                         ),
                                                                        ),
                                                                      ),
-                                                                   ),
-                                                                 ),
 
-                                                               // 4a. Top Right Edge Loop Resize Handle (OpenDAW-style Loop cursor & Looping drag)
-                                                               Positioned(
-                                                                 right: 0,
-                                                                 top: 0,
-                                                                 height: 18,
-                                                                 width: 22,
-                                                                 child: MouseRegion(
-                                                                   cursor: SystemMouseCursors.allScroll,
-                                                                   child: Tooltip(
-                                                                     message: 'Loop Resize (Repeats pattern every ${clip.effectiveLoopLengthBars} bars)',
-                                                                     child: GestureDetector(
-                                                                       behavior: HitTestBehavior.opaque,
-                                                                       onHorizontalDragStart: (_) {
-                                                                         _loopResizeDragDxAccumulator = 0.0;
-                                                                         _initialLoopPointOnDrag = clip.effectiveLoopLengthBars;
-                                                                         widget.dawState.beginHistoryTransaction('Loop Resize Clip "${clip.name}"', icon: Icons.loop);
-                                                                       },
-                                                                       onHorizontalDragUpdate: (details) {
-                                                                         _loopResizeDragDxAccumulator += details.delta.dx;
-                                                                         if (_loopResizeDragDxAccumulator.abs() >= barWidth * 0.5) {
-                                                                           final shiftBars = (_loopResizeDragDxAccumulator / barWidth).round();
-                                                                           if (shiftBars != 0) {
-                                                                             final newBarLength = (clip.barLength + shiftBars).clamp(1, totalBars - clip.startBar);
-                                                                             setState(() {
-                                                                               clip.barLength = newBarLength;
-                                                                               final initPoint = _initialLoopPointOnDrag ?? 2;
-                                                                               if (newBarLength > initPoint) {
-                                                                                 clip.loopLengthBars = initPoint;
-                                                                               } else {
-                                                                                 clip.loopLengthBars = null;
+                                                                   // 4a. Top Right Edge Loop Resize Handle (OpenDAW-style Loop cursor & Looping drag)
+                                                                   Positioned(
+                                                                     right: 0,
+                                                                     top: 0,
+                                                                     height: 18,
+                                                                     width: 22,
+                                                                     child: MouseRegion(
+                                                                       cursor: SystemMouseCursors.allScroll,
+                                                                       child: Tooltip(
+                                                                         message: 'Loop Resize (Repeats pattern every ${clip.effectiveLoopLengthBars} bars)',
+                                                                         child: GestureDetector(
+                                                                           behavior: HitTestBehavior.opaque,
+                                                                           onHorizontalDragStart: (_) {
+                                                                             _loopResizeDragDxAccumulator = 0.0;
+                                                                             _initialLoopPointOnDrag = clip.effectiveLoopLengthBars;
+                                                                             widget.dawState.beginHistoryTransaction('Loop Resize Clip "${clip.name}"', icon: Icons.loop);
+                                                                           },
+                                                                           onHorizontalDragUpdate: (details) {
+                                                                             _loopResizeDragDxAccumulator += details.delta.dx;
+                                                                             if (_loopResizeDragDxAccumulator.abs() >= barWidth * 0.5) {
+                                                                               final shiftBars = (_loopResizeDragDxAccumulator / barWidth).round();
+                                                                               if (shiftBars != 0) {
+                                                                                 final newBarLength = (clip.barLength + shiftBars).clamp(1, totalBars - clip.startBar);
+                                                                                 setState(() {
+                                                                                   clip.barLength = newBarLength;
+                                                                                   final initPoint = _initialLoopPointOnDrag ?? 2;
+                                                                                   if (newBarLength > initPoint) {
+                                                                                     clip.loopLengthBars = initPoint;
+                                                                                   } else {
+                                                                                     clip.loopLengthBars = null;
+                                                                                   }
+                                                                                 });
+                                                                                 _loopResizeDragDxAccumulator -= shiftBars * barWidth;
                                                                                }
-                                                                             });
-                                                                             _loopResizeDragDxAccumulator -= shiftBars * barWidth;
-                                                                           }
-                                                                         }
-                                                                       },
-                                                                       onHorizontalDragEnd: (_) {
-                                                                         _initialLoopPointOnDrag = null;
-                                                                         widget.dawState.commitHistoryTransaction();
-                                                                       },
-                                                                       onHorizontalDragCancel: () {
-                                                                         _initialLoopPointOnDrag = null;
-                                                                         widget.dawState.commitHistoryTransaction();
-                                                                       },
-                                                                       child: Container(
-                                                                         color: Colors.transparent,
-                                                                         alignment: Alignment.center,
-                                                                         child: Icon(
-                                                                           Icons.sync,
-                                                                           size: 11,
-                                                                           color: clip.isLooped
-                                                                               ? EatsTheme.accentGold
-                                                                               : (isClipSelected ? EatsTheme.highlightColor : Colors.white.withOpacity(0.7)),
+                                                                             }
+                                                                           },
+                                                                           onHorizontalDragEnd: (_) {
+                                                                             _initialLoopPointOnDrag = null;
+                                                                             widget.dawState.commitHistoryTransaction();
+                                                                           },
+                                                                           onHorizontalDragCancel: () {
+                                                                             _initialLoopPointOnDrag = null;
+                                                                             widget.dawState.commitHistoryTransaction();
+                                                                           },
+                                                                           child: Container(
+                                                                             color: Colors.transparent,
+                                                                             alignment: Alignment.center,
+                                                                             child: Icon(
+                                                                               Icons.sync,
+                                                                               size: 11,
+                                                                               color: clip.isLooped
+                                                                                   ? EatsTheme.accentGold
+                                                                                   : (isClipSelected ? EatsTheme.highlightColor : Colors.white.withOpacity(0.7)),
+                                                                             ),
+                                                                           ),
                                                                          ),
                                                                        ),
                                                                      ),
                                                                    ),
-                                                                 ),
-                                                               ),
 
-                                                               // 4b. Bottom Right Edge Standard Resize Handle (Simple resize without looping)
-                                                               Positioned(
-                                                                 right: 0,
-                                                                 top: 18,
-                                                                 bottom: 0,
-                                                                 width: 22,
-                                                                 child: MouseRegion(
-                                                                   cursor: SystemMouseCursors.resizeLeftRight,
-                                                                   child: Tooltip(
-                                                                     message: 'Resize Clip Length',
-                                                                     child: GestureDetector(
-                                                                       behavior: HitTestBehavior.opaque,
-                                                                       onHorizontalDragStart: (_) {
-                                                                         _resizeDragDxAccumulator = 0.0;
-                                                                         widget.dawState.beginHistoryTransaction('Resize Clip "${clip.name}"', icon: Icons.straighten);
-                                                                       },
-                                                                       onHorizontalDragUpdate: (details) {
-                                                                         _resizeDragDxAccumulator += details.delta.dx;
-                                                                         if (_resizeDragDxAccumulator.abs() >= barWidth * 0.5) {
-                                                                           final shiftBars = (_resizeDragDxAccumulator / barWidth).round();
-                                                                           if (shiftBars != 0) {
-                                                                             setState(() {
-                                                                               clip.barLength = (clip.barLength + shiftBars).clamp(1, totalBars - clip.startBar);
-                                                                               if (clip.loopLengthBars != null && clip.loopLengthBars! >= clip.barLength) {
-                                                                                 clip.loopLengthBars = null;
+                                                                   // 4b. Bottom Right Edge Standard Resize Handle (Simple resize without looping)
+                                                                   Positioned(
+                                                                     right: 0,
+                                                                     top: 18,
+                                                                     bottom: 0,
+                                                                     width: 22,
+                                                                     child: MouseRegion(
+                                                                       cursor: SystemMouseCursors.resizeLeftRight,
+                                                                       child: Tooltip(
+                                                                         message: 'Resize Clip Length',
+                                                                         child: GestureDetector(
+                                                                           behavior: HitTestBehavior.opaque,
+                                                                           onHorizontalDragStart: (_) {
+                                                                             _resizeDragDxAccumulator = 0.0;
+                                                                             widget.dawState.beginHistoryTransaction('Resize Clip "${clip.name}"', icon: Icons.straighten);
+                                                                           },
+                                                                           onHorizontalDragUpdate: (details) {
+                                                                             _resizeDragDxAccumulator += details.delta.dx;
+                                                                             if (_resizeDragDxAccumulator.abs() >= barWidth * 0.5) {
+                                                                               final shiftBars = (_resizeDragDxAccumulator / barWidth).round();
+                                                                               if (shiftBars != 0) {
+                                                                                 setState(() {
+                                                                                   clip.barLength = (clip.barLength + shiftBars).clamp(1, totalBars - clip.startBar);
+                                                                                   if (clip.loopLengthBars != null && clip.loopLengthBars! >= clip.barLength) {
+                                                                                     clip.loopLengthBars = null;
+                                                                                   }
+                                                                                 });
+                                                                                 _resizeDragDxAccumulator -= shiftBars * barWidth;
                                                                                }
-                                                                             });
-                                                                             _resizeDragDxAccumulator -= shiftBars * barWidth;
-                                                                           }
-                                                                         }
-                                                                       },
-                                                                       onHorizontalDragEnd: (_) => widget.dawState.commitHistoryTransaction(),
-                                                                       onHorizontalDragCancel: () => widget.dawState.commitHistoryTransaction(),
-                                                                       child: Container(
-                                                                         color: Colors.transparent,
-                                                                         alignment: Alignment.center,
-                                                                         child: Icon(
-                                                                           Icons.code,
-                                                                           size: 11,
-                                                                           color: isClipSelected ? EatsTheme.highlightColor : EatsTheme.backgroundDark.withOpacity(0.8),
+                                                                             }
+                                                                           },
+                                                                           onHorizontalDragEnd: (_) => widget.dawState.commitHistoryTransaction(),
+                                                                           onHorizontalDragCancel: () => widget.dawState.commitHistoryTransaction(),
+                                                                           child: Container(
+                                                                             color: Colors.transparent,
+                                                                             alignment: Alignment.center,
+                                                                             child: Icon(
+                                                                               Icons.code,
+                                                                               size: 11,
+                                                                               color: isClipSelected ? EatsTheme.highlightColor : EatsTheme.backgroundDark.withOpacity(0.8),
+                                                                             ),
+                                                                           ),
                                                                          ),
                                                                        ),
                                                                      ),
                                                                    ),
-                                                                 ),
+                                                                 ],
                                                                ),
-                                                             ],
+                                                             ),
                                                            ),
-                                                         ),
-                                                       ),
-                                                     );
-                                                   },
-                                                 ),
-                                               );
-                                             }),
-                                           ],
-                                         ],
-                                       ),
-                                    );
-                                  },
+                                                         );
+                                                       },
+                                                     ),
+                                                   );
+                                                 }),
+                                               ],
+                                             ],
+                                           ),
+                                        );
+                                      },
+                                  ),
+                                ),
+
+                                  // Vertical Song Timeline Playhead Line Across Multitrack Rows
+                                  ValueListenableBuilder<int>(
+                                    valueListenable: widget.dawState.arrangerStepNotifier,
+                                    builder: (context, curStep, _) {
+                                      final curPlayheadX = (curStep / 16.0) * barWidth;
+                                      return Positioned(
+                                        left: curPlayheadX,
+                                        top: 0,
+                                        bottom: 0,
+                                        child: RepaintBoundary(
+                                          child: Container(
+                                            width: 2,
+                                            decoration: BoxDecoration(
+                                              color: EatsTheme.primaryCyan,
+                                              boxShadow: [
+                                                BoxShadow(color: EatsTheme.primaryCyan.withOpacity(0.8), blurRadius: 4),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
                               ),
                             ),
-
-                              // Vertical Song Timeline Playhead Line Across Multitrack Rows
-                              ValueListenableBuilder<int>(
-                                valueListenable: widget.dawState.arrangerStepNotifier,
-                                builder: (context, curStep, _) {
-                                  final curPlayheadX = (curStep / 16.0) * barWidth;
-                                  return Positioned(
-                                    left: curPlayheadX,
-                                    top: 0,
-                                    bottom: 0,
-                                    child: RepaintBoundary(
-                                      child: Container(
-                                        width: 2,
-                                        decoration: BoxDecoration(
-                                          color: EatsTheme.primaryCyan,
-                                          boxShadow: [
-                                            BoxShadow(color: EatsTheme.primaryCyan.withOpacity(0.8), blurRadius: 4),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ),
-            ),
-          ),
-        ],
+                );
+              },
+            );
+          },
+        ),
       ),
-    ),
+    ],
+  ),
+),
 
     // Right-Sidebar Vertical Track Properties Pullout Drawer (Styled with exact pullout method from Virtual Piano Keyboard)
     AnimatedPositioned(
@@ -2260,6 +2289,34 @@ class PatternClipNotePainter extends CustomPainter {
     required this.isSelected,
   });
 
+  // Pre-allocated static reusable Paint and Path instances (0 allocation during playback)
+  static final Paint _noteFillPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _noteBorderPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.5;
+
+  static const Color _noteFillCycle0 = Color(0x660B0E14);
+  static const Color _noteFillCycleN = Color(0x4D0B0E14);
+  static const Color _noteBorderCycle0 = Color(0x66FFFFFF);
+  static const Color _noteBorderCycleN = Color(0x40FFFFFF);
+
+  static final Paint _loopLinePaint = Paint()
+    ..color = const Color(0x59FFFFFF)
+    ..strokeWidth = 1.0
+    ..style = PaintingStyle.stroke;
+  static final Paint _notchPaint = Paint()
+    ..color = const Color(0xE6FFD700)
+    ..style = PaintingStyle.fill;
+  static final Path _notchPath = Path();
+
+  static final Paint _waveformLinePaint = Paint()
+    ..strokeWidth = 1.2
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  static final Paint _centerLinePaint = Paint()
+    ..color = const Color(0x40FFFFFF)
+    ..strokeWidth = 1.0;
+
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0) return;
@@ -2308,17 +2365,14 @@ class PatternClipNotePainter extends CustomPainter {
     }
     final int pitchSpan = math.max(1, maxPitch - minPitch);
 
-    final notePaint = Paint()..style = PaintingStyle.fill;
-    final noteBorderPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.5;
-
     final int loopBars = clip.effectiveLoopLengthBars;
     final double loopSteps = loopBars * 16.0;
     final int numCycles = clip.isLooped ? (clip.barLength / loopBars).ceil() : 1;
 
     for (int cycle = 0; cycle < numCycles; cycle++) {
       final double cycleStepOffset = cycle * loopSteps;
+      _noteFillPaint.color = cycle == 0 ? _noteFillCycle0 : _noteFillCycleN;
+      _noteBorderPaint.color = cycle == 0 ? _noteBorderCycle0 : _noteBorderCycleN;
 
       for (final note in notesToDraw) {
         final double startStep = note.startStep + cycleStepOffset;
@@ -2339,11 +2393,8 @@ class PatternClipNotePainter extends CustomPainter {
           const Radius.circular(1.0),
         );
 
-        notePaint.color = EatsTheme.backgroundDark.withOpacity(cycle == 0 ? 0.40 : 0.30);
-        noteBorderPaint.color = Colors.white.withOpacity(cycle == 0 ? 0.40 : 0.25);
-
-        canvas.drawRRect(rect, notePaint);
-        canvas.drawRRect(rect, noteBorderPaint);
+        canvas.drawRRect(rect, _noteFillPaint);
+        canvas.drawRRect(rect, _noteBorderPaint);
 
         // Render note syllable lyric text if present
         if (note.lyric != null && note.lyric!.isNotEmpty) {
@@ -2369,24 +2420,16 @@ class PatternClipNotePainter extends CustomPainter {
 
     // Draw vertical seam lines and top notch ticks for loop repetitions
     if (clip.isLooped && loopBars > 0 && numCycles > 1) {
-      final loopLinePaint = Paint()
-        ..color = Colors.white.withOpacity(0.35)
-        ..strokeWidth = 1.0
-        ..style = PaintingStyle.stroke;
-      final notchPaint = Paint()
-        ..color = EatsTheme.accentGold.withOpacity(0.9)
-        ..style = PaintingStyle.fill;
-
       for (int cycle = 1; cycle < numCycles; cycle++) {
         final double cycleX = (cycle * loopSteps / totalSteps) * size.width;
         if (cycleX < size.width) {
-          canvas.drawLine(Offset(cycleX, 0), Offset(cycleX, size.height), loopLinePaint);
-          final notchPath = Path()
-            ..moveTo(cycleX - 3.5, 0)
-            ..lineTo(cycleX + 3.5, 0)
-            ..lineTo(cycleX, 5)
-            ..close();
-          canvas.drawPath(notchPath, notchPaint);
+          canvas.drawLine(Offset(cycleX, 0), Offset(cycleX, size.height), _loopLinePaint);
+          _notchPath.reset();
+          _notchPath.moveTo(cycleX - 3.5, 0);
+          _notchPath.lineTo(cycleX + 3.5, 0);
+          _notchPath.lineTo(cycleX, 5);
+          _notchPath.close();
+          canvas.drawPath(_notchPath, _notchPaint);
         }
       }
     }
@@ -2399,17 +2442,9 @@ class PatternClipNotePainter extends CustomPainter {
     final totalPoints = overview.maxPeaks.length;
     final dx = size.width / (totalPoints - 1);
 
-    final linePaint = Paint()
-      ..color = isSelected ? EatsTheme.highlightColor : EatsTheme.primaryCyan
-      ..strokeWidth = 1.2
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+    _waveformLinePaint.color = isSelected ? EatsTheme.highlightColor : EatsTheme.primaryCyan;
 
-    final centerLinePaint = Paint()
-      ..color = Colors.white.withOpacity(0.25)
-      ..strokeWidth = 1.0;
-
-    canvas.drawLine(Offset(0, centerY), Offset(size.width, centerY), centerLinePaint);
+    canvas.drawLine(Offset(0, centerY), Offset(size.width, centerY), _centerLinePaint);
 
     for (int i = 0; i < totalPoints; i++) {
       final x = i * dx;
@@ -2419,7 +2454,7 @@ class PatternClipNotePainter extends CustomPainter {
       final yTop = centerY - (maxVal * (centerY * 0.85));
       final yBottom = centerY - (minVal * (centerY * 0.85));
 
-      canvas.drawLine(Offset(x, yTop), Offset(x, yBottom), linePaint);
+      canvas.drawLine(Offset(x, yTop), Offset(x, yBottom), _waveformLinePaint);
     }
   }
 

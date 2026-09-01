@@ -46,4 +46,5 @@ flutter build web --release --base-href "/" --pwa-strategy=none
 
 ## 📄 License & Credits
 - App codebase licensed under MIT License.
+- **Commuted Waveguide Piano Physical Models**: Based on research by Balázs Bank, Julien Bensa, Julius O. Smith, and Scott Van Duyne (CCRMA, Stanford University). DSP topology and empirical 88-key breakpoint tables derived from Romain Michon's Faust/STK implementation (`physmodels.lib`, GRAME / Stanford CCRMA) and David Braun's ([DBraun](https://gist.github.com/DBraun/3d1c735ffb414f7ce371b28a20559e30)) physical modeling adaptation (STK-4.3 / MIT License).
 - Bundled default SoundFont: [Super Small Font](https://github.com/nitro-shoe/super-small-font) by nitro-shoe, used under [Creative Commons Attribution 4.0 (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/).

@@ -1706,14 +1706,26 @@ class _OscilloscopeLivePainter extends CustomPainter {
     required this.isSpectrum,
   });
 
+  // Pre-allocated static worker objects
+  static final Paint _gridPaint = Paint()..strokeWidth = 0.75;
+  static final Paint _barPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _beamPaint = Paint()
+    ..strokeWidth = 2.0
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
+  static final Paint _glowPaint = Paint()
+    ..strokeWidth = 4.5
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  static final Path _reusablePath = Path();
+
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0) return;
 
     // 1. Draw subtle background oscilloscope reticle grid
-    final gridPaint = Paint()
-      ..color = accentColor.withOpacity(0.12)
-      ..strokeWidth = 0.75;
+    _gridPaint.color = accentColor.withOpacity(0.12);
 
     const divisionsX = 8;
     const divisionsY = 4;
@@ -1721,19 +1733,17 @@ class _OscilloscopeLivePainter extends CustomPainter {
     final stepY = size.height / divisionsY;
 
     for (int i = 1; i < divisionsX; i++) {
-      canvas.drawLine(Offset(i * stepX, 0), Offset(i * stepX, size.height), gridPaint);
+      canvas.drawLine(Offset(i * stepX, 0), Offset(i * stepX, size.height), _gridPaint);
     }
     for (int j = 1; j < divisionsY; j++) {
-      canvas.drawLine(Offset(0, j * stepY), Offset(size.width, j * stepY), gridPaint);
+      canvas.drawLine(Offset(0, j * stepY), Offset(size.width, j * stepY), _gridPaint);
     }
 
     final centerY = size.height / 2.0;
 
     if (isSpectrum) {
       // Draw FFT Frequency Spectrum Bars
-      final barPaint = Paint()
-        ..color = accentColor
-        ..style = PaintingStyle.fill;
+      _barPaint.color = accentColor;
 
       const numBars = 32;
       final barWidth = size.width / numBars;
@@ -1742,24 +1752,14 @@ class _OscilloscopeLivePainter extends CustomPainter {
         // Simulated harmonic distribution for high-tech aesthetic
         final h = (0.2 + 0.7 * (1.0 - normIdx) * (1.0 + 0.3 * (i % 3))) * (size.height * 0.75);
         final rect = Rect.fromLTWH(i * barWidth + 1.5, size.height - h - 4, barWidth - 3, h);
-        canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(2)), barPaint);
+        canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(2)), _barPaint);
       }
     } else {
       // Draw Analog Oscilloscope Continuous Waveform Beam
-      final beamPaint = Paint()
-        ..color = accentColor
-        ..strokeWidth = 2.0
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round;
+      _beamPaint.color = accentColor;
+      _glowPaint.color = accentColor.withOpacity(0.35);
 
-      final glowPaint = Paint()
-        ..color = accentColor.withOpacity(0.35)
-        ..strokeWidth = 4.5
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round;
-
-      final path = Path();
+      _reusablePath.reset();
       const points = 100;
       for (int i = 0; i <= points; i++) {
         final t = i / points;
@@ -1767,13 +1767,13 @@ class _OscilloscopeLivePainter extends CustomPainter {
         // Dynamic simulated analog phase for vibrant live aesthetic
         final y = centerY + (centerY * 0.7) * (0.8 * (t * 6.28 * 2.0).clamp(-1.0, 1.0) * (1.0 - (t - 0.5).abs() * 0.5));
         if (i == 0) {
-          path.moveTo(x, y);
+          _reusablePath.moveTo(x, y);
         } else {
-          path.lineTo(x, y);
+          _reusablePath.lineTo(x, y);
         }
       }
-      canvas.drawPath(path, glowPaint);
-      canvas.drawPath(path, beamPaint);
+      canvas.drawPath(_reusablePath, _glowPaint);
+      canvas.drawPath(_reusablePath, _beamPaint);
     }
   }
 
@@ -1851,25 +1851,71 @@ class _MinimalistFormantScreenPainter extends CustomPainter {
     required this.phase,
   });
 
+  static final Paint _workerShader = Paint();
+  static final Paint _innerShadow = Paint()
+    ..color = const Color(0x99B5BAC4)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.0;
+  static final Paint _gridDotPaint = Paint()
+    ..color = const Color(0x999095A2)
+    ..strokeWidth = 0.8;
+  static final Paint _curvePaint = Paint()
+    ..strokeWidth = 1.8
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
+  static final Path _formantPath = Path();
+  static final Path _curvePath = Path();
+
+  static const List<String> _dbLevels = ['+12', '0', '-12', '-24'];
+  static final List<TextPainter> _cachedDbPainters = _dbLevels.map((label) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 7.5,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF6E7382),
+          fontFamily: 'monospace',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    tp.layout();
+    return tp;
+  }).toList();
+
+  static const List<String> _freqs = ['100Hz', '500Hz', '2kHz', '10kHz'];
+  static final List<TextPainter> _cachedFreqPainters = _freqs.map((label) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 7.0,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF6E7382),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    tp.layout();
+    return tp;
+  }).toList();
+
   @override
   void paint(Canvas canvas, Size size) {
     // 1. Screen Bevel / LCD Surface Gradient
-    final screenGradient = LinearGradient(
+    final screenGradient = const LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: const [
+      colors: [
         Color(0xFFDFE2E8),
         Color(0xFFCFD3DA),
       ],
     );
-    canvas.drawRect(Offset.zero & size, Paint()..shader = screenGradient.createShader(Offset.zero & size));
-
-    // Inset Screen Shadow
-    final innerShadow = Paint()
-      ..color = const Color(0xFFB5BAC4).withOpacity(0.6)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    canvas.drawRect(Offset.zero & size, innerShadow);
+    _workerShader.shader = screenGradient.createShader(Offset.zero & size);
+    canvas.drawRect(Offset.zero & size, _workerShader);
+    canvas.drawRect(Offset.zero & size, _innerShadow);
 
     const padLeft = 24.0;
     const padRight = 8.0;
@@ -1880,58 +1926,28 @@ class _MinimalistFormantScreenPainter extends CustomPainter {
     final plotH = size.height - padTop - padBottom;
 
     // 2. dB Level Axis Markings & Dotted Guide Lines
-    final gridPaint = Paint()
-      ..color = const Color(0xFF9095A2).withOpacity(0.6)
-      ..strokeWidth = 0.8;
-
-    final dbLevels = ['+12', '0', '-12', '-24'];
-    for (int i = 0; i < dbLevels.length; i++) {
-      final y = padTop + (i / (dbLevels.length - 1)) * plotH;
-      // Dotted line
+    for (int i = 0; i < _cachedDbPainters.length; i++) {
+      final y = padTop + (i / (_cachedDbPainters.length - 1)) * plotH;
       for (double x = padLeft; x < padLeft + plotW; x += 4.0) {
-        canvas.drawCircle(Offset(x, y), 0.5, gridPaint);
+        canvas.drawCircle(Offset(x, y), 0.5, _gridDotPaint);
       }
-
-      final tp = TextPainter(
-        text: TextSpan(
-          text: dbLevels[i],
-          style: const TextStyle(
-            fontSize: 7.5,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF6E7382),
-            fontFamily: 'monospace',
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
+      final tp = _cachedDbPainters[i];
       tp.paint(canvas, Offset(2.0, y - tp.height / 2));
     }
 
     // 3. Frequency Guide Lines & Text
-    final freqs = ['100Hz', '500Hz', '2kHz', '10kHz'];
-    for (int i = 0; i < freqs.length; i++) {
-      final x = padLeft + (i / (freqs.length - 1)) * plotW;
+    for (int i = 0; i < _cachedFreqPainters.length; i++) {
+      final x = padLeft + (i / (_cachedFreqPainters.length - 1)) * plotW;
       for (double y = padTop; y < padTop + plotH; y += 4.0) {
-        canvas.drawCircle(Offset(x, y), 0.5, gridPaint);
+        canvas.drawCircle(Offset(x, y), 0.5, _gridDotPaint);
       }
-
-      final tp = TextPainter(
-        text: TextSpan(
-          text: freqs[i],
-          style: const TextStyle(
-            fontSize: 7.0,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF6E7382),
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
+      final tp = _cachedFreqPainters[i];
       tp.paint(canvas, Offset(x - tp.width / 2, size.height - tp.height - 2));
     }
 
     // 4. Formant Translucent Filled Waveform Silhouette
-    final formantPath = Path();
-    formantPath.moveTo(padLeft, padTop + plotH);
+    _formantPath.reset();
+    _formantPath.moveTo(padLeft, padTop + plotH);
 
     final f1 = (formants.isNotEmpty ? formants[0] : 0.6).clamp(0.0, 1.0);
     final f2 = (formants.length > 1 ? formants[1] : 0.45).clamp(0.0, 1.0);
@@ -1943,7 +1959,6 @@ class _MinimalistFormantScreenPainter extends CustomPainter {
       final normX = i / steps;
       final x = padLeft + normX * plotW;
 
-      // Combine 4 bell curves for formant formant peaks
       final p1 = math.exp(-math.pow((normX - 0.18) / 0.10, 2)) * f1;
       final p2 = math.exp(-math.pow((normX - 0.42) / 0.12, 2)) * f2;
       final p3 = math.exp(-math.pow((normX - 0.68) / 0.10, 2)) * f3;
@@ -1952,24 +1967,24 @@ class _MinimalistFormantScreenPainter extends CustomPainter {
       final combined = (p1 + p2 + p3 + p4).clamp(0.05, 0.95);
       final y = padTop + (1.0 - combined) * plotH;
 
-      formantPath.lineTo(x, y);
+      _formantPath.lineTo(x, y);
     }
-    formantPath.lineTo(padLeft + plotW, padTop + plotH);
-    formantPath.close();
+    _formantPath.lineTo(padLeft + plotW, padTop + plotH);
+    _formantPath.close();
 
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Colors.white.withOpacity(0.55),
-          const Color(0xFFB0B6C2).withOpacity(0.35),
-        ],
-      ).createShader(Rect.fromLTWH(padLeft, padTop, plotW, plotH));
-    canvas.drawPath(formantPath, fillPaint);
+    final fillGradient = const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        Color(0x8CFFFFFF),
+        Color(0x59B0B6C2),
+      ],
+    );
+    _workerShader.shader = fillGradient.createShader(Rect.fromLTWH(padLeft, padTop, plotW, plotH));
+    canvas.drawPath(_formantPath, _workerShader);
 
-    // 5. Active Vibrant Terracotta/Orange Curve Line
-    final curvePath = Path();
+    // 5. Active Vibrant Formant Curve Line
+    _curvePath.reset();
     for (int i = 0; i <= steps; i++) {
       final normX = i / steps;
       final x = padLeft + normX * plotW;
@@ -1983,19 +1998,14 @@ class _MinimalistFormantScreenPainter extends CustomPainter {
       final y = padTop + (1.0 - combined) * plotH;
 
       if (i == 0) {
-        curvePath.moveTo(x, y);
+        _curvePath.moveTo(x, y);
       } else {
-        curvePath.lineTo(x, y);
+        _curvePath.lineTo(x, y);
       }
     }
 
-    final curvePaint = Paint()
-      ..color = accentColor
-      ..strokeWidth = 1.8
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    canvas.drawPath(curvePath, curvePaint);
+    _curvePaint.color = accentColor;
+    canvas.drawPath(_curvePath, _curvePaint);
   }
 
   @override

@@ -201,6 +201,77 @@ class _KnobPainter extends CustomPainter {
     required this.isGrungyTheme,
   });
 
+  // Pre-allocated static worker paints (zero allocation per frame during rotary drag)
+  static final Paint _workerFill = Paint()..style = PaintingStyle.fill;
+  static final Paint _workerStroke = Paint()..style = PaintingStyle.stroke;
+  static final Paint _workerShader = Paint();
+  static final Paint _shadowBlurPaint = Paint()
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.5);
+  static final Paint _arcGlowPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+  static final Paint _pointerGlowPaint = Paint()
+    ..strokeWidth = 4.0
+    ..strokeCap = StrokeCap.round
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
+
+  // Static constant paints
+  static final Paint _minimalInactiveArc = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.4
+    ..strokeCap = StrokeCap.round
+    ..color = const Color(0xFFE2E5EC);
+  static final Paint _minimalActiveArc = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2.4
+    ..strokeCap = StrokeCap.round
+    ..color = const Color(0xFF1E1E24);
+  static final Paint _minimalDotActive = Paint()
+    ..color = const Color(0xFF1B1B1E)
+    ..style = PaintingStyle.fill;
+  static final Paint _minimalDotInactive = Paint()
+    ..color = const Color(0xFFCAD0DC)
+    ..style = PaintingStyle.fill;
+  static final Paint _minimalDotBorder = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.5
+    ..color = Colors.white;
+  static final Paint _minimalRimPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.2
+    ..color = const Color(0xFFD4D7DF);
+  static final Paint _minimalInsetRingPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.6
+    ..color = const Color(0x99DCDFE5);
+  static final Paint _minimalDotShadow = Paint()
+    ..color = const Color(0x4D000000)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
+  static final Paint _minimalDotBevel = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.8
+    ..color = const Color(0xE6FFFFFF);
+  static final Paint _minimalTopHl = Paint()
+    ..color = const Color(0xE6FFFFFF)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
+  static final Paint _minimalShadow = Paint()
+    ..color = const Color(0x2E000000)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5.0);
+
+  static final Paint _snesNotchPaint = Paint()
+    ..color = const Color(0xFF2C2C32)
+    ..strokeWidth = 2.6
+    ..strokeCap = StrokeCap.round;
+  static final Paint _chromeNotchShadow = Paint()
+    ..color = const Color(0xFF000000)
+    ..strokeWidth = 2.6
+    ..strokeCap = StrokeCap.round;
+  static final Paint _chromeNotchHl = Paint()
+    ..color = const Color(0x80FFFFFF)
+    ..strokeWidth = 0.8
+    ..strokeCap = StrokeCap.round;
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
@@ -223,42 +294,15 @@ class _KnobPainter extends CustomPainter {
       final arcRadius = outerRadius - 2.5;
       final arcRect = Rect.fromCircle(center: center, radius: arcRadius);
 
-      final inactiveArcPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFE2E5EC);
-      canvas.drawArc(arcRect, startAngle, totalAngleRange, false, inactiveArcPaint);
+      canvas.drawArc(arcRect, startAngle, totalAngleRange, false, _minimalInactiveArc);
 
       if (normalizedValue > 0.005) {
         final sweepAngle = (normalizedValue * totalAngleRange).clamp(0.005, totalAngleRange);
-        final activeArcPaint = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.4
-          ..strokeCap = StrokeCap.round
-          ..color = const Color(0xFF1E1E24);
-        canvas.drawArc(arcRect, startAngle, sweepAngle, false, activeArcPaint);
+        canvas.drawArc(arcRect, startAngle, sweepAngle, false, _minimalActiveArc);
       }
 
       // 1b. Refined Breakpoint Dots along Radius
       const int numTicks = 13;
-      final activeDotPaint = Paint()
-        ..color = const Color(0xFF1B1B1E)
-        ..style = PaintingStyle.fill;
-
-      final activeMajorDotPaint = Paint()
-        ..color = const Color(0xFF1B1B1E)
-        ..style = PaintingStyle.fill;
-
-      final inactiveDotPaint = Paint()
-        ..color = const Color(0xFFCAD0DC)
-        ..style = PaintingStyle.fill;
-
-      final dotBorderPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.5
-        ..color = Colors.white;
-
       for (int i = 0; i < numTicks; i++) {
         final normTickVal = i / (numTicks - 1);
         final tickAngle = startAngle + normTickVal * totalAngleRange;
@@ -270,21 +314,18 @@ class _KnobPainter extends CustomPainter {
         );
 
         final isActive = normTickVal <= (normalizedValue + 0.02);
-        final paint = isActive
-            ? (isMajor ? activeMajorDotPaint : activeDotPaint)
-            : inactiveDotPaint;
+        final paint = isActive ? _minimalDotActive : _minimalDotInactive;
 
         canvas.drawCircle(tickPos, dotRadius, paint);
-        canvas.drawCircle(tickPos, dotRadius, dotBorderPaint);
+        canvas.drawCircle(tickPos, dotRadius, _minimalDotBorder);
       }
     } else if (isChrome || isLightChassis || isSnes) {
       const int numTicks = 11;
-      final tickPaint = Paint()
-        ..color = (isSnes || isLightChassis || isChrome)
-            ? const Color(0xFF1B1A17).withOpacity(0.75)
-            : const Color(0xFF8C96A5).withOpacity(0.65)
-        ..strokeWidth = 1.2
-        ..strokeCap = StrokeCap.round;
+      _workerStroke.color = (isSnes || isLightChassis || isChrome)
+          ? const Color(0xBF1B1A17)
+          : const Color(0xA68C96A5);
+      _workerStroke.strokeWidth = 1.2;
+      _workerStroke.strokeCap = StrokeCap.round;
 
       for (int i = 0; i < numTicks; i++) {
         final tickAngle = startAngle + (i / (numTicks - 1)) * totalAngleRange;
@@ -294,7 +335,7 @@ class _KnobPainter extends CustomPainter {
 
         final t1 = center + Offset(math.cos(tickAngle) * innerTickRadius, math.sin(tickAngle) * innerTickRadius);
         final t2 = center + Offset(math.cos(tickAngle) * outerTickRadius, math.sin(tickAngle) * outerTickRadius);
-        canvas.drawLine(t1, t2, tickPaint);
+        canvas.drawLine(t1, t2, _workerStroke);
       }
     }
 
@@ -306,14 +347,12 @@ class _KnobPainter extends CustomPainter {
       final arcRect = Rect.fromCircle(center: center, radius: arcRadius);
 
       // Inactive Background Track Arc
-      final inactiveArcPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = isChrome ? 2.6 : 2.5
-        ..strokeCap = StrokeCap.round
-        ..color = (isSnes || isLightChassis)
-            ? const Color(0xFFC0BCB0)
-            : (isChrome ? const Color(0xFF32363E) : (isGrungyTheme ? const Color(0xFF38322B) : const Color(0xFF222733)));
-      canvas.drawArc(arcRect, startAngle, totalAngleRange, false, inactiveArcPaint);
+      _workerStroke.strokeWidth = isChrome ? 2.6 : 2.5;
+      _workerStroke.strokeCap = StrokeCap.round;
+      _workerStroke.color = (isSnes || isLightChassis)
+          ? const Color(0xFFC0BCB0)
+          : (isChrome ? const Color(0xFF32363E) : (isGrungyTheme ? const Color(0xFF38322B) : const Color(0xFF222733)));
+      canvas.drawArc(arcRect, startAngle, totalAngleRange, false, _workerStroke);
 
       // Active Value Arc
       if (normalizedValue > 0.001) {
@@ -321,36 +360,23 @@ class _KnobPainter extends CustomPainter {
 
         if (isSnes || (isChrome && isLightChassis)) {
           // Classic Silkscreen Solid Charcoal/Black Arc (Authentic TB-303 / Tau)
-          final activeArcPaint = Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.6
-            ..strokeCap = StrokeCap.round
-            ..color = const Color(0xFF141416);
-          canvas.drawArc(arcRect, startAngle, sweepAngle, false, activeArcPaint);
+          _workerStroke.strokeWidth = 2.6;
+          _workerStroke.color = const Color(0xFF141416);
+          canvas.drawArc(arcRect, startAngle, sweepAngle, false, _workerStroke);
         } else if (isChrome) {
           // Dark metallic chrome chassis track (deep gunmetal indicator)
-          final activeArcPaint = Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.6
-            ..strokeCap = StrokeCap.round
-            ..color = accentColor == const Color(0xFF141416) ? const Color(0xFF00FF9D) : accentColor;
-          canvas.drawArc(arcRect, startAngle, sweepAngle, false, activeArcPaint);
+          _workerStroke.strokeWidth = 2.6;
+          _workerStroke.color = accentColor == const Color(0xFF141416) ? const Color(0xFF00FF9D) : accentColor;
+          canvas.drawArc(arcRect, startAngle, sweepAngle, false, _workerStroke);
         } else {
           // Standard Glowing Arc
-          final arcGlowPaint = Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 4.0
-            ..strokeCap = StrokeCap.round
-            ..color = accentColor.withOpacity(0.5)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
-          canvas.drawArc(arcRect, startAngle, sweepAngle, false, arcGlowPaint);
+          _arcGlowPaint.strokeWidth = 4.0;
+          _arcGlowPaint.color = accentColor.withOpacity(0.5);
+          canvas.drawArc(arcRect, startAngle, sweepAngle, false, _arcGlowPaint);
 
-          final activeArcPaint = Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.5
-            ..strokeCap = StrokeCap.round
-            ..color = accentColor;
-          canvas.drawArc(arcRect, startAngle, sweepAngle, false, activeArcPaint);
+          _workerStroke.strokeWidth = 2.5;
+          _workerStroke.color = accentColor;
+          canvas.drawArc(arcRect, startAngle, sweepAngle, false, _workerStroke);
         }
       }
     }
@@ -362,22 +388,11 @@ class _KnobPainter extends CustomPainter {
 
     if (isMinimal) {
       // Ambient soft drop shadow (Clean ceramic elevation)
-      final shadowPaint = Paint()
-        ..color = Colors.black.withOpacity(0.18)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5.0);
-      canvas.drawCircle(center + const Offset(0, 3.5), knobRadius, shadowPaint);
-
-      final subtleTopHighlight = Paint()
-        ..color = Colors.white.withOpacity(0.9)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
-      canvas.drawCircle(center + const Offset(0, -1.0), knobRadius, subtleTopHighlight);
+      canvas.drawCircle(center + const Offset(0, 3.5), knobRadius, _minimalShadow);
+      canvas.drawCircle(center + const Offset(0, -1.0), knobRadius, _minimalTopHl);
 
       // Outer Bezel Rim (Subtle clean border stroke)
-      final outerRimPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = const Color(0xFFD4D7DF);
-      canvas.drawCircle(center, knobRadius, outerRimPaint);
+      canvas.drawCircle(center, knobRadius, _minimalRimPaint);
 
       // Matte Ceramic White Dial Face
       final dialGradient = RadialGradient(
@@ -391,61 +406,42 @@ class _KnobPainter extends CustomPainter {
         ],
         stops: const [0.0, 0.45, 0.85, 1.0],
       );
-      final dialPaint = Paint()
-        ..shader = dialGradient.createShader(Rect.fromCircle(center: center, radius: knobRadius));
-      canvas.drawCircle(center, knobRadius - 0.5, dialPaint);
+      _workerShader.shader = dialGradient.createShader(Rect.fromCircle(center: center, radius: knobRadius));
+      canvas.drawCircle(center, knobRadius - 0.5, _workerShader);
 
       // Subtle Inset Groove ring around periphery of knob face
-      final insetRingPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.6
-        ..color = const Color(0xFFDCDFE5).withOpacity(0.6);
-      canvas.drawCircle(center, knobRadius * 0.88, insetRingPaint);
+      canvas.drawCircle(center, knobRadius * 0.88, _minimalInsetRingPaint);
 
       // Recessed Charcoal Dot Indicator near perimeter with subtle highlight bevel
       final dotRadius = math.max(2.4, knobRadius * 0.11);
       final dotDistance = knobRadius * 0.68;
       final dotPos = center + Offset(math.cos(currentAngle) * dotDistance, math.sin(currentAngle) * dotDistance);
 
-      final dotShadowPaint = Paint()
-        ..color = Colors.black.withOpacity(0.3)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
-      canvas.drawCircle(dotPos + const Offset(0, 0.6), dotRadius, dotShadowPaint);
-
-      final dotBevelPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8
-        ..color = Colors.white.withOpacity(0.9);
-      canvas.drawCircle(dotPos, dotRadius + 0.4, dotBevelPaint);
-
-      final dotPaint = Paint()
-        ..color = const Color(0xFF1B1B1E)
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(dotPos, dotRadius, dotPaint);
+      canvas.drawCircle(dotPos + const Offset(0, 0.6), dotRadius, _minimalDotShadow);
+      canvas.drawCircle(dotPos, dotRadius + 0.4, _minimalDotBevel);
+      canvas.drawCircle(dotPos, dotRadius, _minimalDotActive);
 
       return;
     }
 
     // Bezel Drop Shadow
-    final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity((isSnes || isLightChassis) ? 0.35 : 0.65)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.5);
-    canvas.drawCircle(center + const Offset(0, 2), knobRadius + 1.5, shadowPaint);
+    _shadowBlurPaint.color = Color.fromRGBO(0, 0, 0, (isSnes || isLightChassis) ? 0.35 : 0.65);
+    canvas.drawCircle(center + const Offset(0, 2), knobRadius + 1.5, _shadowBlurPaint);
 
     if (isSnes) {
       // Plain White / Ivory SNES Controller Button Dial
-      final bezelPaint = Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFFFFFFF),
-            Color(0xFFDDD9D0),
-            Color(0xFFB8B4AA),
-          ],
-          stops: [0.0, 0.6, 1.0],
-        ).createShader(Rect.fromCircle(center: center, radius: knobRadius + 1.2));
-      canvas.drawCircle(center, knobRadius + 1.2, bezelPaint);
+      final bezelGradient = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFFFFFFFF),
+          Color(0xFFDDD9D0),
+          Color(0xFFB8B4AA),
+        ],
+        stops: [0.0, 0.6, 1.0],
+      );
+      _workerShader.shader = bezelGradient.createShader(Rect.fromCircle(center: center, radius: knobRadius + 1.2));
+      canvas.drawCircle(center, knobRadius + 1.2, _workerShader);
 
       // Matte Plastic White Body
       final bodyGradient = RadialGradient(
@@ -459,9 +455,8 @@ class _KnobPainter extends CustomPainter {
         ],
         stops: const [0.0, 0.45, 0.8, 1.0],
       );
-      final knobBodyPaint = Paint()
-        ..shader = bodyGradient.createShader(Rect.fromCircle(center: center, radius: knobRadius));
-      canvas.drawCircle(center, knobRadius, knobBodyPaint);
+      _workerShader.shader = bodyGradient.createShader(Rect.fromCircle(center: center, radius: knobRadius));
+      canvas.drawCircle(center, knobRadius, _workerShader);
 
       // Inner Convex Face
       final innerRadius = knobRadius * 0.80;
@@ -475,56 +470,53 @@ class _KnobPainter extends CustomPainter {
         ],
         stops: const [0.0, 0.5, 1.0],
       );
-      final innerCapPaint = Paint()
-        ..shader = innerFaceGradient.createShader(Rect.fromCircle(center: center, radius: innerRadius));
-      canvas.drawCircle(center, innerRadius, innerCapPaint);
+      _workerShader.shader = innerFaceGradient.createShader(Rect.fromCircle(center: center, radius: innerRadius));
+      canvas.drawCircle(center, innerRadius, _workerShader);
 
       // Inner Face Chamfer Rim Line
-      final innerRimPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8
-        ..color = Colors.white.withOpacity(0.9);
-      canvas.drawCircle(center, innerRadius, innerRimPaint);
+      _workerStroke.strokeWidth = 0.8;
+      _workerStroke.color = const Color(0xE6FFFFFF);
+      canvas.drawCircle(center, innerRadius, _workerStroke);
 
     } else if (isChrome) {
       // ----------------------------------------------------
       // Smooth Polished Chrome Beveled Dial (TB-303 / Silver Hardware)
       // ----------------------------------------------------
-      final chromeOuterBezelPaint = Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFFFFFFF),
-            Color(0xFFB8C0CA),
-            Color(0xFF4A5260),
-            Color(0xFF8E97A4),
-            Color(0xFFD4DCE6),
-          ],
-          stops: [0.0, 0.28, 0.65, 0.85, 1.0],
-        ).createShader(Rect.fromCircle(center: center, radius: knobRadius + 1.2));
-      canvas.drawCircle(center, knobRadius + 1.2, chromeOuterBezelPaint);
+      final chromeOuterBezelGradient = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFFFFFFFF),
+          Color(0xFFB8C0CA),
+          Color(0xFF4A5260),
+          Color(0xFF8E97A4),
+          Color(0xFFD4DCE6),
+        ],
+        stops: [0.0, 0.28, 0.65, 0.85, 1.0],
+      );
+      _workerShader.shader = chromeOuterBezelGradient.createShader(Rect.fromCircle(center: center, radius: knobRadius + 1.2));
+      canvas.drawCircle(center, knobRadius + 1.2, _workerShader);
 
-      final chromeBodyPaint = Paint()
-        ..shader = SweepGradient(
-          center: Alignment.center,
-          startAngle: 0.0,
-          endAngle: math.pi * 2.0,
-          colors: const [
-            Color(0xFFE8ECEF),
-            Color(0xFF909AA8),
-            Color(0xFFFFFFFF),
-            Color(0xFF4A5260),
-            Color(0xFFBAC3CE),
-            Color(0xFFE8ECEF),
-            Color(0xFF6A7382),
-            Color(0xFFFFFFFF),
-            Color(0xFF7E8796),
-            Color(0xFFE8ECEF),
-          ],
-          stops: const [0.0, 0.12, 0.25, 0.38, 0.50, 0.63, 0.75, 0.85, 0.93, 1.0],
-        ).createShader(Rect.fromCircle(center: center, radius: knobRadius));
-      canvas.drawCircle(center, knobRadius, chromeBodyPaint);
+      final chromeBodyGradient = SweepGradient(
+        center: Alignment.center,
+        startAngle: 0.0,
+        endAngle: math.pi * 2.0,
+        colors: const [
+          Color(0xFFE8ECEF),
+          Color(0xFF909AA8),
+          Color(0xFFFFFFFF),
+          Color(0xFF4A5260),
+          Color(0xFFBAC3CE),
+          Color(0xFFE8ECEF),
+          Color(0xFF6A7382),
+          Color(0xFFFFFFFF),
+          Color(0xFF7E8796),
+          Color(0xFFE8ECEF),
+        ],
+        stops: const [0.0, 0.12, 0.25, 0.38, 0.50, 0.63, 0.75, 0.85, 0.93, 1.0],
+      );
+      _workerShader.shader = chromeBodyGradient.createShader(Rect.fromCircle(center: center, radius: knobRadius));
+      canvas.drawCircle(center, knobRadius, _workerShader);
 
       final innerRadius = knobRadius * 0.82;
       final innerFaceGradient = RadialGradient(
@@ -538,28 +530,21 @@ class _KnobPainter extends CustomPainter {
         ],
         stops: const [0.0, 0.35, 0.75, 1.0],
       );
+      _workerShader.shader = innerFaceGradient.createShader(Rect.fromCircle(center: center, radius: innerRadius));
+      canvas.drawCircle(center, innerRadius, _workerShader);
 
-      final innerCapPaint = Paint()
-        ..shader = innerFaceGradient.createShader(Rect.fromCircle(center: center, radius: innerRadius));
-      canvas.drawCircle(center, innerRadius, innerCapPaint);
-
-      final innerRimPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.9
-        ..color = Colors.white.withOpacity(0.9);
-      canvas.drawCircle(center, innerRadius, innerRimPaint);
+      _workerStroke.strokeWidth = 0.9;
+      _workerStroke.color = const Color(0xE6FFFFFF);
+      canvas.drawCircle(center, innerRadius, _workerStroke);
 
     } else {
       // Standard / Grungy Metallic Knob Body
-      final bezelPaint = Paint()
-        ..color = isGrungyTheme ? const Color(0xFF1B1815) : const Color(0xFF14171E);
-      canvas.drawCircle(center, knobRadius + 1, bezelPaint);
+      _workerFill.color = isGrungyTheme ? const Color(0xFF1B1815) : const Color(0xFF14171E);
+      canvas.drawCircle(center, knobRadius + 1, _workerFill);
 
-      final bezelRimPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
-        ..color = isGrungyTheme ? const Color(0xFF3A342D) : const Color(0xFF282D3A);
-      canvas.drawCircle(center, knobRadius + 1, bezelRimPaint);
+      _workerStroke.strokeWidth = 1.0;
+      _workerStroke.color = isGrungyTheme ? const Color(0xFF3A342D) : const Color(0xFF282D3A);
+      canvas.drawCircle(center, knobRadius + 1, _workerStroke);
 
       final bodyGradient = LinearGradient(
         begin: Alignment.topLeft,
@@ -577,10 +562,8 @@ class _KnobPainter extends CustomPainter {
               ],
         stops: const [0.0, 0.5, 1.0],
       );
-
-      final knobBodyPaint = Paint()
-        ..shader = bodyGradient.createShader(Rect.fromCircle(center: center, radius: knobRadius));
-      canvas.drawCircle(center, knobRadius, knobBodyPaint);
+      _workerShader.shader = bodyGradient.createShader(Rect.fromCircle(center: center, radius: knobRadius));
+      canvas.drawCircle(center, knobRadius, _workerShader);
 
       final innerRadius = knobRadius * 0.82;
       final innerFaceGradient = RadialGradient(
@@ -596,16 +579,12 @@ class _KnobPainter extends CustomPainter {
                 const Color(0xFF141820),
               ],
       );
+      _workerShader.shader = innerFaceGradient.createShader(Rect.fromCircle(center: center, radius: innerRadius));
+      canvas.drawCircle(center, innerRadius, _workerShader);
 
-      final innerCapPaint = Paint()
-        ..shader = innerFaceGradient.createShader(Rect.fromCircle(center: center, radius: innerRadius));
-      canvas.drawCircle(center, innerRadius, innerCapPaint);
-
-      final innerRimPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
-        ..color = Colors.white.withOpacity(isGrungyTheme ? 0.12 : 0.20);
-      canvas.drawCircle(center, innerRadius, innerRimPaint);
+      _workerStroke.strokeWidth = 1.0;
+      _workerStroke.color = Color.fromRGBO(255, 255, 255, isGrungyTheme ? 0.12 : 0.20);
+      canvas.drawCircle(center, innerRadius, _workerStroke);
     }
 
     // ----------------------------------------------------
@@ -615,38 +594,21 @@ class _KnobPainter extends CustomPainter {
     final p2 = center + Offset(math.cos(currentAngle) * (knobRadius * (isChrome ? 0.64 : 0.72)), math.sin(currentAngle) * (knobRadius * (isChrome ? 0.64 : 0.72)));
 
     if (isSnes) {
-      final snesNotchPaint = Paint()
-        ..color = const Color(0xFF2C2C32)
-        ..strokeWidth = 2.6
-        ..strokeCap = StrokeCap.round;
-      canvas.drawLine(p1, p2, snesNotchPaint);
+      canvas.drawLine(p1, p2, _snesNotchPaint);
     } else if (isChrome) {
-      final notchShadowPaint = Paint()
-        ..color = const Color(0xFF000000)
-        ..strokeWidth = 2.6
-        ..strokeCap = StrokeCap.round;
-      canvas.drawLine(p1, p2, notchShadowPaint);
+      canvas.drawLine(p1, p2, _chromeNotchShadow);
 
       final normalAngle = currentAngle + math.pi * 0.5;
       final offsetHl = Offset(math.cos(normalAngle) * 0.7, math.sin(normalAngle) * 0.7);
-      final notchHlPaint = Paint()
-        ..color = Colors.white.withOpacity(0.5)
-        ..strokeWidth = 0.8
-        ..strokeCap = StrokeCap.round;
-      canvas.drawLine(p1 + offsetHl, p2 + offsetHl, notchHlPaint);
+      canvas.drawLine(p1 + offsetHl, p2 + offsetHl, _chromeNotchHl);
     } else {
-      final pointerGlowPaint = Paint()
-        ..color = accentColor.withOpacity(0.7)
-        ..strokeWidth = 4.0
-        ..strokeCap = StrokeCap.round
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
-      canvas.drawLine(p1, p2, pointerGlowPaint);
+      _pointerGlowPaint.color = accentColor.withOpacity(0.7);
+      canvas.drawLine(p1, p2, _pointerGlowPaint);
 
-      final pointerCorePaint = Paint()
-        ..color = accentColor
-        ..strokeWidth = 2.5
-        ..strokeCap = StrokeCap.round;
-      canvas.drawLine(p1, p2, pointerCorePaint);
+      _workerStroke.color = accentColor;
+      _workerStroke.strokeWidth = 2.5;
+      _workerStroke.strokeCap = StrokeCap.round;
+      canvas.drawLine(p1, p2, _workerStroke);
     }
   }
 

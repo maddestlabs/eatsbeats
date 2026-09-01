@@ -123,6 +123,8 @@ def build_flutter_web(wasm=False, profile=False):
         cmd.append("--wasm")
     if profile:
         cmd.append("--profile")
+    else:
+        cmd.append("--release")
         
     res = subprocess.run(cmd, cwd=os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."), shell=(os.name == 'nt'))
     if res.returncode != 0:

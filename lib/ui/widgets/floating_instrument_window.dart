@@ -5,7 +5,6 @@ import '../../models/daw_state.dart';
 import '../../models/script_target_model.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
-import '../modular/modular_rack_canvas.dart';
 import 'dynamic_instrument_gui_widget.dart';
 import 'preset_browser_dialog.dart';
 
@@ -26,7 +25,6 @@ class FloatingInstrumentWindow extends StatefulWidget {
 }
 
 class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
-  bool _isModularRackMode = false;
   String? _lastFittedTrackId;
 
   @override
@@ -39,12 +37,17 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
     final fxInsert = widget.dawState.floatingFxInsert;
     final fxParentTrack = widget.dawState.floatingFxTrack;
 
+    final midiFxInsert = widget.dawState.floatingMidiFxInsert;
+    final midiFxParentTrack = widget.dawState.floatingMidiFxTrack;
+
     final TrackChannel? track;
     final void Function(String, double)? onParamChanged;
     final bool isFxMode;
+    final bool isMidiFxMode;
 
     if (fxInsert != null && fxParentTrack != null) {
       isFxMode = true;
+      isMidiFxMode = false;
       track = TrackChannel(
         id: fxInsert.id,
         name: fxInsert.name,
@@ -52,12 +55,28 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
         color: EatsTheme.secondaryMagenta,
         luaScriptCode: fxInsert.luaScriptCode ?? '',
         luaParams: fxInsert.luaParams,
+        sampleName: fxInsert.irSampleName ?? 'Great Hall',
       );
       onParamChanged = (param, val) {
         widget.dawState.updateFXParam(fxParentTrack, fxInsert.id, param, val);
       };
+    } else if (midiFxInsert != null && midiFxParentTrack != null) {
+      isFxMode = false;
+      isMidiFxMode = true;
+      track = TrackChannel(
+        id: midiFxInsert.id,
+        name: midiFxInsert.name,
+        type: TrackType.luaScript,
+        color: EatsTheme.accentGold,
+        luaScriptCode: midiFxInsert.luaScriptCode,
+        luaParams: midiFxInsert.luaParams,
+      );
+      onParamChanged = (param, val) {
+        widget.dawState.updateMidiFXParam(midiFxParentTrack, midiFxInsert.id, param, val);
+      };
     } else {
       isFxMode = false;
+      isMidiFxMode = false;
       track = widget.dawState.floatingInstrumentTrack;
       onParamChanged = null;
     }
@@ -74,25 +93,18 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
     final accentColor = guiLayout?.accentColor ??
         (isFxMode
             ? EatsTheme.secondaryMagenta
-            : (isGrungy ? const Color(0xFFFF8C00) : effectiveTrack.color));
+            : (isMidiFxMode
+                ? EatsTheme.accentGold
+                : (isGrungy ? const Color(0xFFFF8C00) : effectiveTrack.color)));
     final titleText = (guiLayout?.title ?? effectiveTrack.name).toUpperCase();
     final subtitleText = guiLayout?.subtitle ??
         (isFxMode
             ? 'AUDIO FX INSERT'
-            : (effectiveTrack.type == TrackType.luaScript ? 'INSTRUMENT' : effectiveTrack.type.name.toUpperCase()));
-    final hasUpgrade = !isFxMode && widget.dawState.isPresetUpgradeAvailable(effectiveTrack);
-    final isMaximized = widget.dawState.isFloatingWindowMaximized;
+            : (isMidiFxMode
+                ? 'MIDI FX INSERT'
+                : (effectiveTrack.type == TrackType.luaScript ? 'INSTRUMENT' : effectiveTrack.type.name.toUpperCase())));
+    final hasUpgrade = !isFxMode && !isMidiFxMode && widget.dawState.isPresetUpgradeAvailable(effectiveTrack);
     final wsBounds = widget.workspaceBounds ?? MediaQuery.of(context).size;
-
-    // Auto-scale window to "Fit to Screen" proportions whenever opened for a track (only when not maximized)
-    if (!widget.dawState.isFloatingWindowMaximized && _lastFittedTrackId != effectiveTrack.id) {
-      _lastFittedTrackId = effectiveTrack.id;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && widget.dawState.isFloatingWindowVisible && !widget.dawState.isFloatingWindowMaximized) {
-          widget.dawState.fitFloatingWindowToWorkspace(wsBounds, effectiveTrack);
-        }
-      });
-    }
 
     return Material(
       type: MaterialType.transparency,
@@ -138,11 +150,7 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                         widget.dawState.updateFloatingWindowPosition(details.delta, parentBounds: wsBounds);
                       },
                       onDoubleTap: () {
-                        if (isMaximized) {
-                          widget.dawState.fitFloatingWindowToWorkspace(wsBounds, effectiveTrack);
-                        } else {
-                          widget.dawState.toggleMaximizeFloatingWindow(wsBounds);
-                        }
+                        widget.dawState.toggleMaximizeFloatingWindow(wsBounds);
                       },
                       child: Row(
                         children: [
@@ -217,12 +225,9 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                       ),
                     ],
 
-                    // Preset Selector in Titlebar
-                    _buildTitleBarPresetStrip(context, effectiveTrack, accentColor, isFxMode, fxInsert, fxParentTrack),
-
-                    // 1. Open in Design tab
+                    // 1. Open in Design tab (raw icon for power users / developers)
                     Tooltip(
-                      message: 'Open in Design tab',
+                      message: 'Open in Design / Script Editor',
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTap: () {
@@ -243,7 +248,7 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                             final target = ScriptTarget(
                               id: 'track_${effectiveTrack.id}_dsp',
                               type: ScriptTargetType.trackDsp,
-                              title: '${effectiveTrack.name} (Synth DSP)',
+                              title: '${effectiveTrack.name} ($titleText)',
                               subtitle: effectiveTrack.luaScriptCode.isNotEmpty ? 'Custom Lua Synth / DSP' : 'Instrument DSP Script',
                               trackId: effectiveTrack.id,
                               trackName: effectiveTrack.name,
@@ -255,7 +260,7 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                         },
                         child: Container(
                           padding: const EdgeInsets.all(4),
-                          margin: const EdgeInsets.only(right: 5),
+                          margin: const EdgeInsets.only(right: 6),
                           decoration: BoxDecoration(
                             color: EatsTheme.controlBackground.withOpacity(0.5),
                             borderRadius: BorderRadius.circular(4),
@@ -265,48 +270,11 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                       ),
                     ),
 
-                    // 2. Fit to Screen
-                    Tooltip(
-                      message: 'Fit to screen',
-                      child: InkWell(
-                        onTap: () => widget.dawState.fitFloatingWindowToWorkspace(wsBounds),
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          margin: const EdgeInsets.only(right: 5),
-                          decoration: BoxDecoration(
-                            color: EatsTheme.controlBackground.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Icon(Icons.fit_screen, size: 14, color: EatsTheme.textSecondary),
-                        ),
-                      ),
-                    ),
+                    // 2. Preset Selector in Titlebar
+                    _buildTitleBarPresetStrip(context, effectiveTrack, accentColor, isFxMode, fxInsert, fxParentTrack),
+                    const SizedBox(width: 4),
 
-                    // 3. Fullscreen Toggle
-                    Tooltip(
-                      message: isMaximized ? 'Restore window size' : 'Fullscreen',
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => widget.dawState.toggleMaximizeFloatingWindow(wsBounds),
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          margin: const EdgeInsets.only(right: 6),
-                          decoration: BoxDecoration(
-                            color: isMaximized
-                                ? accentColor.withOpacity(0.25)
-                                : EatsTheme.controlBackground.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Icon(
-                            isMaximized ? Icons.fullscreen_exit : Icons.fullscreen,
-                            size: 15,
-                            color: isMaximized ? accentColor : EatsTheme.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // 4. Tactical Chassis Screw Close Icon (Tooltip: "Close")
+                    // 3. Chassis Screw Close Icon (Tooltip: "Close (ESC)")
                     _InteractiveScrewButton(
                       accentColor: accentColor,
                       onTap: widget.dawState.closeFloatingInstrumentWindow,
@@ -522,7 +490,7 @@ class _InteractiveScrewButtonState extends State<_InteractiveScrewButton> {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'Close',
+      message: 'Close (ESC)',
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _isHovered = true),

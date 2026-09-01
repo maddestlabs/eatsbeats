@@ -224,6 +224,39 @@ class _WaveshaperPainter extends CustomPainter {
     required this.dcFilter,
   });
 
+  // Pre-allocated static worker objects (zero allocation per frame)
+  static final Paint _gridPaint = Paint()
+    ..color = const Color(0x991B2232)
+    ..strokeWidth = 0.8;
+  static final Paint _axisPaint = Paint()
+    ..color = const Color(0xCC32415C)
+    ..strokeWidth = 1.2;
+  static final Paint _refPaint = Paint()
+    ..color = const Color(0xFF222B3D)
+    ..strokeWidth = 1.0
+    ..style = PaintingStyle.stroke;
+  static final Paint _workerShader = Paint();
+  static final Paint _glowPaint = Paint()
+    ..color = const Color(0x6600E5FF)
+    ..strokeWidth = 5.0
+    ..style = PaintingStyle.stroke
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0);
+  static final Paint _strokePaint = Paint()
+    ..color = EatsTheme.primaryCyan
+    ..strokeWidth = 2.2
+    ..style = PaintingStyle.stroke;
+  static final Paint _handleGlow = Paint()
+    ..color = const Color(0x4D00E5FF)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0);
+  static final Paint _handleFill = Paint()..color = Colors.white;
+  static final Paint _handleBorder = Paint()
+    ..color = EatsTheme.primaryCyan
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.5;
+
+  static final Path _curvePath = Path();
+  static final Path _fillPath = Path();
+
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
@@ -232,37 +265,26 @@ class _WaveshaperPainter extends CustomPainter {
     final cy = h / 2.0;
 
     // 1. Oscilloscope Grid Lines
-    final gridPaint = Paint()
-      ..color = const Color(0xFF1B2232).withOpacity(0.6)
-      ..strokeWidth = 0.8;
-
     const numDivs = 8;
     for (int i = 1; i < numDivs; i++) {
       final gx = (w / numDivs) * i;
       final gy = (h / numDivs) * i;
-      canvas.drawLine(Offset(gx, 0), Offset(gx, h), gridPaint);
-      canvas.drawLine(Offset(0, gy), Offset(w, gy), gridPaint);
+      canvas.drawLine(Offset(gx, 0), Offset(gx, h), _gridPaint);
+      canvas.drawLine(Offset(0, gy), Offset(w, gy), _gridPaint);
     }
 
     // 2. Center Zero-Crossing Axes
-    final axisPaint = Paint()
-      ..color = const Color(0xFF32415C).withOpacity(0.8)
-      ..strokeWidth = 1.2;
-    canvas.drawLine(Offset(cx, 0), Offset(cx, h), axisPaint);
-    canvas.drawLine(Offset(0, cy), Offset(w, cy), axisPaint);
+    canvas.drawLine(Offset(cx, 0), Offset(cx, h), _axisPaint);
+    canvas.drawLine(Offset(0, cy), Offset(w, cy), _axisPaint);
 
     // 3. Linear Reference Line (Diagonal)
-    final refPaint = Paint()
-      ..color = const Color(0xFF222B3D)
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
-    canvas.drawLine(Offset(0, h), Offset(w, 0), refPaint);
+    canvas.drawLine(Offset(0, h), Offset(w, 0), _refPaint);
 
     // 4. Compute and Draw WaveShaper Transfer Curve
     const numPoints = 128;
-    final curvePath = Path();
-    final fillPath = Path();
-    fillPath.moveTo(0, cy);
+    _curvePath.reset();
+    _fillPath.reset();
+    _fillPath.moveTo(0, cy);
 
     for (int i = 0; i <= numPoints; i++) {
       final xNorm = (i / numPoints) * 2.0 - 1.0; // -1.0 to 1.0
@@ -298,59 +320,40 @@ class _WaveshaperPainter extends CustomPainter {
       final screenY = (1.0 - (y + 1.0) * 0.5) * h;
 
       if (i == 0) {
-        curvePath.moveTo(screenX, screenY);
+        _curvePath.moveTo(screenX, screenY);
       } else {
-        curvePath.lineTo(screenX, screenY);
+        _curvePath.lineTo(screenX, screenY);
       }
-      fillPath.lineTo(screenX, screenY);
+      _fillPath.lineTo(screenX, screenY);
     }
 
-    fillPath.lineTo(w, cy);
-    fillPath.close();
+    _fillPath.lineTo(w, cy);
+    _fillPath.close();
 
     // 5. Fill Under Curve with Neon Cyan Ambient Gradient
-    final fillGradient = LinearGradient(
+    final fillGradient = const LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: [
-        EatsTheme.primaryCyan.withOpacity(0.20),
-        EatsTheme.primaryCyan.withOpacity(0.02),
-        EatsTheme.primaryCyan.withOpacity(0.20),
+        Color(0x3300E5FF),
+        Color(0x0500E5FF),
+        Color(0x3300E5FF),
       ],
-      stops: const [0.0, 0.5, 1.0],
+      stops: [0.0, 0.5, 1.0],
     );
-    canvas.drawPath(fillPath, Paint()..shader = fillGradient.createShader(Rect.fromLTWH(0, 0, w, h)));
+    _workerShader.shader = fillGradient.createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawPath(_fillPath, _workerShader);
 
     // 6. Glowing Stroke Curve
-    final glowPaint = Paint()
-      ..color = EatsTheme.primaryCyan.withOpacity(0.4)
-      ..strokeWidth = 5.0
-      ..style = PaintingStyle.stroke
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0);
-    canvas.drawPath(curvePath, glowPaint);
-
-    final strokePaint = Paint()
-      ..color = EatsTheme.primaryCyan
-      ..strokeWidth = 2.2
-      ..style = PaintingStyle.stroke;
-    canvas.drawPath(curvePath, strokePaint);
+    canvas.drawPath(_curvePath, _glowPaint);
+    canvas.drawPath(_curvePath, _strokePaint);
 
     // 7. Draggable Tension Control Handle Point in Center
     final handleX = cx;
     final handleY = (1.0 - ((tension * 0.5) + 0.5)) * h;
-    canvas.drawCircle(
-      Offset(handleX, handleY),
-      5.0,
-      Paint()..color = Colors.white,
-    );
-    canvas.drawCircle(
-      Offset(handleX, handleY),
-      7.0,
-      Paint()
-        ..color = EatsTheme.primaryCyan
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0,
-    );
+    canvas.drawCircle(Offset(handleX, handleY), 7.0, _handleGlow);
+    canvas.drawCircle(Offset(handleX, handleY), 5.0, _handleFill);
+    canvas.drawCircle(Offset(handleX, handleY), 5.0, _handleBorder);
   }
 
   static double _fastTanh(double x) {

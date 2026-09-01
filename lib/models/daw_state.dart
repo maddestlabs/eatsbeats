@@ -377,6 +377,13 @@ class DawState extends ChangeNotifier {
   String? get floatingFxTrackId => _floatingFxTrackId;
   String? get floatingFxInsertId => _floatingFxInsertId;
 
+  String? _floatingMidiFxTrackId;
+  String? _floatingMidiFxInsertId;
+  String? get floatingMidiFxTrackId => _floatingMidiFxTrackId;
+  String? get floatingMidiFxInsertId => _floatingMidiFxInsertId;
+
+  bool get isFullscreenDeviceOpen => _isFloatingWindowVisible;
+
   FXInsert? get floatingFxInsert {
     if (_floatingFxInsertId == null || _floatingFxTrackId == null) return null;
     final parent = _floatingFxTrackId == masterTrack.id
@@ -401,6 +408,27 @@ class DawState extends ChangeNotifier {
     );
   }
 
+  MidiFXInsert? get floatingMidiFxInsert {
+    if (_floatingMidiFxInsertId == null || _floatingMidiFxTrackId == null) return null;
+    final parent = activePattern.tracks.firstWhere(
+      (t) => t.id == _floatingMidiFxTrackId,
+      orElse: () => activeTrack,
+    );
+    try {
+      return parent.midiFXRack.firstWhere((f) => f.id == _floatingMidiFxInsertId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  TrackChannel? get floatingMidiFxTrack {
+    if (_floatingMidiFxTrackId == null) return null;
+    return activePattern.tracks.firstWhere(
+      (t) => t.id == _floatingMidiFxTrackId,
+      orElse: () => activeTrack,
+    );
+  }
+
   TrackChannel? get floatingInstrumentTrack {
     if (_floatingInstrumentTrackId == null) return activeTrack;
     return activePattern.tracks.firstWhere(
@@ -413,6 +441,8 @@ class DawState extends ChangeNotifier {
     final target = track ?? activeTrack;
     _floatingFxTrackId = null;
     _floatingFxInsertId = null;
+    _floatingMidiFxTrackId = null;
+    _floatingMidiFxInsertId = null;
     _floatingInstrumentTrackId = target.id;
     _isFloatingWindowVisible = true;
     final trackIdx = activePattern.tracks.indexOf(target);
@@ -430,6 +460,8 @@ class DawState extends ChangeNotifier {
 
   void openFloatingFxWindow(TrackChannel track, FXInsert fx, {Size? workspaceSize}) {
     _floatingInstrumentTrackId = null;
+    _floatingMidiFxTrackId = null;
+    _floatingMidiFxInsertId = null;
     _floatingFxTrackId = track.id;
     _floatingFxInsertId = fx.id;
     _isFloatingWindowVisible = true;
@@ -453,11 +485,45 @@ class DawState extends ChangeNotifier {
     }
   }
 
+  void openFloatingMidiFxWindow(TrackChannel track, MidiFXInsert fx, {Size? workspaceSize}) {
+    _floatingInstrumentTrackId = null;
+    _floatingFxTrackId = null;
+    _floatingFxInsertId = null;
+    _floatingMidiFxTrackId = track.id;
+    _floatingMidiFxInsertId = fx.id;
+    _isFloatingWindowVisible = true;
+
+    final midiTrack = TrackChannel(
+      id: fx.id,
+      name: fx.name,
+      type: TrackType.luaScript,
+      color: EatsTheme.accentGold,
+      luaScriptCode: fx.luaScriptCode,
+      luaParams: fx.luaParams,
+    );
+
+    if (workspaceSize != null) {
+      fitFloatingWindowToWorkspace(workspaceSize, midiTrack);
+    } else {
+      final naturalH = getTrackNaturalGuiHeight(midiTrack);
+      _floatingWindowSize = Size(540, (naturalH + 38.0).clamp(240.0, 680.0));
+      notifyListeners();
+    }
+  }
+
+  // Fullscreen Device API aliases
+  void openFullscreenDevice([TrackChannel? track]) => openFloatingInstrumentWindow(track);
+  void openFullscreenFx(TrackChannel track, FXInsert fx) => openFloatingFxWindow(track, fx);
+  void openFullscreenMidiFx(TrackChannel track, MidiFXInsert fx) => openFloatingMidiFxWindow(track, fx);
+  void closeFullscreenDevice() => closeFloatingInstrumentWindow();
+
   void closeFloatingInstrumentWindow() {
     _isFloatingWindowVisible = false;
     _isFloatingWindowMaximized = false;
     _floatingFxTrackId = null;
     _floatingFxInsertId = null;
+    _floatingMidiFxTrackId = null;
+    _floatingMidiFxInsertId = null;
     _floatingInstrumentTrackId = null;
     notifyListeners();
   }

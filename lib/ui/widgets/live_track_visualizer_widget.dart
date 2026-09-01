@@ -149,14 +149,27 @@ class _TrackAudioVisualizerPainter extends CustomPainter {
     required this.isSpectrum,
   });
 
+  // Pre-allocated static worker paints (zero allocation per frame during live playback)
+  static final Paint _gridPaint = Paint()..strokeWidth = 0.75;
+  static final Paint _barPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _glowBarPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _beamPaint = Paint()
+    ..strokeWidth = 2.0
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
+  static final Paint _glowPaint = Paint()
+    ..strokeWidth = 4.5
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  static final Path _reusablePath = Path();
+
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0) return;
 
     // 1. Draw subtle background oscilloscope reticle grid
-    final gridPaint = Paint()
-      ..color = accentColor.withOpacity(0.12)
-      ..strokeWidth = 0.75;
+    _gridPaint.color = accentColor.withOpacity(0.12);
 
     const divisionsX = 8;
     const divisionsY = 4;
@@ -164,23 +177,18 @@ class _TrackAudioVisualizerPainter extends CustomPainter {
     final stepY = size.height / divisionsY;
 
     for (int i = 1; i < divisionsX; i++) {
-      canvas.drawLine(Offset(i * stepX, 0), Offset(i * stepX, size.height), gridPaint);
+      canvas.drawLine(Offset(i * stepX, 0), Offset(i * stepX, size.height), _gridPaint);
     }
     for (int j = 1; j < divisionsY; j++) {
-      canvas.drawLine(Offset(0, j * stepY), Offset(size.width, j * stepY), gridPaint);
+      canvas.drawLine(Offset(0, j * stepY), Offset(size.width, j * stepY), _gridPaint);
     }
 
     final centerY = size.height / 2.0;
 
     if (isSpectrum) {
       // Draw FFT Frequency Spectrum Bars
-      final barPaint = Paint()
-        ..color = accentColor
-        ..style = PaintingStyle.fill;
-
-      final glowPaint = Paint()
-        ..color = accentColor.withOpacity(0.3)
-        ..style = PaintingStyle.fill;
+      _barPaint.color = accentColor;
+      _glowBarPaint.color = accentColor.withOpacity(0.3);
 
       final numBars = samples.isNotEmpty ? samples.length : 32;
       final barWidth = size.width / numBars;
@@ -193,29 +201,19 @@ class _TrackAudioVisualizerPainter extends CustomPainter {
 
         canvas.drawRRect(
           RRect.fromRectAndRadius(rect.inflate(1.5), const Radius.circular(2)),
-          glowPaint,
+          _glowBarPaint,
         );
         canvas.drawRRect(
           RRect.fromRectAndRadius(rect, const Radius.circular(2)),
-          barPaint,
+          _barPaint,
         );
       }
     } else {
       // Draw Analog Oscilloscope Continuous Waveform Beam
-      final beamPaint = Paint()
-        ..color = accentColor
-        ..strokeWidth = 2.0
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round;
+      _beamPaint.color = accentColor;
+      _glowPaint.color = accentColor.withOpacity(0.35);
 
-      final glowPaint = Paint()
-        ..color = accentColor.withOpacity(0.35)
-        ..strokeWidth = 4.5
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round;
-
-      final path = Path();
+      _reusablePath.reset();
       final count = samples.isNotEmpty ? samples.length : 1;
 
       for (int i = 0; i < count; i++) {
@@ -223,14 +221,14 @@ class _TrackAudioVisualizerPainter extends CustomPainter {
         final s = (i < samples.length ? samples[i] : 0.0).clamp(-1.0, 1.0);
         final y = centerY - (s * (centerY * 0.82));
         if (i == 0) {
-          path.moveTo(x, y);
+          _reusablePath.moveTo(x, y);
         } else {
-          path.lineTo(x, y);
+          _reusablePath.lineTo(x, y);
         }
       }
 
-      canvas.drawPath(path, glowPaint);
-      canvas.drawPath(path, beamPaint);
+      canvas.drawPath(_reusablePath, _glowPaint);
+      canvas.drawPath(_reusablePath, _beamPaint);
     }
   }
 

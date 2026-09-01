@@ -191,6 +191,14 @@ class MidiFxRackWidget extends StatelessWidget {
                               },
                             ),
                             IconButton(
+                              tooltip: 'Open Fullscreen Modal',
+                              icon: const Icon(Icons.fullscreen, size: 18),
+                              color: EatsTheme.accentGold,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                              onPressed: () => dawState.openFullscreenMidiFx(track, fx),
+                            ),
+                            IconButton(
                               tooltip: 'Move Up',
                               icon: const Icon(Icons.keyboard_arrow_up, size: 18),
                               color: isFirst ? Colors.white12 : EatsTheme.primaryCyan,
@@ -218,7 +226,9 @@ class MidiFxRackWidget extends StatelessWidget {
 
                         if (fx.enabled) ...[
                           const SizedBox(height: 10),
-                          _buildMidiFxControls(context, fx),
+                          RepaintBoundary(
+                            child: _buildMidiFxControls(context, fx),
+                          ),
                         ],
                       ],
                     ),

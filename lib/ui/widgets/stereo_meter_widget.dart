@@ -21,40 +21,42 @@ class StereoMeterWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: const Color(0xFF090A0D),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: const Color(0xFF2E3445), width: 1.5),
-        boxShadow: const [
-          BoxShadow(color: Color(0xE6000000), offset: Offset(0, 2), blurRadius: 4, spreadRadius: 0),
-          BoxShadow(color: Color(0x66000000), offset: Offset(0, 0), blurRadius: 2, spreadRadius: 1),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(3),
-        child: Stack(
-          children: [
-            // Inner Inset Bevel & Shadow
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _GlassMeterPainter(
-                  leftLevel: leftLevel.clamp(0.0, 1.2),
-                  rightLevel: rightLevel.clamp(0.0, 1.2),
-                  accentColor: accentColor ?? EatsTheme.accentGreen,
+    return RepaintBoundary(
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: const Color(0xFF090A0D),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: const Color(0xFF2E3445), width: 1.5),
+          boxShadow: const [
+            BoxShadow(color: Color(0xE6000000), offset: Offset(0, 2), blurRadius: 4, spreadRadius: 0),
+            BoxShadow(color: Color(0x66000000), offset: Offset(0, 0), blurRadius: 2, spreadRadius: 1),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(3),
+          child: Stack(
+            children: [
+              // Inner Inset Bevel & Shadow
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _GlassMeterPainter(
+                    leftLevel: leftLevel.clamp(0.0, 1.2),
+                    rightLevel: rightLevel.clamp(0.0, 1.2),
+                    accentColor: accentColor ?? EatsTheme.accentGreen,
+                  ),
                 ),
               ),
-            ),
 
-            // Diagonal Glass Glare Reflection Overlay
-            const Positioned.fill(
-              child: CustomPaint(
-                painter: _MeterGlassReflectionPainter(),
+              // Diagonal Glass Glare Reflection Overlay
+              const Positioned.fill(
+                child: CustomPaint(
+                  painter: _MeterGlassReflectionPainter(),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -71,6 +73,24 @@ class _GlassMeterPainter extends CustomPainter {
     required this.rightLevel,
     required this.accentColor,
   });
+
+  static final Paint _bgPaint = Paint()..color = const Color(0xFF0C0D12);
+  static final Paint _shadowPaint = Paint()
+    ..color = const Color(0xCC000000)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2.0;
+
+  // Pre-allocated zero-allocation LED segment paints
+  static final Paint _ledLitGreen = Paint()..color = const Color(0xFF00E676);
+  static final Paint _ledUnlitGreen = Paint()..color = const Color(0xFF082212);
+  static final Paint _ledLitAmber = Paint()..color = const Color(0xFFFFC107);
+  static final Paint _ledUnlitAmber = Paint()..color = const Color(0xFF281C08);
+  static final Paint _ledLitRed = Paint()..color = const Color(0xFFFF1744);
+  static final Paint _ledUnlitRed = Paint()..color = const Color(0xFF2B080E);
+  static final Paint _ledPeakGlow = Paint()
+    ..color = const Color(0x99FF1744)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
+  static final Paint _ledClipPeak = Paint()..color = const Color(0xFFFF0055);
 
   static const List<String> dbLabels = [
     '-inf',
@@ -111,15 +131,8 @@ class _GlassMeterPainter extends CustomPainter {
     final totalHeight = size.height;
 
     // Outer dark background & inner recessed shadow
-    final bgPaint = Paint()..color = const Color(0xFF0C0D12);
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, totalHeight), bgPaint);
-
-    // Inner shadow border
-    final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.8)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, totalHeight), shadowPaint);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, totalHeight), _bgPaint);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, totalHeight), _shadowPaint);
 
     // Meter Layout:
     // Left LED column width: 4.5px, Left pos: 3.5px
@@ -182,40 +195,22 @@ class _GlassMeterPainter extends CustomPainter {
       final yIndexFromTop = totalSegments - 1 - i;
       final yTop = yIndexFromTop * (segmentHeight + segmentGap);
       final segRect = Rect.fromLTWH(xPos, yTop, width, segmentHeight);
+      final rrect = RRect.fromRectAndRadius(segRect, const Radius.circular(0.8));
 
-      Color litColor;
-      Color unlitColor;
+      Paint activePaint;
 
       if (threshold > 0.88) {
-        litColor = const Color(0xFFFF1744); // Red Peak
-        unlitColor = const Color(0xFF2B080E);
+        activePaint = isLit ? _ledLitRed : _ledUnlitRed;
       } else if (threshold > 0.70) {
-        litColor = const Color(0xFFFFC107); // Amber Caution
-        unlitColor = const Color(0xFF281C08);
+        activePaint = isLit ? _ledLitAmber : _ledUnlitAmber;
       } else {
-        litColor = const Color(0xFF00E676); // Neon Green
-        unlitColor = const Color(0xFF082212);
+        activePaint = isLit ? _ledLitGreen : _ledUnlitGreen;
       }
 
-      if (isLit) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(segRect, const Radius.circular(0.8)),
-          Paint()..color = litColor,
-        );
+      canvas.drawRRect(rrect, activePaint);
 
-        if (level > 0.85 && threshold > 0.80) {
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(segRect, const Radius.circular(0.8)),
-            Paint()
-              ..color = litColor.withOpacity(0.6)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0),
-          );
-        }
-      } else {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(segRect, const Radius.circular(0.8)),
-          Paint()..color = unlitColor,
-        );
+      if (isLit && level > 0.85 && threshold > 0.80) {
+        canvas.drawRRect(rrect, _ledPeakGlow);
       }
     }
 
@@ -224,7 +219,7 @@ class _GlassMeterPainter extends CustomPainter {
       final clipRect = Rect.fromLTWH(xPos, 0, width, 3.0);
       canvas.drawRRect(
         RRect.fromRectAndRadius(clipRect, const Radius.circular(0.8)),
-        Paint()..color = const Color(0xFFFF0055),
+        _ledClipPeak,
       );
     }
   }

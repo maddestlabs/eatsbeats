@@ -26,10 +26,11 @@ class TransportHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
 
-    return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
+    return RepaintBoundary(
+      child: Container(
+        height: 64,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
         color: isGrungy ? const Color(0xFF24201C) : EatsTheme.panelHeader,
         border: Border(
           bottom: BorderSide(
@@ -205,11 +206,6 @@ class TransportHeader extends StatelessWidget {
 
           const SizedBox(width: 10),
 
-          // Glass-Encased Stereo Master Peak Meter (L/R)
-          _buildGlassLrMasterMeter(dawState),
-
-          const SizedBox(width: 10),
-
           // Project Browser Toggle Button (Folder / Ctrl+B)
           Tooltip(
             message: 'Toggle Project & Preset Browser (Ctrl+B)',
@@ -226,6 +222,7 @@ class TransportHeader extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -823,12 +820,17 @@ class TransportHeader extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
+                              '• Commuted Waveguide Piano Physical Models: Based on research by Balázs Bank, Julien Bensa, Julius O. Smith, and Scott Van Duyne (CCRMA, Stanford). DSP topology & 88-key empirical tables derived from Romain Michon\'s Faust/STK physmodels.lib (MIT/STK-4.3 License) and David Braun\'s (DBraun) physical modeling adaptation.',
+                              style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
                               '• Eats-303 DSP & Acid Synthesis: Inspired by JC-303 (Jean-Christophe Taveau), Open303 (Robin Schmidt), and classic 303 diode ladder filter topology.',
                               style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              '• SoundFont & Sampler Engine: SoundFont parser and synthesis architecture inspired by TinySoundFont / FluidSynth with bundled GeneralUser GS SoundFont soundbanks by S. Christian Collins.',
+                              '• SoundFont & Sampler Engine: SoundFont parser and synthesis architecture inspired by TinySoundFont / FluidSynth with bundled Super Small Font (CC BY 4.0) by nitro-shoe and GeneralUser GS by S. Christian Collins.',
                               style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
                             ),
                             const SizedBox(height: 6),
@@ -877,122 +879,6 @@ class TransportHeader extends StatelessWidget {
     );
   }
 
-  Widget _buildGlassLrMasterMeter(DawState dawState) {
-    final showCpu = dawState.showCpuMeter;
-
-    return ListenableBuilder(
-      listenable: Listenable.merge([
-        dawState.leftPeakNotifier,
-        dawState.rightPeakNotifier,
-        dawState.cpuLoadNotifier,
-      ]),
-      builder: (context, _) {
-        final cpuLoad = dawState.cpuLoadNotifier.value;
-        final cpuPct = (cpuLoad * 100.0).clamp(0.0, 100.0);
-        final leftPeak = dawState.leftPeakNotifier.value;
-        final rightPeak = dawState.rightPeakNotifier.value;
-
-        return Tooltip(
-          message: showCpu
-              ? 'DSP CPU Load (${cpuPct.toStringAsFixed(1)}%) - Click for L/R Audio Meter'
-              : 'L/R Master Peak Meter - Click for DSP CPU Meter',
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => dawState.toggleCpuMeter(),
-            child: Container(
-              width: 64,
-              height: 36,
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-              decoration: BoxDecoration(
-                color: const Color(0xFF090A0D),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: EatsTheme.isLight ? Colors.black26 : (showCpu ? const Color(0xFF384358) : const Color(0xFF2E3445)),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.4),
-                    blurRadius: 3,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: Stack(
-                  children: [
-                    if (!showCpu) ...[
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildMeterBar('L', leftPeak),
-                          const SizedBox(height: 3),
-                          _buildMeterBar('R', rightPeak),
-                        ],
-                      ),
-                    ] else ...[
-                      // Real-time DSP CPU Meter
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'CPU',
-                                style: EatsTheme.getPrimaryFontStyle(
-                                  color: const Color(0xFF00E5FF),
-                                  fontSize: 7.5,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                '${cpuPct.round()}%',
-                                style: EatsTheme.getDisplayFontStyle(
-                                  color: cpuPct > 80
-                                      ? EatsTheme.muteColor
-                                      : (cpuPct > 50 ? EatsTheme.accentGold : const Color(0xFF00E5FF)),
-                                  fontSize: 8.5,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(2),
-                            child: LinearProgressIndicator(
-                              value: cpuLoad.clamp(0.0, 1.0),
-                              backgroundColor: EatsTheme.controlBackground,
-                              color: cpuLoad > 0.8
-                                  ? EatsTheme.muteColor
-                                  : (cpuLoad > 0.5 ? EatsTheme.accentGold : const Color(0xFF00E5FF)),
-                              minHeight: 5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    // Diagonal Glass Reflection Overlay
-                    const Positioned.fill(
-                      child: IgnorePointer(
-                        child: CustomPaint(
-                          painter: _HeaderMeterGlassReflectionPainter(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildHubActionButton({required IconData icon, required String label, required Color color, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
@@ -1022,54 +908,6 @@ class TransportHeader extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildMeterBar(String label, double level) {
-    return Row(
-      children: [
-        Text(label, style: TextStyle(color: EatsTheme.textMuted, fontSize: 8)),
-        const SizedBox(width: 4),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: level,
-              backgroundColor: EatsTheme.controlBackground,
-              color: level > 0.85 ? EatsTheme.muteColor : (level > 0.6 ? EatsTheme.accentGold : EatsTheme.accentGreen),
-              minHeight: 6,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _HeaderMeterGlassReflectionPainter extends CustomPainter {
-  const _HeaderMeterGlassReflectionPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final glarePath = Path();
-    glarePath.moveTo(0, 0);
-    glarePath.lineTo(size.width, 0);
-    glarePath.lineTo(size.width, size.height * 0.45);
-    glarePath.close();
-
-    final glarePaint = Paint()
-      ..shader = LinearGradient(
-        colors: [
-          Colors.white.withOpacity(0.18),
-          Colors.white.withOpacity(0.0),
-        ],
-        begin: Alignment.topRight,
-        end: Alignment.bottomLeft,
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height * 0.45));
-
-    canvas.drawPath(glarePath, glarePaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // Custom EatsBeats Monster Icon Widget

@@ -172,6 +172,54 @@ class _FaderPainter extends CustomPainter {
     required this.showLevelMarkings,
   });
 
+  // Pre-allocated static worker paints (zero allocation per frame during fader drag)
+  static final Paint _workerFill = Paint()..style = PaintingStyle.fill;
+  static final Paint _workerStroke = Paint()..style = PaintingStyle.stroke;
+  static final Paint _workerShader = Paint();
+  static final Paint _blurShadow5 = Paint()
+    ..color = const Color(0xA6000000)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5.0);
+  static final Paint _blurShadow4 = Paint()
+    ..color = const Color(0x99000000)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0);
+  static final Paint _contactShadow80 = Paint()..color = const Color(0xCC000000);
+  static final Paint _contactShadow75 = Paint()..color = const Color(0xBF000000);
+  static final Paint _stripeGlow = Paint()
+    ..strokeWidth = 4.0
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0);
+
+  static final Paint _trackSlotDark = Paint()..color = const Color(0xFF070708);
+  static final Paint _trackSlotBorderGrungy = Paint()
+    ..color = const Color(0xFF38322B)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.2;
+  static final Paint _trackSlotBorderNormal = Paint()
+    ..color = const Color(0xFF202633)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.2;
+
+  static final Paint _tickMajor = Paint()..color = const Color(0xFF687285)..strokeWidth = 1.0;
+  static final Paint _tickMinor = Paint()..color = const Color(0xFF3A4252)..strokeWidth = 0.8;
+  static final Paint _scoreDark = Paint()..color = const Color(0xFF0F1014)..strokeWidth = 1.0;
+  static final Paint _scoreLight = Paint()..color = const Color(0xFF707684)..strokeWidth = 0.8;
+
+  static final Paint _capWhiteRim = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.0
+    ..color = const Color(0x59FFFFFF);
+  static final Paint _capInsetGroove = Paint()..color = const Color(0xFF0B0C0F);
+  static final Paint _stripeWhiteCore = Paint()
+    ..color = const Color(0xFFFFFFFF)
+    ..strokeWidth = 2.0;
+
+  static final TextPainter _cachedZeroLabel = TextPainter(
+    text: const TextSpan(
+      text: '0.00',
+      style: TextStyle(fontFamily: 'monospace', color: Color(0xFF687285), fontSize: 7, fontWeight: FontWeight.bold),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+
   @override
   void paint(Canvas canvas, Size size) {
     final isHoriz = orientation == Axis.horizontal;
@@ -194,26 +242,22 @@ class _FaderPainter extends CustomPainter {
     final capThickness = isHoriz ? 18.0 : 32.0;
 
     // 1. Recessed Studio Track Well & Slot
-    final trackSlotPaint = Paint()..color = const Color(0xFF070708);
-    final slotBorderPaint = Paint()
-      ..color = isGrungyTheme ? const Color(0xFF38322B) : const Color(0xFF202633)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
+    final slotBorderPaint = isGrungyTheme ? _trackSlotBorderGrungy : _trackSlotBorderNormal;
 
     if (isHoriz) {
       final slotRect = Rect.fromLTRB(10, centerCross - 2.5, trackLength - 10, centerCross + 2.5);
-      canvas.drawRRect(RRect.fromRectAndRadius(slotRect, const Radius.circular(2)), trackSlotPaint);
-      canvas.drawRRect(RRect.fromRectAndRadius(slotRect, const Radius.circular(2)), slotBorderPaint);
+      final rrect = RRect.fromRectAndRadius(slotRect, const Radius.circular(2));
+      canvas.drawRRect(rrect, _trackSlotDark);
+      canvas.drawRRect(rrect, slotBorderPaint);
     } else {
       final slotRect = Rect.fromLTRB(centerCross - 2.5, 10, centerCross + 2.5, trackLength - 10);
-      canvas.drawRRect(RRect.fromRectAndRadius(slotRect, const Radius.circular(2)), trackSlotPaint);
-      canvas.drawRRect(RRect.fromRectAndRadius(slotRect, const Radius.circular(2)), slotBorderPaint);
+      final rrect = RRect.fromRectAndRadius(slotRect, const Radius.circular(2));
+      canvas.drawRRect(rrect, _trackSlotDark);
+      canvas.drawRRect(rrect, slotBorderPaint);
     }
 
     // Level Scale Tick Marks (when showLevelMarkings is true)
     if (!isHoriz && showLevelMarkings) {
-      final tickPaintMajor = Paint()..color = const Color(0xFF687285)..strokeWidth = 1.0;
-      final tickPaintMinor = Paint()..color = const Color(0xFF3A4252)..strokeWidth = 0.8;
       const miny = 14.0;
       final maxy = trackLength - 14.0;
       final travel = maxy - miny;
@@ -225,7 +269,7 @@ class _FaderPainter extends CustomPainter {
 
         final isMajor = (i % 4 == 0);
         final tickLen = isMajor ? 5.0 : 3.0;
-        final paint = isMajor ? tickPaintMajor : tickPaintMinor;
+        final paint = isMajor ? _tickMajor : _tickMinor;
 
         // Left Ticks
         canvas.drawLine(Offset(centerCross - 4.0 - tickLen, yPos), Offset(centerCross - 4.0, yPos), paint);
@@ -233,30 +277,21 @@ class _FaderPainter extends CustomPainter {
         canvas.drawLine(Offset(centerCross + 4.0, yPos), Offset(centerCross + 4.0 + tickLen, yPos), paint);
       }
 
-      // Draw bottom "0.00" label
-      final textPainter = TextPainter(
-        text: const TextSpan(
-          text: '0.00',
-          style: TextStyle(fontFamily: 'monospace', color: Color(0xFF687285), fontSize: 7, fontWeight: FontWeight.bold),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-      textPainter.paint(canvas, Offset(centerCross - (textPainter.width / 2), trackLength - 9));
+      // Draw bottom "0.00" label using pre-cached TextPainter
+      _cachedZeroLabel.paint(canvas, Offset(centerCross - (_cachedZeroLabel.width / 2), trackLength - 9));
     }
 
     // Outer Recessed Channel Boundary Frame
     final channelBoundary = isHoriz
         ? Rect.fromLTRB(6, centerCross - 14, trackLength - 6, centerCross + 14)
         : Rect.fromLTRB(centerCross - 14, 6, centerCross + 14, trackLength - 6);
+    _workerStroke.style = PaintingStyle.stroke;
+    _workerStroke.strokeWidth = 1.0;
+    _workerStroke.color = isGrungyTheme ? const Color(0xFF2B2621) : const Color(0xFF161C26);
     canvas.drawRRect(
       RRect.fromRectAndRadius(channelBoundary, const Radius.circular(3)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
-        ..color = isGrungyTheme ? const Color(0xFF2B2621) : const Color(0xFF161C26),
+      _workerStroke,
     );
-
 
     // 2. Fader Cap Position Calculation
     final capTravel = trackLength - 28.0;
@@ -272,18 +307,15 @@ class _FaderPainter extends CustomPainter {
     // Layer 1: Ambient soft blur shadow
     canvas.drawRRect(
       RRect.fromRectAndRadius(capRect.shift(const Offset(0, 4)), const Radius.circular(3)),
-      Paint()
-        ..color = Colors.black.withOpacity(0.65)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5.0),
+      _blurShadow5,
     );
     // Layer 2: Tight directional contact shadow
     canvas.drawRRect(
       RRect.fromRectAndRadius(capRect.shift(const Offset(0, 2)), const Radius.circular(2)),
-      Paint()..color = Colors.black.withOpacity(0.8),
+      _contactShadow80,
     );
 
     // High-End Skeuomorphic 3D Metallic Fader Cap Gradient
-    // Features lit top/left bevel chamfer, darker recessed knurled middle, and shaded bottom/right bevel chamfer
     final capGradient = LinearGradient(
       colors: const [
         Color(0xFFF2F5FA), // Lit specular top/left bevel edge
@@ -301,161 +333,126 @@ class _FaderPainter extends CustomPainter {
       end: isHoriz ? Alignment.centerRight : Alignment.bottomCenter,
     );
 
+    _workerShader.shader = capGradient.createShader(capRect);
     canvas.drawRRect(
       RRect.fromRectAndRadius(capRect, const Radius.circular(3)),
-      Paint()..shader = capGradient.createShader(capRect),
+      _workerShader,
     );
 
-    // Recessed Central Knurling Grip Area Background Shading (bevel size reduced by ~30% to 5.5px)
+    // Recessed Central Knurling Grip Area Background Shading
     const bevelDepth = 5.5;
     final gripRect = !isHoriz
         ? Rect.fromLTRB(capRect.left + 1.0, capRect.top + bevelDepth, capRect.right - 1.0, capRect.bottom - bevelDepth)
         : Rect.fromLTRB(capRect.left + bevelDepth, capRect.top + 1.0, capRect.right - bevelDepth, capRect.bottom - 1.0);
 
-    canvas.drawRect(
-      gripRect,
-      Paint()..color = Colors.black.withOpacity(0.12),
-    );
+    _workerFill.color = const Color(0x1F000000);
+    canvas.drawRect(gripRect, _workerFill);
 
     // Knurling Score Lines inside the Central Grip Section
-    final scoreLineDark = Paint()..color = const Color(0xFF0F1014)..strokeWidth = 1.0;
-    final scoreLineLight = Paint()..color = const Color(0xFF707684)..strokeWidth = 0.8;
-
     if (!isHoriz) {
-      // Vertical Slider: Horizontal scoring lines across top and bottom halves of middle grip
       for (double y = gripRect.top + 2.0; y < gripRect.bottom - 1.5; y += 2.6) {
-        // Skip lines near the center notch indicator line
         if ((y - capCenterPos).abs() < 2.5) continue;
-        canvas.drawLine(Offset(capRect.left + 2.0, y), Offset(capRect.right - 2.0, y), scoreLineDark);
-        canvas.drawLine(Offset(capRect.left + 2.0, y + 0.8), Offset(capRect.right - 2.0, y + 0.8), scoreLineLight);
+        canvas.drawLine(Offset(capRect.left + 2.0, y), Offset(capRect.right - 2.0, y), _scoreDark);
+        canvas.drawLine(Offset(capRect.left + 2.0, y + 0.8), Offset(capRect.right - 2.0, y + 0.8), _scoreLight);
       }
     } else {
-      // Horizontal Slider: Vertical scoring lines across left and right halves of middle grip
       for (double x = gripRect.left + 2.0; x < gripRect.right - 1.5; x += 2.6) {
         if ((x - capCenterPos).abs() < 2.5) continue;
-        canvas.drawLine(Offset(x, capRect.top + 2.0), Offset(x, capRect.bottom - 2.0), scoreLineDark);
-        canvas.drawLine(Offset(x + 0.8, capRect.top + 2.0), Offset(x + 0.8, capRect.bottom - 2.0), scoreLineLight);
+        canvas.drawLine(Offset(x, capRect.top + 2.0), Offset(x, capRect.bottom - 2.0), _scoreDark);
+        canvas.drawLine(Offset(x + 0.8, capRect.top + 2.0), Offset(x + 0.8, capRect.bottom - 2.0), _scoreLight);
       }
     }
 
     // 3D Facet Bevel Highlight & Shadow Frames
-    // 1. Outer subtle rim highlight
     canvas.drawRRect(
       RRect.fromRectAndRadius(capRect, const Radius.circular(3)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
-        ..color = Colors.white.withOpacity(0.35),
+      _capWhiteRim,
     );
 
-    // 2. Top/Left Specular Chamfer Highlight Line
+    _workerStroke.strokeWidth = 1.0;
     if (!isHoriz) {
+      _workerStroke.color = const Color(0xD9FFFFFF);
       canvas.drawLine(
         Offset(capRect.left + 2.0, capRect.top + 1.0),
         Offset(capRect.right - 2.0, capRect.top + 1.0),
-        Paint()
-          ..color = Colors.white.withOpacity(0.85)
-          ..strokeWidth = 1.0,
+        _workerStroke,
       );
-      // Top Bevel Chamfer Fold Line
+      _workerStroke.color = const Color(0x991B1C22);
       canvas.drawLine(
         Offset(capRect.left + 1.5, capRect.top + bevelDepth),
         Offset(capRect.right - 1.5, capRect.top + bevelDepth),
-        Paint()
-          ..color = const Color(0xFF1B1C22).withOpacity(0.6)
-          ..strokeWidth = 1.0,
+        _workerStroke,
       );
-      // Bottom Bevel Chamfer Fold Line
+      _workerStroke.color = const Color(0x40FFFFFF);
       canvas.drawLine(
         Offset(capRect.left + 1.5, capRect.bottom - bevelDepth),
         Offset(capRect.right - 1.5, capRect.bottom - bevelDepth),
-        Paint()
-          ..color = Colors.white.withOpacity(0.25)
-          ..strokeWidth = 1.0,
+        _workerStroke,
       );
-      // Bottom Chamfer Edge Shadow Line
+      _workerStroke.color = const Color(0xFF08090C);
       canvas.drawLine(
         Offset(capRect.left + 2.0, capRect.bottom - 1.0),
         Offset(capRect.right - 2.0, capRect.bottom - 1.0),
-        Paint()
-          ..color = const Color(0xFF08090C)
-          ..strokeWidth = 1.0,
+        _workerStroke,
       );
     } else {
+      _workerStroke.color = const Color(0xD9FFFFFF);
       canvas.drawLine(
         Offset(capRect.left + 1.0, capRect.top + 2.0),
         Offset(capRect.left + 1.0, capRect.bottom - 2.0),
-        Paint()
-          ..color = Colors.white.withOpacity(0.85)
-          ..strokeWidth = 1.0,
+        _workerStroke,
       );
-      // Left Bevel Chamfer Fold Line
+      _workerStroke.color = const Color(0x991B1C22);
       canvas.drawLine(
         Offset(capRect.left + bevelDepth, capRect.top + 1.5),
         Offset(capRect.left + bevelDepth, capRect.bottom - 1.5),
-        Paint()
-          ..color = const Color(0xFF1B1C22).withOpacity(0.6)
-          ..strokeWidth = 1.0,
+        _workerStroke,
       );
-      // Right Bevel Chamfer Fold Line
+      _workerStroke.color = const Color(0x40FFFFFF);
       canvas.drawLine(
         Offset(capRect.right - bevelDepth, capRect.top + 1.5),
         Offset(capRect.right - bevelDepth, capRect.bottom - 1.5),
-        Paint()
-          ..color = Colors.white.withOpacity(0.25)
-          ..strokeWidth = 1.0,
+        _workerStroke,
       );
-      // Right Chamfer Edge Shadow Line
+      _workerStroke.color = const Color(0xFF08090C);
       canvas.drawLine(
         Offset(capRect.right - 1.0, capRect.top + 2.0),
         Offset(capRect.right - 1.0, capRect.bottom - 2.0),
-        Paint()
-          ..color = const Color(0xFF08090C)
-          ..strokeWidth = 1.0,
+        _workerStroke,
       );
     }
 
     // Center Recessed Notch & Illuminated Neon Indicator Stripe
     final neonColor = accentColor == EatsTheme.primaryCyan ? const Color(0xFFFF007A) : accentColor;
     
-    // Draw Dark Inset Center Groove Notch
     if (isHoriz) {
       canvas.drawRect(
         Rect.fromLTRB(capCenterPos - 1.5, capRect.top + 1.5, capCenterPos + 1.5, capRect.bottom - 1.5),
-        Paint()..color = const Color(0xFF0B0C0F),
+        _capInsetGroove,
       );
     } else {
       canvas.drawRect(
         Rect.fromLTRB(capRect.left + 1.5, capCenterPos - 1.5, capRect.right - 1.5, capCenterPos + 1.5),
-        Paint()..color = const Color(0xFF0B0C0F),
+        _capInsetGroove,
       );
     }
 
-    final stripeGlowPaint = Paint()
-      ..color = neonColor
-      ..strokeWidth = 4.0
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0);
-
-    final stripePaint = Paint()
-      ..color = const Color(0xFFFFFFFF)
-      ..strokeWidth = 2.0;
-
-    final stripeAccentPaint = Paint()
-      ..color = neonColor
-      ..strokeWidth = 2.0;
+    _stripeGlow.color = neonColor;
+    _workerStroke.color = neonColor;
+    _workerStroke.strokeWidth = 2.0;
 
     if (isHoriz) {
       final topP = Offset(capCenterPos, capRect.top + 2);
       final botP = Offset(capCenterPos, capRect.bottom - 2);
-      canvas.drawLine(topP, botP, stripeGlowPaint);
-      canvas.drawLine(topP, botP, stripeAccentPaint);
-      canvas.drawLine(topP, botP, stripePaint);
+      canvas.drawLine(topP, botP, _stripeGlow);
+      canvas.drawLine(topP, botP, _workerStroke);
+      canvas.drawLine(topP, botP, _stripeWhiteCore);
     } else {
       final leftP = Offset(capRect.left + 2, capCenterPos);
       final rightP = Offset(capRect.right - 2, capCenterPos);
-      canvas.drawLine(leftP, rightP, stripeGlowPaint);
-      canvas.drawLine(leftP, rightP, stripeAccentPaint);
-      canvas.drawLine(leftP, rightP, stripePaint);
+      canvas.drawLine(leftP, rightP, _stripeGlow);
+      canvas.drawLine(leftP, rightP, _workerStroke);
+      canvas.drawLine(leftP, rightP, _stripeWhiteCore);
     }
   }
 
@@ -468,31 +465,29 @@ class _FaderPainter extends CustomPainter {
     final slotRRect = RRect.fromRectAndRadius(slotRect, trackRadius);
 
     // 1. Recessed Base Track Groove
-    final trackBasePaint = Paint()..color = const Color(0xFF12151B);
-    canvas.drawRRect(slotRRect, trackBasePaint);
+    _workerFill.color = const Color(0xFF12151B);
+    canvas.drawRRect(slotRRect, _workerFill);
 
     // 2. Track Inner Shadow (dark top edge)
-    final innerShadowPaint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFF07090C), Color(0x0012151B)],
-        stops: [0.0, 0.70],
-      ).createShader(slotRect);
-    canvas.drawRRect(slotRRect, innerShadowPaint);
+    _workerShader.shader = const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0xFF07090C), Color(0x0012151B)],
+      stops: [0.0, 0.70],
+    ).createShader(slotRect);
+    canvas.drawRRect(slotRRect, _workerShader);
 
     // 3. Track Outer Border / Bottom Specular Highlight
-    final trackBorderPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0
-      ..shader = const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFF090A0E), Color(0xFF2B303C)],
-      ).createShader(slotRect);
-    canvas.drawRRect(slotRRect, trackBorderPaint);
+    _workerStroke.style = PaintingStyle.stroke;
+    _workerStroke.strokeWidth = 1.0;
+    _workerStroke.shader = const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0xFF090A0E), Color(0xFF2B303C)],
+    ).createShader(slotRect);
+    canvas.drawRRect(slotRRect, _workerStroke);
 
-    // 4. Glowing Active Track Fill (from left edge to thumb position)
+    // 4. Glowing Active Track Fill
     final thumbTravel = (trackLength - 2 * margin - 16.0);
     final thumbCenterPos = margin + 8.0 + (normalizedValue.clamp(0.0, 1.0) * thumbTravel);
 
@@ -508,21 +503,21 @@ class _FaderPainter extends CustomPainter {
           accentColor.withOpacity(0.70),
         ],
       );
-      canvas.drawRRect(activeRRect, Paint()..shader = activeGradient.createShader(activeRect));
+      _workerShader.shader = activeGradient.createShader(activeRect);
+      canvas.drawRRect(activeRRect, _workerShader);
 
       // Specular Top Ridge inside active fill
-      final activeTopSpec = Paint()
-        ..color = Colors.white.withOpacity(0.35)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8;
+      _workerStroke.shader = null;
+      _workerStroke.color = const Color(0x59FFFFFF);
+      _workerStroke.strokeWidth = 0.8;
       canvas.drawLine(
         Offset(margin + halfTrackH, centerCross - halfTrackH + 1.0),
         Offset(thumbCenterPos - 1.0, centerCross - halfTrackH + 1.0),
-        activeTopSpec,
+        _workerStroke,
       );
     }
 
-    // 5. Circular Brushed Metallic Disc Thumb Button (as shown in reference image)
+    // 5. Circular Brushed Metallic Disc Thumb Button
     const thumbRadius = 9.0;
     final thumbCenter = Offset(thumbCenterPos, centerCross);
     final thumbRect = Rect.fromCircle(center: thumbCenter, radius: thumbRadius);
@@ -531,24 +526,19 @@ class _FaderPainter extends CustomPainter {
     canvas.drawCircle(
       thumbCenter.translate(0, 2.5),
       thumbRadius + 0.5,
-      Paint()
-        ..color = Colors.black.withOpacity(0.60)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0),
+      _blurShadow4,
     );
 
     // Tight Contact Shadow
     canvas.drawCircle(
       thumbCenter.translate(0, 1.2),
       thumbRadius,
-      Paint()..color = Colors.black.withOpacity(0.75),
+      _contactShadow75,
     );
 
     // Outer Beveled Dark Rim
-    canvas.drawCircle(
-      thumbCenter,
-      thumbRadius,
-      Paint()..color = const Color(0xFF4A4E58),
-    );
+    _workerFill.color = const Color(0xFF4A4E58);
+    canvas.drawCircle(thumbCenter, thumbRadius, _workerFill);
 
     // Radial Metallic Brushed Face Gradient
     final buttonGradient = RadialGradient(
@@ -562,21 +552,14 @@ class _FaderPainter extends CustomPainter {
       ],
       stops: const [0.0, 0.35, 0.75, 1.0],
     );
-    canvas.drawCircle(
-      thumbCenter,
-      thumbRadius - 0.9,
-      Paint()..shader = buttonGradient.createShader(thumbRect),
-    );
+    _workerShader.shader = buttonGradient.createShader(thumbRect);
+    canvas.drawCircle(thumbCenter, thumbRadius - 0.9, _workerShader);
 
     // Subtle Machined Center Concentric Ring
-    canvas.drawCircle(
-      thumbCenter,
-      3.0,
-      Paint()
-        ..color = const Color(0xFF888E99).withOpacity(0.55)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.7,
-    );
+    _workerStroke.shader = null;
+    _workerStroke.color = const Color(0x8C888E99);
+    _workerStroke.strokeWidth = 0.7;
+    canvas.drawCircle(thumbCenter, 3.0, _workerStroke);
   }
 
   void _paintMinimalPillSlider(Canvas canvas, Size size, double trackLength, double trackCross, double centerCross, bool isHoriz) {
@@ -592,14 +575,15 @@ class _FaderPainter extends CustomPainter {
     final slotRRect = RRect.fromRectAndRadius(slotRect, const Radius.circular(1.8));
 
     // Dark track well
-    canvas.drawRRect(slotRRect, Paint()..color = const Color(0xFF1E2024));
+    _workerFill.color = const Color(0xFF1E2024);
+    canvas.drawRRect(slotRRect, _workerFill);
 
     // Inset top/left shadow for physical slot depth
-    final slotShadow = Paint()
-      ..color = const Color(0xFF0F1012)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8;
-    canvas.drawRRect(slotRRect, slotShadow);
+    _workerStroke.shader = null;
+    _workerStroke.color = const Color(0xFF0F1012);
+    _workerStroke.style = PaintingStyle.stroke;
+    _workerStroke.strokeWidth = 0.8;
+    canvas.drawRRect(slotRRect, _workerStroke);
 
     // 2. Compute Thumb Position
     final thumbTravel = trackLength - 2 * margin - 12.0;
@@ -617,17 +601,17 @@ class _FaderPainter extends CustomPainter {
     final thumbRRect = RRect.fromRectAndRadius(thumbRect, thumbRadius);
 
     // Ambient drop shadow
+    _workerFill.color = const Color(0x33000000);
     canvas.drawRRect(
       RRect.fromRectAndRadius(thumbRect.translate(0, 3.0), thumbRadius),
-      Paint()
-        ..color = Colors.black.withOpacity(0.20)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0),
+      _blurShadow4,
     );
 
     // Subtle contact shadow
+    _workerFill.color = const Color(0x59000000);
     canvas.drawRRect(
       RRect.fromRectAndRadius(thumbRect.translate(0, 1.0), thumbRadius),
-      Paint()..color = Colors.black.withOpacity(0.35),
+      _workerFill,
     );
 
     // Thumb Body Gradient (Matte ceramic white)
@@ -641,34 +625,31 @@ class _FaderPainter extends CustomPainter {
       ],
       stops: const [0.0, 0.5, 1.0],
     );
-    canvas.drawRRect(thumbRRect, Paint()..shader = thumbGradient.createShader(thumbRect));
+    _workerShader.shader = thumbGradient.createShader(thumbRect);
+    canvas.drawRRect(thumbRRect, _workerShader);
 
     // Outer subtle border
-    canvas.drawRRect(
-      thumbRRect,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
-        ..color = const Color(0xFFD2D5DC),
-    );
+    _workerStroke.shader = null;
+    _workerStroke.strokeWidth = 1.0;
+    _workerStroke.color = const Color(0xFFD2D5DC);
+    canvas.drawRRect(thumbRRect, _workerStroke);
 
     // Center Dark Indicator Notch Line
-    final notchPaint = Paint()
-      ..color = const Color(0xFF22242A)
-      ..strokeWidth = 1.6
-      ..strokeCap = StrokeCap.round;
+    _workerStroke.color = const Color(0xFF22242A);
+    _workerStroke.strokeWidth = 1.6;
+    _workerStroke.strokeCap = StrokeCap.round;
 
     if (isHoriz) {
       canvas.drawLine(
         Offset(thumbCenter.dx, thumbCenter.dy - 6.0),
         Offset(thumbCenter.dx, thumbCenter.dy + 6.0),
-        notchPaint,
+        _workerStroke,
       );
     } else {
       canvas.drawLine(
         Offset(thumbCenter.dx - 6.0, thumbCenter.dy),
         Offset(thumbCenter.dx + 6.0, thumbCenter.dy),
-        notchPaint,
+        _workerStroke,
       );
     }
   }
@@ -679,6 +660,7 @@ class _FaderPainter extends CustomPainter {
         oldDelegate.accentColor != accentColor ||
         oldDelegate.isGrungyTheme != isGrungyTheme ||
         oldDelegate.orientation != orientation ||
-        oldDelegate.style != style;
+        oldDelegate.style != style ||
+        oldDelegate.showLevelMarkings != showLevelMarkings;
   }
 }
