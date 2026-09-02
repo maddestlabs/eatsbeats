@@ -25,6 +25,21 @@ class EatsLuaSerializer {
     buffer.writeln('    isLooping = ${dawState.isLooping},');
     buffer.writeln('    loopStartBar = ${dawState.loopStartBar},');
     buffer.writeln('    loopEndBar = ${dawState.loopEndBar},');
+    if (dawState.masterLowGain != 0.0 || dawState.masterMidGain != 0.0 || dawState.masterHighGain != 0.0 || dawState.masterSubCut != 25.0) {
+      buffer.writeln('    masterEq = {');
+      buffer.writeln('      subCut = ${dawState.masterSubCut.toStringAsFixed(1)},');
+      buffer.writeln('      lowGain = ${dawState.masterLowGain.toStringAsFixed(2)},');
+      buffer.writeln('      midFreq = ${dawState.masterMidFreq.toStringAsFixed(1)},');
+      buffer.writeln('      midGain = ${dawState.masterMidGain.toStringAsFixed(2)},');
+      buffer.writeln('      highGain = ${dawState.masterHighGain.toStringAsFixed(2)},');
+      buffer.writeln('    },');
+    }
+    buffer.writeln('    masterLimiter = {');
+    buffer.writeln('      enabled = ${dawState.masterLimiterEnabled},');
+    buffer.writeln('      ceilingDbfs = ${dawState.masterCeilingDbfs.toStringAsFixed(2)},');
+    buffer.writeln('      driveDb = ${dawState.masterLimiterDrive.toStringAsFixed(2)},');
+    buffer.writeln('      targetLufs = ${dawState.masterTargetLufs.toStringAsFixed(1)},');
+    buffer.writeln('    },');
     buffer.writeln('  },');
     buffer.writeln();
 
@@ -149,6 +164,23 @@ class EatsLuaSerializer {
     buffer.writeln('${childIndent}isMuted = ${track.isMuted},');
     buffer.writeln('${childIndent}isSoloed = ${track.isSoloed},');
     buffer.writeln('${childIndent}chordFollowMode = "${track.chordFollowMode.name}",');
+
+    if (track.tags.isNotEmpty) {
+      final tagsStr = track.tags.map((t) => '"${_escapeString(t)}"').join(', ');
+      buffer.writeln('${childIndent}tags = { $tagsStr },');
+    }
+
+    if (track.eqEnabled || track.eqLowGain != 0.0 || track.eqMidGain != 0.0 || track.eqHighGain != 0.0 || track.eqHpf > 20.0) {
+      buffer.writeln('${childIndent}eq = {');
+      buffer.writeln('$childIndent  enabled = ${track.eqEnabled},');
+      buffer.writeln('$childIndent  hpf = ${track.eqHpf.toStringAsFixed(1)},');
+      buffer.writeln('$childIndent  lowGain = ${track.eqLowGain.toStringAsFixed(2)},');
+      buffer.writeln('$childIndent  midFreq = ${track.eqMidFreq.toStringAsFixed(1)},');
+      buffer.writeln('$childIndent  midGain = ${track.eqMidGain.toStringAsFixed(2)},');
+      buffer.writeln('$childIndent  midQ = ${track.eqMidQ.toStringAsFixed(2)},');
+      buffer.writeln('$childIndent  highGain = ${track.eqHighGain.toStringAsFixed(2)},');
+      buffer.writeln('${childIndent}},');
+    }
 
     // Instrument parameters
     buffer.writeln('${childIndent}sampleName = "${_escapeString(track.sampleName)}",');

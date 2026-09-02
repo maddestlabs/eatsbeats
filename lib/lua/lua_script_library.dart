@@ -58,6 +58,7 @@ class LuaScriptDef {
   final LuaScriptCategory category;
   final String description;
   final String code;
+  final List<String> tags;
 
   const LuaScriptDef({
     required this.id,
@@ -65,6 +66,7 @@ class LuaScriptDef {
     required this.category,
     required this.description,
     required this.code,
+    this.tags = const [],
   });
 
   bool get isInstrument => category == LuaScriptCategory.instrument;
@@ -73,6 +75,69 @@ class LuaScriptDef {
   bool get isMidiSeq => category == LuaScriptCategory.midiSeq;
   bool get isNoteSplitter => category == LuaScriptCategory.noteSplitter;
   bool get isProjectAction => category == LuaScriptCategory.projectAction;
+
+  List<String> get effectiveTags {
+    if (tags.isNotEmpty) return tags;
+    return inferredMixTags;
+  }
+
+  String get primaryTag {
+    if (tags.isNotEmpty) return tags.first;
+    final inferred = inferredMixTags;
+    if (inferred.isNotEmpty) return inferred.first;
+    return isInstrument ? 'synth' : category.name;
+  }
+
+  List<String> get inferredMixTags {
+    final lowerName = name.toLowerCase();
+    final lowerId = id.toLowerCase();
+    final List<String> list = [];
+
+    if (lowerName.contains('kick') || lowerId.contains('kick')) {
+      list.addAll(['kick', 'drums', 'sub_anchor', 'transient_punch', 'mono_center', 'sub_preserve_30hz']);
+    } else if (lowerName.contains('snare') || lowerId.contains('snare')) {
+      list.addAll(['snare', 'drums', 'mid_dominant', 'punchy_attack', 'hpf_safe_80hz', 'mud_cut_300hz']);
+    } else if (lowerName.contains('clap') || lowerId.contains('clap')) {
+      list.addAll(['clap', 'drums', 'high_presence', 'stereo_wide', 'hpf_safe_120hz']);
+    } else if (lowerName.contains('hihat') || lowerName.contains('hi-hat') || lowerName.contains('hat') || lowerName.contains('cymbal') || lowerId.contains('hihat')) {
+      list.addAll(['hihat', 'cymbals', 'drums', 'air_sparkle', 'hpf_safe_200hz']);
+    } else if (lowerName.contains('tom') || lowerName.contains('cowbell') || lowerName.contains('rimshot') || lowerName.contains('perc') || lowerId.contains('tom') || lowerId.contains('cowbell') || lowerId.contains('rimshot')) {
+      list.addAll(['percussion', 'drums', 'dynamic_expressive', 'hpf_safe_100hz']);
+    } else if (lowerName.contains('303') || lowerName.contains('sub') || lowerName.contains('808') || lowerName.contains('moog') || lowerName.contains('synth bass') || lowerId.contains('moog_synth_bass')) {
+      list.addAll(['synth_bass', 'bass', 'sub_anchor', 'mono_center', 'sub_preserve_30hz']);
+    } else if (lowerName.contains('fretless') || lowerName.contains('upright') || lowerName.contains('double bass') || lowerName.contains('acoustic bass') || lowerId.contains('acoustic_bass') || lowerId.contains('fretless_bass') || lowerId.contains('upright_bass')) {
+      list.addAll(['acoustic_bass', 'bass', 'low_warmth', 'dynamic_expressive', 'mono_center']);
+    } else if (lowerName.contains('bass') || lowerId.contains('bass')) {
+      list.addAll(['bass', 'sub_anchor', 'mono_center']);
+    } else if (lowerName.contains('grand') || lowerName.contains('upright piano') || lowerName.contains('felt') || lowerName.contains('honky') || lowerId.contains('concert_grand') || lowerId.contains('felt_upright')) {
+      list.addAll(['acoustic_piano', 'piano', 'keys', 'midrange', 'stereo_wide', 'dynamic_expressive', 'hpf_safe_80hz']);
+    } else if (lowerName.contains('rhodes') || lowerName.contains('dx7') || lowerName.contains('wurlitzer') || lowerName.contains('epiano') || lowerName.contains('e-piano') || lowerId.contains('rhodes') || lowerId.contains('dx7')) {
+      list.addAll(['electric_piano', 'keys', 'low_mid_warmth', 'stereo_wide', 'hpf_safe_100hz']);
+    } else if (lowerName.contains('clavinet') || lowerName.contains('harpsichord') || lowerName.contains('cembalo') || lowerName.contains('toy piano') || lowerId.contains('clavinet') || lowerId.contains('harpsichord')) {
+      list.addAll(['keys', 'percussive_keys', 'high_presence', 'hpf_safe_120hz']);
+    } else if (lowerName.contains('acoustic guitar') || lowerName.contains('spanish') || lowerName.contains('flamenco') || lowerName.contains('steel guitar') || lowerName.contains('12-string') || lowerName.contains('dobro') || lowerName.contains('harp guitar') || lowerName.contains('dub guitar') || lowerId.contains('guitar') || lowerId.contains('dobro')) {
+      list.addAll(['acoustic_guitar', 'guitar', 'plucked_strings', 'mid_dominant', 'dynamic_expressive', 'hpf_safe_100hz']);
+    } else if (lowerName.contains('ukulele') || lowerName.contains('lute') || lowerName.contains('banjo') || lowerName.contains('mandolin') || lowerId.contains('ukulele') || lowerId.contains('lute') || lowerId.contains('banjo') || lowerId.contains('mandolin')) {
+      list.addAll(['folk_strings', 'plucked_strings', 'high_presence', 'hpf_safe_150hz']);
+    } else if (lowerName.contains('guitar') || lowerName.contains('gtr') || lowerName.contains('strum')) {
+      list.addAll(['guitar', 'mid_dominant', 'dynamic_expressive', 'hpf_safe_100hz']);
+    } else if (lowerName.contains('violin') || lowerName.contains('viola') || lowerId.contains('solo_violin') || lowerId.contains('solo_viola')) {
+      list.addAll(['solo_strings', 'violin', 'lead', 'high_presence', 'dynamic_expressive', 'hpf_safe_150hz']);
+    } else if (lowerName.contains('cello') || lowerName.contains('string ensemble') || lowerName.contains('strings') || lowerName.contains('symphonic') || lowerId.contains('solo_cello') || lowerId.contains('string_ensemble')) {
+      list.addAll(['orchestral_strings', 'strings', 'pad', 'low_mid_warmth', 'stereo_wide', 'hpf_safe_80hz']);
+    } else if (lowerName.contains('vocal') || lowerName.contains('vox') || lowerName.contains('voice') || lowerName.contains('speech') || lowerName.contains('tts') || lowerId.contains('tts_voice_synth')) {
+      list.addAll(['vocal_synth', 'vocal', 'speech', 'lead', 'mid_dominant', 'intimate_center', 'hpf_safe_120hz', 'mud_cut_300hz']);
+    } else if (lowerName.contains('volts') || lowerName.contains('fire') || lowerName.contains('lead') || lowerId.contains('eats_volts') || lowerId.contains('eats_fire')) {
+      list.addAll(['synth_lead', 'lead', 'presence_bite', 'hpf_safe_100hz']);
+    } else if (lowerName.contains('water') || lowerName.contains('pad') || lowerName.contains('ambient') || lowerId.contains('eats_water')) {
+      list.addAll(['synth_pad', 'pad', 'ambient_wash', 'stereo_wide', 'hpf_safe_120hz']);
+    } else if (lowerId.contains('vintage_era_degrader') || lowerName.contains('vinyl')) {
+      list.addAll(['audio_fx', 'vintage_character', 'tape_warmth']);
+    } else {
+      list.addAll([isInstrument ? 'synthesizer' : category.name]);
+    }
+    return list;
+  }
 }
 
 class LuaScriptLibrary {
@@ -98,6 +163,7 @@ class LuaScriptLibrary {
     String name = fallbackName;
     LuaScriptCategory category = LuaScriptCategory.instrument;
     String description = 'User imported Lua script';
+    final List<String> tags = [];
 
     final lines = luaCode.split('\n');
     for (final line in lines) {
@@ -108,6 +174,13 @@ class LuaScriptLibrary {
         category = LuaScriptCategory.parse(trimmed.substring(13).trim());
       } else if (trimmed.startsWith('-- @description:')) {
         description = trimmed.substring(16).trim();
+      } else if (trimmed.startsWith('-- @tags:') || trimmed.startsWith('-- @tag:')) {
+        final prefixLen = trimmed.startsWith('-- @tags:') ? 9 : 8;
+        final rawTags = trimmed.substring(prefixLen).split(',');
+        for (final t in rawTags) {
+          final clean = t.trim().toLowerCase();
+          if (clean.isNotEmpty && !tags.contains(clean)) tags.add(clean);
+        }
       }
     }
 
@@ -126,6 +199,7 @@ class LuaScriptLibrary {
       category: category,
       description: description,
       code: luaCode,
+      tags: tags,
     );
 
     registerCustomScript(script);

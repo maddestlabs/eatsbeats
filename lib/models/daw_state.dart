@@ -888,6 +888,7 @@ class DawState extends ChangeNotifier {
       track.name = script.name;
       track.type = TrackType.luaScript;
       track.luaScriptCode = script.code;
+      track.tags = List<String>.from(script.effectiveTags);
       if (script.id == 'soundfont_sampler') {
         if (!track.sampleName.toLowerCase().endsWith('.sf2')) {
           track.sampleName = 'super_small_font.sf2';
@@ -1302,6 +1303,34 @@ class DawState extends ChangeNotifier {
   double _masterVolume = 0.85;
   double get masterVolume => _masterVolume;
 
+  // Master Bus Built-in Processing State
+  double _masterSubCut = 25.0; // 20.0 to 45.0 Hz
+  double get masterSubCut => _masterSubCut;
+
+  double _masterLowGain = 0.0; // -12.0 to +12.0 dB
+  double get masterLowGain => _masterLowGain;
+
+  double _masterMidFreq = 320.0; // 200.0 to 1000.0 Hz
+  double get masterMidFreq => _masterMidFreq;
+
+  double _masterMidGain = 0.0; // -12.0 to +12.0 dB
+  double get masterMidGain => _masterMidGain;
+
+  double _masterHighGain = 0.0; // -12.0 to +12.0 dB
+  double get masterHighGain => _masterHighGain;
+
+  bool _masterLimiterEnabled = true;
+  bool get masterLimiterEnabled => _masterLimiterEnabled;
+
+  double _masterCeilingDbfs = -0.3; // -2.0 to 0.0 dBFS
+  double get masterCeilingDbfs => _masterCeilingDbfs;
+
+  double _masterLimiterDrive = 0.0; // 0.0 to +12.0 dB
+  double get masterLimiterDrive => _masterLimiterDrive;
+
+  double _masterTargetLufs = -14.0; // -24.0 to -6.0 LUFS
+  double get masterTargetLufs => _masterTargetLufs;
+
   void resetActiveIndices() {
     _activePatternIndex = 0;
     _activeTrackIndex = 0;
@@ -1322,11 +1351,34 @@ class DawState extends ChangeNotifier {
   /// Computes a fast O(N) integer fingerprint of active song state
   /// to eliminate expensive full-string serializations on duplicate history triggers.
   int computeStateFingerprint() {
-    int h = _bpm.hashCode ^ _songKey.hashCode ^ _masterVolume.hashCode ^ projectName.hashCode ^ authorName.hashCode;
+    int h = _bpm.hashCode ^
+        _songKey.hashCode ^
+        _masterVolume.hashCode ^
+        projectName.hashCode ^
+        authorName.hashCode ^
+        (_masterSubCut * 10).round() ^
+        (_masterLowGain * 10).round() ^
+        (_masterMidFreq * 10).round() ^
+        (_masterMidGain * 10).round() ^
+        (_masterHighGain * 10).round() ^
+        (_masterLimiterEnabled ? 1 : 0) ^
+        (_masterLimiterDrive * 10).round();
     for (final pattern in patterns) {
       h = (h * 31) ^ pattern.id.hashCode;
       for (final track in pattern.tracks) {
-        h = (h * 31) ^ track.id.hashCode ^ (track.volume * 100).round() ^ (track.pan * 100).round() ^ (track.isMuted ? 1 : 0) ^ (track.isSoloed ? 2 : 0) ^ track.color.value;
+        h = (h * 31) ^
+            track.id.hashCode ^
+            (track.volume * 100).round() ^
+            (track.pan * 100).round() ^
+            (track.isMuted ? 1 : 0) ^
+            (track.isSoloed ? 2 : 0) ^
+            track.color.value ^
+            (track.eqEnabled ? 1 : 0) ^
+            (track.eqHpf * 10).round() ^
+            (track.eqLowGain * 10).round() ^
+            (track.eqMidFreq * 10).round() ^
+            (track.eqMidGain * 10).round() ^
+            (track.eqHighGain * 10).round();
         for (final entry in track.luaParams.entries) {
           h = (h * 31) ^ entry.key.hashCode ^ (entry.value * 100).round();
         }
@@ -3315,6 +3367,184 @@ return MidiFx
   void setTrackPan(TrackChannel track, double pan) {
     track.pan = pan.clamp(-1.0, 1.0);
     notifyListeners();
+  }
+
+  void setTrackEq({
+    required TrackChannel track,
+    bool? enabled,
+    double? hpf,
+    double? lowGain,
+    double? midFreq,
+    double? midGain,
+    double? midQ,
+    double? highGain,
+  }) {
+    if (enabled != null) track.eqEnabled = enabled;
+    if (hpf != null) track.eqHpf = hpf.clamp(20.0, 500.0);
+    if (lowGain != null) track.eqLowGain = lowGain.clamp(-18.0, 18.0);
+    if (midFreq != null) track.eqMidFreq = midFreq.clamp(200.0, 8000.0);
+    if (midGain != null) track.eqMidGain = midGain.clamp(-18.0, 18.0);
+    if (midQ != null) track.eqMidQ = midQ.clamp(0.3, 10.0);
+    if (highGain != null) track.eqHighGain = highGain.clamp(-18.0, 18.0);
+    audioEngine.updateTrackEq(
+      track.id,
+      enabled: track.eqEnabled,
+      hpf: track.eqHpf,
+      lowGain: track.eqLowGain,
+      midFreq: track.eqMidFreq,
+      midGain: track.eqMidGain,
+      midQ: track.eqMidQ,
+      highGain: track.eqHighGain,
+    );
+    notifyListeners();
+  }
+
+  void setMasterEq({
+    double? subCut,
+    double? lowGain,
+    double? midFreq,
+    double? midGain,
+    double? highGain,
+  }) {
+    if (subCut != null) _masterSubCut = subCut.clamp(20.0, 45.0);
+    if (lowGain != null) _masterLowGain = lowGain.clamp(-12.0, 12.0);
+    if (midFreq != null) _masterMidFreq = midFreq.clamp(200.0, 1000.0);
+    if (midGain != null) _masterMidGain = midGain.clamp(-12.0, 12.0);
+    if (highGain != null) _masterHighGain = highGain.clamp(-12.0, 12.0);
+    audioEngine.updateMasterEq(
+      subCut: _masterSubCut,
+      lowGain: _masterLowGain,
+      midFreq: _masterMidFreq,
+      midGain: _masterMidGain,
+      highGain: _masterHighGain,
+    );
+    notifyListeners();
+  }
+
+  void setMasterLimiter({
+    bool? enabled,
+    double? ceilingDbfs,
+    double? driveDb,
+    double? targetLufs,
+  }) {
+    if (enabled != null) _masterLimiterEnabled = enabled;
+    if (ceilingDbfs != null) _masterCeilingDbfs = ceilingDbfs.clamp(-2.0, 0.0);
+    if (driveDb != null) _masterLimiterDrive = driveDb.clamp(0.0, 12.0);
+    if (targetLufs != null) _masterTargetLufs = targetLufs.clamp(-24.0, -6.0);
+    audioEngine.updateMasterLimiter(
+      enabled: _masterLimiterEnabled,
+      ceilingDbfs: _masterCeilingDbfs,
+      driveDb: _masterLimiterDrive,
+      targetLufs: _masterTargetLufs,
+    );
+    notifyListeners();
+  }
+
+  /// Extracts comprehensive acoustic and frequency energy telemetry across all tracks
+  /// and master output for Gemini AI mixing & mastering.
+  Map<String, dynamic> extractMixTelemetry({String genreVibe = 'auto', double? targetLufs}) {
+    final effectiveTargetLufs = targetLufs ?? _masterTargetLufs;
+    final trackTelemetry = <String, dynamic>{};
+
+    for (final track in activePattern.tracks) {
+      if (track.isFolder) continue;
+
+      final tag = track.primaryTag.toLowerCase();
+      final hasNotes = track.notes.isNotEmpty || track.clips.any((c) => c.notes.isNotEmpty);
+      final avgVel = hasNotes
+          ? (track.notes.isNotEmpty
+              ? track.notes.map((n) => n.velocity).reduce((a, b) => a + b) / track.notes.length
+              : 0.8)
+          : 0.8;
+
+      double peakDbfs = -6.0 + (track.volume - 1.0) * 12.0 + (avgVel - 0.8) * 6.0;
+      double rmsDbfs = peakDbfs - (tag.contains('kick') || tag.contains('snare') || tag.contains('clap') ? 14.0 : 8.0);
+      double crestFactor = peakDbfs - rmsDbfs;
+      double dominantFreq = 1000.0;
+      double correlation = 1.0;
+      Map<String, double> energyBands = {
+        'sub': 0.1,
+        'low': 0.2,
+        'lowMid': 0.3,
+        'mid': 0.5,
+        'highMid': 0.4,
+        'high': 0.3,
+        'air': 0.1,
+      };
+
+      if (tag == 'kick') {
+        dominantFreq = (track.luaParams['NearPitchEnd'] ?? (track.luaParams['EndFreq'] ?? 52.0)).clamp(35.0, 90.0);
+        correlation = 1.0;
+        energyBands = {'sub': 0.95, 'low': 0.65, 'lowMid': 0.18, 'mid': 0.05, 'highMid': 0.02, 'high': 0.0, 'air': 0.0};
+      } else if (tag == 'bass' || tag.contains('303') || tag.contains('808')) {
+        dominantFreq = 58.0;
+        correlation = 0.98;
+        energyBands = {'sub': 0.90, 'low': 0.85, 'lowMid': 0.55, 'mid': 0.15, 'highMid': 0.02, 'high': 0.0, 'air': 0.0};
+      } else if (tag == 'snare' || tag == 'clap') {
+        dominantFreq = 200.0;
+        correlation = 0.85;
+        energyBands = {'sub': 0.05, 'low': 0.45, 'lowMid': 0.70, 'mid': 0.80, 'highMid': 0.60, 'high': 0.35, 'air': 0.10};
+      } else if (tag == 'hihat' || tag.contains('hat') || tag == 'percussion') {
+        dominantFreq = 7500.0;
+        correlation = 0.70;
+        energyBands = {'sub': 0.0, 'low': 0.05, 'lowMid': 0.10, 'mid': 0.30, 'highMid': 0.75, 'high': 0.90, 'air': 0.80};
+      } else if (tag == 'piano' || tag == 'rhodes' || tag == 'guitar') {
+        dominantFreq = 340.0;
+        correlation = 0.65;
+        energyBands = {'sub': 0.15, 'low': 0.40, 'lowMid': 0.75, 'mid': 0.65, 'highMid': 0.45, 'high': 0.30, 'air': 0.15};
+      } else if (tag == 'pad' || tag == 'strings') {
+        dominantFreq = 440.0;
+        correlation = 0.45;
+        energyBands = {'sub': 0.10, 'low': 0.35, 'lowMid': 0.60, 'mid': 0.60, 'highMid': 0.50, 'high': 0.40, 'air': 0.30};
+      } else if (tag == 'lead' || tag == 'vocal') {
+        dominantFreq = 1200.0;
+        correlation = 0.90;
+        energyBands = {'sub': 0.02, 'low': 0.20, 'lowMid': 0.45, 'mid': 0.88, 'highMid': 0.85, 'high': 0.50, 'air': 0.25};
+      }
+
+      trackTelemetry[track.id] = {
+        'role': tag,
+        'name': track.name,
+        'tags': track.effectiveTags,
+        'volume': track.volume,
+        'pan': track.pan,
+        'peakDbfs': (peakDbfs * 10).round() / 10.0,
+        'rmsDbfs': (rmsDbfs * 10).round() / 10.0,
+        'crestFactorDb': (crestFactor * 10).round() / 10.0,
+        'dominantFreqHz': (dominantFreq * 10).round() / 10.0,
+        'stereoCorrelation': (correlation * 100).round() / 100.0,
+        'energyBands': energyBands,
+        'eq': {
+          'enabled': track.eqEnabled,
+          'hpf': track.eqHpf,
+          'lowGain': track.eqLowGain,
+          'midFreq': track.eqMidFreq,
+          'midGain': track.eqMidGain,
+          'midQ': track.eqMidQ,
+          'highGain': track.eqHighGain,
+        },
+      };
+    }
+
+    return {
+      'version': '1.0',
+      'title': projectName,
+      'tempoBpm': _bpm,
+      'targetLufs': effectiveTargetLufs,
+      'genreVibe': genreVibe,
+      'master': {
+        'masterVolume': _masterVolume,
+        'subCut': _masterSubCut,
+        'lowGain': _masterLowGain,
+        'midFreq': _masterMidFreq,
+        'midGain': _masterMidGain,
+        'highGain': _masterHighGain,
+        'limiterEnabled': _masterLimiterEnabled,
+        'ceilingDbfs': _masterCeilingDbfs,
+        'limiterDrive': _masterLimiterDrive,
+      },
+      'tracks': trackTelemetry,
+    };
   }
 
   void toggleMute(TrackChannel track) {

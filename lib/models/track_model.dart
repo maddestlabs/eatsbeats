@@ -789,6 +789,92 @@ class TrackChannel {
     }
   }
 
+  // Built-in Channel Strip 4-Band Parametric EQ (HPF, Low Shelf, Mid Peak, High Shelf)
+  bool eqEnabled;
+  double eqHpf; // 20.0 to 500.0 Hz (default 20.0)
+  double eqLowGain; // -18.0 to +18.0 dB at ~100Hz (default 0.0)
+  double eqMidFreq; // 200.0 to 8000.0 Hz (default 1000.0)
+  double eqMidGain; // -18.0 to +18.0 dB (default 0.0)
+  double eqMidQ; // 0.3 to 10.0 (default 1.0)
+  double eqHighGain; // -18.0 to +18.0 dB at ~8000Hz (default 0.0)
+
+  // Semantic Instrument Tags for AI Mixing & Categorization
+  List<String> tags; // e.g. ["kick", "acoustic"], ["synth_bass"], ["piano"]
+
+  List<String> get effectiveTags {
+    if (tags.isNotEmpty) return tags;
+    return inferredMixTags;
+  }
+
+  String get primaryTag {
+    if (tags.isNotEmpty) return tags.first;
+    final lowerName = name.toLowerCase();
+    if (lowerName.contains('kick')) return 'kick';
+    if (lowerName.contains('snare')) return 'snare';
+    if (lowerName.contains('clap')) return 'clap';
+    if (lowerName.contains('hihat') || lowerName.contains('hat')) return 'hihat';
+    if (lowerName.contains('bass') || lowerName.contains('303') || lowerName.contains('808') || lowerName.contains('sub')) return 'bass';
+    if (lowerName.contains('piano') || lowerName.contains('keys') || lowerName.contains('rhodes')) return 'piano';
+    if (lowerName.contains('guitar') || lowerName.contains('gtr') || lowerName.contains('strum')) return 'guitar';
+    if (lowerName.contains('vocal') || lowerName.contains('vox') || lowerName.contains('speech')) return 'vocal';
+    if (lowerName.contains('lead')) return 'lead';
+    if (lowerName.contains('pad') || lowerName.contains('string') || lowerName.contains('choir')) return 'pad';
+    if (type == TrackType.sampler) return sampleName;
+    return type.name;
+  }
+
+  List<String> get inferredMixTags {
+    final lowerName = name.toLowerCase();
+    final List<String> list = [];
+
+    if (lowerName.contains('kick')) {
+      list.addAll(['kick', 'drums', 'sub_anchor', 'transient_punch', 'mono_center', 'sub_preserve_30hz']);
+    } else if (lowerName.contains('snare')) {
+      list.addAll(['snare', 'drums', 'mid_dominant', 'punchy_attack', 'hpf_safe_80hz', 'mud_cut_300hz']);
+    } else if (lowerName.contains('clap')) {
+      list.addAll(['clap', 'drums', 'high_presence', 'stereo_wide', 'hpf_safe_120hz']);
+    } else if (lowerName.contains('hihat') || lowerName.contains('hi-hat') || lowerName.contains('hat') || lowerName.contains('cymbal') || lowerName.contains('ride') || lowerName.contains('crash')) {
+      list.addAll(['hihat', 'cymbals', 'drums', 'air_sparkle', 'hpf_safe_200hz']);
+    } else if (lowerName.contains('tom') || lowerName.contains('cowbell') || lowerName.contains('rim') || lowerName.contains('perc')) {
+      list.addAll(['percussion', 'drums', 'dynamic_expressive', 'hpf_safe_100hz']);
+    } else if (lowerName.contains('303') || lowerName.contains('sub') || lowerName.contains('808') || lowerName.contains('moog') || lowerName.contains('synth bass')) {
+      list.addAll(['synth_bass', 'bass', 'sub_anchor', 'mono_center', 'sub_preserve_30hz']);
+    } else if (lowerName.contains('fretless') || lowerName.contains('upright') || lowerName.contains('double bass') || lowerName.contains('acoustic bass')) {
+      list.addAll(['acoustic_bass', 'bass', 'low_warmth', 'dynamic_expressive', 'mono_center']);
+    } else if (lowerName.contains('bass')) {
+      list.addAll(['bass', 'sub_anchor', 'mono_center']);
+    } else if (lowerName.contains('grand') || lowerName.contains('upright piano') || lowerName.contains('felt') || lowerName.contains('piano')) {
+      list.addAll(['acoustic_piano', 'piano', 'keys', 'midrange', 'stereo_wide', 'dynamic_expressive', 'hpf_safe_80hz']);
+    } else if (lowerName.contains('rhodes') || lowerName.contains('dx7') || lowerName.contains('wurlitzer') || lowerName.contains('epiano') || lowerName.contains('e-piano')) {
+      list.addAll(['electric_piano', 'keys', 'low_mid_warmth', 'stereo_wide', 'hpf_safe_100hz']);
+    } else if (lowerName.contains('clavinet') || lowerName.contains('harpsichord') || lowerName.contains('cembalo') || lowerName.contains('organ')) {
+      list.addAll(['keys', 'percussive_keys', 'high_presence', 'hpf_safe_120hz']);
+    } else if (lowerName.contains('acoustic guitar') || lowerName.contains('spanish') || lowerName.contains('flamenco') || lowerName.contains('steel guitar') || lowerName.contains('12-string') || lowerName.contains('dobro') || lowerName.contains('harp guitar')) {
+      list.addAll(['acoustic_guitar', 'guitar', 'plucked_strings', 'mid_dominant', 'dynamic_expressive', 'hpf_safe_100hz']);
+    } else if (lowerName.contains('ukulele') || lowerName.contains('lute') || lowerName.contains('banjo') || lowerName.contains('mandolin')) {
+      list.addAll(['folk_strings', 'plucked_strings', 'high_presence', 'hpf_safe_150hz']);
+    } else if (lowerName.contains('guitar') || lowerName.contains('gtr') || lowerName.contains('strum')) {
+      list.addAll(['guitar', 'mid_dominant', 'dynamic_expressive', 'hpf_safe_100hz']);
+    } else if (lowerName.contains('violin') || lowerName.contains('viola') || lowerName.contains('solo string')) {
+      list.addAll(['solo_strings', 'lead', 'high_presence', 'dynamic_expressive', 'hpf_safe_150hz']);
+    } else if (lowerName.contains('cello') || lowerName.contains('string ensemble') || lowerName.contains('strings') || lowerName.contains('symphonic')) {
+      list.addAll(['orchestral_strings', 'strings', 'pad', 'low_mid_warmth', 'stereo_wide', 'hpf_safe_80hz']);
+    } else if (lowerName.contains('vocal') || lowerName.contains('vox') || lowerName.contains('voice') || lowerName.contains('speech') || lowerName.contains('tts')) {
+      list.addAll(['vocal', 'lead', 'mid_dominant', 'intimate_center', 'hpf_safe_120hz', 'mud_cut_300hz']);
+    } else if (lowerName.contains('lead') || lowerName.contains('volts') || lowerName.contains('fire')) {
+      list.addAll(['synth_lead', 'lead', 'presence_bite', 'hpf_safe_100hz']);
+    } else if (lowerName.contains('pad') || lowerName.contains('water') || lowerName.contains('ambient') || lowerName.contains('choir')) {
+      list.addAll(['synth_pad', 'pad', 'ambient_wash', 'stereo_wide', 'hpf_safe_120hz']);
+    } else {
+      if (type == TrackType.sampler) {
+        list.addAll(['sample', sampleName, 'dynamic_expressive']);
+      } else {
+        list.addAll([type.name, 'synthesizer']);
+      }
+    }
+    return list;
+  }
+
   TrackChannel({
     required this.id,
     required this.name,
@@ -804,6 +890,14 @@ class TrackChannel {
     this.resonance = 1.0,
     this.attack = 0.01,
     this.release = 0.3,
+    this.eqEnabled = false,
+    this.eqHpf = 20.0,
+    this.eqLowGain = 0.0,
+    this.eqMidFreq = 1000.0,
+    this.eqMidGain = 0.0,
+    this.eqMidQ = 1.0,
+    this.eqHighGain = 0.0,
+    List<String>? tags,
     bool? enableTts,
     this.ttsVoice,
     this.ttsPitch = 1.0,
@@ -833,7 +927,8 @@ class TrackChannel {
     List<AutomationLane>? automationLanes,
     List<FXInsert>? fxRack,
     List<MidiFXInsert>? midiFXRack,
-  })  : enableTts = enableTts ?? (type == TrackType.tts),
+  })  : tags = tags ?? [],
+        enableTts = enableTts ?? (type == TrackType.tts),
         lyrics = lyrics ?? [],
         iconName = iconName ?? _defaultIconForType(type),
         luaParams = luaParams ?? {},
@@ -876,6 +971,14 @@ class TrackChannel {
     double? resonance,
     double? attack,
     double? release,
+    bool? eqEnabled,
+    double? eqHpf,
+    double? eqLowGain,
+    double? eqMidFreq,
+    double? eqMidGain,
+    double? eqMidQ,
+    double? eqHighGain,
+    List<String>? tags,
     bool? enableTts,
     String? ttsVoice,
     double? ttsPitch,
@@ -921,6 +1024,14 @@ class TrackChannel {
       resonance: resonance ?? this.resonance,
       attack: attack ?? this.attack,
       release: release ?? this.release,
+      eqEnabled: eqEnabled ?? this.eqEnabled,
+      eqHpf: eqHpf ?? this.eqHpf,
+      eqLowGain: eqLowGain ?? this.eqLowGain,
+      eqMidFreq: eqMidFreq ?? this.eqMidFreq,
+      eqMidGain: eqMidGain ?? this.eqMidGain,
+      eqMidQ: eqMidQ ?? this.eqMidQ,
+      eqHighGain: eqHighGain ?? this.eqHighGain,
+      tags: tags ?? List.from(this.tags),
       enableTts: enableTts ?? this.enableTts,
       ttsVoice: ttsVoice ?? this.ttsVoice,
       ttsPitch: ttsPitch ?? this.ttsPitch,
@@ -969,6 +1080,14 @@ class TrackChannel {
     'resonance': resonance,
     'attack': attack,
     'release': release,
+    'eqEnabled': eqEnabled,
+    'eqHpf': eqHpf,
+    'eqLowGain': eqLowGain,
+    'eqMidFreq': eqMidFreq,
+    'eqMidGain': eqMidGain,
+    'eqMidQ': eqMidQ,
+    'eqHighGain': eqHighGain,
+    if (tags.isNotEmpty) 'tags': tags,
     'enableTts': enableTts,
     if (ttsVoice != null) 'ttsVoice': ttsVoice,
     'ttsPitch': ttsPitch,
@@ -1010,6 +1129,14 @@ class TrackChannel {
     resonance: (json['resonance'] as num?)?.toDouble() ?? 1.0,
     attack: (json['attack'] as num?)?.toDouble() ?? 0.01,
     release: (json['release'] as num?)?.toDouble() ?? 0.3,
+    eqEnabled: json['eqEnabled'] ?? false,
+    eqHpf: (json['eqHpf'] as num?)?.toDouble() ?? 20.0,
+    eqLowGain: (json['eqLowGain'] as num?)?.toDouble() ?? 0.0,
+    eqMidFreq: (json['eqMidFreq'] as num?)?.toDouble() ?? 1000.0,
+    eqMidGain: (json['eqMidGain'] as num?)?.toDouble() ?? 0.0,
+    eqMidQ: (json['eqMidQ'] as num?)?.toDouble() ?? 1.0,
+    eqHighGain: (json['eqHighGain'] as num?)?.toDouble() ?? 0.0,
+    tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
     enableTts: json['enableTts'] ?? (json['type'] == 'tts'),
     ttsVoice: json['ttsVoice'] as String?,
     ttsPitch: (json['ttsPitch'] as num?)?.toDouble() ?? 1.0,

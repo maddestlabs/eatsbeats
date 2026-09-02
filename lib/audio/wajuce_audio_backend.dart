@@ -164,6 +164,10 @@ class TrackChannelStrip {
   final WANode destination;
 
   late final WAGainNode inputBus;
+  late final WABiquadFilterNode eqHpfNode;
+  late final WABiquadFilterNode eqLowShelfNode;
+  late final WABiquadFilterNode eqMidPeakNode;
+  late final WABiquadFilterNode eqHighShelfNode;
   late final WAGainNode volumeNode;
   late final WAStereoPannerNode pannerNode;
   late final WAAnalyserNode analyserNode;
@@ -188,14 +192,53 @@ class TrackChannelStrip {
     required this.destination,
   }) {
     inputBus = ctx.createGain()..gain.value = 1.0;
+    eqHpfNode = ctx.createBiquadFilter()
+      ..type = WABiquadFilterType.highpass
+      ..frequency.value = 20.0
+      ..Q.value = 0.707;
+    eqLowShelfNode = ctx.createBiquadFilter()
+      ..type = WABiquadFilterType.lowshelf
+      ..frequency.value = 100.0
+      ..gain.value = 0.0;
+    eqMidPeakNode = ctx.createBiquadFilter()
+      ..type = WABiquadFilterType.peaking
+      ..frequency.value = 1000.0
+      ..Q.value = 1.0
+      ..gain.value = 0.0;
+    eqHighShelfNode = ctx.createBiquadFilter()
+      ..type = WABiquadFilterType.highshelf
+      ..frequency.value = 8000.0
+      ..gain.value = 0.0;
+
     volumeNode = ctx.createGain()..gain.value = 1.0;
     pannerNode = ctx.createStereoPanner()..pan.value = 0.0;
     analyserNode = ctx.createAnalyser()..fftSize = 256;
 
-    inputBus.connect(volumeNode);
+    inputBus.connect(eqHpfNode);
+    eqHpfNode.connect(eqLowShelfNode);
+    eqLowShelfNode.connect(eqMidPeakNode);
+    eqMidPeakNode.connect(eqHighShelfNode);
+    eqHighShelfNode.connect(volumeNode);
     volumeNode.connect(pannerNode);
     pannerNode.connect(analyserNode);
     analyserNode.connect(destination);
+  }
+
+  void updateEq({
+    required bool enabled,
+    required double hpf,
+    required double lowGain,
+    required double midFreq,
+    required double midGain,
+    required double midQ,
+    required double highGain,
+  }) {
+    eqHpfNode.frequency.value = (enabled ? hpf : 20.0).clamp(20.0, 500.0);
+    eqLowShelfNode.gain.value = (enabled ? lowGain : 0.0).clamp(-18.0, 18.0);
+    eqMidPeakNode.frequency.value = midFreq.clamp(200.0, 8000.0);
+    eqMidPeakNode.gain.value = (enabled ? midGain : 0.0).clamp(-18.0, 18.0);
+    eqMidPeakNode.Q.value = midQ.clamp(0.3, 10.0);
+    eqHighShelfNode.gain.value = (enabled ? highGain : 0.0).clamp(-18.0, 18.0);
   }
 
   void update({
@@ -320,7 +363,7 @@ class TrackChannelStrip {
     _tapeStopGain = null;
     _isTapeStopTriggered = false;
 
-    inputBus.disconnect();
+    eqHighShelfNode.disconnect();
     for (final node in _fxNodes) {
       try {
         node.disconnect();
@@ -330,7 +373,7 @@ class TrackChannelStrip {
     _fxNodes.clear();
     _fxBindings.clear();
 
-    WANode current = inputBus;
+    WANode current = eqHighShelfNode;
     for (final fx in fxRack) {
       if (!fx.enabled) continue;
       final mix = fx.mix.clamp(0.0, 1.0);
@@ -1116,6 +1159,10 @@ class TrackChannelStrip {
       _lfoTimer?.cancel();
       _lfoTimer = null;
       inputBus.disconnect();
+      eqHpfNode.disconnect();
+      eqLowShelfNode.disconnect();
+      eqMidPeakNode.disconnect();
+      eqHighShelfNode.disconnect();
       volumeNode.disconnect();
       pannerNode.disconnect();
       try { analyserNode.disconnect(); } catch (_) {}
@@ -1128,6 +1175,10 @@ class TrackChannelStrip {
       _fxNodes.clear();
       _fxBindings.clear();
       inputBus.dispose();
+      eqHpfNode.dispose();
+      eqLowShelfNode.dispose();
+      eqMidPeakNode.dispose();
+      eqHighShelfNode.dispose();
       volumeNode.dispose();
       pannerNode.dispose();
       try { analyserNode.dispose(); } catch (_) {}
@@ -1274,8 +1325,14 @@ class TrackChannelStrip {
 class WajuceAudioBackend {
   WAContext? _ctx;
   WAGainNode? _masterInputBus;
+  WABiquadFilterNode? _masterSubCutNode;
+  WABiquadFilterNode? _masterLowShelfNode;
+  WABiquadFilterNode? _masterMidPeakNode;
+  WABiquadFilterNode? _masterHighShelfNode;
   TrackChannelStrip? _masterStrip;
   WAGainNode? _masterGain;
+  WAGainNode? _masterLimiterDriveNode;
+  WAWaveShaperNode? _masterLimiterNode;
   WAAnalyserNode? _analyser;
 
   // Persistent channel strips per track (0 node accumulation!)
@@ -1340,28 +1397,67 @@ class WajuceAudioBackend {
         inputChannels: 0,
         outputChannels: 2,
       );
-      final masterInputBus = ctx.createGain();
-      masterInputBus.gain.value = 1.0;
-      final masterGain = ctx.createGain();
-      masterGain.gain.value = 1.0;
+
+      final masterInputBus = ctx.createGain()..gain.value = 1.0;
+      final masterSubCut = ctx.createBiquadFilter()
+        ..type = WABiquadFilterType.highpass
+        ..frequency.value = 25.0
+        ..Q.value = 0.707;
+      final masterLowShelf = ctx.createBiquadFilter()
+        ..type = WABiquadFilterType.lowshelf
+        ..frequency.value = 100.0
+        ..gain.value = 0.0;
+      final masterMidPeak = ctx.createBiquadFilter()
+        ..type = WABiquadFilterType.peaking
+        ..frequency.value = 320.0
+        ..Q.value = 1.0
+        ..gain.value = 0.0;
+      final masterHighShelf = ctx.createBiquadFilter()
+        ..type = WABiquadFilterType.highshelf
+        ..frequency.value = 8000.0
+        ..gain.value = 0.0;
+
+      final masterGain = ctx.createGain()..gain.value = 1.0;
       final masterStrip = TrackChannelStrip(
         trackId: 'master_bus',
         ctx: ctx,
         destination: masterGain,
       );
-      masterInputBus.connect(masterStrip.inputBus);
+
+      // Connect: masterInputBus -> masterSubCut -> masterLowShelf -> masterMidPeak -> masterHighShelf -> masterStrip.inputBus
+      masterInputBus.connect(masterSubCut);
+      masterSubCut.connect(masterLowShelf);
+      masterLowShelf.connect(masterMidPeak);
+      masterMidPeak.connect(masterHighShelf);
+      masterHighShelf.connect(masterStrip.inputBus);
+
+      // Master Limiter & Analyser Chain:
+      // masterGain -> masterLimiterDrive -> masterLimiter -> analyser -> ctx.destination
+      final masterLimiterDrive = ctx.createGain()..gain.value = 1.0;
+      final masterLimiter = ctx.createWaveShaper();
+      masterLimiter.curve = TrackChannelStrip._buildLimiterCurve(-0.5, -0.3);
+      masterLimiter.oversample = kIsWeb ? WAOverSampleType.x4 : WAOverSampleType.x2;
 
       final analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
-      masterGain.connect(analyser);
+
+      masterGain.connect(masterLimiterDrive);
+      masterLimiterDrive.connect(masterLimiter);
+      masterLimiter.connect(analyser);
       analyser.connect(ctx.destination);
 
       await ctx.resume();
 
       _ctx = ctx;
       _masterInputBus = masterInputBus;
+      _masterSubCutNode = masterSubCut;
+      _masterLowShelfNode = masterLowShelf;
+      _masterMidPeakNode = masterMidPeak;
+      _masterHighShelfNode = masterHighShelf;
       _masterStrip = masterStrip;
       _masterGain = masterGain;
+      _masterLimiterDriveNode = masterLimiterDrive;
+      _masterLimiterNode = masterLimiter;
       _analyser = analyser;
       _initialized = true;
     } catch (e) {
@@ -1381,6 +1477,61 @@ class WajuceAudioBackend {
 
   void setMasterVolume(double volume) {
     _masterGain?.gain.value = volume.clamp(0.0, 1.5);
+  }
+
+  void updateMasterEq({
+    double subCut = 25.0,
+    double lowGain = 0.0,
+    double midFreq = 320.0,
+    double midGain = 0.0,
+    double highGain = 0.0,
+  }) {
+    _masterSubCutNode?.frequency.value = subCut.clamp(20.0, 45.0);
+    _masterLowShelfNode?.gain.value = lowGain.clamp(-12.0, 12.0);
+    _masterMidPeakNode?.frequency.value = midFreq.clamp(200.0, 1000.0);
+    _masterMidPeakNode?.gain.value = midGain.clamp(-12.0, 12.0);
+    _masterHighShelfNode?.gain.value = highGain.clamp(-12.0, 12.0);
+  }
+
+  void updateMasterLimiter({
+    bool enabled = true,
+    double ceilingDbfs = -0.3,
+    double driveDb = 0.0,
+    double targetLufs = -14.0,
+  }) {
+    final driveLinear = math.pow(10.0, (driveDb.clamp(0.0, 12.0)) / 20.0).toDouble();
+    _masterLimiterDriveNode?.gain.value = driveLinear;
+    if (_masterLimiterNode != null) {
+      if (enabled) {
+        _masterLimiterNode!.curve = TrackChannelStrip._buildLimiterCurve(-0.5, ceilingDbfs.clamp(-12.0, 0.0));
+      } else {
+        _masterLimiterNode!.curve = TrackChannelStrip._buildLimiterCurve(0.0, 0.0);
+      }
+    }
+  }
+
+  void updateTrackEq(
+    String trackId, {
+    required bool enabled,
+    required double hpf,
+    required double lowGain,
+    required double midFreq,
+    required double midGain,
+    required double midQ,
+    required double highGain,
+  }) {
+    final strip = _channelStrips[trackId];
+    if (strip != null) {
+      strip.updateEq(
+        enabled: enabled,
+        hpf: hpf,
+        lowGain: lowGain,
+        midFreq: midFreq,
+        midGain: midGain,
+        midQ: midQ,
+        highGain: highGain,
+      );
+    }
   }
 
   void updateMasterFx(List<FXInsert> masterFxRack) {

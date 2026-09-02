@@ -14,6 +14,7 @@ import 'widgets/compact_value_dialog.dart';
 import 'widgets/ui_scale_dialog.dart';
 import 'widgets/shader_picker_dialog.dart';
 import 'widgets/theme_picker_dialog.dart';
+import 'widgets/ai_assistant_dialog.dart';
 import '../shaders/shader_settings_manager.dart';
 
 
@@ -204,7 +205,24 @@ class TransportHeader extends StatelessWidget {
             },
           ),
 
-          const SizedBox(width: 10),
+          const SizedBox(width: 6),
+
+          // Gemini AI Assistant Button
+          Tooltip(
+            message: 'Gemini AI Assistant (Auto-Mix, Master, Sound Architect)',
+            child: SkeuomorphicHardwareButton(
+              icon: Icons.auto_awesome,
+              isActive: true,
+              activeColor: EatsTheme.primaryCyan,
+              onTap: () => AiAssistantDialog.show(context, dawState),
+              height: 34,
+              width: 36,
+              padding: EdgeInsets.zero,
+              showLed: false,
+            ),
+          ),
+
+          const SizedBox(width: 6),
 
           // Project Browser Toggle Button (Folder / Ctrl+B)
           Tooltip(

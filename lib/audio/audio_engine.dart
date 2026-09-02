@@ -56,6 +56,58 @@ class AudioEngine {
     _backend.setMasterVolume(volume);
   }
 
+  void updateMasterEq({
+    double subCut = 25.0,
+    double lowGain = 0.0,
+    double midFreq = 320.0,
+    double midGain = 0.0,
+    double highGain = 0.0,
+  }) {
+    _backend.updateMasterEq(
+      subCut: subCut,
+      lowGain: lowGain,
+      midFreq: midFreq,
+      midGain: midGain,
+      highGain: highGain,
+    );
+  }
+
+  void updateMasterLimiter({
+    bool enabled = true,
+    double ceilingDbfs = -0.3,
+    double driveDb = 0.0,
+    double targetLufs = -14.0,
+  }) {
+    _backend.updateMasterLimiter(
+      enabled: enabled,
+      ceilingDbfs: ceilingDbfs,
+      driveDb: driveDb,
+      targetLufs: targetLufs,
+    );
+  }
+
+  void updateTrackEq(
+    String trackId, {
+    required bool enabled,
+    required double hpf,
+    required double lowGain,
+    required double midFreq,
+    required double midGain,
+    required double midQ,
+    required double highGain,
+  }) {
+    _backend.updateTrackEq(
+      trackId,
+      enabled: enabled,
+      hpf: hpf,
+      lowGain: lowGain,
+      midFreq: midFreq,
+      midGain: midGain,
+      midQ: midQ,
+      highGain: highGain,
+    );
+  }
+
   void updateMasterFx(List<FXInsert> fxRack) {
     _backend.updateMasterFx(fxRack);
   }

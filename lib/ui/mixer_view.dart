@@ -11,6 +11,7 @@ import 'widgets/skeuomorphic_hardware_slider.dart';
 import 'widgets/stereo_meter_widget.dart';
 import 'widgets/modular_fx_rack_widget.dart';
 import 'widgets/fx_rack_dialog.dart';
+import 'widgets/ai_assistant_dialog.dart';
 import 'widgets/project_browser_drawer.dart';
 
 class MixerView extends StatefulWidget {
@@ -180,22 +181,50 @@ class _MixerViewState extends State<MixerView> with SingleTickerProviderStateMix
                     ),
                     const SizedBox(width: 5),
 
-                    // Compact FX Button Column on Far Right of LED readout
+                    // Compact Buttons Column on Far Right of Master LED readout
                     Column(
                       mainAxisAlignment: MainAxisAlignment.start,
                       children: [
                         Tooltip(
-                          message: 'Master Bus FX Rack (Limiter, Compressor, Reverb, etc.)',
+                          message: 'Gemini AI Auto-Mix & Master Assistant',
+                          child: SkeuomorphicHardwareButton(
+                            label: 'AI',
+                            isActive: true,
+                            activeColor: EatsTheme.primaryCyan,
+                            onTap: () => AiAssistantDialog.show(context, dawState, initialTab: 0),
+                            height: 24,
+                            width: 26,
+                            padding: EdgeInsets.zero,
+                            showLed: false,
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                          ),
+                        ),
+                        Tooltip(
+                          message: 'Master Bus 4-Band EQ & True Peak Limiter',
+                          child: SkeuomorphicHardwareButton(
+                            label: 'EQ',
+                            isActive: dawState.masterLowGain != 0.0 || dawState.masterMidGain != 0.0 || dawState.masterHighGain != 0.0 || dawState.masterLimiterEnabled,
+                            activeColor: EatsTheme.primaryCyan,
+                            onTap: () => _showMasterBusDialog(context, dawState),
+                            height: 24,
+                            width: 26,
+                            padding: EdgeInsets.zero,
+                            showLed: false,
+                            borderRadius: BorderRadius.zero,
+                          ),
+                        ),
+                        Tooltip(
+                          message: 'Master Bus FX Rack (Tape, Reverb, etc.)',
                           child: SkeuomorphicHardwareButton(
                             label: 'FX',
                             isActive: dawState.masterTrack.fxRack.any((f) => f.enabled),
                             activeColor: EatsTheme.primaryCyan,
                             onTap: () => _showFXRackDialog(context, dawState, dawState.masterTrack),
-                            height: 26,
+                            height: 24,
                             width: 26,
                             padding: EdgeInsets.zero,
                             showLed: false,
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(4)),
                           ),
                         ),
                       ],
@@ -406,7 +435,7 @@ class _MixerViewState extends State<MixerView> with SingleTickerProviderStateMix
                             isActive: track.isMuted,
                             activeColor: EatsTheme.muteColor,
                             onTap: () => dawState.toggleMute(track),
-                            height: 26,
+                            height: 24,
                             width: 26,
                             padding: EdgeInsets.zero,
                             showLed: false,
@@ -417,7 +446,18 @@ class _MixerViewState extends State<MixerView> with SingleTickerProviderStateMix
                             isActive: track.isSoloed,
                             activeColor: EatsTheme.soloColor,
                             onTap: () => dawState.toggleSolo(track),
-                            height: 26,
+                            height: 24,
+                            width: 26,
+                            padding: EdgeInsets.zero,
+                            showLed: false,
+                            borderRadius: BorderRadius.zero,
+                          ),
+                          SkeuomorphicHardwareButton(
+                            label: 'EQ',
+                            isActive: track.eqEnabled,
+                            activeColor: EatsTheme.primaryCyan,
+                            onTap: () => _showTrackEqDialog(context, dawState, track),
+                            height: 24,
                             width: 26,
                             padding: EdgeInsets.zero,
                             showLed: false,
@@ -428,11 +468,11 @@ class _MixerViewState extends State<MixerView> with SingleTickerProviderStateMix
                             isActive: track.fxRack.any((f) => f.enabled),
                             activeColor: EatsTheme.primaryCyan,
                             onTap: () => _showFXRackDialog(context, dawState, track),
-                            height: 26,
+                            height: 24,
                             width: 26,
                             padding: EdgeInsets.zero,
                             showLed: false,
-                            borderRadius: BorderRadius.zero,
+                            borderRadius: track.isFolder ? const BorderRadius.vertical(bottom: Radius.circular(4)) : BorderRadius.zero,
                           ),
                           if (!track.isFolder)
                             SkeuomorphicHardwareButton(
@@ -440,7 +480,7 @@ class _MixerViewState extends State<MixerView> with SingleTickerProviderStateMix
                               isActive: track.isFrozen,
                               activeColor: EatsTheme.primaryCyan,
                               onTap: () => dawState.toggleFreezeTrack(track),
-                              height: 26,
+                              height: 24,
                               width: 26,
                               padding: EdgeInsets.zero,
                               showLed: false,
@@ -461,5 +501,422 @@ class _MixerViewState extends State<MixerView> with SingleTickerProviderStateMix
 
   void _showFXRackDialog(BuildContext context, DawState dawState, TrackChannel track) {
     showFxRackDialog(context, dawState, track);
+  }
+
+  void _showTrackEqDialog(BuildContext context, DawState dawState, TrackChannel track) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: EatsTheme.panelBackground,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: track.color, width: 1.5),
+              ),
+              child: Container(
+                width: 380,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Header
+                    Row(
+                      children: [
+                        Icon(Icons.tune, color: track.color, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${track.name.toUpperCase()} — CHANNEL EQ',
+                            style: TextStyle(
+                              color: EatsTheme.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        SkeuomorphicHardwareButton(
+                          label: track.eqEnabled ? 'ACTIVE' : 'BYPASS',
+                          isActive: track.eqEnabled,
+                          activeColor: track.color,
+                          onTap: () {
+                            dawState.setTrackEq(track: track, enabled: !track.eqEnabled);
+                            setDialogState(() {});
+                          },
+                          height: 24,
+                          width: 64,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                        ),
+                        const SizedBox(width: 6),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          color: EatsTheme.textSecondary,
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Knob Row 1: HPF Cutoff & Low Shelf
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        SkeuomorphicHardwareKnob(
+                          label: 'HPF CUT',
+                          value: track.eqHpf,
+                          min: 20.0,
+                          max: 500.0,
+                          defaultValue: 20.0,
+                          size: 44,
+                          accentColor: track.color,
+                          onChanged: (val) {
+                            dawState.setTrackEq(track: track, hpf: val);
+                            setDialogState(() {});
+                          },
+                          formatValue: (v) => '${v.toInt()}Hz',
+                        ),
+                        SkeuomorphicHardwareKnob(
+                          label: 'LOW GAIN',
+                          value: track.eqLowGain,
+                          min: -18.0,
+                          max: 18.0,
+                          defaultValue: 0.0,
+                          size: 44,
+                          accentColor: track.color,
+                          onChanged: (val) {
+                            dawState.setTrackEq(track: track, lowGain: val);
+                            setDialogState(() {});
+                          },
+                          formatValue: (v) => '${v >= 0 ? "+" : ""}${v.toStringAsFixed(1)}dB',
+                        ),
+                        SkeuomorphicHardwareKnob(
+                          label: 'HIGH GAIN',
+                          value: track.eqHighGain,
+                          min: -18.0,
+                          max: 18.0,
+                          defaultValue: 0.0,
+                          size: 44,
+                          accentColor: track.color,
+                          onChanged: (val) {
+                            dawState.setTrackEq(track: track, highGain: val);
+                            setDialogState(() {});
+                          },
+                          formatValue: (v) => '${v >= 0 ? "+" : ""}${v.toStringAsFixed(1)}dB',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Knob Row 2: Parametric Mid Bell (Freq, Gain, Q)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        SkeuomorphicHardwareKnob(
+                          label: 'MID FREQ',
+                          value: track.eqMidFreq,
+                          min: 200.0,
+                          max: 8000.0,
+                          defaultValue: 1000.0,
+                          size: 44,
+                          accentColor: track.color,
+                          onChanged: (val) {
+                            dawState.setTrackEq(track: track, midFreq: val);
+                            setDialogState(() {});
+                          },
+                          formatValue: (v) => v >= 1000 ? '${(v / 1000).toStringAsFixed(1)}k' : '${v.toInt()}Hz',
+                        ),
+                        SkeuomorphicHardwareKnob(
+                          label: 'MID GAIN',
+                          value: track.eqMidGain,
+                          min: -18.0,
+                          max: 18.0,
+                          defaultValue: 0.0,
+                          size: 44,
+                          accentColor: track.color,
+                          onChanged: (val) {
+                            dawState.setTrackEq(track: track, midGain: val);
+                            setDialogState(() {});
+                          },
+                          formatValue: (v) => '${v >= 0 ? "+" : ""}${v.toStringAsFixed(1)}dB',
+                        ),
+                        SkeuomorphicHardwareKnob(
+                          label: 'MID Q',
+                          value: track.eqMidQ,
+                          min: 0.3,
+                          max: 10.0,
+                          defaultValue: 1.0,
+                          size: 44,
+                          accentColor: track.color,
+                          onChanged: (val) {
+                            dawState.setTrackEq(track: track, midQ: val);
+                            setDialogState(() {});
+                          },
+                          formatValue: (v) => v.toStringAsFixed(1),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Reset button
+                    Center(
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.refresh, size: 14),
+                        label: const Text('RESET FLAT', style: TextStyle(fontSize: 10)),
+                        style: TextButton.styleFrom(
+                          foregroundColor: EatsTheme.textSecondary,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        ),
+                        onPressed: () {
+                          dawState.setTrackEq(
+                            track: track,
+                            hpf: 20.0,
+                            lowGain: 0.0,
+                            midFreq: 1000.0,
+                            midGain: 0.0,
+                            midQ: 1.0,
+                            highGain: 0.0,
+                          );
+                          setDialogState(() {});
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showMasterBusDialog(BuildContext context, DawState dawState) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: EatsTheme.panelBackground,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: EatsTheme.primaryCyan, width: 1.5),
+              ),
+              child: Container(
+                width: 420,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Header
+                    Row(
+                      children: [
+                        Icon(Icons.equalizer, color: EatsTheme.primaryCyan, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'MASTER BUS CONSOLE',
+                            style: TextStyle(
+                              color: EatsTheme.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          color: EatsTheme.textSecondary,
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // SECTION 1: MASTER PRECISION EQ
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: EatsTheme.controlBackground,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('MASTER 4-BAND EQ', style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 10, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              SkeuomorphicHardwareKnob(
+                                label: 'SUB CUT',
+                                value: dawState.masterSubCut,
+                                min: 20.0,
+                                max: 45.0,
+                                defaultValue: 25.0,
+                                size: 40,
+                                accentColor: EatsTheme.primaryCyan,
+                                onChanged: (val) {
+                                  dawState.setMasterEq(subCut: val);
+                                  setDialogState(() {});
+                                },
+                                formatValue: (v) => '${v.toInt()}Hz',
+                              ),
+                              SkeuomorphicHardwareKnob(
+                                label: 'LOW GAIN',
+                                value: dawState.masterLowGain,
+                                min: -12.0,
+                                max: 12.0,
+                                defaultValue: 0.0,
+                                size: 40,
+                                accentColor: EatsTheme.primaryCyan,
+                                onChanged: (val) {
+                                  dawState.setMasterEq(lowGain: val);
+                                  setDialogState(() {});
+                                },
+                                formatValue: (v) => '${v >= 0 ? "+" : ""}${v.toStringAsFixed(1)}dB',
+                              ),
+                              SkeuomorphicHardwareKnob(
+                                label: 'MID GAIN',
+                                value: dawState.masterMidGain,
+                                min: -12.0,
+                                max: 12.0,
+                                defaultValue: 0.0,
+                                size: 40,
+                                accentColor: EatsTheme.primaryCyan,
+                                onChanged: (val) {
+                                  dawState.setMasterEq(midGain: val);
+                                  setDialogState(() {});
+                                },
+                                formatValue: (v) => '${v >= 0 ? "+" : ""}${v.toStringAsFixed(1)}dB',
+                              ),
+                              SkeuomorphicHardwareKnob(
+                                label: 'HIGH GAIN',
+                                value: dawState.masterHighGain,
+                                min: -12.0,
+                                max: 12.0,
+                                defaultValue: 0.0,
+                                size: 40,
+                                accentColor: EatsTheme.primaryCyan,
+                                onChanged: (val) {
+                                  dawState.setMasterEq(highGain: val);
+                                  setDialogState(() {});
+                                },
+                                formatValue: (v) => '${v >= 0 ? "+" : ""}${v.toStringAsFixed(1)}dB',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // SECTION 2: TRUE PEAK BRICKWALL LIMITER
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: EatsTheme.controlBackground,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text('TRUE PEAK BRICKWALL LIMITER', style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 10, fontWeight: FontWeight.bold)),
+                              const Spacer(),
+                              SkeuomorphicHardwareButton(
+                                label: dawState.masterLimiterEnabled ? 'ON' : 'OFF',
+                                isActive: dawState.masterLimiterEnabled,
+                                activeColor: EatsTheme.primaryCyan,
+                                onTap: () {
+                                  dawState.setMasterLimiter(enabled: !dawState.masterLimiterEnabled);
+                                  setDialogState(() {});
+                                },
+                                height: 20,
+                                width: 44,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              SkeuomorphicHardwareKnob(
+                                label: 'CEILING',
+                                value: dawState.masterCeilingDbfs,
+                                min: -2.0,
+                                max: 0.0,
+                                defaultValue: -0.3,
+                                size: 40,
+                                accentColor: EatsTheme.primaryCyan,
+                                onChanged: (val) {
+                                  dawState.setMasterLimiter(ceilingDbfs: val);
+                                  setDialogState(() {});
+                                },
+                                formatValue: (v) => '${v.toStringAsFixed(1)}dB',
+                              ),
+                              SkeuomorphicHardwareKnob(
+                                label: 'DRIVE BOOST',
+                                value: dawState.masterLimiterDrive,
+                                min: 0.0,
+                                max: 12.0,
+                                defaultValue: 0.0,
+                                size: 40,
+                                accentColor: EatsTheme.primaryCyan,
+                                onChanged: (val) {
+                                  dawState.setMasterLimiter(driveDb: val);
+                                  setDialogState(() {});
+                                },
+                                formatValue: (v) => '+${v.toStringAsFixed(1)}dB',
+                              ),
+                              SkeuomorphicHardwareKnob(
+                                label: 'TARGET LUFS',
+                                value: dawState.masterTargetLufs,
+                                min: -24.0,
+                                max: -6.0,
+                                defaultValue: -14.0,
+                                size: 40,
+                                accentColor: EatsTheme.primaryCyan,
+                                onChanged: (val) {
+                                  dawState.setMasterLimiter(targetLufs: val);
+                                  setDialogState(() {});
+                                },
+                                formatValue: (v) => '${v.toInt()} LUFS',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // SECTION 3: GEMINI AI AUTO-MASTER TRIGGER
+                    SkeuomorphicHardwareButton(
+                      label: '✨ OPEN GEMINI AI AUTO-MIX & MASTER',
+                      isActive: true,
+                      activeColor: EatsTheme.primaryCyan,
+                      height: 34,
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        AiAssistantDialog.show(context, dawState, initialTab: 0);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }

@@ -92,6 +92,23 @@ class EatsLuaParser {
     dawState.setLoopPoints(loopStartBar, loopEndBar);
     dawState.setLooping(isLooping);
 
+    final masterEqMap = meta['masterEq'] is Map ? Map<String, dynamic>.from(meta['masterEq']) : {};
+    dawState.setMasterEq(
+      subCut: (masterEqMap['subCut'] as num?)?.toDouble() ?? 25.0,
+      lowGain: (masterEqMap['lowGain'] as num?)?.toDouble() ?? 0.0,
+      midFreq: (masterEqMap['midFreq'] as num?)?.toDouble() ?? 320.0,
+      midGain: (masterEqMap['midGain'] as num?)?.toDouble() ?? 0.0,
+      highGain: (masterEqMap['highGain'] as num?)?.toDouble() ?? 0.0,
+    );
+
+    final masterLimiterMap = meta['masterLimiter'] is Map ? Map<String, dynamic>.from(meta['masterLimiter']) : {};
+    dawState.setMasterLimiter(
+      enabled: _parseBool(masterLimiterMap['enabled'], true),
+      ceilingDbfs: (masterLimiterMap['ceilingDbfs'] as num?)?.toDouble() ?? -0.3,
+      driveDb: (masterLimiterMap['driveDb'] as num?)?.toDouble() ?? 0.0,
+      targetLufs: (masterLimiterMap['targetLufs'] as num?)?.toDouble() ?? -14.0,
+    );
+
     // 2. Patterns & Tracks
     final rawPatterns = map['patterns'];
     if (rawPatterns is List && rawPatterns.isNotEmpty) {
@@ -503,6 +520,18 @@ class EatsLuaParser {
       orElse: () => ChordFollowMode.off,
     );
 
+    // Parse built-in EQ and tags
+    final eqMap = map['eq'] is Map ? Map<String, dynamic>.from(map['eq']) : {};
+    final eqEnabled = _parseBool(eqMap['enabled'], false);
+    final eqHpf = (eqMap['hpf'] as num?)?.toDouble() ?? 20.0;
+    final eqLowGain = (eqMap['lowGain'] as num?)?.toDouble() ?? 0.0;
+    final eqMidFreq = (eqMap['midFreq'] as num?)?.toDouble() ?? 1000.0;
+    final eqMidGain = (eqMap['midGain'] as num?)?.toDouble() ?? 0.0;
+    final eqMidQ = (eqMap['midQ'] as num?)?.toDouble() ?? 1.0;
+    final eqHighGain = (eqMap['highGain'] as num?)?.toDouble() ?? 0.0;
+
+    final tags = (map['tags'] as List?)?.map((e) => e.toString()).toList() ?? <String>[];
+
     return TrackChannel(
       id: map['id'] ?? 'tr_${DateTime.now().millisecondsSinceEpoch}',
       name: map['name'] ?? 'Track',
@@ -518,6 +547,14 @@ class EatsLuaParser {
       resonance: (map['resonance'] as num?)?.toDouble() ?? 1.0,
       attack: (map['attack'] as num?)?.toDouble() ?? 0.01,
       release: (map['release'] as num?)?.toDouble() ?? 0.3,
+      eqEnabled: eqEnabled,
+      eqHpf: eqHpf,
+      eqLowGain: eqLowGain,
+      eqMidFreq: eqMidFreq,
+      eqMidGain: eqMidGain,
+      eqMidQ: eqMidQ,
+      eqHighGain: eqHighGain,
+      tags: tags,
       luaScriptCode: map['luaScriptCode'] ?? '',
       luaParams: map['luaParams'] is Map ? Map<String, double>.from(
         (map['luaParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
