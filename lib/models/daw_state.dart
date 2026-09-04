@@ -17,6 +17,7 @@ import '../audio/sampler_engine.dart';
 import '../audio/soundfont_engine.dart';
 import '../audio/tts_engine.dart';
 import '../audio/wav_exporter.dart';
+import '../audio/gm/gm_instrument_registry.dart';
 import '../audio/audio_to_midi_engine.dart';
 import '../utils/audio_to_midi_pack_manager.dart';
 import '../theme/eats_theme.dart';
@@ -5020,13 +5021,15 @@ return MidiFx
                   trackNameLower.contains('piano') ||
                   trackNameLower.contains('rhodes') ||
                   trackNameLower.contains('harmony'));
-          final isLeadMatch = (midiNameLower.contains('lead') ||
-                  midiNameLower.contains('solo') ||
-                  midiNameLower.contains('melody')) &&
-              (trackNameLower.contains('lead') ||
-                  trackNameLower.contains('solo') ||
-                  trackNameLower.contains('melody') ||
-                  trackNameLower.contains('synth'));
+          final isLeadMatch = (midiNameLower == 'lead' ||
+                  midiNameLower == 'solo' ||
+                  midiNameLower == 'melody' ||
+                  midiNameLower.startsWith('lead ') ||
+                  midiNameLower.startsWith('melody ')) &&
+              (trackNameLower == 'lead' ||
+                  trackNameLower == 'solo' ||
+                  trackNameLower == 'melody' ||
+                  (trackNameLower == 'synth' && track.iconName == 'synth'));
           final isTrack1Match = (midiNameLower == 'track 1' || midiNameLower == 'track1') &&
               (trackNameLower == 'track 1' ||
                   trackNameLower == 'track1' ||
@@ -5108,51 +5111,26 @@ return MidiFx
       const Color(0xFFBD00FF),
     ];
     final color = trackColors[activePattern.tracks.length % trackColors.length];
-    final lowerName = midiTrack.name.toLowerCase();
 
-    String iconName = 'synth';
-    TrackType trackType = TrackType.luaScript;
-    String presetId = 'soundfont_sampler';
-    String sampleName = 'super_small_font.sf2';
-    double presetNum = (midiTrack.programNumber ?? 0).toDouble();
-
-    if (midiTrack.channel == 9 || lowerName.contains('drum')) {
-      iconName = 'drums';
-      trackType = TrackType.sampler;
-      sampleName = 'super_small_font.sf2';
-      presetNum = 0.0;
-    } else if (lowerName.contains('bass')) {
-      iconName = 'bass';
-      presetNum = 33.0; // Electric Bass (finger)
-    } else if (lowerName.contains('chord') ||
-        lowerName.contains('piano') ||
-        lowerName.contains('key')) {
-      iconName = 'piano';
-      presetNum = 0.0; // Acoustic Grand Piano
-    } else if (lowerName.contains('lead') ||
-        lowerName.contains('melody') ||
-        lowerName.contains('solo')) {
-      iconName = 'synth';
-      presetNum = 80.0; // Lead 1 (square)
-    }
-
-    final sfPreset = LuaPresetLibrary.presets.firstWhere(
-      (p) => p.id == presetId,
-      orElse: () => LuaPresetLibrary.presets.first,
+    final resolution = GmInstrumentRegistry.resolve(
+      programNumber: midiTrack.programNumber,
+      trackName: midiTrack.name,
+      channel: midiTrack.channel,
     );
 
     final newTrack = TrackChannel(
       id: trackId,
       name: midiTrack.name,
-      type: trackType,
+      type: resolution.trackType,
       color: color,
-      sampleName: sampleName,
-      iconName: iconName,
-      luaScriptCode: sfPreset.code,
-      luaParams: {
-        'PresetNum': presetNum,
-        'BankNum': (midiTrack.channel == 9) ? 128.0 : 0.0,
-      },
+      sampleName: resolution.sampleName,
+      iconName: resolution.iconName,
+      luaScriptCode: resolution.luaScriptCode,
+      luaParams: Map<String, double>.from(resolution.luaParams),
+    );
+
+    debugPrint(
+      'MidiImport: Created track "${midiTrack.name}" -> ${resolution.isNative ? "Native DSP [${resolution.presetId}]" : "SoundFont [PC #${resolution.presetNum.toInt()}]"} (Reason: ${resolution.matchReason})',
     );
 
     final totalBars = midiTrack.totalBars;

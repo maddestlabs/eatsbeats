@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:eatsbeats/audio/gm/gm_instrument_registry.dart';
 import 'package:eatsbeats/audio/graph/graph_node.dart';
 import 'package:eatsbeats/audio/graph/graph_primitives.dart';
 import 'package:eatsbeats/audio/graph/graph_evaluator.dart';
@@ -717,31 +718,33 @@ void main() {
       }
     });
 
-    test('Eats Water, Eats Fire, and Eats Volts presets compile and synthesize seamlessly', () {
+    test('Eats Water, Eats Furnace, Eats Fire, and Eats Volts presets compile and synthesize seamlessly', () {
       final voltsPreset = LuaPresetLibrary.getPresetById('eats_volts');
+      final furnacePreset = LuaPresetLibrary.getPresetById('eats_furnace');
       final firePreset = LuaPresetLibrary.getPresetById('eats_fire');
       final waterPreset = LuaPresetLibrary.getPresetById('eats_water');
+      final rainPreset = LuaPresetLibrary.getPresetById('eats_rain');
+      final windPreset = LuaPresetLibrary.getPresetById('eats_wind');
+      final thunderPreset = LuaPresetLibrary.getPresetById('eats_thunder');
 
       expect(voltsPreset, isNotNull);
+      expect(furnacePreset, isNotNull);
       expect(firePreset, isNotNull);
       expect(waterPreset, isNotNull);
+      expect(rainPreset, isNotNull);
+      expect(windPreset, isNotNull);
+      expect(thunderPreset, isNotNull);
 
       // Verify compile & GUI
-      final compVolts = LuaEngine.compile(voltsPreset!.code);
-      final compFire = LuaEngine.compile(firePreset!.code);
-      final compWater = LuaEngine.compile(waterPreset!.code);
-
-      expect(compVolts.isSuccess, isTrue, reason: compVolts.errorMessage);
-      expect(compFire.isSuccess, isTrue, reason: compFire.errorMessage);
-      expect(compWater.isSuccess, isTrue, reason: compWater.errorMessage);
-
-      expect(compVolts.guiLayout, isNotNull);
-      expect(compFire.guiLayout, isNotNull);
-      expect(compWater.guiLayout, isNotNull);
+      for (final p in [voltsPreset!, furnacePreset!, firePreset!, waterPreset!, rainPreset!, windPreset!, thunderPreset!]) {
+        final comp = LuaEngine.compile(p.code);
+        expect(comp.isSuccess, isTrue, reason: '${p.name}: ${comp.errorMessage}');
+        expect(comp.guiLayout, isNotNull, reason: '${p.name} missing GUI layout');
+      }
 
       // Verify synthesis
       final pcmWater = LuaEngine.synthesizeBuffer(
-        code: waterPreset.code,
+        code: waterPreset!.code,
         durationSec: 0.2,
         freq: 261.63,
         note: 60,
@@ -749,6 +752,16 @@ void main() {
       );
       expect(pcmWater.length, greaterThan(100));
       expect(pcmWater.any((s) => s.abs() > 0.05), isTrue);
+
+      final pcmRain = LuaEngine.synthesizeBuffer(
+        code: rainPreset!.code,
+        durationSec: 0.2,
+        freq: 440.0,
+        note: 69,
+        params: {'RainIntensity': 0.7, 'RainHiss': 0.5},
+      );
+      expect(pcmRain.length, greaterThan(100));
+      expect(pcmRain.any((s) => s.abs() > 0.03), isTrue);
     });
 
     test('PhaserNode creates phase-shifted comb cancellations within [-1.0, 1.0]', () {
@@ -807,6 +820,121 @@ void main() {
         }
         expect(buffer.any((s) => s.abs() > 0.05), isTrue);
       }
+    });
+
+    test('ColoredNoiseNode produces valid signals for White, Pink, Brown, and Blue noise colors', () {
+      final ctx = GraphContext(durationSec: 0.1, freq: 440.0, midiNote: 69);
+      final outBuf = Float32List(ctx.totalSamples);
+
+      for (final col in NoiseColor.values) {
+        ColoredNoiseNode(color: col).process(ctx, outBuf);
+        expect(outBuf.any((s) => s != 0.0), isTrue);
+        for (final s in outBuf) {
+          expect(s.isNaN, isFalse);
+          expect(s.isInfinite, isFalse);
+          expect(s, inInclusiveRange(-1.0, 1.0));
+        }
+      }
+    });
+
+    test('ChaoticGustLfoNode generates bounded, continuous drift modulation', () {
+      final ctx = GraphContext(durationSec: 0.2, freq: 440.0, midiNote: 60);
+      final outBuf = Float32List(ctx.totalSamples);
+      const gust = ChaoticGustLfoNode(baseRate: 0.5, gustiness: 0.7);
+
+      gust.process(ctx, outBuf);
+      for (final s in outBuf) {
+        expect(s.isNaN, isFalse);
+        expect(s.isInfinite, isFalse);
+        expect(s, inInclusiveRange(0.0, 1.0));
+      }
+      expect(outBuf.any((s) => s > 0.1), isTrue);
+    });
+
+    test('PoissonImpulseGrainNode generates stochastic grains for all GrainTypes', () {
+      final ctx = GraphContext(durationSec: 0.15, freq: 440.0, midiNote: 60);
+      final outBuf = Float32List(ctx.totalSamples);
+
+      for (final type in GrainType.values) {
+        PoissonImpulseGrainNode(grainType: type, density: 0.8, energy: 0.9).process(ctx, outBuf);
+        expect(outBuf.any((s) => s.abs() > 0.05), isTrue, reason: 'GrainType $type emitted no grains');
+        for (final s in outBuf) {
+          expect(s.isNaN, isFalse);
+          expect(s.isInfinite, isFalse);
+          expect(s, inInclusiveRange(-1.0, 1.0));
+        }
+      }
+    });
+
+    test('ModalCavityBankNode and AcousticPropagationNode process cleanly without artifacts', () {
+      final ctx = GraphContext(durationSec: 0.1, freq: 440.0, midiNote: 60);
+      const noise = ColoredNoiseNode(color: NoiseColor.pink);
+      const cavity = ModalCavityBankNode(input: noise, surfaceType: CavitySurfaceType.tinRoof);
+      const prop = AcousticPropagationNode(input: cavity, distanceMeters: 500.0, dispersion: 0.6);
+
+      final outBuf = Float32List(ctx.totalSamples);
+      prop.process(ctx, outBuf);
+
+      expect(outBuf.any((s) => s.abs() > 0.01), isTrue);
+      for (final s in outBuf) {
+        expect(s.isNaN, isFalse);
+        expect(s.isInfinite, isFalse);
+        expect(s, inInclusiveRange(-1.0, 1.0));
+      }
+    });
+
+    test('Environmental Synthesizer Suite renders valid PCM across all 5 instruments', () {
+      final furnace = GraphEvaluator.buildEatsFurnaceSynth();
+      final rain = GraphEvaluator.buildEatsRainSynth();
+      final wind = GraphEvaluator.buildEatsWindSynth();
+      final fire = GraphEvaluator.buildEatsFireSynth();
+      final thunder = GraphEvaluator.buildEatsThunderSynth();
+
+      for (final entry in {
+        'Furnace': furnace,
+        'Rain': rain,
+        'Wind': wind,
+        'Fire': fire,
+        'Thunder': thunder,
+      }.entries) {
+        final pcm = GraphEvaluator.evaluate(
+          root: entry.value,
+          durationSec: 0.2,
+          freq: 220.0,
+          note: 57,
+          params: const {},
+        );
+
+        expect(pcm.length, greaterThan(100));
+        expect(pcm.any((s) => s.abs() > 0.02), isTrue, reason: '${entry.key} emitted silence');
+        for (final s in pcm) {
+          expect(s.isNaN, isFalse);
+          expect(s.isInfinite, isFalse);
+          expect(s, inInclusiveRange(-1.0, 1.0));
+        }
+      }
+    });
+
+    test('GM Instrument Registry resolves environmental tracks to native presets', () {
+      final rainRes = GmInstrumentRegistry.resolve(trackName: 'Heavy Rain');
+      expect(rainRes.isNative, isTrue);
+      expect(rainRes.presetId, equals('eats_rain'));
+
+      final windRes = GmInstrumentRegistry.resolve(trackName: 'Mountain Wind');
+      expect(windRes.isNative, isTrue);
+      expect(windRes.presetId, equals('eats_wind'));
+
+      final fireRes = GmInstrumentRegistry.resolve(trackName: 'Campfire Hearth');
+      expect(fireRes.isNative, isTrue);
+      expect(fireRes.presetId, equals('eats_fire'));
+
+      final thunderRes = GmInstrumentRegistry.resolve(trackName: 'Rolling Thunder');
+      expect(thunderRes.isNative, isTrue);
+      expect(thunderRes.presetId, equals('eats_thunder'));
+
+      final furnaceRes = GmInstrumentRegistry.resolve(trackName: 'Blast Furnace');
+      expect(furnaceRes.isNative, isTrue);
+      expect(furnaceRes.presetId, equals('eats_furnace'));
     });
   });
 }

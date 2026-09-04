@@ -72,7 +72,7 @@ class _PianoRollViewState extends State<PianoRollView> {
         track: track,
         midiNote: pitch,
         velocity: velocity,
-        sustainDurationSec: 0.85,
+        sustainDurationSec: 2.5,
       );
     },
     onNoteOff: (pitch) {

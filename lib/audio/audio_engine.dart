@@ -713,7 +713,7 @@ class AudioEngine {
     required TrackChannel track,
     required int midiNote,
     required double velocity,
-    double sustainDurationSec = 1.5,
+    double sustainDurationSec = 2.5,
     String? articulation,
   }) {
     if (track.isMuted) return;

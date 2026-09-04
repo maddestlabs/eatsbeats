@@ -1,3 +1,6 @@
+import 'pipe_family_presets.dart';
+import 'brass_reed_family_presets.dart';
+
 // Backwards-compatibility aliases for LuaScript definitions
 typedef LuaPreset = LuaScriptDef;
 typedef LuaPresetCategory = LuaScriptCategory;
@@ -129,10 +132,10 @@ class LuaScriptDef {
       list.addAll(['orchestral_strings', 'strings', 'pad', 'low_mid_warmth', 'stereo_wide', 'hpf_safe_80hz']);
     } else if (lowerName.contains('vocal') || lowerName.contains('vox') || lowerName.contains('voice') || lowerName.contains('speech') || lowerName.contains('tts') || lowerId.contains('tts_voice_synth')) {
       list.addAll(['vocal_synth', 'vocal', 'speech', 'lead', 'mid_dominant', 'intimate_center', 'hpf_safe_120hz', 'mud_cut_300hz']);
-    } else if (lowerName.contains('volts') || lowerName.contains('fire') || lowerName.contains('lead') || lowerId.contains('eats_volts') || lowerId.contains('eats_fire')) {
+    } else if (lowerName.contains('volts') || lowerName.contains('furnace') || lowerName.contains('lead') || lowerId.contains('eats_volts') || lowerId.contains('eats_furnace')) {
       list.addAll(['synth_lead', 'lead', 'presence_bite', 'hpf_safe_100hz']);
-    } else if (lowerName.contains('water') || lowerName.contains('pad') || lowerName.contains('ambient') || lowerId.contains('eats_water')) {
-      list.addAll(['synth_pad', 'pad', 'ambient_wash', 'stereo_wide', 'hpf_safe_120hz']);
+    } else if (lowerName.contains('rain') || lowerName.contains('wind') || lowerName.contains('thunder') || lowerName.contains('water') || lowerName.contains('fire') || lowerName.contains('pad') || lowerName.contains('ambient') || lowerId.contains('eats_water') || lowerId.contains('eats_rain') || lowerId.contains('eats_wind') || lowerId.contains('eats_fire') || lowerId.contains('eats_thunder')) {
+      list.addAll(['environmental', 'ambient', 'foley', 'sound_effects', 'stereo_wide', 'hpf_safe_80hz']);
     } else if (lowerId.contains('vintage_era_degrader') || lowerName.contains('vinyl')) {
       list.addAll(['audio_fx', 'vintage_character', 'tape_warmth']);
     } else {
@@ -145,7 +148,7 @@ class LuaScriptDef {
 class LuaScriptLibrary {
   static final List<LuaScriptDef> _customScripts = [];
 
-  static List<LuaScriptDef> get scripts => [..._builtinPresets, ..._customScripts];
+  static List<LuaScriptDef> get scripts => [..._builtinPresets, ...PipeFamilyPresets.all, ...BrassReedFamilyPresets.all, ..._customScripts];
   static List<LuaScriptDef> get presets => scripts; // Compatibility alias
 
   static List<LuaScriptDef> getScriptsByCategory(LuaScriptCategory category) {
@@ -210,12 +213,13 @@ class LuaScriptLibrary {
 
   static LuaScriptDef? getScriptById(String id) {
     try {
+      for (final s in scripts) {
+        if (s.id == id) return s;
+      }
       return scripts.firstWhere((p) =>
-          p.id == id ||
-          (id == 'voltaic_plasma_synth' && (p.id == 'eats_volts' || p.id == 'voltaic_plasma_synth')) ||
-          (id == 'eats_volts' && (p.id == 'voltaic_plasma_synth' || p.id == 'eats_volts')) ||
-          (id == 'pyrophone_synth' && (p.id == 'eats_fire' || p.id == 'pyrophone_synth')) ||
-          (id == 'eats_fire' && (p.id == 'pyrophone_synth' || p.id == 'eats_fire')) ||
+          (id == 'voltaic_plasma_synth' && p.id == 'eats_volts') ||
+          (id == 'eats_volts' && p.id == 'voltaic_plasma_synth') ||
+          (id == 'pyrophone_synth' && p.id == 'eats_furnace') ||
           (id == 'eats_303' && (p.id == 'jc_303' || p.id == 'acid_303')) ||
           (id == 'jc_303' && (p.id == 'eats_303' || p.id == 'acid_303')) ||
           (id == 'acid_303' && (p.id == 'eats_303' || p.id == 'jc_303')));
@@ -422,8 +426,20 @@ class LuaScriptLibrary {
     if (luaCode.contains('EatsVolts') || luaCode.contains('eats_volts') || luaCode.contains('Eats Volts') || luaCode.contains('VoltaicPlasmaSynth') || luaCode.contains('voltaic_plasma_synth') || luaCode.contains('VOLTAIC') || luaCode.contains('Plasma Arc') || luaCode.contains('Singing Arc') || (luaCode.contains('SparkGap') && luaCode.contains('CrackleRate'))) {
       return getPresetById('eats_volts');
     }
-    if (luaCode.contains('EatsFire') || luaCode.contains('eats_fire') || luaCode.contains('Eats Fire') || luaCode.contains('PyrophoneSynth') || luaCode.contains('pyrophone_synth') || luaCode.contains('PYROPHONE') || luaCode.contains('Thermoacoustic') || luaCode.contains('Singing Flame') || luaCode.contains('Rijke Tube') || (luaCode.contains('FuelPressure') && luaCode.contains('FlameCusp'))) {
+    if (luaCode.contains('EatsFurnace') || luaCode.contains('eats_furnace') || luaCode.contains('Eats Furnace') || luaCode.contains('PyrophoneSynth') || luaCode.contains('pyrophone_synth') || luaCode.contains('PYROPHONE') || luaCode.contains('Thermoacoustic') || luaCode.contains('Singing Flame') || luaCode.contains('Rijke Tube') || (luaCode.contains('FuelPressure') && luaCode.contains('FlameCusp'))) {
+      return getPresetById('eats_furnace');
+    }
+    if (luaCode.contains('EatsRain') || luaCode.contains('eats_rain') || luaCode.contains('Eats Rain') || luaCode.contains('RainIntensity') || (luaCode.contains('RainHiss') && luaCode.contains('DropletForce'))) {
+      return getPresetById('eats_rain');
+    }
+    if (luaCode.contains('EatsWind') || luaCode.contains('eats_wind') || luaCode.contains('Eats Wind') || luaCode.contains('AeolianPitch') || (luaCode.contains('GustSpeed') && luaCode.contains('HowlDepth'))) {
+      return getPresetById('eats_wind');
+    }
+    if (luaCode.contains('EatsFire') || luaCode.contains('eats_fire') || luaCode.contains('Eats Fire') || luaCode.contains('SapCrackle') || (luaCode.contains('FlameRoar') && luaCode.contains('EmberSizzle'))) {
       return getPresetById('eats_fire');
+    }
+    if (luaCode.contains('EatsThunder') || luaCode.contains('eats_thunder') || luaCode.contains('Eats Thunder') || luaCode.contains('StrikeTrigger') || (luaCode.contains('StrikeProximity') && luaCode.contains('RumbleDecay'))) {
+      return getPresetById('eats_thunder');
     }
     if (luaCode.contains('EatsWater') || luaCode.contains('eats_water') || luaCode.contains('Eats Water') || luaCode.contains('Hydraulophone') || (luaCode.contains('WaterFlow') && luaCode.contains('BubblePinch'))) {
       return getPresetById('eats_water');
@@ -463,6 +479,75 @@ class LuaScriptLibrary {
     }
     if (luaCode.contains('Vibraphone') || luaCode.contains('vibraphone') || (luaCode.contains('MotorSpeed') && luaCode.contains('TremoloDepth')) || (luaCode.contains('DoubleOctave') && luaCode.contains('TremoloDepth'))) {
       return getPresetById('vibraphone');
+    }
+    if (luaCode.contains('ConcertPiccolo') || luaCode.contains('concert_piccolo') || luaCode.contains('Piccolo')) {
+      return getPresetById('concert_piccolo');
+    }
+    if (luaCode.contains('ConcertFlute') || luaCode.contains('concert_flute') || luaCode.contains('Flute')) {
+      return getPresetById('concert_flute');
+    }
+    if (luaCode.contains('WoodenRecorder') || luaCode.contains('wooden_recorder') || luaCode.contains('Recorder') || luaCode.contains('Blockflöte')) {
+      return getPresetById('wooden_recorder');
+    }
+    if (luaCode.contains('PanFlute') || luaCode.contains('pan_flute') || luaCode.contains('Pan Flute') || luaCode.contains('Zampoña') || luaCode.contains('Siku')) {
+      return getPresetById('pan_flute');
+    }
+    if (luaCode.contains('BlownBottle') || luaCode.contains('blown_bottle') || luaCode.contains('Blown Bottle')) {
+      return getPresetById('blown_bottle');
+    }
+    if (luaCode.contains('Shakuhachi') || luaCode.contains('shakuhachi_bamboo') || luaCode.contains('Muraiki')) {
+      return getPresetById('shakuhachi_bamboo');
+    }
+    if (luaCode.contains('TinWhistle') || luaCode.contains('tin_whistle') || luaCode.contains('Pennywhistle') || luaCode.contains('Tin Whistle')) {
+      return getPresetById('tin_whistle');
+    }
+    if (luaCode.contains('SweetOcarina') || luaCode.contains('sweet_ocarina') || luaCode.contains('Ocarina')) {
+      return getPresetById('sweet_ocarina');
+    }
+    if (luaCode.contains('OrchestralTrumpet') || luaCode.contains('orchestral_trumpet') || luaCode.contains('Trumpet')) {
+      return getPresetById('orchestral_trumpet');
+    }
+    if (luaCode.contains('TenorTrombone') || luaCode.contains('tenor_trombone') || luaCode.contains('Trombone')) {
+      return getPresetById('tenor_trombone');
+    }
+    if (luaCode.contains('Tuba') || luaCode.contains('tuba_brass')) {
+      return getPresetById('tuba_brass');
+    }
+    if (luaCode.contains('MutedTrumpet') || luaCode.contains('muted_trumpet')) {
+      return getPresetById('muted_trumpet');
+    }
+    if (luaCode.contains('FrenchHorn') || luaCode.contains('french_horn') || luaCode.contains('French Horn')) {
+      return getPresetById('french_horn');
+    }
+    if (luaCode.contains('BrassSection') || luaCode.contains('brass_section') || luaCode.contains('Brass Section')) {
+      return getPresetById('brass_section');
+    }
+    if (luaCode.contains('SopranoSax') || luaCode.contains('soprano_sax') || luaCode.contains('Soprano Sax')) {
+      return getPresetById('soprano_sax');
+    }
+    if (luaCode.contains('AltoSax') || luaCode.contains('alto_sax') || luaCode.contains('Alto Sax')) {
+      return getPresetById('alto_sax');
+    }
+    if (luaCode.contains('TenorSax') || luaCode.contains('tenor_sax') || luaCode.contains('Tenor Sax')) {
+      return getPresetById('tenor_sax');
+    }
+    if (luaCode.contains('BaritoneSax') || luaCode.contains('baritone_sax') || luaCode.contains('Baritone Sax')) {
+      return getPresetById('baritone_sax');
+    }
+    if (luaCode.contains('Oboe') || luaCode.contains('oboe_woodwind')) {
+      return getPresetById('oboe_woodwind');
+    }
+    if (luaCode.contains('EnglishHorn') || luaCode.contains('english_horn') || luaCode.contains('English Horn')) {
+      return getPresetById('english_horn');
+    }
+    if (luaCode.contains('Bassoon') || luaCode.contains('bassoon_woodwind')) {
+      return getPresetById('bassoon_woodwind');
+    }
+    if (luaCode.contains('Clarinet') || luaCode.contains('clarinet_woodwind')) {
+      return getPresetById('clarinet_woodwind');
+    }
+    if (luaCode.contains('Sitar') || luaCode.contains('sitar_jawari') || luaCode.contains('Jawari')) {
+      return getPresetById('sitar_jawari');
     }
 
     return null;
@@ -798,21 +883,21 @@ return EatsVolts
 ''',
     ),
 
-    // 00b. Eats Fire Physical Model (Thermoacoustic Combustion & Singing Flame)
+    // 00b. Eats Furnace Physical Model (Thermoacoustic Combustion & Singing Pipe)
     LuaPreset(
-      id: 'eats_fire',
-      name: 'Eats Fire',
+      id: 'eats_furnace',
+      name: 'Eats Furnace',
       category: LuaPresetCategory.instrument,
-      description: 'Physical modeling of real-world fire and thermoacoustic combustion: Kastner Rijke singing flame oscillator, convective temperature drift, turbulent combustion roar, supercritical wood sap pocket explosions, flying ember sizzles, deflagration flashover whoosh, thermal convection phaser, and tuned glass/brass draft cylinder resonance.',
+      description: 'Physical modeling of real-world thermoacoustic combustion and blast furnaces: Kastner Rijke singing flame oscillator, convective temperature drift, turbulent combustion roar, supercritical wood sap pocket explosions, flying ember sizzles, deflagration flashover whoosh, thermal convection phaser, and tuned glass/brass draft cylinder resonance.',
       code: '''
--- @id: eats_fire
--- @name: Eats Fire
+-- @id: eats_furnace
+-- @name: Eats Furnace
 -- @category: instrument
--- @description: Physical modeling of real-world fire and thermoacoustic combustion: Kastner Rijke singing flame oscillator, convective temperature drift, turbulent combustion roar, supercritical wood sap pocket explosions, flying ember sizzles, deflagration flashover whoosh, thermal convection phaser, and tuned glass/brass draft cylinder resonance.
+-- @description: Physical modeling of real-world thermoacoustic combustion and blast furnaces: Kastner Rijke singing flame oscillator, convective temperature drift, turbulent combustion roar, supercritical wood sap pocket explosions, flying ember sizzles, deflagration flashover whoosh, thermal convection phaser, and tuned glass/brass draft cylinder resonance.
 
-local EatsFire = {}
+local EatsFurnace = {}
 
-function EatsFire.init()
+function EatsFurnace.init()
   -- Singing Flame & Rijke Tube Core
   Param.add("FuelPressure", 0.1, 3.0, 1.25)
   Param.add("FlameCusp", 0.0, 1.0, 0.45)
@@ -837,7 +922,7 @@ function EatsFire.init()
   Param.add("Decay", 0.05, 2.5, 0.50)
 end
 
-function EatsFire.process(time, freq, note, params)
+function EatsFurnace.process(time, freq, note, params)
   local fuel = params["FuelPressure"] or 1.25
   local cusp = params["FlameCusp"] or 0.45
   local reso = params["TubeResonance"] or 0.50
@@ -876,11 +961,11 @@ function EatsFire.process(time, freq, note, params)
   return math.tanh(raw * 1.2) * 0.95
 end
 
-function EatsFire.gui()
+function EatsFurnace.gui()
   return {
     panel = {
-      title = "EATS FIRE",
-      subtitle = "Thermoacoustic Flame Synthesizer",
+      title = "EATS FURNACE",
+      subtitle = "Thermoacoustic Blast Furnace & Singing Pipe",
       accent = "#FF5722",
       background = "matte_metal",
       rackSides = "brushed_steel",
@@ -964,7 +1049,7 @@ function EatsFire.gui()
   }
 end
 
-function EatsFire.rack()
+function EatsFurnace.rack()
   return {
     rows = {
       {
@@ -984,7 +1069,7 @@ function EatsFire.rack()
   }
 end
 
-return EatsFire
+return EatsFurnace
 ''',
     ),
 
@@ -1174,6 +1259,403 @@ function EatsWater.rack()
 end
 
 return EatsWater
+''',
+    ),
+
+    // 00d. Eats Rain Physical Model (Granular Precipitation & Surface Cavity Matrix)
+    LuaPreset(
+      id: 'eats_rain',
+      name: 'Eats Rain',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modeling of real-world precipitation, rainfall, and surface impacts: Poisson granular droplet generator with Minnaert bubble pinch-off cavitation chirp, continuous atmospheric pink rain wash hiss, multi-surface modal cavity resonators (puddle, tin roof, foliage), and gutter drip dynamics.',
+      code: '''
+-- @id: eats_rain
+-- @name: Eats Rain
+-- @category: instrument
+-- @description: Physical modeling of real-world precipitation, rainfall, and surface impacts: Poisson granular droplet generator with Minnaert bubble pinch-off cavitation chirp, continuous atmospheric pink rain wash hiss, multi-surface modal cavity resonators (puddle, tin roof, foliage), and gutter drip dynamics.
+
+local EatsRain = {}
+
+function EatsRain.init()
+  -- Granular Precipitation Core
+  Param.add("RainIntensity", 0.0, 1.0, 0.55)
+  Param.add("DropletForce", 0.1, 1.5, 0.80)
+  Param.add("DropletPitch", 0.5, 2.5, 1.0)
+  Param.add("RainHiss", 0.0, 1.0, 0.40)
+
+  -- Surface Cavity Resonator (0=Puddle, 1=Tin Roof, 2=Foliage)
+  Param.add("SurfaceType", 0.0, 2.0, 0.0)
+  Param.add("SurfaceReso", 0.1, 0.95, 0.60)
+  Param.add("Brightness", 0.2, 2.0, 1.0)
+
+  -- Tone & Dispersion
+  Param.add("Tone", 1000.0, 18000.0, 11000.0)
+  Param.add("Decay", 0.1, 4.0, 1.2)
+end
+
+function EatsRain.process(time, freq, note, params)
+  local intens = params["RainIntensity"] or 0.55
+  local force = params["DropletForce"] or 0.80
+  local pitch = params["DropletPitch"] or 1.0
+  local hiss = params["RainHiss"] or 0.40
+  local decay = params["Decay"] or 1.2
+
+  -- Continuous rain wash (pink noise floor approximation)
+  local washTone = (math.random() * 2.0 - 1.0) * hiss * 0.22
+
+  -- Discrete Minnaert droplet plink chirp
+  local dropPlink = (math.random() < (intens * 0.045)) and (math.sin(2.0 * math.pi * 780.0 * pitch * time) * force * 0.55) or 0.0
+
+  local ampEnv = math.exp(-time / math.max(0.1, decay))
+  local raw = (washTone + dropPlink) * ampEnv
+  return math.tanh(raw * 1.2) * 0.95
+end
+
+function EatsRain.gui()
+  return {
+    panel = {
+      title = "EATS RAIN",
+      subtitle = "Granular Precipitation & Surface Acoustic Matrix",
+      accent = "#00E5FF",
+      background = "matte_metal",
+      rackSides = "brushed_steel",
+      cornerRadius = 0,
+      layout = {
+        {
+          type = "group",
+          label = "PRECIPITATION & DROPLETS (CYAN)",
+          accent = "#00E5FF",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "RainIntensity", label = "DOWNPOUR", unit = "%", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "DropletForce", label = "DROP IMPACT", unit = "J", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "DropletPitch", label = "DROP SIZE", unit = "mm", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "RainHiss", label = "RAIN WASH", unit = "dB", knobStyle = "chrome", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "SURFACE CAVITY & ACOUSTIC IMPACT (BLUE)",
+          accent = "#2979FF",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "SurfaceType", label = "SURFACE", unit = "idx", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "SurfaceReso", label = "CAVITY RESO", unit = "%", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "Brightness", label = "SPLASH BITE", unit = "%", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "Tone", label = "HIGH CUT", unit = "Hz", knobStyle = "vintage", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+return EatsRain
+''',
+    ),
+
+    // 00e. Eats Wind Physical Model (Aeolian Tempest & Cavity Howl)
+    LuaPreset(
+      id: 'eats_wind',
+      name: 'Eats Wind',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modeling of atmospheric wind, Aeolian tones, and architectural cavity whistling: fractional Brownian motion aerodynamic gust generator, Strouhal vortex shedding resonance, Harmon-derived window crack cavity notch, and chimney howl modal resonator.',
+      code: '''
+-- @id: eats_wind
+-- @name: Eats Wind
+-- @category: instrument
+-- @description: Physical modeling of atmospheric wind, Aeolian tones, and architectural cavity whistling: fractional Brownian motion aerodynamic gust generator, Strouhal vortex shedding resonance, Harmon-derived window crack cavity notch, and chimney howl modal resonator.
+
+local EatsWind = {}
+
+function EatsWind.init()
+  -- Aerodynamic Gust Core
+  Param.add("GustSpeed", 0.05, 3.0, 0.25)
+  Param.add("Turbulence", 0.0, 1.0, 0.65)
+
+  -- Aeolian Vortex Shedding & Cavity Whistle
+  Param.add("AeolianPitch", 60.0, 2000.0, 440.0)
+  Param.add("HowlDepth", 0.0, 1.0, 0.70)
+
+  -- Atmospheric Absorption & Tone
+  Param.add("Tone", 400.0, 12000.0, 4800.0)
+  Param.add("Decay", 0.2, 5.0, 2.0)
+end
+
+function EatsWind.process(time, freq, note, params)
+  local speed = params["GustSpeed"] or 0.25
+  local turb = params["Turbulence"] or 0.65
+  local fAeol = params["AeolianPitch"] or freq or 440.0
+  local howl = params["HowlDepth"] or 0.70
+  local decay = params["Decay"] or 2.0
+
+  -- Brownian/Pink turbulence airflow
+  local gustMod = 0.5 + 0.5 * math.sin(2.0 * math.pi * speed * time)
+  local airflow = (math.random() * 2.0 - 1.0) * (0.3 + 0.7 * gustMod * turb)
+
+  -- Aeolian vortex whistle
+  local whistle = math.sin(2.0 * math.pi * fAeol * time) * howl * 0.45 * gustMod
+
+  local ampEnv = math.exp(-time / math.max(0.2, decay))
+  local raw = (airflow * 0.5 + whistle * 0.5) * ampEnv
+  return math.tanh(raw * 1.3) * 0.95
+end
+
+function EatsWind.gui()
+  return {
+    panel = {
+      title = "EATS WIND",
+      subtitle = "Aeolian Tempest & Cavity Howl Synthesizer",
+      accent = "#26A69A",
+      background = "matte_metal",
+      rackSides = "brushed_steel",
+      cornerRadius = 0,
+      layout = {
+        {
+          type = "group",
+          label = "AERODYNAMIC GUST & TURBULENCE (TEAL)",
+          accent = "#26A69A",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "GustSpeed", label = "GUST SPEED", unit = "Hz", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "Turbulence", label = "TURBULENCE", unit = "%", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "AeolianPitch", label = "VORTEX PITCH", unit = "Hz", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "HowlDepth", label = "HOWL DEPTH", unit = "%", knobStyle = "chrome", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "ATMOSPHERIC AIR ABSORPTION & TONE (SLATE)",
+          accent = "#78909C",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "Tone", label = "AIR LOWPASS", unit = "Hz", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "Decay", label = "GUST SUSTAIN", unit = "s", knobStyle = "vintage", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+return EatsWind
+''',
+    ),
+
+    // 00f. Eats Fire Physical Model (Organic Campfire, Hearth & Sap Crackle)
+    LuaPreset(
+      id: 'eats_fire',
+      name: 'Eats Fire',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modeling of natural open fire, living hearths, and campfires: low-frequency turbulent deflagration combustion roar, convective thermal draft drift, supercritical wood sap pocket explosions, flying ember sizzle crackle matrix, and hollow hearth log resonance.',
+      code: '''
+-- @id: eats_fire
+-- @name: Eats Fire
+-- @category: instrument
+-- @description: Physical modeling of natural open fire, living hearths, and campfires: low-frequency turbulent deflagration combustion roar, convective thermal draft drift, supercritical wood sap pocket explosions, flying ember sizzle crackle matrix, and hollow hearth log resonance.
+
+local EatsFire = {}
+
+function EatsFire.init()
+  -- Combustion Roar & Convection Draft
+  Param.add("FlameRoar", 0.0, 1.0, 0.60)
+  Param.add("FlameDraft", 0.05, 2.0, 0.40)
+
+  -- Supercritical Wood Sap Explosions & Ember Sizzle
+  Param.add("SapCrackle", 0.0, 1.0, 0.45)
+  Param.add("PopEnergy", 0.1, 1.5, 0.85)
+  Param.add("EmberSizzle", 0.0, 1.0, 0.50)
+
+  -- Hollow Hearth Log Resonator
+  Param.add("HearthReso", 0.1, 0.95, 0.55)
+  Param.add("Tone", 500.0, 16000.0, 8000.0)
+  Param.add("Decay", 0.1, 4.0, 1.5)
+end
+
+function EatsFire.process(time, freq, note, params)
+  local roar = params["FlameRoar"] or 0.60
+  local draft = params["FlameDraft"] or 0.40
+  local sap = params["SapCrackle"] or 0.45
+  local pop = params["PopEnergy"] or 0.85
+  local ember = params["EmberSizzle"] or 0.50
+  local decay = params["Decay"] or 1.5
+
+  -- Thermal convection flutter
+  local convection = 0.5 + 0.5 * math.sin(2.0 * math.pi * draft * time)
+  local roarTone = (math.random() * 2.0 - 1.0) * roar * 0.30 * convection
+
+  -- Sap pop rupture
+  local sapPop = (math.random() < (sap * 0.035)) and (math.sin(2.0 * math.pi * 340.0 * time) * pop * 0.65) or 0.0
+
+  -- Ember sizzle
+  local emberTick = (math.random() < (ember * 0.065)) and ((math.random() * 2.0 - 1.0) * 0.35) or 0.0
+
+  local ampEnv = math.exp(-time / math.max(0.1, decay))
+  local raw = (roarTone + sapPop + emberTick) * ampEnv
+  return math.tanh(raw * 1.25) * 0.95
+end
+
+function EatsFire.gui()
+  return {
+    panel = {
+      title = "EATS FIRE",
+      subtitle = "Organic Campfire, Hearth & Sap Crackle Generator",
+      accent = "#FF3D00",
+      background = "matte_metal",
+      rackSides = "brushed_steel",
+      cornerRadius = 0,
+      layout = {
+        {
+          type = "group",
+          label = "COMBUSTION ROAR & CONVECTION (AMBER)",
+          accent = "#FF9100",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "FlameRoar", label = "FLAME ROAR", unit = "%", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "FlameDraft", label = "THERMAL DRAFT", unit = "Hz", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "HearthReso", label = "HEARTH LOG", unit = "%", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "Tone", label = "TONE", unit = "Hz", knobStyle = "chrome", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "WOOD SAP EXPLOSIONS & EMBER SIZZLE (ORANGE)",
+          accent = "#FF3D00",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "SapCrackle", label = "SAP POP RATE", unit = "%", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "PopEnergy", label = "POP ENERGY", unit = "J", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "EmberSizzle", label = "EMBER SIZZLE", unit = "%", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "Decay", label = "BURN DECAY", unit = "s", knobStyle = "vintage", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+return EatsFire
+''',
+    ),
+
+    // 00g. Eats Thunder Physical Model (Dispersive Shockwave & Rolling Thunderstrike)
+    LuaPreset(
+      id: 'eats_thunder',
+      name: 'Eats Thunder',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modeling of lightning shockwaves, atmospheric acoustic dispersion, and terrain reverberation: hypersonic Dirac shockwave impulse, Commuted Grand Piano soundboard modal dispersion network, distance-dependent air absorption lowpass, and deep valley chasm sub-bass roll.',
+      code: '''
+-- @id: eats_thunder
+-- @name: Eats Thunder
+-- @category: instrument
+-- @description: Physical modeling of lightning shockwaves, atmospheric acoustic dispersion, and terrain reverberation: hypersonic Dirac shockwave impulse, Commuted Grand Piano soundboard modal dispersion network, distance-dependent air absorption lowpass, and deep valley chasm sub-bass roll.
+
+local EatsThunder = {}
+
+function EatsThunder.init()
+  -- Hypersonic Strike Shockwave
+  Param.add("StrikeTrigger", 0.0, 1.0, 0.25)
+  Param.add("StrikeProximity", 0.1, 1.5, 1.0)
+
+  -- Atmospheric Propagation & Dispersion
+  Param.add("Distance", 10.0, 3000.0, 450.0)
+  Param.add("Dispersion", 0.0, 1.0, 0.75)
+  Param.add("AirAbsorption", 0.0, 1.0, 0.80)
+
+  -- Chasm & Piano Soundboard Rolling Resonance
+  Param.add("RumbleReso", 0.1, 0.95, 0.70)
+  Param.add("RumbleDecay", 0.2, 8.0, 3.5)
+  Param.add("Tone", 200.0, 8000.0, 1600.0)
+end
+
+function EatsThunder.process(time, freq, note, params)
+  local prox = params["StrikeProximity"] or 1.0
+  local dist = params["Distance"] or 450.0
+  local disp = params["Dispersion"] or 0.75
+  local decay = params["RumbleDecay"] or 3.5
+
+  -- Hypersonic shock snap
+  local snap = math.exp(-time * 50.0) * prox * (math.random() * 2.0 - 1.0)
+
+  -- Deep dispersive rolling sub-bass rumble
+  local fRumble = math.max(30.0, (freq or 45.0) * (1.0 - math.exp(-time * 0.8)))
+  local rumble = math.sin(2.0 * math.pi * fRumble * time) * math.exp(-time / math.max(0.5, decay)) * (0.5 + 0.5 * disp)
+
+  local raw = snap * (50.0 / math.max(10.0, dist * 0.1)) + rumble * 0.85
+  return math.tanh(raw * 1.3) * 0.95
+end
+
+function EatsThunder.gui()
+  return {
+    panel = {
+      title = "EATS THUNDER",
+      subtitle = "Dispersive Shockwave & Rolling Thunderstrike",
+      accent = "#7C4DFF",
+      background = "matte_metal",
+      rackSides = "brushed_steel",
+      cornerRadius = 0,
+      layout = {
+        {
+          type = "group",
+          label = "HYPERSONIC LIGHTNING STRIKE (VIOLET)",
+          accent = "#7C4DFF",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "StrikeProximity", label = "STRIKE FORCE", unit = "kA", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "Distance", label = "DISTANCE", unit = "m", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "Dispersion", label = "ROLL DISPERSION", unit = "%", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "AirAbsorption", label = "AIR ABSORPTION", unit = "%", knobStyle = "chrome", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "SOUNDBOARD CAVITY & SUB-BASS RUMBLE (INDIGO)",
+          accent = "#3D5AFE",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "RumbleReso", label = "CHASM RESO", unit = "%", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "RumbleDecay", label = "RUMBLE DECAY", unit = "s", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "Tone", label = "AIR LOWPASS", unit = "Hz", knobStyle = "vintage", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+return EatsThunder
 ''',
     ),
 

@@ -1157,6 +1157,296 @@ class GraphEvaluator {
     );
   }
 
+  /// Eats Furnace (formerly Pyrophone / Singing Flame Blast Furnace)
+  static GraphNode buildEatsFurnaceSynth() => buildPyrophoneSynth();
+
+  // ───────────────────────────────────────────────────────────────────────────
+  //  ENVIRONMENTAL SYNTHESIS SUITE: RAIN, WIND, FIRE, THUNDER
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /// Authentic Procedural Rain & Surface Splash Physical Model.
+  /// Architecture:
+  /// - Granular Poisson droplet plink stream (Minnaert bubble cavitation chirp)
+  /// - Continuous pink rain wash hiss with atmospheric bandpass filtering
+  /// - Modal cavity resonator bank (Puddle, Tin Roof, Foliage surface resonance)
+  /// - High-frequency splash spray and tone lowpass
+  static GraphNode buildEatsRainSynth() {
+    // 1. Continuous pink rain wash floor
+    const rainHiss = ColoredNoiseNode(color: NoiseColor.pink, seed: 0x2468AC);
+    const rainWashFilter = BiquadFilterNode(
+      input: rainHiss,
+      type: BiquadType.bandpass,
+      frequency: 2400.0,
+      q: 0.65,
+    );
+    const rainWashGain = GainNode(
+      input: rainWashFilter,
+      staticGain: 0.35,
+      gainParam: 'RainHiss',
+    );
+
+    // 2. Discrete stochastic droplet impact grains (Minnaert bubble chirps)
+    const dropletGrains = PoissonImpulseGrainNode(
+      grainType: GrainType.dropletMinnaert,
+      density: 0.50,
+      densityParam: 'RainIntensity',
+      energy: 0.80,
+      energyParam: 'DropletForce',
+      pitchScale: 1.0,
+      pitchScaleParam: 'DropletPitch',
+      seed: 0x13579B,
+    );
+
+    // 3. Sum wash and droplets
+    const rainMixer = MixerNode(
+      [rainWashGain, dropletGrains],
+      [0.45, 0.85],
+    );
+
+    // 4. Multi-surface modal cavity resonator (Puddle, Tin Roof, Foliage)
+    const surfaceModalBank = ModalCavityBankNode(
+      input: rainMixer,
+      surfaceType: CavitySurfaceType.puddle,
+      surfaceTypeParam: 'SurfaceType',
+      resonance: 0.60,
+      resonanceParam: 'SurfaceReso',
+      brightness: 1.0,
+      brightnessParam: 'Brightness',
+    );
+
+    // 5. Tone shaping lowpass
+    const rainTone = BiquadFilterNode(
+      input: surfaceModalBank,
+      type: BiquadType.lowpass,
+      frequency: 11000.0,
+      freqParam: 'Tone',
+      q: 0.707,
+    );
+
+    const rainGain = GainNode(input: rainTone, staticGain: 1.10);
+    return const DistortionNode(input: rainGain, drive: 0.95);
+  }
+
+  /// Authentic Procedural Wind & Aeolian Tempest Physical Model.
+  /// Architecture:
+  /// - 1/f Brownian & Pink turbulent airflow excited by multi-octave chaotic gust envelopes
+  /// - Aeolian vortex shedding whistle (Strouhal frequency tracking)
+  /// - Structural aperture cavity notch derived from Harmon brass mute acoustics
+  /// - Chimney howl & chasm modal resonance bank
+  static GraphNode buildEatsWindSynth() {
+    // 1. Atmospheric brown/pink noise core
+    const windAir = ColoredNoiseNode(color: NoiseColor.brown, seed: 0x3579BD);
+
+    // 2. Chaotic fractal gust envelope (0.05Hz - 2Hz aerodynamic drift)
+    const gustLfo = ChaoticGustLfoNode(
+      baseRate: 0.22,
+      baseRateParam: 'GustSpeed',
+      gustiness: 0.65,
+      gustinessParam: 'Turbulence',
+      minLevel: 0.12,
+      maxLevel: 1.0,
+      seed: 0x468ACE,
+    );
+
+    const gustVca = GainNode(
+      input: windAir,
+      gainSource: gustLfo,
+      staticGain: 1.0,
+    );
+
+    // 3. Aeolian vortex shedding whistle (narrow bandpass resonance)
+    const aeolianTone = BiquadFilterNode(
+      input: gustVca,
+      type: BiquadType.bandpass,
+      frequency: 440.0,
+      freqParam: 'AeolianPitch',
+      q: 3.8,
+    );
+
+    // 4. Harmon-derived cavity notch (wind whistling past narrow window cracks / keyholes)
+    const harmonCavityNotch = BiquadFilterNode(
+      input: aeolianTone,
+      type: BiquadType.peaking,
+      frequency: 1400.0,
+      gainDb: -4.5,
+      q: 2.2,
+    );
+
+    // 5. Structural chimney howl & edge-tone modal bank
+    const modalWind = ModalCavityBankNode(
+      input: gustVca,
+      surfaceType: CavitySurfaceType.chimneyHowl,
+      resonance: 0.75,
+      resonanceParam: 'HowlDepth',
+    );
+
+    const windMixer = MixerNode(
+      [gustVca, harmonCavityNotch, modalWind],
+      [0.35, 0.50, 0.55],
+    );
+
+    const windTone = BiquadFilterNode(
+      input: windMixer,
+      type: BiquadType.lowpass,
+      frequency: 4800.0,
+      freqParam: 'Tone',
+      q: 0.8,
+    );
+
+    const windGain = GainNode(input: windTone, staticGain: 1.15);
+    return const DistortionNode(input: windGain, drive: 0.95);
+  }
+
+  /// Authentic Procedural Fire & Living Hearth Physical Model.
+  /// Architecture:
+  /// - Low-frequency deflagration combustion roar (25Hz - 160Hz) with convective draft
+  /// - Supercritical wood sap explosions (instantaneous rupture click + hollow log thump)
+  /// - High-frequency fractured ember sizzle crackle matrix
+  /// - Hollow hearth wood cavity resonance and thermal convection phaser
+  static GraphNode buildEatsFireSynth() {
+    // 1. Low-end combustion deflagration roar
+    const fireRoar = ColoredNoiseNode(color: NoiseColor.brown, seed: 0x579BDF);
+    const fireRoarLp = BiquadFilterNode(
+      input: fireRoar,
+      type: BiquadType.lowpass,
+      frequency: 180.0,
+      q: 1.2,
+    );
+
+    // Convective thermal draft flutter
+    const convectionLfo = ChaoticGustLfoNode(
+      baseRate: 0.40,
+      baseRateParam: 'FlameDraft',
+      gustiness: 0.50,
+      minLevel: 0.25,
+      maxLevel: 1.0,
+      seed: 0x68ACE0,
+    );
+
+    const roarVca = GainNode(
+      input: fireRoarLp,
+      gainSource: convectionLfo,
+      staticGain: 0.85,
+      gainParam: 'FlameRoar',
+    );
+
+    // 2. Supercritical wood sap pocket rupture explosions
+    const sapPops = PoissonImpulseGrainNode(
+      grainType: GrainType.sapPinchRupture,
+      density: 0.40,
+      densityParam: 'SapCrackle',
+      energy: 0.85,
+      energyParam: 'PopEnergy',
+      seed: 0x79BDF1,
+    );
+
+    // 3. High-frequency ember sizzle and micro-crackles
+    const emberSizzle = PoissonImpulseGrainNode(
+      grainType: GrainType.emberSizzle,
+      density: 0.45,
+      densityParam: 'EmberSizzle',
+      energy: 0.65,
+      seed: 0x8ACE02,
+    );
+
+    // 4. Mix the 3 fire layers
+    const fireMixer = MixerNode(
+      [roarVca, sapPops, emberSizzle],
+      [0.65, 0.85, 0.55],
+    );
+
+    // 5. Hollow hearth log cavity resonance
+    const hearthLogCavity = ModalCavityBankNode(
+      input: fireMixer,
+      surfaceType: CavitySurfaceType.hollowLog,
+      resonance: 0.55,
+      resonanceParam: 'HearthReso',
+    );
+
+    // 6. Thermal convection refraction phaser
+    const thermalPhaser = PhaserNode(
+      input: hearthLogCavity,
+      rate: 0.32,
+      depth: 0.35,
+      feedback: 0.30,
+      mix: 0.35,
+    );
+
+    const fireGain = GainNode(input: thermalPhaser, staticGain: 1.15);
+    return const DistortionNode(input: fireGain, drive: 0.95);
+  }
+
+  /// Authentic Procedural Thunder & Dispersive Shockwave Physical Model.
+  /// Architecture:
+  /// - Hypersonic return-stroke shockwave transient (Dirac snap + sub-punch)
+  /// - Commuted Grand Piano soundboard modal dispersion network (massive rolling resonance)
+  /// - Atmospheric air absorption high-cut & multi-path terrain echo delay
+  /// - Deep valley/chasm low-frequency reverberant rumble
+  static GraphNode buildEatsThunderSynth() {
+    // 1. Hypersonic lightning shockwave impulse
+    const shockWave = PoissonImpulseGrainNode(
+      grainType: GrainType.shockTransient,
+      density: 0.15,
+      densityParam: 'StrikeTrigger',
+      energy: 1.0,
+      energyParam: 'StrikeProximity',
+      seed: 0x9BDF13,
+    );
+
+    // 2. Commuted Grand Piano soundboard exciter (for cavernous acoustic plate diffusion)
+    const soundboardExciter = CommutedSoundboardExciterNode(
+      hammerHardness: 0.95,
+      pedalResonance: 0.85,
+      pedalResonanceParam: 'RumbleDecay',
+      soundboardGain: 1.2,
+    );
+
+    const exciterMixer = MixerNode(
+      [shockWave, soundboardExciter],
+      [0.70, 0.80],
+    );
+
+    // 3. Atmospheric air absorption lowpass, multi-path terrain echoes & dispersion
+    const thunderPropagation = AcousticPropagationNode(
+      input: exciterMixer,
+      distanceMeters: 450.0,
+      distanceParam: 'Distance',
+      dispersion: 0.75,
+      dispersionParam: 'Dispersion',
+      airAbsorption: 0.80,
+      airAbsorptionParam: 'AirAbsorption',
+    );
+
+    // 4. Chasm / valley modal boundary resonance
+    const chasmValley = ModalCavityBankNode(
+      input: thunderPropagation,
+      surfaceType: CavitySurfaceType.chasm,
+      resonance: 0.70,
+      resonanceParam: 'RumbleReso',
+    );
+
+    // 5. Deep sub-bass punch (42Hz)
+    const thunderSub = BiquadFilterNode(
+      input: chasmValley,
+      type: BiquadType.peaking,
+      frequency: 42.0,
+      gainDb: 6.0,
+      q: 1.4,
+    );
+
+    // 6. Master tone lowpass
+    const thunderTone = BiquadFilterNode(
+      input: thunderSub,
+      type: BiquadType.lowpass,
+      frequency: 1600.0,
+      freqParam: 'Tone',
+      q: 0.707,
+    );
+
+    const thunderGain = GainNode(input: thunderTone, staticGain: 1.15);
+    return const DistortionNode(input: thunderGain, drive: 0.95);
+  }
+
   // ───────────────────────────────────────────────────────────────────────────
   //  YAMAHA DX7 6-OPERATOR FM E-PIANO
   // ───────────────────────────────────────────────────────────────────────────
@@ -2934,7 +3224,1096 @@ class GraphEvaluator {
 
     return outputGain;
   }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  //  GENERAL MIDI PIPE FAMILY ACOUSTIC PHYSICAL MODELS (STK / CCRMA / FAUST)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /// Concert Piccolo (GM 72): High-harmonic narrow cylindrical open waveguide (+12 semitones)
+  static GraphNode buildConcertPiccolo() {
+    const waveguide = AcousticWoodwindWaveguideNode(
+      pipeType: 0,
+      octaveOffset: 1.0,
+      defaultPressure: 1.25,
+      pressureParam: 'BreathPressure',
+      defaultChiff: 0.65,
+      chiffParam: 'ChiffAttack',
+      defaultTurbulence: 0.35,
+      turbulenceParam: 'AirTurbulence',
+      defaultOverblow: 0.0,
+      overblowParam: 'Overblow',
+      defaultDamping: 0.18,
+      defaultVibDepth: 0.25,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 6.8,
+      vibRateParam: 'VibratoRate',
+      defaultVibDelay: 0.15,
+      vibDelayParam: 'VibratoDelay',
+      defaultAttack: 0.025,
+      attackParam: 'Attack',
+      defaultDecay: 0.10,
+      decayParam: 'Decay',
+      defaultSustain: 0.88,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.18,
+      releaseParam: 'Release',
+    );
+
+    const piccoloBrightness = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 4800.0,
+      gainDb: 2.5,
+      gainDbParam: 'Brightness',
+      q: 1.2,
+    );
+
+    const piccoloBody = BiquadFilterNode(
+      input: piccoloBrightness,
+      type: BiquadType.peaking,
+      frequency: 1800.0,
+      gainDb: 1.5,
+      gainDbParam: 'BoreResonance',
+      q: 1.1,
+    );
+
+    return const GainNode(input: piccoloBody, staticGain: 0.86);
+  }
+
+  /// Concert Flute (GM 73): Transverse air-jet labium splitting edge with silver resonance
+  static GraphNode buildConcertFlute() {
+    const waveguide = AcousticWoodwindWaveguideNode(
+      pipeType: 0,
+      octaveOffset: 0.0,
+      defaultPressure: 1.15,
+      pressureParam: 'BreathPressure',
+      defaultChiff: 0.50,
+      chiffParam: 'EmbouchureChiff',
+      defaultTurbulence: 0.25,
+      turbulenceParam: 'AirTurbulence',
+      defaultOverblow: 0.0,
+      overblowParam: 'Overblow',
+      defaultDamping: 0.22,
+      defaultVibDepth: 0.30,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 5.5,
+      vibRateParam: 'VibratoRate',
+      defaultVibDelay: 0.22,
+      vibDelayParam: 'VibratoDelay',
+      defaultAttack: 0.038,
+      attackParam: 'Attack',
+      defaultDecay: 0.14,
+      decayParam: 'Decay',
+      defaultSustain: 0.85,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.25,
+      releaseParam: 'Release',
+    );
+
+    const silverWarmth = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 850.0,
+      gainDb: 1.8,
+      gainDbParam: 'SilverWarmth',
+      q: 1.1,
+    );
+
+    const bodyFormant = BiquadFilterNode(
+      input: silverWarmth,
+      type: BiquadType.peaking,
+      frequency: 3200.0,
+      gainDb: 1.5,
+      gainDbParam: 'BodyFormant',
+      q: 1.2,
+    );
+
+    return const GainNode(input: bodyFormant, staticGain: 0.88);
+  }
+
+  /// Wooden Recorder (GM 74): Baroque fipple windway with pearwood cavity resonance
+  static GraphNode buildWoodenRecorder() {
+    const waveguide = AcousticWoodwindWaveguideNode(
+      pipeType: 0,
+      octaveOffset: 0.0,
+      defaultPressure: 1.10,
+      pressureParam: 'WindwayPressure',
+      defaultChiff: 0.45,
+      chiffParam: 'FippleChiff',
+      defaultTurbulence: 0.18,
+      turbulenceParam: 'AirTurbulence',
+      defaultDamping: 0.26,
+      defaultVibDepth: 0.18,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 5.0,
+      vibRateParam: 'VibratoRate',
+      defaultVibDelay: 0.16,
+      defaultAttack: 0.030,
+      attackParam: 'Attack',
+      defaultDecay: 0.12,
+      decayParam: 'Decay',
+      defaultSustain: 0.88,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.20,
+      releaseParam: 'Release',
+    );
+
+    const pearwoodWarmth = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 520.0,
+      gainDb: 2.2,
+      gainDbParam: 'WoodWarmth',
+      q: 1.3,
+    );
+
+    const chamberRes = BiquadFilterNode(
+      input: pearwoodWarmth,
+      type: BiquadType.peaking,
+      frequency: 1600.0,
+      gainDb: 1.2,
+      gainDbParam: 'ChamberResonance',
+      q: 1.2,
+    );
+
+    return const GainNode(input: chamberRes, staticGain: 0.88);
+  }
+
+  /// Pan Flute (GM 75): Closed cane pipe waveguide with odd-harmonic overtone dominance
+  static GraphNode buildPanFlute() {
+    const waveguide = AcousticWoodwindWaveguideNode(
+      pipeType: 1, // Closed-pipe odd harmonics
+      octaveOffset: 0.0,
+      defaultPressure: 1.18,
+      pressureParam: 'BreathPressure',
+      defaultChiff: 0.55,
+      chiffParam: 'CaneChiff',
+      defaultTurbulence: 0.38,
+      turbulenceParam: 'BreathAir',
+      defaultDamping: 0.24,
+      defaultVibDepth: 0.28,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 5.8,
+      vibRateParam: 'VibratoRate',
+      defaultVibDelay: 0.18,
+      defaultAttack: 0.040,
+      attackParam: 'Attack',
+      defaultDecay: 0.15,
+      decayParam: 'Decay',
+      defaultSustain: 0.85,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.30,
+      releaseParam: 'Release',
+    );
+
+    const caneResonance = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 680.0,
+      gainDb: 2.0,
+      gainDbParam: 'CaneResonance',
+      q: 1.2,
+    );
+
+    const caneAir = BiquadFilterNode(
+      input: caneResonance,
+      type: BiquadType.highshelf,
+      frequency: 4500.0,
+      gainDb: 1.8,
+      gainDbParam: 'OddHarmonics',
+      q: 0.8,
+    );
+
+    return const GainNode(input: caneAir, staticGain: 0.86);
+  }
+
+  /// Blown Bottle (GM 76): Helmholtz acoustic cavity resonator with lip air jet
+  static GraphNode buildBlownBottle() {
+    const waveguide = AcousticWoodwindWaveguideNode(
+      pipeType: 2, // Helmholtz cavity
+      octaveOffset: 0.0,
+      defaultPressure: 1.15,
+      pressureParam: 'BreathPressure',
+      defaultChiff: 0.45,
+      chiffParam: 'MouthChiff',
+      defaultTurbulence: 0.42,
+      turbulenceParam: 'AirTurbulence',
+      defaultDamping: 0.22,
+      defaultVibDepth: 0.12,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 4.5,
+      vibRateParam: 'VibratoRate',
+      defaultVibDelay: 0.20,
+      defaultAttack: 0.060,
+      attackParam: 'Attack',
+      defaultDecay: 0.18,
+      decayParam: 'Decay',
+      defaultSustain: 0.82,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.22,
+      releaseParam: 'Release',
+      jetGain: 1.35,
+    );
+
+    const glassTone = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 380.0,
+      gainDb: 2.0,
+      gainDbParam: 'GlassTone',
+      q: 1.4,
+    );
+
+    return const GainNode(input: glassTone, staticGain: 0.90);
+  }
+
+  /// Shakuhachi (GM 77): Traditional bamboo flute with utaguchi bevel and explosive muraiki
+  static GraphNode buildShakuhachi() {
+    const waveguide = AcousticWoodwindWaveguideNode(
+      pipeType: 0,
+      octaveOffset: 0.0,
+      defaultPressure: 1.25,
+      pressureParam: 'BreathPressure',
+      defaultChiff: 0.75,
+      chiffParam: 'MuraikiBreath',
+      defaultTurbulence: 0.48,
+      turbulenceParam: 'AirTurbulence',
+      defaultDamping: 0.20,
+      defaultVibDepth: 0.42,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 5.2,
+      vibRateParam: 'VibratoRate',
+      defaultVibDelay: 0.20,
+      vibDelayParam: 'VibratoDelay',
+      defaultAttack: 0.045,
+      attackParam: 'Attack',
+      defaultDecay: 0.16,
+      decayParam: 'Decay',
+      defaultSustain: 0.84,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.32,
+      releaseParam: 'Release',
+    );
+
+    const bambooWarmth = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 440.0,
+      gainDb: 2.5,
+      gainDbParam: 'BambooWarmth',
+      q: 1.3,
+    );
+
+    const utaguchiBrilliance = BiquadFilterNode(
+      input: bambooWarmth,
+      type: BiquadType.peaking,
+      frequency: 2600.0,
+      gainDb: 2.0,
+      gainDbParam: 'UtaguchiBevel',
+      q: 1.2,
+    );
+
+    return const GainNode(input: utaguchiBrilliance, staticGain: 0.86);
+  }
+
+  /// Tin Whistle (GM 78): Irish pennywhistle brass cylindrical bore with agile fipple chirp
+  static GraphNode buildTinWhistle() {
+    const waveguide = AcousticWoodwindWaveguideNode(
+      pipeType: 0,
+      octaveOffset: 0.0,
+      defaultPressure: 1.18,
+      pressureParam: 'BreathPressure',
+      defaultChiff: 0.60,
+      chiffParam: 'ChirpChiff',
+      defaultTurbulence: 0.22,
+      turbulenceParam: 'AirTurbulence',
+      defaultOverblow: 0.0,
+      overblowParam: 'Overblow',
+      defaultDamping: 0.19,
+      defaultVibDepth: 0.22,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 6.0,
+      vibRateParam: 'VibratoRate',
+      defaultVibDelay: 0.14,
+      defaultAttack: 0.022,
+      attackParam: 'Attack',
+      defaultDecay: 0.10,
+      decayParam: 'Decay',
+      defaultSustain: 0.86,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.20,
+      releaseParam: 'Release',
+    );
+
+    const tinBody = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 1400.0,
+      gainDb: 1.8,
+      gainDbParam: 'TinBodyTone',
+      q: 1.2,
+    );
+
+    return const GainNode(input: tinBody, staticGain: 0.88);
+  }
+
+  /// Sweet Ocarina (GM 79): Enclosed ceramic vessel cavity with gentle air chiff
+  static GraphNode buildSweetOcarina() {
+    const waveguide = AcousticWoodwindWaveguideNode(
+      pipeType: 2, // Helmholtz vessel cavity
+      octaveOffset: 0.0,
+      defaultPressure: 1.12,
+      pressureParam: 'BreathPressure',
+      defaultChiff: 0.40,
+      chiffParam: 'SoftChiff',
+      defaultTurbulence: 0.22,
+      turbulenceParam: 'AirTurbulence',
+      defaultDamping: 0.22,
+      defaultVibDepth: 0.26,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 5.3,
+      vibRateParam: 'VibratoRate',
+      defaultVibDelay: 0.18,
+      defaultAttack: 0.035,
+      attackParam: 'Attack',
+      defaultDecay: 0.13,
+      decayParam: 'Decay',
+      defaultSustain: 0.86,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.22,
+      releaseParam: 'Release',
+      jetGain: 1.35,
+    );
+
+    const ceramicWarmth = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 600.0,
+      gainDb: 2.0,
+      gainDbParam: 'CeramicSweetness',
+      q: 1.3,
+    );
+
+    const cavityRes = BiquadFilterNode(
+      input: ceramicWarmth,
+      type: BiquadType.peaking,
+      frequency: 1800.0,
+      gainDb: 1.2,
+      gainDbParam: 'CavityResonance',
+      q: 1.1,
+    );
+
+    return const GainNode(input: cavityRes, staticGain: 0.90);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  BRASS PHYSICAL MODELS (GM 56 - 63)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Orchestral Trumpet (GM 56): Brilliant lead lip-reed valve with brassy bell flare
+  static GraphNode buildOrchestralTrumpet() {
+    const waveguide = AcousticBrassWaveguideNode(
+      brassType: 0,
+      defaultPressure: 1.25,
+      pressureParam: 'BreathPressure',
+      defaultLipTension: 1.0,
+      lipTensionParam: 'LipTension',
+      defaultBellFlare: 0.82,
+      bellFlareParam: 'BellFlare',
+      defaultDamping: 0.16,
+      dampingParam: 'Damping',
+      defaultGrowl: 0.0,
+      growlParam: 'Growl',
+      defaultVibDepth: 0.22,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 5.4,
+      vibRateParam: 'VibratoRate',
+      defaultAttack: 0.038,
+      attackParam: 'Attack',
+      defaultDecay: 0.12,
+      decayParam: 'Decay',
+      defaultSustain: 0.88,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.18,
+      releaseParam: 'Release',
+    );
+
+    const brassPresence = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 2400.0,
+      gainDb: 2.2,
+      gainDbParam: 'BrassBite',
+      q: 1.2,
+    );
+
+    const airSheen = BiquadFilterNode(
+      input: brassPresence,
+      type: BiquadType.highshelf,
+      frequency: 5500.0,
+      gainDb: 1.5,
+      gainDbParam: 'AirSheen',
+    );
+
+    return const GainNode(input: airSheen, staticGain: 0.72);
+  }
+
+  /// Tenor Trombone (GM 57): Warm cylindrical/conical slide instrument with rich lower register
+  static GraphNode buildTenorTrombone() {
+    const waveguide = AcousticBrassWaveguideNode(
+      brassType: 1,
+      defaultPressure: 1.22,
+      pressureParam: 'BreathPressure',
+      defaultLipTension: 0.98,
+      lipTensionParam: 'LipTension',
+      defaultBellFlare: 0.68,
+      bellFlareParam: 'BellFlare',
+      defaultDamping: 0.20,
+      dampingParam: 'Damping',
+      defaultGrowl: 0.0,
+      growlParam: 'Growl',
+      defaultVibDepth: 0.20,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 4.8,
+      vibRateParam: 'VibratoRate',
+      defaultAttack: 0.052,
+      attackParam: 'Attack',
+      defaultDecay: 0.14,
+      decayParam: 'Decay',
+      defaultSustain: 0.88,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.24,
+      releaseParam: 'Release',
+    );
+
+    const warmBody = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 380.0,
+      gainDb: 2.5,
+      gainDbParam: 'Warmth',
+      q: 1.1,
+    );
+
+    const bellPresence = BiquadFilterNode(
+      input: warmBody,
+      type: BiquadType.peaking,
+      frequency: 1800.0,
+      gainDb: 1.8,
+      gainDbParam: 'SlidePresence',
+      q: 1.0,
+    );
+
+    return const GainNode(input: bellPresence, staticGain: 1.10);
+  }
+
+  /// Tuba (GM 58): Deep brass fundamental with huge bell radiation
+  static GraphNode buildTuba() {
+    const waveguide = AcousticBrassWaveguideNode(
+      brassType: 2,
+      defaultPressure: 1.30,
+      pressureParam: 'BreathPressure',
+      defaultLipTension: 0.92,
+      lipTensionParam: 'LipTension',
+      defaultBellFlare: 0.52,
+      bellFlareParam: 'BellFlare',
+      defaultDamping: 0.14,
+      dampingParam: 'Damping',
+      defaultGrowl: 0.0,
+      growlParam: 'Growl',
+      defaultVibDepth: 0.15,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 4.2,
+      vibRateParam: 'VibratoRate',
+      defaultAttack: 0.075,
+      attackParam: 'Attack',
+      defaultDecay: 0.18,
+      decayParam: 'Decay',
+      defaultSustain: 0.90,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.32,
+      releaseParam: 'Release',
+    );
+
+    const subChest = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.lowshelf,
+      frequency: 160.0,
+      gainDb: 3.5,
+      gainDbParam: 'SubChest',
+    );
+
+    const lowWarmth = BiquadFilterNode(
+      input: subChest,
+      type: BiquadType.peaking,
+      frequency: 450.0,
+      gainDb: 1.8,
+      gainDbParam: 'TubaBody',
+      q: 1.0,
+    );
+
+    return const GainNode(input: lowWarmth, staticGain: 1.15);
+  }
+
+  /// Muted Trumpet (GM 59): Harmon mute acoustic cavity (nasal notch EQ + tight lip impedance)
+  static GraphNode buildMutedTrumpet() {
+    const waveguide = AcousticBrassWaveguideNode(
+      brassType: 4,
+      defaultPressure: 1.18,
+      pressureParam: 'BreathPressure',
+      defaultLipTension: 1.02,
+      lipTensionParam: 'LipTension',
+      defaultBellFlare: 0.90,
+      bellFlareParam: 'BellFlare',
+      defaultMuteAmount: 1.0,
+      muteAmountParam: 'MuteStem',
+      defaultDamping: 0.22,
+      dampingParam: 'Damping',
+      defaultVibDepth: 0.26,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 5.6,
+      vibRateParam: 'VibratoRate',
+      defaultAttack: 0.032,
+      attackParam: 'Attack',
+      defaultDecay: 0.10,
+      decayParam: 'Decay',
+      defaultSustain: 0.85,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.16,
+      releaseParam: 'Release',
+    );
+
+    const harmonNasalPeak = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 2600.0,
+      gainDb: 4.5,
+      gainDbParam: 'HarmonBite',
+      q: 2.8,
+    );
+
+    const harmonCavityNotch = BiquadFilterNode(
+      input: harmonNasalPeak,
+      type: BiquadType.peaking,
+      frequency: 1400.0,
+      gainDb: -3.5,
+      gainDbParam: 'StemDepth',
+      q: 2.0,
+    );
+
+    return const GainNode(input: harmonCavityNotch, staticGain: 1.12);
+  }
+
+  /// French Horn (GM 60): Mellow rotary valve conical bell resonance with warm orchestral body
+  static GraphNode buildFrenchHorn() {
+    const waveguide = AcousticBrassWaveguideNode(
+      brassType: 3,
+      defaultPressure: 1.16,
+      pressureParam: 'BreathPressure',
+      defaultLipTension: 0.95,
+      lipTensionParam: 'LipTension',
+      defaultBellFlare: 0.44,
+      bellFlareParam: 'BellFlare',
+      defaultDamping: 0.26,
+      dampingParam: 'Damping',
+      defaultVibDepth: 0.18,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 4.6,
+      vibRateParam: 'VibratoRate',
+      defaultAttack: 0.065,
+      attackParam: 'Attack',
+      defaultDecay: 0.16,
+      decayParam: 'Decay',
+      defaultSustain: 0.88,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.28,
+      releaseParam: 'Release',
+    );
+
+    const hornWarmth = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 420.0,
+      gainDb: 3.2,
+      gainDbParam: 'HornWarmth',
+      q: 1.1,
+    );
+
+    const velvetBell = BiquadFilterNode(
+      input: hornWarmth,
+      type: BiquadType.lowpass,
+      frequency: 5500.0,
+      gainDbParam: 'BellMellow',
+      q: 0.707,
+    );
+
+    return const GainNode(input: velvetBell, staticGain: 1.12);
+  }
+
+  /// Brass Section (GM 61): Rich multi-layer orchestral brass ensemble
+  static GraphNode buildBrassSection() {
+    const lead = AcousticBrassWaveguideNode(
+      brassType: 0,
+      defaultPressure: 1.22,
+      pressureParam: 'BreathPressure',
+      defaultLipTension: 1.0,
+      defaultBellFlare: 0.75,
+      defaultDamping: 0.18,
+      defaultVibDepth: 0.20,
+      defaultAttack: 0.048,
+      defaultRelease: 0.22,
+    );
+
+    const horn = AcousticBrassWaveguideNode(
+      brassType: 3,
+      defaultPressure: 1.18,
+      defaultLipTension: 0.99,
+      defaultBellFlare: 0.50,
+      defaultDamping: 0.24,
+      defaultVibDepth: 0.16,
+      defaultAttack: 0.060,
+      defaultRelease: 0.26,
+    );
+
+    const ensembleMix = MixerNode(
+      [lead, horn],
+      [0.65, 0.55],
+    );
+
+    const sectionAir = BiquadFilterNode(
+      input: ensembleMix,
+      type: BiquadType.highshelf,
+      frequency: 4500.0,
+      gainDb: 2.0,
+      gainDbParam: 'EnsembleAir',
+    );
+
+    return const GainNode(input: sectionAir, staticGain: 1.05);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  REED PHYSICAL MODELS (GM 64 - 71)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Soprano Sax (GM 64): High-register conical woodwind with singing reed bite
+  static GraphNode buildSopranoSax() {
+    const waveguide = AcousticReedWaveguideNode(
+      reedType: 7,
+      defaultPressure: 1.18,
+      pressureParam: 'BreathPressure',
+      defaultStiffness: 0.60,
+      stiffnessParam: 'ReedStiffness',
+      defaultTurbulence: 0.20,
+      turbulenceParam: 'AirTurbulence',
+      defaultDamping: 0.18,
+      dampingParam: 'Damping',
+      defaultEmbouchure: 0.70,
+      embouchureParam: 'Embouchure',
+      defaultVibDepth: 0.32,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 5.6,
+      vibRateParam: 'VibratoRate',
+      defaultAttack: 0.032,
+      attackParam: 'Attack',
+      defaultDecay: 0.12,
+      decayParam: 'Decay',
+      defaultSustain: 0.86,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.20,
+      releaseParam: 'Release',
+    );
+
+    const sopranoBite = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 2800.0,
+      gainDb: 2.2,
+      gainDbParam: 'ReedBite',
+      q: 1.2,
+    );
+
+    return const GainNode(input: sopranoBite, staticGain: 1.05);
+  }
+
+  /// Alto Sax (GM 65): Expressive conical woodwind with rich reed growl and warmth
+  static GraphNode buildAltoSax() {
+    const waveguide = AcousticReedWaveguideNode(
+      reedType: 1,
+      defaultPressure: 1.20,
+      pressureParam: 'BreathPressure',
+      defaultStiffness: 0.55,
+      stiffnessParam: 'ReedStiffness',
+      defaultTurbulence: 0.22,
+      turbulenceParam: 'AirTurbulence',
+      defaultDamping: 0.20,
+      dampingParam: 'Damping',
+      defaultEmbouchure: 0.65,
+      embouchureParam: 'Embouchure',
+      defaultVibDepth: 0.30,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 5.4,
+      vibRateParam: 'VibratoRate',
+      defaultAttack: 0.038,
+      attackParam: 'Attack',
+      defaultDecay: 0.14,
+      decayParam: 'Decay',
+      defaultSustain: 0.88,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.22,
+      releaseParam: 'Release',
+    );
+
+    const saxBody = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 750.0,
+      gainDb: 2.5,
+      gainDbParam: 'SaxBody',
+      q: 1.1,
+    );
+
+    const reedBite = BiquadFilterNode(
+      input: saxBody,
+      type: BiquadType.peaking,
+      frequency: 2400.0,
+      gainDb: 2.0,
+      gainDbParam: 'ReedBite',
+      q: 1.3,
+    );
+
+    return const GainNode(input: reedBite, staticGain: 1.08);
+  }
+
+  /// Tenor Sax (GM 66): Smoky, resonant conical woodwind with deep breath body
+  static GraphNode buildTenorSax() {
+    const waveguide = AcousticReedWaveguideNode(
+      reedType: 2,
+      defaultPressure: 1.22,
+      pressureParam: 'BreathPressure',
+      defaultStiffness: 0.52,
+      stiffnessParam: 'ReedStiffness',
+      defaultTurbulence: 0.25,
+      turbulenceParam: 'AirTurbulence',
+      defaultDamping: 0.22,
+      dampingParam: 'Damping',
+      defaultEmbouchure: 0.60,
+      embouchureParam: 'Embouchure',
+      defaultVibDepth: 0.28,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 5.0,
+      vibRateParam: 'VibratoRate',
+      defaultAttack: 0.045,
+      attackParam: 'Attack',
+      defaultDecay: 0.16,
+      decayParam: 'Decay',
+      defaultSustain: 0.88,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.26,
+      releaseParam: 'Release',
+    );
+
+    const smokyLow = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.lowshelf,
+      frequency: 250.0,
+      gainDb: 2.8,
+      gainDbParam: 'SmokyWarmth',
+    );
+
+    const tenorPresence = BiquadFilterNode(
+      input: smokyLow,
+      type: BiquadType.peaking,
+      frequency: 1900.0,
+      gainDb: 2.2,
+      gainDbParam: 'TenorPresence',
+      q: 1.2,
+    );
+
+    return const GainNode(input: tenorPresence, staticGain: 1.10);
+  }
+
+  /// Baritone Sax (GM 67): Low-register heavy brassy conical reed
+  static GraphNode buildBaritoneSax() {
+    const waveguide = AcousticReedWaveguideNode(
+      reedType: 3,
+      defaultPressure: 1.28,
+      pressureParam: 'BreathPressure',
+      defaultStiffness: 0.48,
+      stiffnessParam: 'ReedStiffness',
+      defaultTurbulence: 0.28,
+      turbulenceParam: 'AirTurbulence',
+      defaultDamping: 0.24,
+      dampingParam: 'Damping',
+      defaultEmbouchure: 0.55,
+      embouchureParam: 'Embouchure',
+      defaultVibDepth: 0.22,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 4.5,
+      vibRateParam: 'VibratoRate',
+      defaultAttack: 0.058,
+      attackParam: 'Attack',
+      defaultDecay: 0.18,
+      decayParam: 'Decay',
+      defaultSustain: 0.90,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.30,
+      releaseParam: 'Release',
+    );
+
+    const bariWeight = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.lowshelf,
+      frequency: 180.0,
+      gainDb: 3.8,
+      gainDbParam: 'BariWeight',
+    );
+
+    const barkPresence = BiquadFilterNode(
+      input: bariWeight,
+      type: BiquadType.peaking,
+      frequency: 1400.0,
+      gainDb: 2.0,
+      gainDbParam: 'BariBark',
+      q: 1.1,
+    );
+
+    return const GainNode(input: barkPresence, staticGain: 1.12);
+  }
+
+  /// Oboe (GM 68): Conical narrow bore with nasal double-reed formant focus
+  static GraphNode buildOboe() {
+    const waveguide = AcousticReedWaveguideNode(
+      reedType: 4,
+      defaultPressure: 1.14,
+      pressureParam: 'BreathPressure',
+      defaultStiffness: 0.68,
+      stiffnessParam: 'ReedStiffness',
+      defaultTurbulence: 0.18,
+      turbulenceParam: 'AirTurbulence',
+      defaultDamping: 0.18,
+      dampingParam: 'Damping',
+      defaultEmbouchure: 0.75,
+      embouchureParam: 'Embouchure',
+      defaultVibDepth: 0.30,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 5.8,
+      vibRateParam: 'VibratoRate',
+      defaultAttack: 0.035,
+      attackParam: 'Attack',
+      defaultDecay: 0.12,
+      decayParam: 'Decay',
+      defaultSustain: 0.85,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.20,
+      releaseParam: 'Release',
+    );
+
+    const nasalFormant1 = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 1400.0,
+      gainDb: 3.5,
+      gainDbParam: 'NasalFormant1',
+      q: 2.2,
+    );
+
+    const nasalFormant2 = BiquadFilterNode(
+      input: nasalFormant1,
+      type: BiquadType.peaking,
+      frequency: 3000.0,
+      gainDb: 2.5,
+      gainDbParam: 'NasalFormant2',
+      q: 2.0,
+    );
+
+    return const GainNode(input: nasalFormant2, staticGain: 1.06);
+  }
+
+  /// English Horn (GM 69): Mellow cor anglais with pear-shaped bell resonance
+  static GraphNode buildEnglishHorn() {
+    const waveguide = AcousticReedWaveguideNode(
+      reedType: 5,
+      defaultPressure: 1.15,
+      pressureParam: 'BreathPressure',
+      defaultStiffness: 0.62,
+      stiffnessParam: 'ReedStiffness',
+      defaultTurbulence: 0.19,
+      turbulenceParam: 'AirTurbulence',
+      defaultDamping: 0.22,
+      dampingParam: 'Damping',
+      defaultEmbouchure: 0.70,
+      embouchureParam: 'Embouchure',
+      defaultVibDepth: 0.26,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 5.2,
+      vibRateParam: 'VibratoRate',
+      defaultAttack: 0.042,
+      attackParam: 'Attack',
+      defaultDecay: 0.14,
+      decayParam: 'Decay',
+      defaultSustain: 0.86,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.24,
+      releaseParam: 'Release',
+    );
+
+    const pearBell = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 850.0,
+      gainDb: 3.0,
+      gainDbParam: 'PearBellWarmth',
+      q: 1.3,
+    );
+
+    const sweetDoubleReed = BiquadFilterNode(
+      input: pearBell,
+      type: BiquadType.peaking,
+      frequency: 2200.0,
+      gainDb: 1.8,
+      gainDbParam: 'DoubleReedSweetness',
+      q: 1.8,
+    );
+
+    return const GainNode(input: sweetDoubleReed, staticGain: 1.08);
+  }
+
+  /// Bassoon (GM 70): Low conical double reed with deep, woody reedy acoustic resonance
+  static GraphNode buildBassoon() {
+    const waveguide = AcousticReedWaveguideNode(
+      reedType: 6,
+      defaultPressure: 1.20,
+      pressureParam: 'BreathPressure',
+      defaultStiffness: 0.54,
+      stiffnessParam: 'ReedStiffness',
+      defaultTurbulence: 0.24,
+      turbulenceParam: 'AirTurbulence',
+      defaultDamping: 0.20,
+      dampingParam: 'Damping',
+      defaultEmbouchure: 0.62,
+      embouchureParam: 'Embouchure',
+      defaultVibDepth: 0.22,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 4.8,
+      vibRateParam: 'VibratoRate',
+      defaultAttack: 0.048,
+      attackParam: 'Attack',
+      defaultDecay: 0.16,
+      decayParam: 'Decay',
+      defaultSustain: 0.88,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.26,
+      releaseParam: 'Release',
+    );
+
+    const mapleBore = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 480.0,
+      gainDb: 3.2,
+      gainDbParam: 'MapleBore',
+      q: 1.2,
+    );
+
+    const doubleReedFormant = BiquadFilterNode(
+      input: mapleBore,
+      type: BiquadType.peaking,
+      frequency: 1600.0,
+      gainDb: 2.2,
+      gainDbParam: 'BassoonFormant',
+      q: 1.6,
+    );
+
+    return const GainNode(input: doubleReedFormant, staticGain: 1.12);
+  }
+
+  /// Clarinet (GM 71): Pure odd-harmonic woody cylindrical bore
+  static GraphNode buildClarinet() {
+    const waveguide = AcousticReedWaveguideNode(
+      reedType: 0, // Cylindrical closed tube: odd harmonics (1f0, 3f0, 5f0...)
+      defaultPressure: 1.15,
+      pressureParam: 'BreathPressure',
+      defaultStiffness: 0.58,
+      stiffnessParam: 'ReedStiffness',
+      defaultTurbulence: 0.16,
+      turbulenceParam: 'AirTurbulence',
+      defaultDamping: 0.18,
+      dampingParam: 'Damping',
+      defaultEmbouchure: 0.68,
+      embouchureParam: 'Embouchure',
+      defaultVibDepth: 0.20,
+      vibDepthParam: 'VibratoDepth',
+      defaultVibRate: 5.2,
+      vibRateParam: 'VibratoRate',
+      defaultAttack: 0.036,
+      attackParam: 'Attack',
+      defaultDecay: 0.12,
+      decayParam: 'Decay',
+      defaultSustain: 0.88,
+      sustainParam: 'Sustain',
+      defaultRelease: 0.20,
+      releaseParam: 'Release',
+    );
+
+    const blackwoodCore = BiquadFilterNode(
+      input: waveguide,
+      type: BiquadType.peaking,
+      frequency: 620.0,
+      gainDb: 2.2,
+      gainDbParam: 'BlackwoodCore',
+      q: 1.1,
+    );
+
+    const chalumeauWarmth = BiquadFilterNode(
+      input: blackwoodCore,
+      type: BiquadType.lowshelf,
+      frequency: 320.0,
+      gainDb: 1.8,
+      gainDbParam: 'ChalumeauWarmth',
+    );
+
+    return const GainNode(input: chalumeauWarmth, staticGain: 1.05);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  ETHNIC PHYSICAL MODELS (GM 104)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Sitar (GM 104): Dynamic Jawari curved bone bridge buzzing shimmer + sympathetic drone strings
+  static GraphNode buildSitar() {
+    const sitarString = JawariCurvedBridgeStringNode(
+      defaultJawariBuzz: 0.72,
+      jawariBuzzParam: 'JawariBuzz',
+      defaultSympathetic: 0.50,
+      sympatheticParam: 'SympatheticTaraf',
+      defaultPluckHardness: 0.78,
+      pluckHardnessParam: 'MizrabHardness',
+      defaultSustain: 0.993,
+      sustainParam: 'Sustain',
+    );
+
+    const gourdCavity = BiquadFilterNode(
+      input: sitarString,
+      type: BiquadType.peaking,
+      frequency: 260.0,
+      gainDb: 3.5,
+      gainDbParam: 'TumbaResonance',
+      q: 1.4,
+    );
+
+    const neckAirSheen = BiquadFilterNode(
+      input: gourdCavity,
+      type: BiquadType.peaking,
+      frequency: 3400.0,
+      gainDb: 2.2,
+      gainDbParam: 'JiwariShimmer',
+      q: 1.2,
+    );
+
+    return const GainNode(input: neckAirSheen, staticGain: 1.10);
+  }
 }
+
 
 
 

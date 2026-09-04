@@ -3801,6 +3801,214 @@ class BowedStringWaveguideNode extends GraphNode {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  WOODWIND & PIPE PHYSICAL MODELING PRIMITIVES (STK / CCRMA / FAUST ACOUSTICS)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// High-fidelity Woodwind & Pipe Digital Waveguide Node.
+/// Models:
+/// - Jet-edge non-linearity (Perry Cook / STK Flute & Romain Michon Faust pm.flute)
+/// - Embouchure vortex shedding and pink breath air turbulence
+/// - Labium / Fipple / Utaguchi transient chiff burst on attack
+/// - Bore delay line reflection (0: open-open pipe, 1: closed-open pipe [odd harmonics], 2: Helmholtz cavity)
+/// - Continuous sustained ADSR breath pressure envelope
+/// - Delayed natural lyrical vibrato
+class AcousticWoodwindWaveguideNode extends GraphNode {
+  final int pipeType; // 0: Open cylindrical, 1: Closed cylindrical (odd harmonics), 2: Helmholtz cavity
+  final double defaultPressure;
+  final String? pressureParam;
+  final double defaultChiff;
+  final String? chiffParam;
+  final double defaultTurbulence;
+  final String? turbulenceParam;
+  final double defaultOverblow;
+  final String? overblowParam;
+  final double defaultDamping;
+  final String? dampingParam;
+  final double defaultVibDepth;
+  final String? vibDepthParam;
+  final double defaultVibRate;
+  final String? vibRateParam;
+  final double defaultVibDelay;
+  final String? vibDelayParam;
+  final double defaultAttack;
+  final String? attackParam;
+  final double defaultDecay;
+  final String? decayParam;
+  final double defaultSustain;
+  final String? sustainParam;
+  final double defaultRelease;
+  final String? releaseParam;
+  final double octaveOffset; // e.g. +1.0 for Piccolo (transposing octave up)
+  final double jetGain;
+
+  const AcousticWoodwindWaveguideNode({
+    this.pipeType = 0,
+    this.defaultPressure = 1.15,
+    this.pressureParam,
+    this.defaultChiff = 0.50,
+    this.chiffParam,
+    this.defaultTurbulence = 0.25,
+    this.turbulenceParam,
+    this.defaultOverblow = 0.0,
+    this.overblowParam,
+    this.defaultDamping = 0.22,
+    this.dampingParam,
+    this.defaultVibDepth = 0.28,
+    this.vibDepthParam,
+    this.defaultVibRate = 5.6,
+    this.vibRateParam,
+    this.defaultVibDelay = 0.18,
+    this.vibDelayParam,
+    this.defaultAttack = 0.035,
+    this.attackParam,
+    this.defaultDecay = 0.14,
+    this.decayParam,
+    this.defaultSustain = 0.85,
+    this.sustainParam,
+    this.defaultRelease = 0.25,
+    this.releaseParam,
+    this.octaveOffset = 0.0,
+    this.jetGain = 1.35,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final double sr = ctx.sampleRate;
+
+    // 1. Resolve Dynamic Parameters
+    final double pressure = (pressureParam != null ? ctx.getParam(pressureParam!, defaultPressure) : defaultPressure).clamp(0.2, 3.0);
+    final double chiff = (chiffParam != null ? ctx.getParam(chiffParam!, defaultChiff) : defaultChiff).clamp(0.0, 2.0);
+    final double turbulence = (turbulenceParam != null ? ctx.getParam(turbulenceParam!, defaultTurbulence) : defaultTurbulence).clamp(0.0, 1.5);
+    final double overblow = (overblowParam != null ? ctx.getParam(overblowParam!, defaultOverblow) : defaultOverblow).clamp(0.0, 1.0);
+    final double damp = (dampingParam != null ? ctx.getParam(dampingParam!, defaultDamping) : defaultDamping).clamp(0.02, 0.95);
+    final double vibDepth = (vibDepthParam != null ? ctx.getParam(vibDepthParam!, defaultVibDepth) : defaultVibDepth).clamp(0.0, 2.0);
+    final double vibRate = (vibRateParam != null ? ctx.getParam(vibRateParam!, defaultVibRate) : defaultVibRate).clamp(1.0, 12.0);
+    final double vibDelay = (vibDelayParam != null ? ctx.getParam(vibDelayParam!, defaultVibDelay) : defaultVibDelay).clamp(0.0, 1.0);
+
+    final double attack = (attackParam != null ? ctx.getParam(attackParam!, defaultAttack) : defaultAttack).clamp(0.002, 1.0);
+    final double decay = (decayParam != null ? ctx.getParam(decayParam!, defaultDecay) : defaultDecay).clamp(0.005, 1.5);
+    final double sustain = (sustainParam != null ? ctx.getParam(sustainParam!, defaultSustain) : defaultSustain).clamp(0.1, 1.0);
+    final double release = (releaseParam != null ? ctx.getParam(releaseParam!, defaultRelease) : defaultRelease).clamp(0.01, 2.0);
+
+    // Fundamental Frequency with Octave Shift & Overblow Register Jump
+    double baseFreq = (ctx.freq > 10.0 ? ctx.freq : 440.0) * math.pow(2.0, octaveOffset);
+    if (overblow > 0.5) {
+      baseFreq *= 2.0;
+    }
+
+    // Dynamic proportional ADSR scaling for short-duration note events (e.g. tracker steps)
+    double effAttack = attack;
+    double effDecay = decay;
+    double effRelease = release;
+    final double minEnvDur = effAttack + effDecay + effRelease;
+    if (ctx.durationSec < minEnvDur) {
+      final double scale = (ctx.durationSec / minEnvDur).clamp(0.05, 1.0);
+      effAttack *= scale;
+      effDecay *= scale;
+      effRelease *= scale;
+    }
+    final double gateTime = math.max(effAttack + effDecay, ctx.durationSec - effRelease);
+
+    // Delay line sizing
+    final double maxDelaySamples = sr / 20.0;
+    final int bufSize = maxDelaySamples.toInt() + 64;
+    final delayLine = Float32List(bufSize);
+    int writeIdx = 0;
+    double filterState = 0.0;
+    double dcBlockX = 0.0;
+    double dcBlockY = 0.0;
+
+    int prngState = 0x54321A79 ^ (ctx.midiNote * 197);
+
+    for (int i = 0; i < len; i++) {
+      final double t = i / sr;
+      final double normTime = len > 1 ? i / (len - 1) : 0.0;
+      final double bendSemitones = ctx.getPitchBendAt(normTime);
+
+      // 2. Continuous ADSR Breath Pressure Envelope
+      double env;
+      if (t < effAttack) {
+        env = (t / effAttack);
+      } else if (t < (effAttack + effDecay)) {
+        final double dProgress = (t - effAttack) / effDecay;
+        env = 1.0 - dProgress * (1.0 - sustain);
+      } else if (t < gateTime) {
+        env = sustain;
+      } else {
+        final double relTime = t - gateTime;
+        env = sustain * math.max(0.0, 1.0 - (relTime / effRelease));
+      }
+
+      // 3. Delayed Natural Vibrato
+      double currentVib = 0.0;
+      if (t > vibDelay && vibDepth > 0.001) {
+        final double vibRamp = ((t - vibDelay) / 0.22).clamp(0.0, 1.0);
+        currentVib = math.sin(2.0 * math.pi * vibRate * t) * (vibDepth * 0.015) * vibRamp;
+      }
+
+      final double totalSemitoneShift = bendSemitones;
+      final double curFreq = (baseFreq * math.pow(2.0, totalSemitoneShift / 12.0) * (1.0 + currentVib)).clamp(20.0, 18000.0);
+
+      // 4. Labium / Fipple Chiff Transient Burst (First 20-55ms)
+      double chiffBurst = 0.0;
+      if (t < 0.055 && chiff > 0.001) {
+        final double chiffDecay = math.exp(-t * 85.0);
+        chiffBurst = math.sin(2.0 * math.pi * (curFreq * 3.8) * t) * chiffDecay * chiff * 0.55;
+      }
+
+      // 5. Modulated Pink/Bandpass Air Jet Turbulence
+      prngState ^= (prngState << 13) & 0xFFFFFFFF;
+      prngState ^= (prngState >> 17) & 0xFFFFFFFF;
+      prngState ^= (prngState << 5) & 0xFFFFFFFF;
+      final double rawNoise = ((prngState & 0xFFFFFF) / 8388607.5) - 1.0;
+      // Couple vortex shedding turbulence to fundamental oscillation
+      final double vortexMod = 0.7 + 0.3 * math.sin(2.0 * math.pi * curFreq * t);
+      final double breathNoise = rawNoise * turbulence * 0.18 * vortexMod * env;
+
+      // Cylindrical & Cavity Waveguide Loop (0: Open Pipe / Cavity, 1: Closed Pipe)
+      // For open pipe & cavity: L = sr / curFreq
+      // For closed pipe (Pan Flute): quarter-wave odd harmonics (sr / 2f)
+      final double delaySamples = (pipeType == 1
+          ? (sr / (2.0 * curFreq))
+          : (sr / curFreq)).clamp(2.0, bufSize - 4.0);
+
+      final double readPos = writeIdx - delaySamples;
+      double readIdxD = readPos >= 0 ? readPos : (readPos + bufSize);
+      while (readIdxD >= bufSize) readIdxD -= bufSize;
+      while (readIdxD < 0) readIdxD += bufSize;
+
+      final int i0 = readIdxD.toInt() % bufSize;
+      final int i1 = (i0 + 1) % bufSize;
+      final double frac = readIdxD - readIdxD.floor();
+
+      final double delayedSample = delayLine[i0] * (1.0 - frac) + delayLine[i1] * frac;
+
+      // DC-Blocking Filter (prevents DC breath pressure from latching the nonlinear loop into saturation)
+      final double dcBlocked = delayedSample - dcBlockX + 0.995 * dcBlockY;
+      dcBlockX = delayedSample;
+      dcBlockY = dcBlocked;
+
+      // 1-Pole Lowpass loop damping filter
+      filterState = (1.0 - damp) * dcBlocked + damp * filterState;
+
+      // Non-linear air-jet splitting saturation (STK / Faust tanh non-linearity)
+      final double jetInput = (breathNoise + chiffBurst + env * pressure * 0.35) - 0.54 * filterState;
+      final double jetOutput = DistortionNode._tanh(jetInput * jetGain);
+
+      // Reflection sign: -1.0 for open-open pipe and cavity mouth
+      final double boreReflection = -filterState * 0.96;
+      final double feedbackSignal = DistortionNode._tanh(jetOutput + boreReflection);
+
+      delayLine[writeIdx] = feedbackSignal;
+      writeIdx = (writeIdx + 1) % bufSize;
+
+      outBuffer[i] = feedbackSignal * env * ctx.velocity;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  PIANO & KEYBOARD PHYSICAL MODELING PRIMITIVES
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -4807,6 +5015,1038 @@ class CommutedPianoWaveguideNode extends GraphNode {
     }
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ACOUSTIC PHYSICAL MODELING: BRASS, REED & NON-LINEAR BOUNDARY WAVEGUIDES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Physical Lip-Reed Acoustic Brass Waveguide.
+/// Models the outward-striking lip oscillator (Adachi & Sato / Fletcher),
+/// bore propagation with non-linear shock wave steepening, bell reflection/radiation,
+/// and Harmon/cup mute acoustics for Trumpet, Trombone, Tuba, and French Horn.
+class AcousticBrassWaveguideNode extends GraphNode {
+  /// 0: Trumpet (GM 56), 1: Trombone (GM 57), 2: Tuba (GM 58),
+  /// 3: French Horn (GM 60), 4: Muted Trumpet (GM 59), 5: Brass Section (GM 61)
+  final int brassType;
+  final double defaultPressure;
+  final String? pressureParam;
+  final double defaultLipTension;
+  final String? lipTensionParam;
+  final double defaultBellFlare;
+  final String? bellFlareParam;
+  final double defaultMuteAmount;
+  final String? muteAmountParam;
+  final double defaultDamping;
+  final String? dampingParam;
+  final double defaultGrowl;
+  final String? growlParam;
+  final double defaultVibDepth;
+  final String? vibDepthParam;
+  final double defaultVibRate;
+  final String? vibRateParam;
+  final double defaultVibDelay;
+  final String? vibDelayParam;
+  final double defaultAttack;
+  final String? attackParam;
+  final double defaultDecay;
+  final String? decayParam;
+  final double defaultSustain;
+  final String? sustainParam;
+  final double defaultRelease;
+  final String? releaseParam;
+
+  const AcousticBrassWaveguideNode({
+    this.brassType = 0,
+    this.defaultPressure = 1.20,
+    this.pressureParam,
+    this.defaultLipTension = 1.0,
+    this.lipTensionParam,
+    this.defaultBellFlare = 0.65,
+    this.bellFlareParam,
+    this.defaultMuteAmount = 0.0,
+    this.muteAmountParam,
+    this.defaultDamping = 0.18,
+    this.dampingParam,
+    this.defaultGrowl = 0.0,
+    this.growlParam,
+    this.defaultVibDepth = 0.22,
+    this.vibDepthParam,
+    this.defaultVibRate = 5.2,
+    this.vibRateParam,
+    this.defaultVibDelay = 0.25,
+    this.vibDelayParam,
+    this.defaultAttack = 0.045,
+    this.attackParam,
+    this.defaultDecay = 0.12,
+    this.decayParam,
+    this.defaultSustain = 0.88,
+    this.sustainParam,
+    this.defaultRelease = 0.22,
+    this.releaseParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final double sr = ctx.sampleRate;
+
+    final double pressure = (pressureParam != null ? ctx.getParam(pressureParam!, defaultPressure) : defaultPressure).clamp(0.2, 3.0);
+    final double lipTension = (lipTensionParam != null ? ctx.getParam(lipTensionParam!, defaultLipTension) : defaultLipTension).clamp(0.5, 2.0);
+    final double bellFlare = (bellFlareParam != null ? ctx.getParam(bellFlareParam!, defaultBellFlare) : defaultBellFlare).clamp(0.1, 2.0);
+    final double muteAmt = (muteAmountParam != null ? ctx.getParam(muteAmountParam!, defaultMuteAmount) : defaultMuteAmount).clamp(0.0, 1.0);
+    final double damp = (dampingParam != null ? ctx.getParam(dampingParam!, defaultDamping) : defaultDamping).clamp(0.02, 0.95);
+    final double growl = (growlParam != null ? ctx.getParam(growlParam!, defaultGrowl) : defaultGrowl).clamp(0.0, 1.0);
+    final double vibDepth = (vibDepthParam != null ? ctx.getParam(vibDepthParam!, defaultVibDepth) : defaultVibDepth).clamp(0.0, 2.0);
+    final double vibRate = (vibRateParam != null ? ctx.getParam(vibRateParam!, defaultVibRate) : defaultVibRate).clamp(1.0, 12.0);
+    final double vibDelay = (vibDelayParam != null ? ctx.getParam(vibDelayParam!, defaultVibDelay) : defaultVibDelay).clamp(0.0, 1.0);
+
+    final double attack = (attackParam != null ? ctx.getParam(attackParam!, defaultAttack) : defaultAttack).clamp(0.005, 1.0);
+    final double decay = (decayParam != null ? ctx.getParam(decayParam!, defaultDecay) : defaultDecay).clamp(0.01, 1.5);
+    final double sustain = (sustainParam != null ? ctx.getParam(sustainParam!, defaultSustain) : defaultSustain).clamp(0.1, 1.0);
+    final double release = (releaseParam != null ? ctx.getParam(releaseParam!, defaultRelease) : defaultRelease).clamp(0.01, 2.0);
+
+    final double baseFreq = ctx.freq > 10.0 ? ctx.freq : 440.0;
+
+    // Dynamic proportional ADSR scaling for short-duration note events (e.g. tracker steps)
+    double effAttack = attack;
+    double effDecay = decay;
+    double effRelease = release;
+    final double minEnvDur = effAttack + effDecay + effRelease;
+    if (ctx.durationSec < minEnvDur) {
+      final double scale = (ctx.durationSec / minEnvDur).clamp(0.05, 1.0);
+      effAttack *= scale;
+      effDecay *= scale;
+      effRelease *= scale;
+    }
+    final double gateTime = math.max(effAttack + effDecay, ctx.durationSec - effRelease);
+
+    final double maxDelaySamples = sr / 20.0;
+    final int bufSize = maxDelaySamples.toInt() + 64;
+    final delayLine = Float32List(bufSize);
+    int writeIdx = 0;
+
+    double lipY1 = 0.0, lipY2 = 0.0;
+    double deltaDcX = 0.0, deltaDcY = 0.0;
+    double loopDcX = 0.0, loopDcY = 0.0;
+    double wallLossState = 0.0;
+    double radPrevX = 0.0;
+    double radPrevY = 0.0;
+    double muteS1 = 0.0;
+    double muteS2 = 0.0;
+    double dcX = 0.0;
+    double dcY = 0.0;
+
+    int prng = 0x1A2B3C4D ^ (ctx.midiNote * 313);
+
+    for (int i = 0; i < len; i++) {
+      final double t = i / sr;
+      final double normTime = len > 1 ? i / (len - 1) : 0.0;
+      final double bendSemitones = ctx.getPitchBendAt(normTime);
+
+      double env;
+      if (t < effAttack) {
+        final double p = t / effAttack;
+        env = p * p * (3.0 - 2.0 * p);
+      } else if (t < gateTime) {
+        final double decT = (t - effAttack) / math.max(0.001, effDecay);
+        env = 1.0 - (1.0 - sustain) * math.min(1.0, decT);
+      } else {
+        final double relT = (t - gateTime) / math.max(0.001, effRelease);
+        env = sustain * math.max(0.0, 1.0 - relT);
+      }
+
+      double vib = 0.0;
+      if (vibDepth > 0.001 && t > vibDelay) {
+        final double vibRamp = math.min(1.0, (t - vibDelay) / 0.35);
+        vib = math.sin(2.0 * math.pi * vibRate * t) * (vibDepth * 0.40) * vibRamp;
+      }
+
+      double growlMod = 1.0;
+      if (growl > 0.001) {
+        growlMod = 1.0 + growl * 0.35 * math.sin(2.0 * math.pi * 32.0 * t);
+      }
+
+      final double instantaneousFreq = math.max(20.0, baseFreq * math.pow(2.0, (bendSemitones + vib) / 12.0));
+
+      final double targetDelay = (sr / instantaneousFreq) * 0.5;
+      final double delaySamples = targetDelay.clamp(2.0, maxDelaySamples - 2.0);
+
+      final double rPos = writeIdx - delaySamples;
+      final double wrappedRPos = (rPos % bufSize + bufSize) % bufSize;
+      final int i1 = wrappedRPos.toInt();
+      final int i0 = (i1 - 1 + bufSize) % bufSize;
+      final int i2 = (i1 + 1) % bufSize;
+      final int i3 = (i1 + 2) % bufSize;
+      final double frac = wrappedRPos - i1;
+
+      final double p0 = delayLine[i0];
+      final double p1 = delayLine[i1];
+      final double p2 = delayLine[i2];
+      final double p3 = delayLine[i3];
+
+      final double c0 = p1;
+      final double c1 = 0.5 * (p2 - p0);
+      final double c2 = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
+      final double c3 = 0.5 * (p3 - p0) + 1.5 * (p1 - p2);
+      final double boreFeedback = ((c3 * frac + c2) * frac + c1) * frac + c0;
+
+      prng ^= (prng << 13) & 0xFFFFFFFF;
+      prng ^= (prng >> 17) & 0xFFFFFFFF;
+      prng ^= (prng << 5) & 0xFFFFFFFF;
+      final double breathNoise = (((prng & 0xFFFFFF) / 8388607.5) - 1.0) * 0.03;
+
+      final double pMouth = (env * pressure * 1.1 * ctx.velocity + breathNoise * env) * growlMod;
+      final double deltaP = pMouth - boreFeedback;
+
+      // Sub-audio DC blocker to decouple mouth bias from dynamic oscillation
+      final double deltaPac = deltaP - deltaDcX + 0.9992 * deltaDcY;
+      deltaDcX = deltaP;
+      deltaDcY = deltaPac;
+
+      // Normalized 2-pole resonant lip oscillator with soft-limiting saturation
+      final double lipOmega = 2.0 * math.pi * instantaneousFreq * lipTension / sr;
+      const double rLip = 0.992;
+      final double a1Lip = -2.0 * rLip * math.cos(lipOmega);
+      final double a2Lip = rLip * rLip;
+      final double bNorm = (1.0 - a2Lip) * 0.45;
+
+      final double lipIn = deltaPac * bNorm * 2.0;
+      final double lipRaw = lipIn - a1Lip * lipY1 - a2Lip * lipY2;
+      final double lipOut = lipRaw.clamp(-1.8, 1.8);
+      lipY2 = lipY1;
+      lipY1 = lipOut;
+
+      // Smooth physical lip aperture
+      final double lipAperture = (0.26 + lipOut * 0.42).clamp(0.0, 1.0);
+      final double flow = deltaP * lipAperture;
+
+      double injectedBorePressure = flow * 0.85;
+
+      if (brassType != 3) {
+        final double steep = (pressure * ctx.velocity * 0.12).clamp(0.0, 0.30);
+        injectedBorePressure += injectedBorePressure * injectedBorePressure * (injectedBorePressure >= 0.0 ? 1.0 : -1.0) * steep;
+      }
+
+      final double loopDamp = (0.35 + damp * 0.35).clamp(0.1, 0.85);
+      final double waveToBore = injectedBorePressure + boreFeedback * (1.0 - lipAperture * 0.7);
+      wallLossState = (1.0 - loopDamp) * waveToBore + loopDamp * wallLossState;
+
+      // DC-block the bore feedback loop to prevent mouth pressure from latching into saturation
+      final double loopDcOut = wallLossState - loopDcX + 0.995 * loopDcY;
+      loopDcX = wallLossState;
+      loopDcY = loopDcOut;
+
+      delayLine[writeIdx] = -loopDcOut;
+      writeIdx = (writeIdx + 1) % bufSize;
+
+      final double radIn = waveToBore - boreFeedback;
+      final double radCut = (0.75 - bellFlare * 0.20).clamp(0.2, 0.90);
+      final double radOut = (radIn - radPrevX) + radCut * radPrevY;
+      radPrevX = radIn;
+      radPrevY = radOut;
+
+      double finalSound = radOut;
+
+      if (brassType == 4 || muteAmt > 0.01) {
+        final double mGain = brassType == 4 ? 1.0 : muteAmt;
+        final double wMute = 2.0 * math.pi * 2200.0 / sr;
+        final double alpha = math.sin(wMute) / (2.0 * 3.5);
+        final double a0 = 1.0 + alpha;
+        final double b0 = alpha / a0;
+        final double b2 = -b0;
+        final double a1 = (-2.0 * math.cos(wMute)) / a0;
+        final double a2 = (1.0 - alpha) / a0;
+
+        final double muteY = b0 * finalSound + b2 * muteS2 - a1 * muteS1 - a2 * muteS2;
+        muteS2 = muteS1;
+        muteS1 = muteY;
+        finalSound = (1.0 - mGain * 0.75) * finalSound + (mGain * 0.85) * muteY;
+      }
+
+      final double dcOut = finalSound - dcX + 0.995 * dcY;
+      dcX = finalSound;
+      dcY = dcOut;
+
+      outBuffer[i] = (dcOut * 1.25).clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Physical Acoustic Woodwind Reed Waveguide.
+/// Models inward-striking non-linear pressure-difference reed valve (McIntyre-Schumacher-Woodhouse / Faust STK),
+/// supporting Cylindrical bore (Clarinet: odd harmonics only) and Conical bore (Saxophones, Oboe, Bassoon: full harmonic spectrum),
+/// breath turbulence, embouchure compliance, and register key overblow.
+class AcousticReedWaveguideNode extends GraphNode {
+  /// 0: Clarinet (cylindrical bore, odd harmonics)
+  /// 1: Alto Sax (conical bore, all harmonics)
+  /// 2: Tenor Sax (conical bore, warm smoky low end)
+  /// 3: Baritone Sax (conical bore, heavy brassy reed)
+  /// 4: Oboe (conical narrow bore, double reed nasal formant)
+  /// 5: English Horn (conical bore, mellow cor anglais)
+  /// 6: Bassoon (conical double reed, deep woody resonance)
+  /// 7: Soprano Sax (conical bore, agile singing reed)
+  final int reedType;
+  final double defaultPressure;
+  final String? pressureParam;
+  final double defaultStiffness;
+  final String? stiffnessParam;
+  final double defaultTurbulence;
+  final String? turbulenceParam;
+  final double defaultDamping;
+  final String? dampingParam;
+  final double defaultEmbouchure;
+  final String? embouchureParam;
+  final double defaultVibDepth;
+  final String? vibDepthParam;
+  final double defaultVibRate;
+  final String? vibRateParam;
+  final double defaultVibDelay;
+  final String? vibDelayParam;
+  final double defaultAttack;
+  final String? attackParam;
+  final double defaultDecay;
+  final String? decayParam;
+  final double defaultSustain;
+  final String? sustainParam;
+  final double defaultRelease;
+  final String? releaseParam;
+
+  const AcousticReedWaveguideNode({
+    this.reedType = 1,
+    this.defaultPressure = 1.15,
+    this.pressureParam,
+    this.defaultStiffness = 0.55,
+    this.stiffnessParam,
+    this.defaultTurbulence = 0.22,
+    this.turbulenceParam,
+    this.defaultDamping = 0.20,
+    this.dampingParam,
+    this.defaultEmbouchure = 0.65,
+    this.embouchureParam,
+    this.defaultVibDepth = 0.28,
+    this.vibDepthParam,
+    this.defaultVibRate = 5.4,
+    this.vibRateParam,
+    this.defaultVibDelay = 0.18,
+    this.vibDelayParam,
+    this.defaultAttack = 0.035,
+    this.attackParam,
+    this.defaultDecay = 0.14,
+    this.decayParam,
+    this.defaultSustain = 0.85,
+    this.sustainParam,
+    this.defaultRelease = 0.24,
+    this.releaseParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final double sr = ctx.sampleRate;
+
+    final double pressure = (pressureParam != null ? ctx.getParam(pressureParam!, defaultPressure) : defaultPressure).clamp(0.2, 3.0);
+    final double stiffness = (stiffnessParam != null ? ctx.getParam(stiffnessParam!, defaultStiffness) : defaultStiffness).clamp(0.1, 2.0);
+    final double turbulence = (turbulenceParam != null ? ctx.getParam(turbulenceParam!, defaultTurbulence) : defaultTurbulence).clamp(0.0, 1.5);
+    final double damp = (dampingParam != null ? ctx.getParam(dampingParam!, defaultDamping) : defaultDamping).clamp(0.02, 0.95);
+    final double embouchure = (embouchureParam != null ? ctx.getParam(embouchureParam!, defaultEmbouchure) : defaultEmbouchure).clamp(0.1, 2.0);
+    final double vibDepth = (vibDepthParam != null ? ctx.getParam(vibDepthParam!, defaultVibDepth) : defaultVibDepth).clamp(0.0, 2.0);
+    final double vibRate = (vibRateParam != null ? ctx.getParam(vibRateParam!, defaultVibRate) : defaultVibRate).clamp(1.0, 12.0);
+    final double vibDelay = (vibDelayParam != null ? ctx.getParam(vibDelayParam!, defaultVibDelay) : defaultVibDelay).clamp(0.0, 1.0);
+
+    final double attack = (attackParam != null ? ctx.getParam(attackParam!, defaultAttack) : defaultAttack).clamp(0.005, 1.0);
+    final double decay = (decayParam != null ? ctx.getParam(decayParam!, defaultDecay) : defaultDecay).clamp(0.01, 1.5);
+    final double sustain = (sustainParam != null ? ctx.getParam(sustainParam!, defaultSustain) : defaultSustain).clamp(0.1, 1.0);
+    final double release = (releaseParam != null ? ctx.getParam(releaseParam!, defaultRelease) : defaultRelease).clamp(0.01, 2.0);
+
+    final double baseFreq = ctx.freq > 10.0 ? ctx.freq : 440.0;
+
+    // Dynamic proportional ADSR scaling for short-duration note events (e.g. tracker steps)
+    double effAttack = attack;
+    double effDecay = decay;
+    double effRelease = release;
+    final double minEnvDur = effAttack + effDecay + effRelease;
+    if (ctx.durationSec < minEnvDur) {
+      final double scale = (ctx.durationSec / minEnvDur).clamp(0.05, 1.0);
+      effAttack *= scale;
+      effDecay *= scale;
+      effRelease *= scale;
+    }
+    final double gateTime = math.max(effAttack + effDecay, ctx.durationSec - effRelease);
+
+    final double maxDelaySamples = sr / 20.0;
+    final int bufSize = maxDelaySamples.toInt() + 64;
+    final delayLine = Float32List(bufSize);
+    int writeIdx = 0;
+
+    double coneAllpassX = 0.0;
+    double coneAllpassY = 0.0;
+    double toneHoleState = 0.0;
+    double dcX = 0.0;
+    double dcY = 0.0;
+
+    int prng = 0x6B7C8D9E ^ (ctx.midiNote * 257);
+    final bool isCylindrical = (reedType == 0);
+
+    for (int i = 0; i < len; i++) {
+      final double t = i / sr;
+      final double normTime = len > 1 ? i / (len - 1) : 0.0;
+      final double bendSemitones = ctx.getPitchBendAt(normTime);
+
+      double env;
+      if (t < effAttack) {
+        final double p = t / effAttack;
+        env = p * (2.0 - p);
+      } else if (t < gateTime) {
+        final double decT = (t - effAttack) / math.max(0.001, effDecay);
+        env = 1.0 - (1.0 - sustain) * math.min(1.0, decT);
+      } else {
+        final double relT = (t - gateTime) / math.max(0.001, effRelease);
+        env = sustain * math.max(0.0, 1.0 - relT);
+      }
+
+      double vib = 0.0;
+      if (vibDepth > 0.001 && t > vibDelay) {
+        final double vibRamp = math.min(1.0, (t - vibDelay) / 0.30);
+        vib = math.sin(2.0 * math.pi * vibRate * t) * (vibDepth * 0.35) * vibRamp;
+      }
+
+      final double instantaneousFreq = math.max(20.0, baseFreq * math.pow(2.0, (bendSemitones + vib) / 12.0));
+
+      final double targetDelay = isCylindrical ? (sr / (2.0 * instantaneousFreq)) : (sr / instantaneousFreq);
+      final double delaySamples = targetDelay.clamp(2.0, maxDelaySamples - 2.0);
+
+      final double rPos = writeIdx - delaySamples;
+      final double wrappedRPos = (rPos % bufSize + bufSize) % bufSize;
+      final int i1 = wrappedRPos.toInt();
+      final int i0 = (i1 - 1 + bufSize) % bufSize;
+      final int i2 = (i1 + 1) % bufSize;
+      final int i3 = (i1 + 2) % bufSize;
+      final double frac = wrappedRPos - i1;
+
+      final double p0 = delayLine[i0];
+      final double p1 = delayLine[i1];
+      final double p2 = delayLine[i2];
+      final double p3 = delayLine[i3];
+
+      final double c0 = p1;
+      final double c1 = 0.5 * (p2 - p0);
+      final double c2 = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
+      final double c3 = 0.5 * (p3 - p0) + 1.5 * (p1 - p2);
+      double boreFeedback = ((c3 * frac + c2) * frac + c1) * frac + c0;
+
+      if (!isCylindrical) {
+        final double coneCoeff = -0.55;
+        final double apOut = coneCoeff * boreFeedback + coneAllpassX - coneCoeff * coneAllpassY;
+        coneAllpassX = boreFeedback;
+        coneAllpassY = apOut;
+        boreFeedback = apOut;
+      }
+
+      prng ^= (prng << 13) & 0xFFFFFFFF;
+      prng ^= (prng >> 17) & 0xFFFFFFFF;
+      prng ^= (prng << 5) & 0xFFFFFFFF;
+      final double breathNoise = (((prng & 0xFFFFFF) / 8388607.5) - 1.0) * turbulence * 0.08;
+
+      final double pMouth = (env * pressure * 0.85 * ctx.velocity) + breathNoise * env;
+      final double deltaP = pMouth - boreFeedback;
+
+      final double reedSlope = 0.45 * stiffness * embouchure;
+      final double reedOpening = (1.0 - reedSlope * deltaP).clamp(0.0, 1.0);
+      final double flow = deltaP * reedOpening;
+
+      final double loopDamp = (0.25 + damp * 0.35).clamp(0.08, 0.85);
+      final double injectedWave = flow - (isCylindrical ? boreFeedback : boreFeedback * 0.35);
+      toneHoleState = (1.0 - loopDamp) * injectedWave + loopDamp * toneHoleState;
+
+      // Inverting acoustic reflection at open bell for both cylindrical and conical geometries
+      delayLine[writeIdx] = -toneHoleState;
+      writeIdx = (writeIdx + 1) % bufSize;
+
+      final double rawOut = toneHoleState;
+      final double dcOut = rawOut - dcX + 0.995 * dcY;
+      dcX = rawOut;
+      dcY = dcOut;
+
+      outBuffer[i] = (dcOut * 2.1).clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Sitar Non-Linear Curved Bridge Waveguide (Jawari / Jiwari Effect).
+/// Simulates the dynamic contact of the vibrating string against a wide, flat curved bone bridge.
+/// High vibration amplitudes trigger dynamic string shortening and micro-impact buzzing harmonics,
+/// accompanied by a bank of sympathetic drone strings (*taraf*).
+class JawariCurvedBridgeStringNode extends GraphNode {
+  final double defaultJawariBuzz;
+  final String? jawariBuzzParam;
+  final double defaultSympathetic;
+  final String? sympatheticParam;
+  final double defaultPluckHardness;
+  final String? pluckHardnessParam;
+  final double defaultSustain;
+  final String? sustainParam;
+
+  const JawariCurvedBridgeStringNode({
+    this.defaultJawariBuzz = 0.70,
+    this.jawariBuzzParam,
+    this.defaultSympathetic = 0.45,
+    this.sympatheticParam,
+    this.defaultPluckHardness = 0.75,
+    this.pluckHardnessParam,
+    this.defaultSustain = 0.992,
+    this.sustainParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final double sr = ctx.sampleRate;
+
+    final double jawari = (jawariBuzzParam != null ? ctx.getParam(jawariBuzzParam!, defaultJawariBuzz) : defaultJawariBuzz).clamp(0.0, 1.0);
+    final double sympathetic = (sympatheticParam != null ? ctx.getParam(sympatheticParam!, defaultSympathetic) : defaultSympathetic).clamp(0.0, 1.0);
+    final double hardness = (pluckHardnessParam != null ? ctx.getParam(pluckHardnessParam!, defaultPluckHardness) : defaultPluckHardness).clamp(0.1, 2.0);
+    final double susMult = (sustainParam != null ? ctx.getParam(sustainParam!, defaultSustain) : defaultSustain).clamp(0.90, 0.999);
+
+    final double f0 = ctx.freq > 10.0 ? ctx.freq : 146.83; // Default D3
+    final double maxDelaySamples = sr / 20.0;
+    final int bufSize = maxDelaySamples.toInt() + 64;
+    final delayLine = Float32List(bufSize);
+    int writeIdx = 0;
+
+    double filterState = 0.0;
+
+    final int pluckLen = ((sr / f0) * 0.45 / hardness).toInt().clamp(4, (0.015 * sr).toInt());
+    int prng = 0x98765432 ^ (ctx.midiNote * 431);
+
+    final double symF1 = f0 * 1.0;
+    final double symF2 = f0 * 1.5;   // Perfect fifth (Pa)
+    final double symF3 = f0 * 1.333; // Perfect fourth (Ma)
+    final double symF4 = f0 * 1.875; // Major seventh (Ni)
+
+    double s1A = 0.0, s1B = 0.0;
+    double s2A = 0.0, s2B = 0.0;
+    double s3A = 0.0, s3B = 0.0;
+    double s4A = 0.0, s4B = 0.0;
+    double bridgeDcX = 0.0, bridgeDcY = 0.0;
+
+    final double w1 = 2.0 * math.pi * symF1 / sr;
+    final double w2 = 2.0 * math.pi * symF2 / sr;
+    final double w3 = 2.0 * math.pi * symF3 / sr;
+    final double w4 = 2.0 * math.pi * symF4 / sr;
+
+    final double symQ = 0.9982;
+
+    for (int i = 0; i < len; i++) {
+      double exc = 0.0;
+      if (i < pluckLen) {
+        prng ^= (prng << 13) & 0xFFFFFFFF;
+        prng ^= (prng >> 17) & 0xFFFFFFFF;
+        prng ^= (prng << 5) & 0xFFFFFFFF;
+        final double noise = (((prng & 0xFFFFFF) / 8388607.5) - 1.0);
+        final double env = math.sin(math.pi * i / pluckLen);
+        exc = (env + noise * 0.35) * ctx.velocity;
+      }
+
+      final double targetDelay = (sr / f0).clamp(2.0, maxDelaySamples - 2.0);
+      final double rPos = writeIdx - targetDelay;
+      final double wrappedRPos = (rPos % bufSize + bufSize) % bufSize;
+      final int i1 = wrappedRPos.toInt();
+      final int i2 = (i1 + 1) % bufSize;
+      final double frac = wrappedRPos - i1;
+      final double stringSample = delayLine[i1] * (1.0 - frac) + delayLine[i2] * frac;
+
+      // Passive asymmetric non-linear bridge impedance softening (Jawari effect)
+      double jawariSample = stringSample;
+      if (jawari > 0.001 && stringSample > 0.0) {
+        final double soft = jawari * 0.45;
+        jawariSample = stringSample / (1.0 + soft * stringSample);
+      }
+
+      filterState = filterState * 0.45 + (exc + jawariSample * susMult) * 0.55;
+      // Inverting reflection at fixed bridge termination
+      delayLine[writeIdx] = -filterState.clamp(-1.2, 1.2);
+      writeIdx = (writeIdx + 1) % bufSize;
+
+      final double rawBridgeDrive = jawariSample * 0.08 * sympathetic;
+      final double bridgeDrive = rawBridgeDrive - bridgeDcX + 0.995 * bridgeDcY;
+      bridgeDcX = rawBridgeDrive;
+      bridgeDcY = bridgeDrive;
+
+      final double y1 = bridgeDrive + 2.0 * symQ * math.cos(w1) * s1A - symQ * symQ * s1B;
+      s1B = s1A; s1A = y1;
+
+      final double y2 = bridgeDrive + 2.0 * symQ * math.cos(w2) * s2A - symQ * symQ * s2B;
+      s2B = s2A; s2A = y2;
+
+      final double y3 = bridgeDrive + 2.0 * symQ * math.cos(w3) * s3A - symQ * symQ * s3B;
+      s3B = s3A; s3A = y3;
+
+      final double y4 = bridgeDrive + 2.0 * symQ * math.cos(w4) * s4A - symQ * symQ * s4B;
+      s4B = s4A; s4A = y4;
+
+      final double symTotal = (y1 + y2 + y3 + y4) * 0.25;
+
+      outBuffer[i] = (jawariSample * 0.85 + symTotal * 0.45).clamp(-1.0, 1.0);
+    }
+  }
+}
+
+// =============================================================================
+// FUNDAMENTAL ENVIRONMENTAL ACOUSTIC PRIMITIVES
+// =============================================================================
+
+/// Spectral noise color profile.
+enum NoiseColor { white, pink, brown, blue }
+
+/// Fundamental Colored Noise Generator.
+/// Generates White, Pink (1/f), Brown/Red (1/f²), and Blue (+3dB/oct) noise
+/// for realistic aerodynamic, atmospheric, and fluid simulations.
+class ColoredNoiseNode extends GraphNode {
+  final NoiseColor color;
+  final String? colorParam;
+  final int seed;
+
+  const ColoredNoiseNode({
+    this.color = NoiseColor.pink,
+    this.colorParam,
+    this.seed = 0x5A17B9,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    int state = seed ^ (ctx.midiNote * 53);
+
+    // Determine noise color (can be selected via parameter: 0=white, 1=pink, 2=brown, 3=blue)
+    NoiseColor activeColor = color;
+    if (colorParam != null) {
+      final double pVal = ctx.getParam(colorParam!, color.index.toDouble());
+      final int idx = pVal.round().clamp(0, 3);
+      activeColor = NoiseColor.values[idx];
+    }
+
+    // Filter states for Paul Kellet's 3-pole pink noise generator
+    double b0 = 0.0, b1 = 0.0, b2 = 0.0, b3 = 0.0, b4 = 0.0, b5 = 0.0, b6 = 0.0;
+    // Leaky integrator state for brown noise
+    double brownState = 0.0;
+    // Differentiator state for blue noise
+    double lastWhite = 0.0;
+
+    for (int i = 0; i < len; i++) {
+      state ^= (state << 13) & 0xFFFFFFFF;
+      state ^= (state >> 17) & 0xFFFFFFFF;
+      state ^= (state << 5) & 0xFFFFFFFF;
+      final double white = ((state & 0xFFFFFF) / 8388607.5) - 1.0;
+
+      switch (activeColor) {
+        case NoiseColor.white:
+          outBuffer[i] = white;
+          break;
+
+        case NoiseColor.pink:
+          // Paul Kellet's accurate 1/f pinking filter approximation
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.96900 * b2 + white * 0.1538520;
+          b3 = 0.86650 * b3 + white * 0.3104856;
+          b4 = 0.55000 * b4 + white * 0.5329522;
+          b5 = -0.7616 * b5 - white * 0.0168980;
+          final double pink = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+          b6 = white * 0.115926;
+          outBuffer[i] = pink.clamp(-1.0, 1.0);
+          break;
+
+        case NoiseColor.brown:
+          // 1/f² leaky integration for deep seismic/combustion roar
+          brownState = (brownState + (0.025 * white)) / 1.025;
+          outBuffer[i] = (brownState * 3.6).clamp(-1.0, 1.0);
+          break;
+
+        case NoiseColor.blue:
+          // +3dB/octave high-frequency air hiss differentiator
+          final double blue = (white - lastWhite) * 0.65;
+          lastWhite = white;
+          outBuffer[i] = blue.clamp(-1.0, 1.0);
+          break;
+      }
+    }
+  }
+}
+
+/// Fundamental Chaotic Gust & Convection Modulator.
+/// Produces non-periodic, multi-octave 1/f fractal aerodynamic drift (0.05Hz - 2Hz)
+/// for realistic wind gusts, convective air drafts, and flame flicker.
+class ChaoticGustLfoNode extends GraphNode {
+  final double baseRate;
+  final String? baseRateParam;
+  final double gustiness;
+  final String? gustinessParam;
+  final double minLevel;
+  final double maxLevel;
+  final int seed;
+
+  const ChaoticGustLfoNode({
+    this.baseRate = 0.25,
+    this.baseRateParam,
+    this.gustiness = 0.55,
+    this.gustinessParam,
+    this.minLevel = 0.0,
+    this.maxLevel = 1.0,
+    this.seed = 0x82F41A,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double rate = (baseRateParam != null ? ctx.getParam(baseRateParam!, baseRate) : baseRate).clamp(0.01, 8.0);
+    final double gust = (gustinessParam != null ? ctx.getParam(gustinessParam!, gustiness) : gustiness).clamp(0.0, 1.0);
+
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+    int state = seed ^ (ctx.midiNote * 41);
+
+    // Multi-octave fractional Brownian motion state
+    double lagVal = 0.5;
+
+    for (int i = 0; i < len; i++) {
+      final double t = i / sr;
+      // 3-octave quasi-fractal drift
+      final double oct1 = math.sin(2.0 * math.pi * rate * t);
+      final double oct2 = math.sin(2.0 * math.pi * (rate * 2.37) * t + 1.3) * 0.5;
+      final double oct3 = math.sin(2.0 * math.pi * (rate * 5.11) * t + 2.7) * 0.25;
+
+      state ^= (state << 13) & 0xFFFFFFFF;
+      state ^= (state >> 17) & 0xFFFFFFFF;
+      state ^= (state << 5) & 0xFFFFFFFF;
+      final double jitter = (((state & 0xFFFFFF) / 16777215.0) - 0.5) * gust * 0.35;
+
+      final double raw = (oct1 + oct2 + oct3) / 1.75 + jitter;
+      // Exponential lag filter to model air inertia
+      final double alpha = (0.003 * (1.0 + gust * 2.0)).clamp(0.0001, 0.05);
+      lagVal += alpha * (raw - lagVal);
+
+      final double normalized = (lagVal * 0.5 + 0.5).clamp(0.0, 1.0);
+      outBuffer[i] = (minLevel + (maxLevel - minLevel) * normalized).clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Stochastic grain trigger waveform type.
+enum GrainType { dropletMinnaert, sapPinchRupture, emberSizzle, shockTransient }
+
+/// Fundamental Stochastic Particle Grain Generator.
+/// Emits Poisson-distributed micro-grains for rain droplets, wood sap pops,
+/// flying ember sizzles, hail impacts, and lightning shock transients.
+class PoissonImpulseGrainNode extends GraphNode {
+  final GrainType grainType;
+  final String? grainTypeParam;
+  final double density;
+  final String? densityParam;
+  final double energy;
+  final String? energyParam;
+  final double pitchScale;
+  final String? pitchScaleParam;
+  final int seed;
+
+  const PoissonImpulseGrainNode({
+    this.grainType = GrainType.dropletMinnaert,
+    this.grainTypeParam,
+    this.density = 0.45,
+    this.densityParam,
+    this.energy = 0.75,
+    this.energyParam,
+    this.pitchScale = 1.0,
+    this.pitchScaleParam,
+    this.seed = 0x93C5D7,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double dens = (densityParam != null ? ctx.getParam(densityParam!, density) : density).clamp(0.0, 1.0);
+    final double energ = (energyParam != null ? ctx.getParam(energyParam!, energy) : energy).clamp(0.0, 1.5);
+    final double pitch = (pitchScaleParam != null ? ctx.getParam(pitchScaleParam!, pitchScale) : pitchScale).clamp(0.2, 4.0);
+
+    GrainType activeType = grainType;
+    if (grainTypeParam != null) {
+      final double pVal = ctx.getParam(grainTypeParam!, grainType.index.toDouble());
+      final int idx = pVal.round().clamp(0, 3);
+      activeType = GrainType.values[idx];
+    }
+
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+    outBuffer.fillRange(0, len, 0.0);
+
+    if (dens <= 0.0005 || energ <= 0.0005) return;
+
+    int rng = seed ^ (ctx.midiNote * 83);
+    final double threshold = dens * 0.0028;
+
+    for (int i = 0; i < len; i++) {
+      rng ^= (rng << 13) & 0xFFFFFFFF;
+      rng ^= (rng >> 17) & 0xFFFFFFFF;
+      rng ^= (rng << 5) & 0xFFFFFFFF;
+      final double r0 = (rng & 0xFFFFFF) / 16777215.0;
+
+      if (r0 < threshold) {
+        rng ^= (rng << 13) & 0xFFFFFFFF;
+        final double rAmp = 0.5 + 0.5 * ((rng & 0xFFFF) / 65535.0);
+        final double grainGain = rAmp * energ;
+
+        switch (activeType) {
+          case GrainType.dropletMinnaert:
+            // Minnaert bubble plink: sweeping pitch chirp (550Hz to 1350Hz) with exponential decay
+            final int dropSamples = (0.018 * sr).toInt();
+            for (int p = 0; p < dropSamples && (i + p) < len; p++) {
+              final double tP = p / sr;
+              final double dropEnv = math.exp(-tP * 210.0);
+              final double fP = (550.0 + 750.0 * (1.0 - math.exp(-tP * 160.0))) * pitch;
+              outBuffer[i + p] += (math.sin(2.0 * math.pi * fP * tP) * dropEnv * grainGain * 0.6).clamp(-1.0, 1.0);
+            }
+            break;
+
+          case GrainType.sapPinchRupture:
+            // Supercritical steam rupture: sharp Dirac click + resonant wood hollow thump (280Hz - 420Hz)
+            final int sapSamples = (0.024 * sr).toInt();
+            outBuffer[i] += (grainGain * 0.85).clamp(-1.0, 1.0); // Dirac snap
+            for (int p = 1; p < sapSamples && (i + p) < len; p++) {
+              final double tP = p / sr;
+              final double thumpEnv = math.exp(-tP * 110.0);
+              final double fThump = (320.0 + 80.0 * math.sin(tP * 40.0)) * pitch;
+              outBuffer[i + p] += (math.sin(2.0 * math.pi * fThump * tP) * thumpEnv * grainGain * 0.5).clamp(-1.0, 1.0);
+            }
+            break;
+
+          case GrainType.emberSizzle:
+            // High-frequency fractured ember sizzle (3.5kHz - 8.5kHz)
+            final int sizzleSamples = (0.008 * sr).toInt();
+            for (int p = 0; p < sizzleSamples && (i + p) < len; p++) {
+              rng ^= (rng << 13) & 0xFFFFFFFF;
+              final double sizzleNoise = (((rng & 0xFFFF) / 32767.5) - 1.0);
+              final double sizzleEnv = math.exp(-(p / sr) * 450.0);
+              outBuffer[i + p] += (sizzleNoise * sizzleEnv * grainGain * 0.45).clamp(-1.0, 1.0);
+            }
+            break;
+
+          case GrainType.shockTransient:
+            // Lightning / blast wave hypersonic shock transient
+            final int shockSamples = (0.045 * sr).toInt();
+            for (int p = 0; p < shockSamples && (i + p) < len; p++) {
+              final double tP = p / sr;
+              final double shockEnv = math.exp(-tP * 65.0);
+              rng ^= (rng << 13) & 0xFFFFFFFF;
+              final double blastNoise = (((rng & 0xFFFF) / 32767.5) - 1.0);
+              final double subPunch = math.sin(2.0 * math.pi * 55.0 * tP);
+              outBuffer[i + p] += ((blastNoise * 0.6 + subPunch * 0.4) * shockEnv * grainGain * 0.9).clamp(-1.0, 1.0);
+            }
+            break;
+        }
+      }
+    }
+  }
+}
+
+/// Surface cavity resonance profile.
+enum CavitySurfaceType { puddle, tinRoof, foliage, hollowLog, chimneyHowl, chasm }
+
+/// Fundamental Modal Cavity Bank Resonator.
+/// Simulates physical surface impacts and acoustic cavity resonances:
+/// Puddle (liquid splash), Tin Roof (metallic pinging), Foliage (soft absorption),
+/// Hollow Log (campfire hearth), Chimney Howl (edge tones), Chasm (valley echoes).
+class ModalCavityBankNode extends GraphNode {
+  final GraphNode input;
+  final CavitySurfaceType surfaceType;
+  final String? surfaceTypeParam;
+  final double resonance;
+  final String? resonanceParam;
+  final double brightness;
+  final String? brightnessParam;
+
+  const ModalCavityBankNode({
+    required this.input,
+    this.surfaceType = CavitySurfaceType.puddle,
+    this.surfaceTypeParam,
+    this.resonance = 0.65,
+    this.resonanceParam,
+    this.brightness = 0.50,
+    this.brightnessParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final Float32List inBuf = Float32List(len);
+    input.process(ctx, inBuf);
+
+    final double reso = (resonanceParam != null ? ctx.getParam(resonanceParam!, resonance) : resonance).clamp(0.1, 0.98);
+    final double bright = (brightnessParam != null ? ctx.getParam(brightnessParam!, brightness) : brightness).clamp(0.1, 2.0);
+
+    CavitySurfaceType activeSurface = surfaceType;
+    if (surfaceTypeParam != null) {
+      final double pVal = ctx.getParam(surfaceTypeParam!, surfaceType.index.toDouble());
+      final int idx = pVal.round().clamp(0, 5);
+      activeSurface = CavitySurfaceType.values[idx];
+    }
+
+    // Modal frequencies and gains according to surface physics
+    late final List<double> modalFreqs;
+    late final List<double> modalGains;
+
+    switch (activeSurface) {
+      case CavitySurfaceType.puddle:
+        modalFreqs = [520.0 * bright, 940.0 * bright, 1680.0 * bright, 2800.0 * bright];
+        modalGains = [0.45, 0.35, 0.25, 0.15];
+        break;
+      case CavitySurfaceType.tinRoof:
+        modalFreqs = [1250.0 * bright, 2480.0 * bright, 3950.0 * bright, 5800.0 * bright];
+        modalGains = [0.30, 0.40, 0.35, 0.30];
+        break;
+      case CavitySurfaceType.foliage:
+        modalFreqs = [720.0 * bright, 1450.0 * bright, 2200.0 * bright, 3400.0 * bright];
+        modalGains = [0.50, 0.30, 0.15, 0.08];
+        break;
+      case CavitySurfaceType.hollowLog:
+        modalFreqs = [240.0 * bright, 480.0 * bright, 960.0 * bright, 1850.0 * bright];
+        modalGains = [0.55, 0.40, 0.25, 0.15];
+        break;
+      case CavitySurfaceType.chimneyHowl:
+        modalFreqs = [185.0 * bright, 370.0 * bright, 740.0 * bright, 1480.0 * bright];
+        modalGains = [0.60, 0.45, 0.30, 0.20];
+        break;
+      case CavitySurfaceType.chasm:
+        modalFreqs = [65.0 * bright, 130.0 * bright, 260.0 * bright, 520.0 * bright];
+        modalGains = [0.70, 0.50, 0.35, 0.20];
+        break;
+    }
+
+    final double sr = ctx.sampleRate;
+    final double twoPi = 2.0 * math.pi;
+
+    // Filter states for 4 parallel 2-pole resonators
+    double s1A = 0.0, s1B = 0.0;
+    double s2A = 0.0, s2B = 0.0;
+    double s3A = 0.0, s3B = 0.0;
+    double s4A = 0.0, s4B = 0.0;
+
+    final double w1 = (twoPi * modalFreqs[0] / sr).clamp(0.01, math.pi - 0.01);
+    final double w2 = (twoPi * modalFreqs[1] / sr).clamp(0.01, math.pi - 0.01);
+    final double w3 = (twoPi * modalFreqs[2] / sr).clamp(0.01, math.pi - 0.01);
+    final double w4 = (twoPi * modalFreqs[3] / sr).clamp(0.01, math.pi - 0.01);
+
+    final double r1 = reso.clamp(0.1, 0.995);
+    final double r2 = (reso * 0.96).clamp(0.1, 0.995);
+    final double r3 = (reso * 0.92).clamp(0.1, 0.995);
+    final double r4 = (reso * 0.88).clamp(0.1, 0.995);
+
+    for (int i = 0; i < len; i++) {
+      final double x = inBuf[i];
+
+      final double y1 = x + 2.0 * r1 * math.cos(w1) * s1A - r1 * r1 * s1B;
+      s1B = s1A; s1A = y1;
+
+      final double y2 = x + 2.0 * r2 * math.cos(w2) * s2A - r2 * r2 * s2B;
+      s2B = s2A; s2A = y2;
+
+      final double y3 = x + 2.0 * r3 * math.cos(w3) * s3A - r3 * r3 * s3B;
+      s3B = s3A; s3A = y3;
+
+      final double y4 = x + 2.0 * r4 * math.cos(w4) * s4A - r4 * r4 * s4B;
+      s4B = s4A; s4A = y4;
+
+      final double modalSum = y1 * modalGains[0] + y2 * modalGains[1] + y3 * modalGains[2] + y4 * modalGains[3];
+      outBuffer[i] = (x * 0.35 + modalSum * 0.65).clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Fundamental Acoustic Atmospheric Propagation Node.
+/// Models distance-dependent high-frequency air absorption ($e^{-\alpha(f) \cdot d}$),
+/// multi-path terrain reflections, and dispersive all-pass phase smearing
+/// for thunder strikes, explosions, and distant environmental audio.
+class AcousticPropagationNode extends GraphNode {
+  final GraphNode input;
+  final double distanceMeters;
+  final String? distanceParam;
+  final double dispersion;
+  final String? dispersionParam;
+  final double airAbsorption;
+  final String? airAbsorptionParam;
+
+  const AcousticPropagationNode({
+    required this.input,
+    this.distanceMeters = 350.0,
+    this.distanceParam,
+    this.dispersion = 0.50,
+    this.dispersionParam,
+    this.airAbsorption = 0.70,
+    this.airAbsorptionParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final Float32List inBuf = Float32List(len);
+    input.process(ctx, inBuf);
+
+    final double dist = (distanceParam != null ? ctx.getParam(distanceParam!, distanceMeters) : distanceMeters).clamp(10.0, 5000.0);
+    final double disp = (dispersionParam != null ? ctx.getParam(dispersionParam!, dispersion) : dispersion).clamp(0.0, 1.0);
+    final double absorp = (airAbsorptionParam != null ? ctx.getParam(airAbsorptionParam!, airAbsorption) : airAbsorption).clamp(0.0, 1.0);
+
+    final double sr = ctx.sampleRate;
+
+    // Distance-dependent air absorption lowpass cutoff (higher frequencies attenuate dramatically with distance)
+    final double baseCutoff = 18000.0 / (1.0 + (dist / 220.0) * (1.0 + absorp * 1.5));
+    final double fc = baseCutoff.clamp(120.0, 18000.0);
+    final double w0 = 2.0 * math.pi * fc / sr;
+    final double alpha = math.sin(w0) / (2.0 * 0.707);
+    final double cosw0 = math.cos(w0);
+
+    final double b0 = (1.0 - cosw0) / 2.0;
+    final double b1 = 1.0 - cosw0;
+    final double b2 = (1.0 - cosw0) / 2.0;
+    final double a0 = 1.0 + alpha;
+    final double a1 = -2.0 * cosw0;
+    final double a2 = 1.0 - alpha;
+
+    final double nb0 = b0 / a0, nb1 = b1 / a0, nb2 = b2 / a0;
+    final double na1 = a1 / a0, na2 = a2 / a0;
+
+    double x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
+    // 2-stage all-pass dispersion network state (phase delay smear)
+    double ap1X = 0.0, ap1Y = 0.0;
+    double ap2X = 0.0, ap2Y = 0.0;
+    final double apCoeff = (0.35 * disp).clamp(0.0, 0.85);
+
+    // Multi-path terrain reflection delay buffer (up to 40ms)
+    final int delaySamples = ((dist * 0.0008).clamp(0.005, 0.040) * sr).toInt();
+    final Float32List dBuf = Float32List(math.max(1, delaySamples));
+    int dIdx = 0;
+
+    for (int i = 0; i < len; i++) {
+      final double inSample = inBuf[i];
+
+      // 1. Air Absorption Lowpass
+      final double lp = nb0 * inSample + nb1 * x1 + nb2 * x2 - na1 * y1 - na2 * y2;
+      x2 = x1; x1 = inSample;
+      y2 = y1; y1 = lp;
+
+      // 2. Dispersive Allpass Phase Smear (Stage 1 & 2)
+      final double ap1 = apCoeff * lp + ap1X - apCoeff * ap1Y;
+      ap1X = lp; ap1Y = ap1;
+
+      final double ap2 = apCoeff * ap1 + ap2X - apCoeff * ap2Y;
+      ap2X = ap1; ap2Y = ap2;
+
+      // 3. Multi-path Terrain Echo Reflection
+      final double echo = dBuf[dIdx];
+      dBuf[dIdx] = ap2;
+      dIdx = (dIdx + 1) % dBuf.length;
+
+      outBuffer[i] = (ap2 * 0.75 + echo * 0.35).clamp(-1.0, 1.0);
+    }
+  }
+}
+
+
 
 
 
