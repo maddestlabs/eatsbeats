@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'lua_preset_library.dart';
+import 'lua_script_library.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../models/chord_model.dart';
@@ -192,6 +193,8 @@ class EatsLuaParser {
         }
       }
       dawState.chordTrack = loadedChords;
+    } else {
+      dawState.chordTrack = [];
     }
 
     // 6. Master FX Rack if present
@@ -204,7 +207,6 @@ class EatsLuaParser {
           dawState.masterTrack.fxRack.add(_parseFxInsert(fMap, dawState.masterTrack.fxRack.length));
         }
       }
-      dawState.audioEngine.updateMasterFx(dawState.masterTrack.fxRack);
     }
 
     dawState.notifyState();
@@ -427,6 +429,7 @@ class EatsLuaParser {
             trackId: cMap['trackId'] ?? (map['id'] ?? ''),
             startBar: (cMap['startBar'] as num?)?.toInt() ?? 0,
             barLength: (cMap['barLength'] as num?)?.toInt() ?? 2,
+            patternIndex: (cMap['patternIndex'] as num?)?.toInt() ?? clips.length,
             loopLengthBars: (cMap['loopLengthBars'] as num?)?.toInt(),
             isAudioClip: cMap['isAudioClip'] == true,
             audioSampleName: cMap['audioSampleName'] as String?,
@@ -502,10 +505,28 @@ class EatsLuaParser {
       }
     }
 
-    final trackTypeStr = map['type'] as String? ?? 'synth';
+    final rawScript = map['luaScriptCode'] as String? ?? '';
+    final presetId = (map['presetId'] as String?) ?? (map['preset'] as String?);
+    String scriptCode = rawScript;
+
+    if (scriptCode.trim().isEmpty && presetId != null && presetId.isNotEmpty) {
+      final preset = LuaScriptLibrary.getPresetById(presetId);
+      if (preset != null) {
+        scriptCode = preset.code;
+      }
+    }
+
+    if (scriptCode.trim().isEmpty) {
+      final matchedPreset = LuaScriptLibrary.findMatchingScript('', fallbackName: map['name']);
+      if (matchedPreset != null) {
+        scriptCode = matchedPreset.code;
+      }
+    }
+
+    final trackTypeStr = map['type'] as String? ?? (scriptCode.isNotEmpty ? 'luaScript' : 'synth');
     final trackType = TrackType.values.firstWhere(
       (t) => t.name == trackTypeStr,
-      orElse: () => TrackType.synth,
+      orElse: () => scriptCode.isNotEmpty ? TrackType.luaScript : TrackType.synth,
     );
 
     final activeViewStr = map['activeView'] as String? ?? 'pianoRoll';
@@ -555,7 +576,7 @@ class EatsLuaParser {
       eqMidQ: eqMidQ,
       eqHighGain: eqHighGain,
       tags: tags,
-      luaScriptCode: map['luaScriptCode'] ?? '',
+      luaScriptCode: scriptCode,
       luaParams: map['luaParams'] is Map ? Map<String, double>.from(
         (map['luaParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
       ) : {},

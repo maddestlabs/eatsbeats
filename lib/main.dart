@@ -248,6 +248,19 @@ class _DawMainShellState extends State<DawMainShell> {
       return true;
     }
 
+    // Escape -> Close floating instrument window or return from EDIT view to ARRANGER view
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      if (!_isEditingText()) {
+        if (widget.dawState.isFloatingWindowVisible) {
+          widget.dawState.closeFloatingInstrumentWindow();
+          return true;
+        } else if (widget.dawState.activeTabIndex == 1) {
+          setState(() => widget.dawState.activeTabIndex = 0);
+          return true;
+        }
+      }
+    }
+
     return false;
   }
   @override
@@ -334,6 +347,8 @@ class _DawMainShellState extends State<DawMainShell> {
         const SingleActivator(LogicalKeyboardKey.escape): () {
           if (widget.dawState.isFloatingWindowVisible) {
             widget.dawState.closeFloatingInstrumentWindow();
+          } else if (!_isEditingText() && widget.dawState.activeTabIndex == 1) {
+            setState(() => widget.dawState.activeTabIndex = 0);
           }
         },
         const SingleActivator(LogicalKeyboardKey.keyD, meta: true): () {
@@ -358,130 +373,154 @@ class _DawMainShellState extends State<DawMainShell> {
       },
       child: FocusScope(
         autofocus: true,
-        child: Stack(
-          children: [
-            TickerMode(
-              enabled: !widget.dawState.isFloatingWindowVisible,
-              child: Scaffold(
-                backgroundColor: EatsTheme.backgroundDark,
-                body: SafeArea(
-                  child: Column(
-                    children: [
-                      // Top Transport Header (Always Visible)
-                      TransportHeader(dawState: widget.dawState),
+        child: SizedBox.expand(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              TickerMode(
+                enabled: widget.dawState.guiAnimationsEnabled &&
+                    !(widget.dawState.isFloatingWindowVisible && widget.dawState.isFloatingWindowMaximized),
+                child: Offstage(
+                  offstage: widget.dawState.isFloatingWindowVisible && widget.dawState.isFloatingWindowMaximized,
+                  child: Scaffold(
+                    backgroundColor: EatsTheme.backgroundDark,
+                  body: SafeArea(
+                    child: Column(
+                      children: [
+                        // Top Transport Header (Always Visible)
+                        TransportHeader(dawState: widget.dawState),
 
-                      // Main Studio Workbench Body & Optional Project Browser Drawer
-                      Expanded(
-                        child: Container(
-                          color: EatsTheme.backgroundDark,
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              return Stack(
-                                children: [
-                                  Positioned.fill(
-                                    child: IndexedStack(
-                                      index: widget.dawState.activeTabIndex,
-                                      children: [
-                                        TickerMode(
-                                          enabled: widget.dawState.activeTabIndex == 0,
-                                          child: ArrangerView(dawState: widget.dawState),
-                                        ),
-                                        TickerMode(
-                                          enabled: widget.dawState.activeTabIndex == 1,
-                                          child: EditView(dawState: widget.dawState),
-                                        ),
-                                        TickerMode(
-                                          enabled: widget.dawState.activeTabIndex == 2,
-                                          child: TrackInspectorView(dawState: widget.dawState),
-                                        ),
-                                        TickerMode(
-                                          enabled: widget.dawState.activeTabIndex == 3,
-                                          child: MixerView(dawState: widget.dawState),
-                                        ),
-                                        TickerMode(
-                                          enabled: widget.dawState.activeTabIndex == 4,
-                                          child: LuaWorkbenchView(dawState: widget.dawState),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-
-                                  // Fast 150ms Animated Slide-In / Slide-Out Project Browser Drawer
-                                  AnimatedPositioned(
-                                    duration: const Duration(milliseconds: 150),
-                                    curve: Curves.fastOutSlowIn,
-                                    top: 0,
-                                    bottom: 0,
-                                    right: widget.dawState.isBrowserOpen ? 0 : -330,
-                                    width: 320,
-                                    child: IgnorePointer(
-                                      ignoring: !widget.dawState.isBrowserOpen,
-                                      child: ProjectBrowserDrawer(
-                                        dawState: widget.dawState,
-                                        onClose: widget.dawState.toggleBrowser,
+                        // Main Studio Workbench Body & Optional Project Browser Drawer
+                        Expanded(
+                          child: Container(
+                            color: EatsTheme.backgroundDark,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final wsBounds = Size(constraints.maxWidth, constraints.maxHeight);
+                                return Stack(
+                                  children: [
+                                    Positioned.fill(
+                                      child: IndexedStack(
+                                        index: widget.dawState.activeTabIndex,
+                                        children: [
+                                          TickerMode(
+                                            enabled: widget.dawState.activeTabIndex == 0,
+                                            child: ArrangerView(dawState: widget.dawState),
+                                          ),
+                                          TickerMode(
+                                            enabled: widget.dawState.activeTabIndex == 1,
+                                            child: EditView(dawState: widget.dawState),
+                                          ),
+                                          TickerMode(
+                                            enabled: widget.dawState.activeTabIndex == 2,
+                                            child: TrackInspectorView(dawState: widget.dawState),
+                                          ),
+                                          TickerMode(
+                                            enabled: widget.dawState.activeTabIndex == 3,
+                                            child: MixerView(dawState: widget.dawState),
+                                          ),
+                                          TickerMode(
+                                            enabled: widget.dawState.activeTabIndex == 4,
+                                            child: LuaWorkbenchView(dawState: widget.dawState),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ),
-                                ],
-                              );
-                            },
+
+                                    // Scalable, Movable, Resizable Floating In-App VSTi Window (Normal Floating Mode)
+                                    if (widget.dawState.isFloatingWindowVisible && !widget.dawState.isFloatingWindowMaximized)
+                                      Positioned(
+                                        left: widget.dawState.floatingWindowPosition.dx,
+                                        top: widget.dawState.floatingWindowPosition.dy,
+                                        width: widget.dawState.floatingWindowSize.width,
+                                        height: widget.dawState.floatingWindowSize.height,
+                                        child: FloatingInstrumentWindow(
+                                          dawState: widget.dawState,
+                                          workspaceBounds: wsBounds,
+                                        ),
+                                      ),
+
+                                    // Fast 150ms Animated Slide-In / Slide-Out Project Browser Drawer
+                                    AnimatedPositioned(
+                                      duration: const Duration(milliseconds: 150),
+                                      curve: Curves.fastOutSlowIn,
+                                      top: 0,
+                                      bottom: 0,
+                                      right: widget.dawState.isBrowserOpen ? 0 : -330,
+                                      width: 320,
+                                      child: IgnorePointer(
+                                        ignoring: !widget.dawState.isBrowserOpen,
+                                        child: ProjectBrowserDrawer(
+                                          dawState: widget.dawState,
+                                          onClose: widget.dawState.toggleBrowser,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
                           ),
                         ),
-                      ),
 
-                      // Virtual Piano Keyboard Drawer (Pull tab right above bottom panel)
-                      VirtualPianoKeyboard(dawState: widget.dawState),
-                    ],
-                  ),
-                ),
-
-                // Hardware Mechanical Navigation Control Strip
-                bottomNavigationBar: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: isGrungy ? const Color(0xFF24201C) : EatsTheme.panelHeader,
-                    border: Border(
-                      top: BorderSide(
-                        color: isGrungy ? const Color(0xFF4A423A) : EatsTheme.panelHeader,
-                        width: 1.5,
-                      ),
+                        // Virtual Piano Keyboard Drawer (Pull tab right above bottom panel)
+                        VirtualPianoKeyboard(dawState: widget.dawState),
+                      ],
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
-                        blurRadius: 6,
-                        offset: const Offset(0, -2),
-                      ),
-                    ],
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildNavButton(context, 0, 'ARRANGER', Icons.view_timeline),
-                      _buildNavButton(context, 1, 'EDIT', Icons.edit_note),
-                      _buildNavButton(context, 2, 'TRACK', Icons.settings_input_component),
-                      _buildNavButton(context, 3, 'MIXER', Icons.equalizer),
-                      _buildNavButton(context, 4, 'DESIGN', Icons.developer_board),
-                    ],
+
+                  // Hardware Mechanical Navigation Control Strip
+                  bottomNavigationBar: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isGrungy ? const Color(0xFF24201C) : EatsTheme.panelHeader,
+                      border: Border(
+                        top: BorderSide(
+                          color: isGrungy ? const Color(0xFF4A423A) : EatsTheme.panelHeader,
+                          width: 1.5,
+                        ),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.5),
+                          blurRadius: 6,
+                          offset: const Offset(0, -2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildNavButton(context, 0, 'ARRANGER', Icons.view_timeline),
+                        _buildNavButton(context, 1, 'EDIT', Icons.edit_note),
+                        _buildNavButton(context, 2, 'TRACK', Icons.settings_input_component),
+                        _buildNavButton(context, 3, 'MIXER', Icons.equalizer),
+                        _buildNavButton(context, 4, 'DESIGN', Icons.developer_board),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
 
-            // Dedicated High-Performance Fullscreen Device Modal (Instrument, MIDI FX, Audio FX)
-            if (widget.dawState.isFloatingWindowVisible)
-              Positioned.fill(
-                child: SafeArea(
-                  child: Material(
-                    type: MaterialType.transparency,
-                    child: FloatingInstrumentWindow(
-                      dawState: widget.dawState,
-                      workspaceBounds: MediaQuery.of(context).size,
+              // Dedicated High-Performance Fullscreen Device Modal (Instrument, MIDI FX, Audio FX)
+              if (widget.dawState.isFloatingWindowVisible && widget.dawState.isFloatingWindowMaximized)
+                Positioned.fill(
+                  child: SafeArea(
+                    child: Material(
+                      color: EatsTheme.backgroundDark,
+                      child: TickerMode(
+                        enabled: widget.dawState.guiAnimationsEnabled,
+                        child: FloatingInstrumentWindow(
+                          dawState: widget.dawState,
+                          workspaceBounds: MediaQuery.of(context).size,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     ),

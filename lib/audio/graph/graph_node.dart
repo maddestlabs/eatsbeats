@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 /// Execution context passed to graph nodes during buffer synthesis.
@@ -20,6 +19,30 @@ class GraphContext {
   final List<List<double>>? pitchBendPoints;
   final List<List<double>>? pressurePoints;
   final List<List<double>>? timbrePoints;
+
+  // Reusable scratch buffer pool (zero-allocation DSP)
+  final List<Float32List> _scratchPool = [];
+  int _scratchIdx = 0;
+
+  Float32List acquireScratch(int length) {
+    if (_scratchIdx < _scratchPool.length) {
+      var buf = _scratchPool[_scratchIdx];
+      if (buf.length < length) {
+        buf = Float32List(length);
+        _scratchPool[_scratchIdx] = buf;
+      }
+      _scratchIdx++;
+      return buf;
+    }
+    final buf = Float32List(length);
+    _scratchPool.add(buf);
+    _scratchIdx++;
+    return buf;
+  }
+
+  void releaseScratch() {
+    if (_scratchIdx > 0) _scratchIdx--;
+  }
 
   GraphContext({
     this.sampleRate = 44100.0,

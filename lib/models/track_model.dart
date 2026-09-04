@@ -518,6 +518,7 @@ class TrackClip {
   String trackId;
   int startBar; // 0, 1, 2, 3...
   int barLength; // 1, 2, 4, 8...
+  int patternIndex; // 0..255 (00..FF Hex Pattern Index)
   List<Note> notes;
   List<LyricCue> lyrics;
   String luaScriptCode;
@@ -533,6 +534,7 @@ class TrackClip {
   double audioPitchOffset; // Semitones (-24.0 to +24.0)
   List<Note> embeddedTranscribedNotes;
 
+  String get patternHex => patternIndex.toRadixString(16).padLeft(2, '0').toUpperCase();
   int get effectiveLoopLengthBars => (loopLengthBars != null && loopLengthBars! > 0) ? loopLengthBars! : barLength;
   bool get isLooped => loopLengthBars != null && loopLengthBars! > 0 && loopLengthBars! < barLength;
 
@@ -560,6 +562,7 @@ class TrackClip {
     required this.trackId,
     this.startBar = 0,
     this.barLength = 2,
+    this.patternIndex = 0,
     this.loopLengthBars,
     List<Note>? notes,
     List<LyricCue>? lyrics,
@@ -583,6 +586,7 @@ class TrackClip {
     String? trackId,
     int? startBar,
     int? barLength,
+    int? patternIndex,
     int? loopLengthBars,
     List<Note>? notes,
     List<LyricCue>? lyrics,
@@ -601,6 +605,7 @@ class TrackClip {
       trackId: trackId ?? this.trackId,
       startBar: startBar ?? this.startBar,
       barLength: barLength ?? this.barLength,
+      patternIndex: patternIndex ?? this.patternIndex,
       loopLengthBars: loopLengthBars ?? this.loopLengthBars,
       notes: notes ?? this.notes.map((n) => n.copyWith()).toList(),
       lyrics: lyrics ?? this.lyrics.map((l) => l.copyWith()).toList(),
@@ -621,6 +626,7 @@ class TrackClip {
     'trackId': trackId,
     'startBar': startBar,
     'barLength': barLength,
+    'patternIndex': patternIndex,
     if (loopLengthBars != null) 'loopLengthBars': loopLengthBars,
     'notes': notes.map((n) => n.toJson()).toList(),
     'lyrics': lyrics.map((l) => l.toJson()).toList(),
@@ -639,6 +645,7 @@ class TrackClip {
     trackId: json['trackId'] ?? '',
     startBar: json['startBar'] ?? 0,
     barLength: json['barLength'] ?? 2,
+    patternIndex: (json['patternIndex'] as num?)?.toInt() ?? 0,
     loopLengthBars: (json['loopLengthBars'] as num?)?.toInt(),
     notes: (json['notes'] as List?)?.map((n) => Note.fromJson(n)).toList() ?? [],
     lyrics: (json['lyrics'] as List?)?.map((l) => LyricCue.fromJson(l)).toList() ?? [],

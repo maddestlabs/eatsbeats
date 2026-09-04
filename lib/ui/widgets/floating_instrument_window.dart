@@ -274,7 +274,48 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                     _buildTitleBarPresetStrip(context, effectiveTrack, accentColor, isFxMode, fxInsert, fxParentTrack),
                     const SizedBox(width: 4),
 
-                    // 3. Chassis Screw Close Icon (Tooltip: "Close (ESC)")
+                    // Maximize / Restore Button
+                    Tooltip(
+                      message: widget.dawState.isFloatingWindowMaximized ? 'Restore Window' : 'Maximize Fullscreen',
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => widget.dawState.toggleMaximizeFloatingWindow(wsBounds),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          margin: const EdgeInsets.only(right: 4),
+                          decoration: BoxDecoration(
+                            color: EatsTheme.controlBackground.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Icon(
+                            widget.dawState.isFloatingWindowMaximized ? Icons.fullscreen_exit : Icons.fullscreen,
+                            size: 14,
+                            color: accentColor,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Explicit Close Button
+                    Tooltip(
+                      message: 'Close (ESC)',
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: widget.dawState.closeFloatingInstrumentWindow,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          margin: const EdgeInsets.only(right: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.18),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.red.withOpacity(0.45), width: 0.9),
+                          ),
+                          child: const Icon(Icons.close, size: 14, color: Colors.white),
+                        ),
+                      ),
+                    ),
+
+                    // 3. Chassis Screw Accent Icon
                     _InteractiveScrewButton(
                       accentColor: accentColor,
                       onTap: widget.dawState.closeFloatingInstrumentWindow,
@@ -309,30 +350,31 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                   ),
 
                   // --- CORNER RESIZE HANDLE (DYNAMIC RESIZE & AUTO 1:1 SCALING) ---
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onPanUpdate: (details) {
-                        widget.dawState.updateFloatingWindowSize(details.delta);
-                      },
-                      child: Container(
-                        width: 24,
-                        height: 24,
-                        padding: const EdgeInsets.all(3),
-                        decoration: BoxDecoration(
-                          color: accentColor.withOpacity(0.25),
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(8),
+                  if (!widget.dawState.isFloatingWindowMaximized)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onPanUpdate: (details) {
+                          widget.dawState.updateFloatingWindowSize(details.delta);
+                        },
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: accentColor.withOpacity(0.25),
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(8),
+                            ),
                           ),
-                        ),
-                        child: CustomPaint(
-                          painter: _ResizeGripPainter(color: accentColor),
+                          child: CustomPaint(
+                            painter: _ResizeGripPainter(color: accentColor),
+                          ),
                         ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),

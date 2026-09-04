@@ -18,6 +18,7 @@ enum DawTextureType {
   mesh,
   dx7Membrane,
   harpsichordLacquer,
+  c64Breadbin,
 }
 
 /// A high-performance procedural texture generator and GPU-resident cache for DAW gear.
@@ -60,6 +61,8 @@ class DawTextureEngine {
         return DawTextureType.dx7Membrane;
       case PanelBackgroundStyle.harpsichordLacquer:
         return DawTextureType.harpsichordLacquer;
+      case PanelBackgroundStyle.c64Breadbin:
+        return DawTextureType.c64Breadbin;
       case PanelBackgroundStyle.silver:
         return DawTextureType.brushedSteel;
       default:
@@ -265,6 +268,17 @@ class DawTextureEngine {
           baseColor: const Color(0xFF110D0A),
           woodGrainColor: const Color(0xFF23160F),
           goldTrimColor: const Color(0xFFD4AF37),
+        );
+        break;
+
+      case DawTextureType.c64Breadbin:
+        _paintSeamlessC64BreadbinTexture(
+          canvas,
+          size,
+          random,
+          baseColor: const Color(0xFF2A2622),
+          ridgeColor: const Color(0xFF38332C),
+          highlightColor: const Color(0xFF4A443D),
         );
         break;
     }
@@ -651,6 +665,56 @@ class DawTextureEngine {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
     canvas.drawRect(Rect.fromLTWH(2, 2, s - 4, s - 4), goldPaint);
+  }
+
+  /// Seamless Commodore 64 Breadbin Texture:
+  /// Warm vintage matte brown-beige casing with subtle horizontal ventilation ridges and retro micro-stipple.
+  void _paintSeamlessC64BreadbinTexture(
+    Canvas canvas,
+    int size,
+    math.Random random, {
+    required Color baseColor,
+    required Color ridgeColor,
+    required Color highlightColor,
+  }) {
+    final double s = size.toDouble();
+
+    // 1. Warm vintage chassis base
+    canvas.drawRect(Rect.fromLTWH(0, 0, s, s), Paint()..color = baseColor);
+
+    // 2. Horizontal ventilation cooling micro-ridges (seamless periodic bands every 16px)
+    final ridgePaint = Paint()..style = PaintingStyle.fill;
+    final hiPaint = Paint()..style = PaintingStyle.stroke..strokeWidth = 0.75;
+
+    for (double y = 0; y < s; y += 16.0) {
+      ridgePaint.color = ridgeColor.withValues(alpha: 0.35);
+      canvas.drawRect(Rect.fromLTWH(0, y, s, 7.0), ridgePaint);
+
+      // Highlight line on top of each ridge
+      hiPaint.color = highlightColor.withValues(alpha: 0.25);
+      canvas.drawLine(Offset(0, y), Offset(s, y), hiPaint);
+
+      // Shadow line beneath each ridge
+      hiPaint.color = Colors.black.withValues(alpha: 0.45);
+      canvas.drawLine(Offset(0, y + 7.0), Offset(s, y + 7.0), hiPaint);
+    }
+
+    // 3. Toroidal matte plastic micro-grain stipple
+    final noisePaint = Paint()..style = PaintingStyle.fill;
+    for (int y = 0; y < size; y += 4) {
+      final ty = y / s;
+      for (int x = 0; x < size; x += 4) {
+        final tx = x / s;
+        final val = math.sin(tx * 32.0 * math.pi) * math.cos(ty * 32.0 * math.pi);
+        if (val > 0.45) {
+          noisePaint.color = highlightColor.withValues(alpha: 0.04);
+          canvas.drawRect(Rect.fromLTWH(x.toDouble(), y.toDouble(), 1.5, 1.5), noisePaint);
+        } else if (val < -0.45) {
+          noisePaint.color = Colors.black.withValues(alpha: 0.06);
+          canvas.drawRect(Rect.fromLTWH(x.toDouble(), y.toDouble(), 1.5, 1.5), noisePaint);
+        }
+      }
+    }
   }
 }
 

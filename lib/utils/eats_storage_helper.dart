@@ -15,6 +15,7 @@ class EatsStorageHelper {
   static const String keyUiScale = 'ui_scale';
   static const String keyAutoRestoreSession = 'auto_restore_session';
   static const String keyAutoSaveEnabled = 'auto_save_enabled';
+  static const String keyGuiAnimationsEnabled = 'gui_animations_enabled';
 
   // --- Settings Key-Value API ---
 

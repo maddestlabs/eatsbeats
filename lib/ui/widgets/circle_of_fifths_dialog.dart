@@ -306,88 +306,166 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
 
         const SizedBox(height: 16),
 
-        // Progression Presets Quick Apply Header & Browse Button
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Text(
-                'PROGRESSION PRESETS',
-                style: EatsTheme.getPrimaryFontStyle(
-                  color: EatsTheme.textMuted,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            InkWell(
-              borderRadius: BorderRadius.circular(4),
-              onTap: () async {
-                final selected = await ScriptSearchDialog.showChordProgressions(
-                  context,
-                  dawState: widget.dawState,
-                  startBar: widget.targetBar,
-                );
-                if (selected != null && context.mounted) {
-                  Navigator.of(context).pop();
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(
-                  color: EatsTheme.accentGold.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: EatsTheme.accentGold.withOpacity(0.6), width: 0.8),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.search, size: 12, color: EatsTheme.accentGold),
-                    SizedBox(width: 4),
-                    Text(
-                      'BROWSE ALL',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        color: EatsTheme.accentGold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
+        // Progression Presets Header & Browse Button
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: EatsTheme.controlBackground,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: EatsTheme.accentGold.withOpacity(0.3)),
           ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<ChordProgressionPreset>(
-              hint: const Text('Quick Insert Progression from Bar...', style: TextStyle(fontSize: 11, color: EatsTheme.accentGold)),
-              dropdownColor: EatsTheme.controlBackground,
-              isExpanded: true,
-              items: ChordTheory.progressionPresets.map((preset) {
-                return DropdownMenuItem<ChordProgressionPreset>(
-                  value: preset,
-                  child: Text(
-                    '${preset.name} (${preset.genre})',
-                    style: TextStyle(fontSize: 11, color: EatsTheme.textPrimary),
+          child: Row(
+            children: [
+              const Icon(Icons.library_music, size: 16, color: EatsTheme.accentGold),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PROGRESSION PRESETS',
+                      style: EatsTheme.getPrimaryFontStyle(
+                        color: EatsTheme.accentGold,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Curated library with Roman numerals',
+                      style: TextStyle(fontSize: 9, color: EatsTheme.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final selected = await ScriptSearchDialog.showChordProgressions(
+                    context,
+                    dawState: widget.dawState,
+                    startBar: widget.targetBar,
+                  );
+                  if (selected != null && context.mounted) {
+                    Navigator.of(context).pop();
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: EatsTheme.accentGold.withOpacity(0.18),
+                  foregroundColor: EatsTheme.accentGold,
+                  side: BorderSide(color: EatsTheme.accentGold.withOpacity(0.6), width: 1.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(Icons.search, size: 12),
+                label: const Text(
+                  'Browse',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        // MIDI to Chord Track Extraction Section
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: EatsTheme.controlBackground,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFF00FF66).withOpacity(0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.queue_music, size: 14, color: Color(0xFF00FF66)),
+                  const SizedBox(width: 6),
+                  Text(
+                    'EXTRACT FROM MIDI',
+                    style: EatsTheme.getPrimaryFontStyle(
+                      color: const Color(0xFF00FF66),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                );
-              }).toList(),
-              onChanged: (preset) {
-                if (preset != null) {
-                  widget.dawState.applyChordProgressionPreset(preset, startBar: widget.targetBar);
-                  Navigator.of(context).pop();
-                }
-              },
-            ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Extract from Active Track
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    final count = widget.dawState.extractAndApplyChordsFromTrack(widget.dawState.activeTrack);
+                    if (context.mounted) {
+                      Navigator.of(context).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: EatsTheme.primaryCyan,
+                          content: Text(
+                            'Extracted $count chords from "${widget.dawState.activeTrack.name}" to Chord Track (Ctrl+Z to Undo)!',
+                            style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                          ),
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: const Color(0xFF00FF66).withOpacity(0.5)),
+                    padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 8),
+                  ),
+                  icon: const Icon(Icons.audiotrack, size: 13, color: Color(0xFF00FF66)),
+                  label: Text(
+                    'Extract from Active Track ("${widget.dawState.activeTrack.name}")',
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              // Extract from Active Clip (will only show if a clip is actually selected)
+              if (widget.dawState.activeClip != null) ...[
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      final clip = widget.dawState.activeClip!;
+                      final count = widget.dawState.extractAndApplyChordsFromClip(clip);
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            backgroundColor: EatsTheme.primaryCyan,
+                            content: Text(
+                              'Extracted $count chords from "${clip.name}" to Chord Track (Ctrl+Z to Undo)!',
+                              style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                            ),
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.5)),
+                      padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 8),
+                    ),
+                    icon: Icon(Icons.music_note, size: 13, color: EatsTheme.primaryCyan),
+                    label: Text(
+                      'Extract from Active Clip ("${widget.dawState.activeClip!.name}")',
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ],
@@ -444,10 +522,10 @@ class _CircleOfFifthsDialogState extends State<CircleOfFifthsDialog> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      isCompact ? 'CHORD SELECTOR' : 'CHORD SELECTOR & CIRCLE OF FIFTHS',
+                      'CHORDS',
                       style: EatsTheme.getDisplayFontStyle(
                         color: EatsTheme.textPrimary,
-                        fontSize: isCompact ? 11.5 : 13,
+                        fontSize: isCompact ? 12 : 13.5,
                         fontWeight: FontWeight.bold,
                       ),
                       overflow: TextOverflow.ellipsis,

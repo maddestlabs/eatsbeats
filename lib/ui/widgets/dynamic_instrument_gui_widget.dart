@@ -8,6 +8,7 @@ import '../../audio/soundfont_engine.dart';
 import '../../audio/soundfont_decoder.dart';
 import '../../lua/lua_engine.dart';
 import '../../lua/lua_gui_model.dart';
+import '../../lua/lua_script_library.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
@@ -26,6 +27,7 @@ import 'skeuomorphic_hardware_slider.dart';
 import 'skeuomorphic_hardware_switch.dart';
 import '../../models/script_preset_model.dart';
 import 'preset_browser_dialog.dart';
+import 'script_search_dialog.dart';
 import 'space_visualizer_widget.dart';
 import 'stereo_meter_widget.dart';
 import 'waveform_painter.dart';
@@ -85,13 +87,122 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           return _buildCustomRackPanel(context, guiLayout, trackCompilation);
         }
 
-        // 2. If no custom GUI is provided, fallback to standard dynamic script parameters
+        // 2. If dynamic script parameters exist, render default dynamic parameters
         if (trackCompilation.params.isNotEmpty) {
           return _buildDefaultDynamicParams(context, trackCompilation);
         }
 
-        return const SizedBox.shrink();
+        // 3. Fallback: Render standard skeuomorphic track instrument panel
+        return _buildFallbackTrackControls(context, trackCompilation);
       },
+    );
+  }
+
+  Widget _buildFallbackTrackControls(
+    BuildContext context,
+    LuaCompilationResult compilation,
+  ) {
+    final baseAccent = track.color;
+    return RepaintBoundary(
+      child: Container(
+        margin: hideHeader ? EdgeInsets.zero : const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: EatsTheme.panelBackground,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: baseAccent.withOpacity(0.4), width: 1.2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.piano, color: baseAccent, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    track.name.toUpperCase(),
+                    style: EatsTheme.getPrimaryFontStyle(
+                      color: baseAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                InkWell(
+                  onTap: () {
+                    PresetSearchDialog.show(
+                      context,
+                      dawState: dawState,
+                      track: track,
+                      initialCategory: LuaPresetCategory.instrument,
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: baseAccent.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: baseAccent.withOpacity(0.6)),
+                    ),
+                    child: Text(
+                      'PRESETS',
+                      style: TextStyle(color: baseAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                SkeuomorphicHardwareKnob(
+                  label: 'CUTOFF',
+                  value: track.cutoff,
+                  min: 20.0,
+                  max: 20000.0,
+                  defaultValue: 3000.0,
+                  size: 52.0,
+                  accentColor: baseAccent,
+                  onChanged: (v) => dawState.setTrackCutoff(track, v),
+                ),
+                SkeuomorphicHardwareKnob(
+                  label: 'RESO',
+                  value: track.resonance,
+                  min: 0.1,
+                  max: 10.0,
+                  defaultValue: 1.0,
+                  size: 52.0,
+                  accentColor: EatsTheme.secondaryMagenta,
+                  onChanged: (v) => dawState.setTrackResonance(track, v),
+                ),
+                SkeuomorphicHardwareKnob(
+                  label: 'ATTACK',
+                  value: track.attack,
+                  min: 0.001,
+                  max: 2.0,
+                  defaultValue: 0.01,
+                  size: 52.0,
+                  accentColor: EatsTheme.accentGold,
+                  onChanged: (v) => dawState.setTrackAttack(track, v),
+                ),
+                SkeuomorphicHardwareKnob(
+                  label: 'RELEASE',
+                  value: track.release,
+                  min: 0.01,
+                  max: 5.0,
+                  defaultValue: 0.3,
+                  size: 52.0,
+                  accentColor: EatsTheme.primaryCyan,
+                  onChanged: (v) => dawState.setTrackRelease(track, v),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -107,7 +218,12 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     final isMinimal = layout.backgroundStyle == PanelBackgroundStyle.minimalWhite;
     final textureType = DawTextureEngine.mapStyleToTexture(layout.backgroundStyle);
     final isLightChassis = isSilver || isSnes || isMinimal || layout.backgroundStyle == PanelBackgroundStyle.blondePine;
-    final baseAccent = layout.accentColor ?? (isMinimal ? const Color(0xFF1E1E24) : (isSilver ? const Color(0xFF141416) : track.color));
+    final baseAccent = layout.accentColor ??
+        (isMinimal
+            ? const Color(0xFF1E1E24)
+            : (isSilver
+                ? const Color(0xFF141416)
+                : (isSnes ? const Color(0xFFE52521) : track.color)));
     final hasUpgrade = dawState.isPresetUpgradeAvailable(track);
 
     if (hideHeader) {

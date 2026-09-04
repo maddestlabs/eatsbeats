@@ -40,6 +40,10 @@ class _FxNodeBinding {
   final WAGainNode? hissGainNode;
   final WAGainNode? crackleGainNode;
   final WAGainNode? rumbleGainNode;
+  final List<WADelayNode>? diffuserDelays;
+  final List<WABiquadFilterNode>? diffuserFilters;
+  final WAGainNode? tailWetGainNode;
+  final WAGainNode? earlyGainNode;
 
   _FxNodeBinding({
     required this.fx,
@@ -59,6 +63,10 @@ class _FxNodeBinding {
     this.hissGainNode,
     this.crackleGainNode,
     this.rumbleGainNode,
+    this.diffuserDelays,
+    this.diffuserFilters,
+    this.tailWetGainNode,
+    this.earlyGainNode,
   });
 
   void updateParams(FXInsert newFx) {
@@ -145,6 +153,27 @@ class _FxNodeBinding {
         if (highCut != null && filterNode != null) {
           filterNode!.frequency.value = highCut.clamp(100.0, 20000.0);
         }
+        if (!isCab && diffuserDelays != null && diffuserDelays!.isNotEmpty) {
+          final rt60 = (params['RT60'] ?? 2.2).clamp(0.2, 8.0);
+          final damping = (params['Damping'] ?? 0.25).clamp(0.0, 1.0);
+          final dampCutoff = (16000.0 * (1.0 - damping * 0.70)).clamp(800.0, 16000.0);
+          final tailMix = ((rt60 - 0.5) / 3.5).clamp(0.15, 0.70);
+
+          tailWetGainNode?.gain.value = tailMix * 0.7;
+          earlyGainNode?.gain.value = 1.0 - (tailMix * 0.5);
+
+          const delays = [0.0297, 0.0371, 0.0433, 0.0531];
+          for (int d = 0; d < diffuserDelays!.length && d < delays.length; d++) {
+            final dt = delays[d];
+            final fb = math.exp(-6.9077 * dt / rt60).clamp(0.05, 0.78);
+            diffuserDelays![d].feedback.value = fb;
+          }
+          if (diffuserFilters != null) {
+            for (final df in diffuserFilters!) {
+              df.frequency.value = dampCutoff;
+            }
+          }
+        }
         break;
 
       default:
@@ -175,6 +204,8 @@ class TrackChannelStrip {
   final List<WANode> _fxNodes = [];
   final List<_FxNodeBinding> _fxBindings = [];
   int _lastStructuralHash = 0;
+  double currentVolume = -1.0;
+  double currentPan = -999.0;
 
   // Real-time Tape Stop & Wow/Flutter Modulation State
   WADelayNode? _tapeStopDelay;
@@ -185,6 +216,25 @@ class TrackChannelStrip {
   bool _isTapeStopTriggered = false;
   Timer? _lfoTimer;
   final Map<String, double> _vintageLfoParams = {};
+
+  static final Set<int> _disposedNodeIds = <int>{};
+
+  /// Safely disposes a native Web Audio / JUCE node, guaranteeing that no node ID can ever be disposed twice.
+  static void safeDisposeNode(WANode? node) {
+    if (node == null) return;
+    if (_disposedNodeIds.contains(node.nodeId)) return;
+    _disposedNodeIds.add(node.nodeId);
+    if (_disposedNodeIds.length > 4096) {
+      _disposedNodeIds.removeAll(_disposedNodeIds.take(1024).toList());
+    }
+    try {
+      if (node is WABufferSourceNode) {
+        node.onEnded = null;
+      }
+      node.disconnect();
+      node.dispose();
+    } catch (_) {}
+  }
 
   TrackChannelStrip({
     required this.trackId,
@@ -350,6 +400,25 @@ class TrackChannelStrip {
     });
   }
 
+  /// Resets the FX chain back to direct connection and disposes all insert nodes safely.
+  void resetFxChain() {
+    _lfoTimer?.cancel();
+    _lfoTimer = null;
+    _tapeStopDelay = null;
+    _tapeStopFilter = null;
+    _tapeStopGain = null;
+    _isTapeStopTriggered = false;
+
+    eqHighShelfNode.disconnect();
+    for (final node in _fxNodes) {
+      safeDisposeNode(node);
+    }
+    _fxNodes.clear();
+    _fxBindings.clear();
+    _lastStructuralHash = -1;
+    eqHighShelfNode.connect(volumeNode);
+  }
+
   void _rebuildFxChain(
     List<FXInsert> fxRack,
     Map<String, WABuffer?> irCache,
@@ -365,10 +434,7 @@ class TrackChannelStrip {
 
     eqHighShelfNode.disconnect();
     for (final node in _fxNodes) {
-      try {
-        node.disconnect();
-        node.dispose();
-      } catch (_) {}
+      safeDisposeNode(node);
     }
     _fxNodes.clear();
     _fxBindings.clear();
@@ -679,8 +745,23 @@ class TrackChannelStrip {
     if (cached != null) {
       convolver.buffer = cached;
     } else {
+      // Emergency fallback impulse: short, clean 64-sample stereo Dirac impulse
+      // Guarantees JUCE's native convolution engine is always safely initialized
+      // even if an asynchronous custom room IR bake has not completed yet.
+      final fallbackL = Float32List(64);
+      final fallbackR = Float32List(64);
+      fallbackL[0] = 1.0;
+      fallbackR[0] = 1.0;
+      convolver.buffer = WABuffer(
+        numberOfChannels: 2,
+        length: 64,
+        sampleRate: 44100,
+        channels: [fallbackL, fallbackR],
+      );
       loadIrAsync(irName).then((wabuf) {
-        if (wabuf != null) convolver.buffer = wabuf;
+        if (wabuf != null) {
+          try { convolver.buffer = wabuf; } catch (_) {}
+        }
       });
     }
 
@@ -708,6 +789,11 @@ class TrackChannelStrip {
       wetSource = filter;
     }
 
+    final List<WADelayNode> diffuserDelays = [];
+    final List<WABiquadFilterNode> diffuserFilters = [];
+    WAGainNode? tailWetNode;
+    WAGainNode? earlyGainNode;
+
     // On Native desktop for non-cabinet acoustic spaces:
     // Generate lush, dense, multi-second decay tails using prime-spaced feedback diffuser delay lines
     if (!kIsWeb && !isCab) {
@@ -718,8 +804,8 @@ class TrackChannelStrip {
       // Tail blend scales smoothly with room RT60 (longer spaces receive deeper tail diffusion)
       final tailMix = ((rt60 - 0.5) / 3.5).clamp(0.15, 0.70);
       final tailBus = ctx.createGain()..gain.value = 1.0;
-      final earlyGain = ctx.createGain()..gain.value = 1.0 - (tailMix * 0.5);
-      final tailWet = ctx.createGain()..gain.value = tailMix * 0.7;
+      earlyGainNode = ctx.createGain()..gain.value = 1.0 - (tailMix * 0.5);
+      tailWetNode = ctx.createGain()..gain.value = tailMix * 0.7;
       final dampCutoff = (16000.0 * (1.0 - damping * 0.70)).clamp(800.0, 16000.0);
 
       final delays = [0.0297, 0.0371, 0.0433, 0.0531];
@@ -727,27 +813,28 @@ class TrackChannelStrip {
       for (int d = 0; d < delays.length; d++) {
         final dt = delays[d];
         final fb = math.exp(-6.9077 * dt / rt60).clamp(0.05, 0.78);
-        final del = ctx.createDelay(1.0)..delayTime.value = dt;
-        final fbg = ctx.createGain()..gain.value = fb;
+        final del = ctx.createDelay(1.0)
+          ..delayTime.value = dt
+          ..feedback.value = fb;
         final dampFilter = ctx.createBiquadFilter()
           ..type = WABiquadFilterType.lowpass
           ..frequency.value = dampCutoff;
         final tapGainNode = ctx.createGain()..gain.value = tapGain;
 
-        _fxNodes.addAll([del, fbg, dampFilter, tapGainNode]);
+        _fxNodes.addAll([del, dampFilter, tapGainNode]);
+        diffuserDelays.add(del);
+        diffuserFilters.add(dampFilter);
 
         wetSource.connect(del);
         del.connect(dampFilter);
-        dampFilter.connect(fbg);
-        fbg.connect(del);
-        del.connect(tapGainNode);
-        tapGainNode.connect(tailWet);
+        dampFilter.connect(tapGainNode);
+        tapGainNode.connect(tailWetNode);
       }
 
-      wetSource.connect(earlyGain);
-      earlyGain.connect(tailBus);
-      tailWet.connect(tailBus);
-      _fxNodes.addAll([tailBus, earlyGain, tailWet]);
+      wetSource.connect(earlyGainNode);
+      earlyGainNode.connect(tailBus);
+      tailWetNode.connect(tailBus);
+      _fxNodes.addAll([tailBus, earlyGainNode, tailWetNode]);
       wetSource = tailBus;
     }
 
@@ -761,6 +848,10 @@ class TrackChannelStrip {
       dryGainNode: dryGain,
       wetGainNode: wetGain,
       filterNode: filter,
+      diffuserDelays: diffuserDelays,
+      diffuserFilters: diffuserFilters,
+      tailWetGainNode: tailWetNode,
+      earlyGainNode: earlyGainNode,
     ));
     return bus;
   }
@@ -1133,22 +1224,17 @@ class TrackChannelStrip {
       if (!fx.enabled) continue;
       h = (h * 31) ^ fx.type.index;
       h = (h * 31) ^ fx.id.hashCode;
-      if (fx.irSampleName != null) {
-        h = (h * 31) ^ fx.irSampleName.hashCode;
+      final effectiveIrName = fx.irSampleName ?? (fx.type == FXType.convolutionReverb ? 'Great Hall' : '');
+      if (effectiveIrName.isNotEmpty) {
+        h = (h * 31) ^ effectiveIrName.hashCode;
       }
       if (fx.type == FXType.convolutionReverb) {
         final p = fx.params;
-        h = (h * 31) ^ (p['Material']?.toInt() ?? 0);
-        h = (h * 31) ^ ((p['Width'] ?? 0.0) * 10).round();
-        h = (h * 31) ^ ((p['Length'] ?? 0.0) * 10).round();
-        h = (h * 31) ^ ((p['Height'] ?? 0.0) * 10).round();
-        h = (h * 31) ^ ((p['RT60'] ?? 0.0) * 100).round();
-        h = (h * 31) ^ ((p['Damping'] ?? 0.0) * 100).round();
         h = (h * 31) ^ (p['isCabinet']?.toInt() ?? 0);
-        h = (h * 31) ^ ((p['MicDistance'] ?? 0.0) * 100).round();
-        h = (h * 31) ^ ((p['MicAngle'] ?? 0.0) * 10).round();
         h = (h * 31) ^ (p['OpenBack']?.toInt() ?? 0);
-        h = (h * 31) ^ ((p['StereoWidth'] ?? 0.0) * 100).round();
+        // Include high-cut toggle state (present or not)
+        final highCut = p['HighCut'];
+        h = (h * 31) ^ ((highCut != null && highCut < 19000.0) ? 1 : 0);
       }
     }
     return h;
@@ -1167,21 +1253,18 @@ class TrackChannelStrip {
       pannerNode.disconnect();
       try { analyserNode.disconnect(); } catch (_) {}
       for (final node in _fxNodes) {
-        try {
-          node.disconnect();
-          node.dispose();
-        } catch (_) {}
+        safeDisposeNode(node);
       }
       _fxNodes.clear();
       _fxBindings.clear();
-      inputBus.dispose();
-      eqHpfNode.dispose();
-      eqLowShelfNode.dispose();
-      eqMidPeakNode.dispose();
-      eqHighShelfNode.dispose();
-      volumeNode.dispose();
-      pannerNode.dispose();
-      try { analyserNode.dispose(); } catch (_) {}
+      safeDisposeNode(inputBus);
+      safeDisposeNode(eqHpfNode);
+      safeDisposeNode(eqLowShelfNode);
+      safeDisposeNode(eqMidPeakNode);
+      safeDisposeNode(eqHighShelfNode);
+      safeDisposeNode(volumeNode);
+      safeDisposeNode(pannerNode);
+      safeDisposeNode(analyserNode);
     } catch (_) {}
   }
 
@@ -1341,6 +1424,9 @@ class WajuceAudioBackend {
   // Per-track active source nodes (for monophonic stop)
   final Map<String, WABufferSourceNode> _activeSources = {};
 
+  // Per-track active voice sources (for bounded polyphony and leak-free disposal)
+  final Map<String, List<WABufferSourceNode>> _activeTrackSources = {};
+
   // Per-track active frozen audio streams
   final Map<String, WABufferSourceNode> _frozenSources = {};
 
@@ -1350,6 +1436,8 @@ class WajuceAudioBackend {
   // Decoded IR buffer cache for ConvolverNode
   final Map<String, WABuffer?> _irCache = {};
   final Map<String, Future<WABuffer?>> _irPending = {};
+
+  bool _isClearingStrips = false;
 
   bool _initialized = false;
   bool get isInitialized => _initialized;
@@ -1436,7 +1524,7 @@ class WajuceAudioBackend {
       final masterLimiterDrive = ctx.createGain()..gain.value = 1.0;
       final masterLimiter = ctx.createWaveShaper();
       masterLimiter.curve = TrackChannelStrip._buildLimiterCurve(-0.5, -0.3);
-      masterLimiter.oversample = kIsWeb ? WAOverSampleType.x4 : WAOverSampleType.x2;
+      masterLimiter.oversample = kIsWeb ? WAOverSampleType.x4 : WAOverSampleType.none;
 
       final analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
@@ -1577,21 +1665,41 @@ class WajuceAudioBackend {
   void disposeTrackStrip(String trackId) {
     final strip = _channelStrips.remove(trackId);
     strip?.dispose();
+    final trackSrcs = _activeTrackSources.remove(trackId);
+    if (trackSrcs != null) {
+      for (final s in trackSrcs) {
+        try {
+          s.stop();
+          s.disconnect();
+          TrackChannelStrip.safeDisposeNode(s);
+        } catch (_) {}
+      }
+    }
     final src = _activeSources.remove(trackId);
-    try { src?.stop(); src?.dispose(); } catch (_) {}
+    try {
+      src?.stop();
+      TrackChannelStrip.safeDisposeNode(src);
+    } catch (_) {}
   }
 
   /// Clears all track channel strips, stops active sources, and flushes buffer cache.
   void clearChannelStrips() {
-    stopAllSound();
-    for (final strip in _channelStrips.values) {
-      try { strip.dispose(); } catch (_) {}
+    _isClearingStrips = true;
+    try {
+      stopAllSound();
+      for (final strip in _channelStrips.values) {
+        try { strip.dispose(); } catch (_) {}
+      }
+      _channelStrips.clear();
+      _bufferCache.clear();
+      _masterStrip?.resetFxChain();
+    } finally {
+      _isClearingStrips = false;
     }
-    _channelStrips.clear();
-    _bufferCache.clear();
   }
 
   void dispose() {
+    _isClearingStrips = true;
     for (final strip in _channelStrips.values) {
       strip.dispose();
     }
@@ -1601,14 +1709,17 @@ class WajuceAudioBackend {
     _masterInputBus?.dispose();
     _masterInputBus = null;
     _ctx?.close();
+    _isClearingStrips = false;
   }
 
   // ── Meters & Point-in-Chain Analyser Taps ──────────────────────────────────
 
   WAAnalyserNode? getAnalyser({String? targetId}) {
+    if (_isClearingStrips) return null;
     if (targetId != null && targetId != 'master' && targetId != 'master_bus') {
       final strip = _channelStrips[targetId];
       if (strip != null) return strip.analyserNode;
+      if (_isClearingStrips) return null;
       final ctx = _ctx;
       if (ctx != null) {
         final destination = _masterInputBus ?? _masterGain;
@@ -1630,6 +1741,10 @@ class WajuceAudioBackend {
   }
 
   void getTimeDomainData(Uint8List timeData, {String? targetId}) {
+    if (!hasActiveAudioSources) {
+      timeData.fillRange(0, timeData.length, 128);
+      return;
+    }
     final analyser = getAnalyser(targetId: targetId);
     if (!_initialized || analyser == null) {
       timeData.fillRange(0, timeData.length, 128);
@@ -1643,6 +1758,10 @@ class WajuceAudioBackend {
   }
 
   void getFrequencyData(Uint8List freqData, {String? targetId}) {
+    if (!hasActiveAudioSources) {
+      freqData.fillRange(0, freqData.length, 0);
+      return;
+    }
     final analyser = getAnalyser(targetId: targetId);
     if (!_initialized || analyser == null) {
       freqData.fillRange(0, freqData.length, 0);
@@ -1655,7 +1774,18 @@ class WajuceAudioBackend {
     }
   }
 
+  bool get hasActiveAudioSources =>
+      _activeSources.isNotEmpty ||
+      _activeTrackSources.values.any((l) => l.isNotEmpty) ||
+      _activeLiveNoteSources.isNotEmpty ||
+      _frozenSources.isNotEmpty;
+
   void updateMeters(Uint8List timeData, Function(double l, double r) setPeaks, {String? targetId}) {
+    if (!hasActiveAudioSources) {
+      timeData.fillRange(0, timeData.length, 128);
+      setPeaks(0.0, 0.0);
+      return;
+    }
     final analyser = getAnalyser(targetId: targetId);
     if (!_initialized || analyser == null) {
       setPeaks(0, 0);
@@ -1731,16 +1861,27 @@ class WajuceAudioBackend {
         ),
       );
 
-      // 3. Update strip volume, pan, and FX rack
-      strip.update(
-        volume: volume,
-        pan: pan,
-        fxRack: fxRack,
-        irCache: _irCache,
-        loadIrAsync: _loadIrAsync,
-      );
+      if (strip.currentVolume == -1.0) {
+        strip.update(
+          volume: volume,
+          pan: pan,
+          fxRack: fxRack,
+          irCache: _irCache,
+          loadIrAsync: _loadIrAsync,
+        );
+        strip.currentVolume = volume;
+        strip.currentPan = pan;
+      } else {
+        if (strip.currentVolume != volume) {
+          strip.currentVolume = volume;
+          strip.volumeNode.gain.value = volume.clamp(0.0, 1.5);
+        }
+        if (strip.currentPan != pan) {
+          strip.currentPan = pan;
+          strip.pannerNode.pan.value = pan.clamp(-1.0, 1.0);
+        }
+      }
 
-      // 4. Retrieve or create WABuffer
       WABuffer buf;
       if (bufferCacheKey != null && _bufferCache.containsKey(bufferCacheKey)) {
         buf = _bufferCache[bufferCacheKey]!;
@@ -1759,24 +1900,29 @@ class WajuceAudioBackend {
         }
       }
 
-      // 5. Create one-shot buffer source, connect to strip input, and start
       final source = ctx.createBufferSource();
       source.buffer = buf;
       if (loop) source.loop = true;
 
       _activeSources[effectiveTrackId] = source;
 
-      // Connect source to the track's persistent input bus
+      final trackSources = _activeTrackSources.putIfAbsent(effectiveTrackId, () => []);
+      while (trackSources.length >= 16) {
+        final oldest = trackSources.removeAt(0);
+        try { oldest.stop(); } catch (_) {}
+        TrackChannelStrip.safeDisposeNode(oldest);
+      }
+      trackSources.add(source);
+
       source.connect(strip.inputBus);
 
-      // Auto-cleanup source when done
       source.onEnded = () {
         try {
-          source.disconnect();
-          source.dispose();
+          trackSources.remove(source);
           if (_activeSources[effectiveTrackId] == source) {
             _activeSources.remove(effectiveTrackId);
           }
+          TrackChannelStrip.safeDisposeNode(source);
         } catch (_) {}
       };
 
@@ -1805,6 +1951,17 @@ class WajuceAudioBackend {
     try {
       final voiceKey = '${trackId}_$midiNote';
 
+      // Enforce bounded live polyphony (maximum 12 concurrent live voices)
+      while (_activeLiveNoteSources.length >= 12) {
+        final oldestKey = _activeLiveNoteSources.keys.first;
+        final oldest = _activeLiveNoteSources.remove(oldestKey);
+        if (oldest != null) {
+          try { oldest.source.stop(); } catch (_) {}
+          TrackChannelStrip.safeDisposeNode(oldest.source);
+          TrackChannelStrip.safeDisposeNode(oldest.voiceGain);
+        }
+      }
+
       // Stop previous note if monophonic or if retriggering the same pitch
       if (isMonophonic) {
         stopTrackNotes(trackId);
@@ -1812,15 +1969,9 @@ class WajuceAudioBackend {
       } else {
         final prev = _activeLiveNoteSources.remove(voiceKey);
         if (prev != null) {
-          try {
-            prev.source.stop((ctx.currentTime) + 0.02);
-            prev.source.disconnect();
-            prev.voiceGain.disconnect();
-            prev.source.dispose();
-            prev.voiceGain.dispose();
-          } catch (_) {
-            try { prev.source.stop(); } catch (_) {}
-          }
+          try { prev.source.stop(); } catch (_) {}
+          TrackChannelStrip.safeDisposeNode(prev.source);
+          TrackChannelStrip.safeDisposeNode(prev.voiceGain);
         }
       }
 
@@ -1879,13 +2030,11 @@ class WajuceAudioBackend {
 
       source.onEnded = () {
         try {
-          source.disconnect();
-          voiceGain.disconnect();
-          source.dispose();
-          voiceGain.dispose();
           if (_activeLiveNoteSources[voiceKey] == binding) {
             _activeLiveNoteSources.remove(voiceKey);
           }
+          TrackChannelStrip.safeDisposeNode(source);
+          TrackChannelStrip.safeDisposeNode(voiceGain);
         } catch (_) {}
       };
 
@@ -1904,22 +2053,22 @@ class WajuceAudioBackend {
       final voiceKey = '${trackId}_$midiNote';
       final binding = _activeLiveNoteSources.remove(voiceKey);
       if (binding != null) {
+        // Disarm onEnded to prevent callback race condition during release
+        binding.source.onEnded = null;
         final curTime = _ctx?.currentTime ?? 0;
         final stopTime = curTime + releaseSec;
         try {
           binding.voiceGain.gain.setValueAtTime(1.0, curTime);
           binding.voiceGain.gain.linearRampToValueAtTime(0.0, stopTime);
           binding.source.stop(stopTime + 0.02);
-          Timer(Duration(milliseconds: ((releaseSec + 0.05) * 1000).round()), () {
-            try {
-              binding.source.disconnect();
-              binding.voiceGain.disconnect();
-              binding.source.dispose();
-              binding.voiceGain.dispose();
-            } catch (_) {}
+          Timer(Duration(milliseconds: ((releaseSec + 0.06) * 1000).round()), () {
+            TrackChannelStrip.safeDisposeNode(binding.source);
+            TrackChannelStrip.safeDisposeNode(binding.voiceGain);
           });
         } catch (_) {
           try { binding.source.stop(); } catch (_) {}
+          TrackChannelStrip.safeDisposeNode(binding.source);
+          TrackChannelStrip.safeDisposeNode(binding.voiceGain);
         }
       }
     } catch (_) {}
@@ -1931,23 +2080,17 @@ class WajuceAudioBackend {
         final keysToRemove = _activeLiveNoteSources.keys.where((k) => k.startsWith('${trackId}_')).toList();
         for (final k in keysToRemove) {
           final binding = _activeLiveNoteSources.remove(k);
-          try {
-            binding?.source.stop();
-            binding?.source.disconnect();
-            binding?.voiceGain.disconnect();
-            binding?.source.dispose();
-            binding?.voiceGain.dispose();
-          } catch (_) {}
+          if (binding != null) {
+            try { binding.source.stop(); } catch (_) {}
+            TrackChannelStrip.safeDisposeNode(binding.source);
+            TrackChannelStrip.safeDisposeNode(binding.voiceGain);
+          }
         }
       } else {
         for (final binding in _activeLiveNoteSources.values) {
-          try {
-            binding.source.stop();
-            binding.source.disconnect();
-            binding.voiceGain.disconnect();
-            binding.source.dispose();
-            binding.voiceGain.dispose();
-          } catch (_) {}
+          try { binding.source.stop(); } catch (_) {}
+          TrackChannelStrip.safeDisposeNode(binding.source);
+          TrackChannelStrip.safeDisposeNode(binding.voiceGain);
         }
         _activeLiveNoteSources.clear();
       }
@@ -1956,13 +2099,17 @@ class WajuceAudioBackend {
 
   void stopTrackNotes(String trackId) {
     try {
+      final list = _activeTrackSources.remove(trackId);
+      if (list != null) {
+        for (final s in list) {
+          try { s.stop(); } catch (_) {}
+          TrackChannelStrip.safeDisposeNode(s);
+        }
+      }
       final src = _activeSources.remove(trackId);
       if (src != null) {
-        try {
-          src.stop((_ctx?.currentTime ?? 0) + 0.03);
-        } catch (_) {
-          try { src.stop(); } catch (_) {}
-        }
+        try { src.stop(); } catch (_) {}
+        TrackChannelStrip.safeDisposeNode(src);
       }
     } catch (_) {}
   }
@@ -2037,11 +2184,10 @@ class WajuceAudioBackend {
 
       source.onEnded = () {
         try {
-          source.disconnect();
-          source.dispose();
           if (_frozenSources[trackId] == source) {
             _frozenSources.remove(trackId);
           }
+          TrackChannelStrip.safeDisposeNode(source);
         } catch (_) {}
       };
 
@@ -2057,15 +2203,8 @@ class WajuceAudioBackend {
     try {
       final src = _frozenSources.remove(trackId);
       if (src != null) {
-        try {
-          src.stop((_ctx?.currentTime ?? 0) + 0.02);
-        } catch (_) {
-          try { src.stop(); } catch (_) {}
-        }
-        try {
-          src.disconnect();
-          src.dispose();
-        } catch (_) {}
+        try { src.stop(); } catch (_) {}
+        TrackChannelStrip.safeDisposeNode(src);
       }
     } catch (_) {}
   }
@@ -2075,7 +2214,7 @@ class WajuceAudioBackend {
     try {
       for (final src in _frozenSources.values) {
         try { src.stop(); } catch (_) {}
-        try { src.disconnect(); src.dispose(); } catch (_) {}
+        TrackChannelStrip.safeDisposeNode(src);
       }
       _frozenSources.clear();
     } catch (_) {}
@@ -2084,10 +2223,16 @@ class WajuceAudioBackend {
   /// Panic: Stops all active audio source nodes immediately.
   void stopAllSound() {
     try {
+      for (final list in _activeTrackSources.values) {
+        for (final src in list) {
+          try { src.stop(); } catch (_) {}
+          TrackChannelStrip.safeDisposeNode(src);
+        }
+      }
+      _activeTrackSources.clear();
       for (final src in _activeSources.values) {
-        try {
-          src.stop();
-        } catch (_) {}
+        try { src.stop(); } catch (_) {}
+        TrackChannelStrip.safeDisposeNode(src);
       }
       _activeSources.clear();
       stopAllLiveNotes();

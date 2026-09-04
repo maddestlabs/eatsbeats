@@ -927,6 +927,35 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
               ),
             ],
           ),
+          if (track.clips.any((c) => c.notes.isNotEmpty || c.embeddedTranscribedNotes.isNotEmpty) || track.notes.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  final count = widget.dawState.extractAndApplyChordsFromTrack(track);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      backgroundColor: EatsTheme.primaryCyan,
+                      content: Text(
+                        'Extracted $count chords from "${track.name}" to Chord Track (Ctrl+Z to Undo)!',
+                        style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                      ),
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00FF66).withOpacity(0.18),
+                  foregroundColor: const Color(0xFF00FF66),
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  side: const BorderSide(color: Color(0xFF00FF66), width: 1.0),
+                ),
+                icon: const Icon(Icons.queue_music, size: 14),
+                label: const Text('EXTRACT CHORDS TO CHORD TRACK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1673,6 +1702,37 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
               ),
               icon: const Icon(Icons.tune, size: 15),
               label: const Text('ADVANCED TRANSCRIPTION DIALOG', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+
+        // Extract Chords to Chord Track Button (Available for all clips with MIDI notes)
+        if (clip.notes.isNotEmpty || clip.embeddedTranscribedNotes.isNotEmpty) ...[
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                final count = widget.dawState.extractAndApplyChordsFromClip(clip);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: EatsTheme.primaryCyan,
+                    content: Text(
+                      'Extracted $count chords from "${clip.name}" to Chord Track (Ctrl+Z to Undo)!',
+                      style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                    ),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00FF66).withOpacity(0.18),
+                foregroundColor: const Color(0xFF00FF66),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                side: const BorderSide(color: Color(0xFF00FF66), width: 1.0),
+              ),
+              icon: const Icon(Icons.queue_music, size: 14),
+              label: const Text('EXTRACT CHORDS TO CHORD TRACK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
             ),
           ),
           const SizedBox(height: 8),

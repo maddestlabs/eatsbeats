@@ -130,7 +130,7 @@ void main() {
         id: 'sfxr_track',
         name: 'SNES Sfxr',
         type: TrackType.synth,
-        color: const Color(0xFF7B52AB),
+        color: const Color(0xFFE52521),
         luaScriptCode: sfxr.code,
         luaParams: {
           'SFXType': 0.0, // Laser
@@ -174,7 +174,7 @@ void main() {
         id: 'sfxr_track',
         name: 'SNES Sfxr',
         type: TrackType.synth,
-        color: const Color(0xFF7B52AB),
+        color: const Color(0xFFE52521),
         luaScriptCode: sfxr.code,
         luaParams: {
           'SFXType': 0.0, // Laser
@@ -232,7 +232,7 @@ void main() {
         id: 'sfxr_track',
         name: 'SNES Sfxr',
         type: TrackType.synth,
-        color: const Color(0xFF7B52AB),
+        color: const Color(0xFFE52521),
         luaScriptCode: sfxr.code,
         luaParams: {
           'SFXType': 0.0, // Laser

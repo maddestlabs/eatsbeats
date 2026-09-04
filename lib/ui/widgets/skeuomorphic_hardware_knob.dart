@@ -89,6 +89,7 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
       children: [
         if (!isMinimal && labelWidget != null) labelWidget,
         GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onPanStart: (details) {
             widget.onChangeStart?.call();
             _dragStartValue = widget.value;

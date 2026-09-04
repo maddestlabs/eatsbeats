@@ -41,7 +41,7 @@ class _VirtualPianoKeyboardState extends State<VirtualPianoKeyboard>
         track: track,
         midiNote: pitch,
         velocity: velocity,
-        sustainDurationSec: 3.5,
+        sustainDurationSec: 0.85,
       );
       if (track.activeView == MusicViewType.tracker) {
         widget.dawState.addOrUpdateTrackerNote(

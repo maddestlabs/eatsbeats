@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'graph_node.dart';
 import 'graph_primitives.dart';
 import 'tr909_rom_data.dart';
+import '../sid_dsp_engine.dart';
 
 /// Evaluator that executes modular audio graphs into high-performance Float32List PCM buffers.
 class GraphEvaluator {
@@ -1173,6 +1174,9 @@ class GraphEvaluator {
     const dx7Core = DX7VoiceNode(
       algorithm: 5,
       algorithmParam: 'Algorithm',
+      feedback: 6,
+      feedbackParam: 'Feedback',
+      patchParam: 'Patch',
       brightness: 1.0,
       brightnessParam: 'Brightness',
       tineBell: 0.85,
@@ -1204,6 +1208,42 @@ class GraphEvaluator {
       input: trebleEq,
       drive: 1.0,
       driveParam: 'Drive',
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  //  COMMODORE 64 SID (MOS 6581 / 8580) CHIPTUNE PHYSICAL MODEL
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /// Authentic Commodore 64 SID Chiptune Synthesizer:
+  /// - 12-Bit Pulse Width Modulation (PWM)
+  /// - 23-Bit Galois LFSR Pseudo-Random Noise
+  /// - 12 dB/Octave Multimode Resonant Filter (MOS 6581 FET saturation vs MOS 8580 clean linear)
+  /// - 50Hz/60Hz Hardware Chiptune Arpeggiator & Glissando
+  static GraphNode buildSIDSynth() {
+    return const SIDVoiceNode(
+      waveform: SIDWaveform.pulse,
+      waveformParam: 'Waveform',
+      chipModel: SIDChipModel.mos6581,
+      chipModelParam: 'ChipModel',
+      filterMode: SIDFilterMode.lowpass,
+      filterModeParam: 'FilterMode',
+      cutoff: 1350.0,
+      cutoffParam: 'Cutoff',
+      resonance: 9.0,
+      resonanceParam: 'Resonance',
+      pulseWidth: 2048.0,
+      pulseWidthParam: 'PulseWidth',
+      pwmRate: 1.6,
+      pwmRateParam: 'PwmRate',
+      pwmDepth: 0.45,
+      pwmDepthParam: 'PwmDepth',
+      arpMode: SIDArpMode.off,
+      arpModeParam: 'ArpMode',
+      glideSpeed: 0.0,
+      glideSpeedParam: 'GlideSpeed',
+      overdrive: 1.0,
+      overdriveParam: 'Overdrive',
     );
   }
 
@@ -2732,8 +2772,10 @@ class GraphEvaluator {
   /// Authentic Toy Piano / Metal Tine Metallophone Physical Model.
   /// Architecture:
   /// - Physical modal cantilever steel rod resonator (1.0, 2.756, 5.404, 8.933 modal series)
-  /// - Plastic/wooden hammer strike clack
+  /// - Plastic/wooden hammer strike clack & keybed bottoming thud
+  /// - Hammer micro-rebound flam ("double-hit") simulation
   /// - Miniature toy box soundbox cavity resonance
+  /// - Key-release drop thump (gravity return to rest rail)
   static GraphNode buildToyPiano() {
     const modalRod = ToyPianoMetalRodNode(
       clangRatio: 0.70,
@@ -2742,8 +2784,12 @@ class GraphEvaluator {
       tineDecayParam: 'TineDecay',
       hammerClack: 0.55,
       hammerClackParam: 'HammerClack',
+      hammerBounce: 0.45,
+      hammerBounceParam: 'HammerBounce',
       boxResonance: 0.45,
       boxResonanceParam: 'BoxResonance',
+      releaseDrop: 0.40,
+      releaseDropParam: 'ReleaseDrop',
     );
 
     const bellBrightness = BiquadFilterNode(
@@ -2757,6 +2803,133 @@ class GraphEvaluator {
     const outputGain = GainNode(
       input: bellBrightness,
       staticGain: 0.50,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Orchestral Glockenspiel Physical Modal Model.
+  /// Free-free high-carbon steel rectangular bar with crystalline ring,
+  /// brass/hard mallet contact transient, and high-frequency shimmer.
+  static GraphNode buildGlockenspiel() {
+    const bells = GlockenspielBarNode(
+      barDecay: 3.2,
+      barDecayParam: 'BarDecay',
+      bellShimmer: 0.70,
+      bellShimmerParam: 'BellShimmer',
+      malletHardness: 0.75,
+      malletHardnessParam: 'MalletHardness',
+    );
+
+    const highAir = BiquadFilterNode(
+      input: bells,
+      type: BiquadType.highshelf,
+      frequency: 6500.0,
+      gainDb: 3.0,
+      gainDbParam: 'AirSheen',
+    );
+
+    const outputGain = GainNode(
+      input: highAir,
+      staticGain: 0.52,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Music Box (Plucked Steel Comb Lamellophone) Physical Model.
+  /// Clamped cantilever tines with Heaviside step displacement release,
+  /// cylinder pin dragging scrape tick, and wooden box/tabletop resonance.
+  static GraphNode buildMusicBox() {
+    const tines = MusicBoxTineNode(
+      tineDecay: 2.0,
+      tineDecayParam: 'TineDecay',
+      pinScrape: 0.45,
+      pinScrapeParam: 'PinScrape',
+      boxWarmth: 0.50,
+      boxWarmthParam: 'BoxWarmth',
+      highTineRing: 0.50,
+      highTineRingParam: 'HighTineRing',
+    );
+
+    const midWarmth = BiquadFilterNode(
+      input: tines,
+      type: BiquadType.peaking,
+      frequency: 600.0,
+      q: 1.2,
+      gainDb: 2.5,
+      gainDbParam: 'ResonanceBoost',
+    );
+
+    const outputGain = GainNode(
+      input: midWarmth,
+      staticGain: 0.55,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Orchestral Xylophone (Honduran Rosewood Bar) Physical Model.
+  /// Undercut arched rosewood bar with Mode 2 tuned to the triple-octave (3.0 * f0),
+  /// dry staccato damping, tuned quarter-wave air resonator tube pop, and hard mallet impact.
+  static GraphNode buildXylophone() {
+    const rosewoodBar = XylophoneBarNode(
+      woodDecay: 0.32,
+      woodDecayParam: 'WoodDecay',
+      resonatorPop: 0.65,
+      resonatorPopParam: 'ResonatorPop',
+      malletHardness: 0.70,
+      malletHardnessParam: 'MalletHardness',
+      tripleOctave: 0.55,
+      tripleOctaveParam: 'TripleOctave',
+    );
+
+    const woodPresence = BiquadFilterNode(
+      input: rosewoodBar,
+      type: BiquadType.peaking,
+      frequency: 2400.0,
+      q: 1.5,
+      gainDb: 2.0,
+      gainDbParam: 'WoodCrack',
+    );
+
+    const outputGain = GainNode(
+      input: woodPresence,
+      staticGain: 0.58,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Orchestral Vibraphone Physical Model.
+  /// Arched aluminum alloy bar tuned to double octave (4.0 * f0),
+  /// soft wound yarn mallet contact, singing sustain, and motorized rotating
+  /// butterfly valve resonator tube tremolo modulation.
+  static GraphNode buildVibraphone() {
+    const aluminumBar = VibraphoneBarNode(
+      barDecay: 4.5,
+      barDecayParam: 'BarDecay',
+      motorSpeed: 4.2,
+      motorSpeedParam: 'MotorSpeed',
+      tremoloDepth: 0.60,
+      tremoloDepthParam: 'TremoloDepth',
+      doubleOctave: 0.40,
+      doubleOctaveParam: 'DoubleOctave',
+      yarnSoftness: 0.50,
+      yarnSoftnessParam: 'YarnSoftness',
+    );
+
+    const tubeWarmth = BiquadFilterNode(
+      input: aluminumBar,
+      type: BiquadType.lowpass,
+      frequency: 9500.0,
+      q: 0.707,
+      freqParam: 'ToneCut',
+    );
+
+    const outputGain = GainNode(
+      input: tubeWarmth,
+      staticGain: 0.54,
     );
 
     return outputGain;

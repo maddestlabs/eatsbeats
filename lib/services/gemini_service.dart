@@ -333,7 +333,7 @@ ${jsonEncode(telemetry)}
 
     final systemInstruction = '''
 You are a master DSP audio engineer and Lua synthesizer developer for the Eatsbeats Digital Audio Workstation.
-Your task is to write a complete, elegant, and self-contained Lua instrument script that generates rich, synthesizable sound.
+Your task is to write a complete, elegant, and self-contained Lua instrument script that generates rich, synthesizable sound with a stunning hardware GUI.
 
 EATSBEATS LUA SCRIPTING RULES:
 1. Metadata header comments:
@@ -341,26 +341,57 @@ EATSBEATS LUA SCRIPTING RULES:
    -- @author: Gemini AI & Eatsbeats
    -- @category: instrument
    -- @description: <Concise sound design description>
-   -- @tags: <comma-separated list of semantic tags, e.g. bass, synth, punchy, analog>
+   -- @tags: <comma-separated list of semantic tags, e.g. bass, synth, punchy, analog, lead>
 
 2. Define parameters via Param table or module:
    -- Parameters can be declared using:
-   -- Param.add("Name", min, max, default, step)
-   -- Param.choice("Name", {"Option1", "Option2"}, defaultIndex)
+   -- Param.add("Cutoff", 20.0, 20000.0, 1500.0, 1.0)
+   -- Param.add("Resonance", 0.0, 1.0, 0.3, 0.01)
+   -- Param.choice("Waveform", {"Saw", "Square", "Pulse"}, 0)
 
-3. Sound synthesis function:
+3. SKEUOMORPHIC HARDWARE GUI SPECIFICATION:
+   Every instrument MUST define a hardware interface via a `gui = { ... }` table.
+   Layout structure:
+   gui = {
+     style = "skeuomorphic",
+     knobStyle = "vintage", -- "moog", "standard", "brushed", "vintage"
+     background = "dark_metal", -- "brushed_aluminum", "dark_metal", "matte_black", "wood", "carbon_fiber"
+     children = {
+       {
+         type = "row",
+         children = {
+           { type = "knob", param = "Cutoff", label = "CUTOFF", style = "moog", size = 48, accent = "#00FFFF" },
+           { type = "knob", param = "Resonance", label = "RES", style = "moog", size = 48, accent = "#FF00FF" },
+           { type = "knob", param = "Attack", label = "ATTACK", size = 40 },
+           { type = "knob", param = "Decay", label = "DECAY", size = 40 },
+           { type = "knob", param = "Sustain", label = "SUSTAIN", size = 40 },
+           { type = "knob", param = "Release", label = "RELEASE", size = 40 }
+         }
+       },
+       {
+         type = "row",
+         children = {
+           { type = "choice", param = "Waveform", label = "OSC WAVE", options = {"Saw", "Square", "Pulse"} },
+           { type = "toggle", param = "SubOsc", label = "SUB OSC", left = "OFF", right = "ON" },
+           { type = "slider", param = "Volume", label = "LEVEL", orientation = "horizontal", width = 140 }
+         }
+       }
+     }
+   }
+
+4. Sound synthesis function:
    -- Implement note generation returning audio buffers or sample evaluations.
    -- Audio functions must compute clean waveforms (sine, saw, square, triangle, FM, pulse-width, or noise), envelopes (ADSR), and resonant filters without clipping.
    -- Use math.sin, math.exp, math.max, math.min, math.tanh for soft clipping/saturation.
 
-4. Output ONLY valid Lua code without markdown wrappers if possible, or wrapped in a single ```lua block.
+Output ONLY valid Lua code without markdown wrappers if possible, or wrapped in a single ```lua block.
 ''';
 
-    final rawOutput = await _callGemini(systemInstruction: systemInstruction, userPrompt: 'Create an instrument matching: $prompt');
+    final rawOutput = await _callGemini(systemInstruction: systemInstruction, userPrompt: 'Create a synthesized instrument matching: $prompt');
     return _extractCode(rawOutput);
   }
 
-  /// Generates a standalone Lua Audio FX DSP plugin script.
+  /// Generates a standalone Lua Audio FX DSP plugin script with custom hardware GUI.
   static Future<String> generateAudioFxScript({
     required String prompt,
   }) async {
@@ -370,7 +401,7 @@ EATSBEATS LUA SCRIPTING RULES:
 
     final systemInstruction = '''
 You are a boutique audio DSP plugin engineer for Eatsbeats DAW.
-Write a complete, real-time Audio FX Lua script (Tape Saturation, Analog Chorus, Granular Delay, Reverb, Overdrive, Stereo Phaser, etc.).
+Write a complete, real-time Audio FX Lua script (Tape Saturation, Analog Chorus, Granular Delay, Reverb, Overdrive, Stereo Phaser, etc.) complete with a custom hardware GUI.
 
 EATSBEATS FX SCRIPTING SPECIFICATION:
 1. Header:
@@ -385,7 +416,24 @@ EATSBEATS FX SCRIPTING SPECIFICATION:
    -- Param.add("Tone", 200.0, 8000.0, 3000.0, 10.0)
    -- Param.add("Mix", 0.0, 1.0, 0.5, 0.01)
 
-3. Implement processSignal(inputSample, sampleRate) or evaluateEffect(buffer, params):
+3. SKEUOMORPHIC HARDWARE GUI SPECIFICATION:
+   gui = {
+     style = "skeuomorphic",
+     knobStyle = "vintage",
+     background = "brushed_aluminum",
+     children = {
+       {
+         type = "row",
+         children = {
+           { type = "knob", param = "Drive", label = "DRIVE", style = "vintage", size = 48, accent = "#FF6600" },
+           { type = "knob", param = "Tone", label = "TONE", size = 44 },
+           { type = "knob", param = "Mix", label = "MIX", size = 44, accent = "#00FFCC" }
+         }
+       }
+     }
+   }
+
+4. Implement processSignal(inputSample, sampleRate) or evaluateEffect(buffer, params):
    -- Ensure soft-clipping protection via math.tanh or polynomial waveshaping.
 
 Output pure Lua code only.
@@ -395,11 +443,189 @@ Output pure Lua code only.
     return _extractCode(rawOutput);
   }
 
-  /// Low-level Gemini REST API caller with automatic model fallback.
+  /// Generates a complete, multi-track .eats.lua arrangement song project with custom synthesizers and MIDI notes.
+  static Future<String> generateSongProject({
+    required String prompt,
+    String genre = 'Synthwave',
+    double bpm = 120.0,
+    String songKey = 'C Minor',
+    int barLength = 8,
+  }) async {
+    if (!hasApiKey) {
+      throw Exception('Gemini API key is required. Please set your key in AI Settings.');
+    }
+
+    final systemInstruction = '''
+You are a Grammy-winning music producer, arranger, and DSP sound engineer for Eatsbeats DAW.
+Your mission is to generate a complete, synthesizable, production-ready 4-track song project in Eatsbeats Lua format (`.eats.lua`).
+
+SONG SPECIFICATION:
+- Title: Generated from prompt
+- BPM: $bpm
+- Key: $songKey
+- Scale Length: $barLength Bars (16 steps per bar)
+
+ARRANGEMENT REQUIREMENTS:
+Create exactly 4 complementary, well-orchestrated tracks:
+1. Track 1: DRUMS (Kick on 1 & 3 or 4-on-the-floor, Snare on 2 & 4, Hi-Hats with grooves).
+2. Track 2: BASS (Punchy analog or 808 sub bass locked to the kick and chord root notes).
+3. Track 3: CHORDS / HARMONY (Lush polysynth, electric piano, or rhythm pads playing chord progressions).
+4. Track 4: MELODY / LEAD (Catchy hook or vocal-style lead synth with slides and expressive velocities).
+
+PRESET & SYNTHESIZER INSTRUCTIONS:
+Each track can specify a proven factory preset (`presetId = "..."`) OR write a standalone `luaScriptCode`.
+Available Factory Preset IDs you can use:
+- Drums: "analog_909_kick", "analog_909_snare", "analog_909_closed_hihat", "analog_909_open_hihat", "analog_909_clap", "analog_909_rimshot", "eats_808_kick"
+- Bass: "acid_303", "eats_303", "analog_bass", "sub_bass_synth", "fm_bass"
+- Chords: "rhodes_epiano", "poly_lead", "analog_pad", "vintage_keys", "reggae_guitar", "spanish_guitar"
+- Lead: "poly_lead", "acid_303", "ym2612_synth", "vintage_mono_lead"
+
+EATSBEATS SONG FORMAT TEMPLATE:
+```lua
+return eatsbeats.song {
+  version = "1.0",
+  meta = {
+    title = "<Song Title>",
+    author = "Gemini AI",
+    songKey = "$songKey",
+    bpm = $bpm,
+    masterVolume = 0.85,
+    isLooping = true,
+    loopStartBar = 0,
+    loopEndBar = $barLength,
+    masterEq = { subCut = 28.0, lowGain = 0.5, midFreq = 320.0, midGain = -1.0, highGain = 1.2 },
+    masterLimiter = { enabled = true, ceilingDbfs = -0.3, driveDb = 3.0, targetLufs = -14.0 }
+  },
+
+  patterns = {
+    {
+      id = "p0",
+      name = "Main Groove",
+      lengthSteps = 16,
+      tracks = {
+        -- TRACK 1: DRUMS
+        {
+          id = "track_drums",
+          name = "Drums",
+          color = 0xFFFF5500,
+          type = "luaScript",
+          presetId = "analog_909_kick",
+          volume = 0.90,
+          pan = 0.0,
+          clips = {
+            {
+              id = "clip_drums_0",
+              name = "Drums",
+              trackId = "track_drums",
+              startBar = 0,
+              barLength = $barLength,
+              notes = {
+                { id = "n1", pitch = 36, startStep = 0.0, durationSteps = 1.0, velocity = 0.95 },
+                { id = "n2", pitch = 38, startStep = 4.0, durationSteps = 1.0, velocity = 0.85 },
+                -- additional drum notes across the $barLength bars...
+              }
+            }
+          }
+        },
+        -- TRACK 2: BASS
+        {
+          id = "track_bass",
+          name = "Bass",
+          color = 0xFF00E5FF,
+          type = "luaScript",
+          presetId = "acid_303",
+          volume = 0.85,
+          pan = 0.0,
+          clips = {
+            {
+              id = "clip_bass_0",
+              name = "Bassline",
+              trackId = "track_bass",
+              startBar = 0,
+              barLength = $barLength,
+              notes = {
+                { id = "nb1", pitch = 36, startStep = 0.0, durationSteps = 3.0, velocity = 0.90 },
+                -- additional bass notes in key of $songKey...
+              }
+            }
+          }
+        },
+        -- TRACK 3: CHORDS
+        {
+          id = "track_chords",
+          name = "Chords",
+          color = 0xFF9D00FF,
+          type = "luaScript",
+          presetId = "rhodes_epiano",
+          volume = 0.75,
+          pan = -0.20,
+          clips = {
+            {
+              id = "clip_chords_0",
+              name = "Chords",
+              trackId = "track_chords",
+              startBar = 0,
+              barLength = $barLength,
+              notes = {
+                { id = "nc1", pitch = 60, startStep = 0.0, durationSteps = 8.0, velocity = 0.80 },
+                { id = "nc2", pitch = 63, startStep = 0.0, durationSteps = 8.0, velocity = 0.75 },
+                { id = "nc3", pitch = 67, startStep = 0.0, durationSteps = 8.0, velocity = 0.75 },
+                -- chord progression notes...
+              }
+            }
+          }
+        },
+        -- TRACK 4: LEAD
+        {
+          id = "track_lead",
+          name = "Lead",
+          color = 0xFFFF0066,
+          type = "luaScript",
+          presetId = "poly_lead",
+          volume = 0.80,
+          pan = 0.15,
+          clips = {
+            {
+              id = "clip_lead_0",
+              name = "Lead Melody",
+              trackId = "track_lead",
+              startBar = 0,
+              barLength = $barLength,
+              notes = {
+                { id = "nl1", pitch = 72, startStep = 0.0, durationSteps = 2.0, velocity = 0.85 },
+                -- melody notes...
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+CRITICAL RULES:
+1. Every track MUST have a `type = "luaScript"` and either a `presetId = "..."` or a full `luaScriptCode = [[ ... ]]`.
+2. Note pitches must be standard MIDI numbers (C3 = 48, C4 = 60, etc.) harmonized in the key of $songKey.
+3. Output valid executable Lua only.
+''';
+
+    final promptText = '''
+PRODUCER INSTRUCTION:
+Create a complete $barLength-bar $genre song arrangement in $songKey at $bpm BPM based on:
+"$prompt"
+''';
+
+    final rawOutput = await _callGemini(systemInstruction: systemInstruction, userPrompt: promptText);
+    return _extractCode(rawOutput);
+  }
+
+  /// Low-level Gemini REST API caller with automatic model fallback and timeout protection.
   static Future<String> _callGemini({
     required String systemInstruction,
     required String userPrompt,
     String? responseMimeType,
+    Duration timeout = const Duration(seconds: 75),
   }) async {
     final key = _apiKey?.trim() ?? '';
     final candidateModels = [_activeModel, ..._availableModels].toSet().toList();
@@ -435,7 +661,7 @@ Output pure Lua code only.
             'x-goog-api-key': key,
           },
           body: jsonEncode(payload),
-        );
+        ).timeout(timeout);
 
         lastResponse = response;
 
@@ -468,7 +694,7 @@ Output pure Lua code only.
       }
     }
 
-    throw Exception('Gemini API request failed (${lastResponse?.statusCode ?? 404}): ${lastResponse?.body ?? "No supported models available."}');
+    throw Exception('Gemini API request failed (${lastResponse?.statusCode ?? 404}): ${lastResponse?.body ?? "No supported models available or request timed out."}');
   }
 
   static String _cleanJsonResponse(String raw) {

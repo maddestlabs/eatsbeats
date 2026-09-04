@@ -59,6 +59,7 @@ enum PanelBackgroundStyle {
   mesh,
   dx7Membrane,
   harpsichordLacquer,
+  c64Breadbin,
   minimalWhite,
 }
 
@@ -334,6 +335,9 @@ class LuaGuiNode {
     }
     if (clean.contains('harpsichord') || clean.contains('lacquer') || clean.contains('cembalo') || clean.contains('gilded')) {
       return PanelBackgroundStyle.harpsichordLacquer;
+    }
+    if (clean.contains('c64') || clean.contains('breadbin') || clean.contains('commodore') || clean.contains('sid')) {
+      return PanelBackgroundStyle.c64Breadbin;
     }
     return PanelBackgroundStyle.dark;
   }

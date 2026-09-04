@@ -91,7 +91,7 @@ void main() {
         id: 'test_track',
         name: 'SNES Track',
         type: TrackType.synth,
-        color: const Color(0xFF7B52AB),
+        color: const Color(0xFFE52521),
         luaParams: {'SFXType': 0.0},
       );
       dawState.tracks.add(track);
@@ -118,7 +118,7 @@ void main() {
                   'Mutate',
                   'Custom SNES',
                 ],
-                accentColor: const Color(0xFF7B52AB),
+                accentColor: const Color(0xFFE52521),
               ),
             ),
           ),
@@ -209,7 +209,7 @@ void main() {
         id: 'sfxr_track',
         name: 'SNES Sfxr',
         type: TrackType.synth,
-        color: const Color(0xFF7B52AB),
+        color: const Color(0xFFE52521),
         luaScriptCode: sfxr.code,
         luaParams: {
           'SFXType': 2.0, // Powerup
@@ -257,7 +257,7 @@ void main() {
         id: 'sfxr_track_2',
         name: 'SNES Sfxr',
         type: TrackType.synth,
-        color: const Color(0xFF7B52AB),
+        color: const Color(0xFFE52521),
         luaScriptCode: sfxr.code,
         luaParams: {
           'SFXType': 0.0, // Laser
@@ -305,6 +305,7 @@ void main() {
       expect(panel.subtitle, contains('Polyphonic'));
       expect(panel.backgroundStyle, equals(PanelBackgroundStyle.snes));
       expect(panel.defaultKnobStyle, equals(KnobStyle.snes));
+      expect(panel.accentColor, equals(const Color(0xFFE52521)));
 
       final row1 = panel.children.first;
       expect(row1.type, equals(LuaGuiNodeType.row));
@@ -341,14 +342,14 @@ void main() {
   group('GrungyRackPanel SNES Chassis Style Tests', () {
     testWidgets('GrungyRackPanel renders PanelBackgroundStyle.snes correctly', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: GrungyRackPanel(
               title: 'SNES Sfxr',
               subtitle: '16-Bit Procedural Sound Engine',
               backgroundStyle: PanelBackgroundStyle.snes,
-              accentColor: const Color(0xFF7B52AB),
-              child: const Text('Console Content'),
+              accentColor: Color(0xFFE52521),
+              child: Text('Console Content'),
             ),
           ),
         ),

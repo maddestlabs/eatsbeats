@@ -49,7 +49,7 @@ class GrungyRackPanel extends StatelessWidget {
         (isMinimal
             ? const Color(0xFF1E1E24)
             : (isSnes
-                ? const Color(0xFF7B52AB)
+                ? const Color(0xFFE52521)
                 : (isSilver
                     ? const Color(0xFF141416)
                     : (isGrungy ? const Color(0xFFFF8C00) : EatsTheme.primaryCyan))));

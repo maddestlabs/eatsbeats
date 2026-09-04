@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart';
 
 /// Supported acoustic materials with frequency-dependent absorption coefficients.
 enum AcousticMaterialType {
@@ -485,9 +484,10 @@ class ProceduralIRGenerator {
     double lpStateL = 0.0;
     double lpStateR = 0.0;
 
-    for (int n = 0; n < totalSamples; n++) {
-      final env = math.exp(-decayCoeff * n);
+    final double decayFactor = math.exp(-decayCoeff);
+    double env = 1.0;
 
+    for (int n = 0; n < totalSamples; n++) {
       // Left Channel Pulse
       double pulseL = 0.0;
       if (n % velvetGrid == 0) {
@@ -505,6 +505,8 @@ class ProceduralIRGenerator {
       }
       lpStateR = (1.0 - lpAlpha) * (pulseR * env) + lpAlpha * lpStateR;
       irR[n] += lpStateR * 0.35;
+
+      env *= decayFactor;
     }
 
     // --- Phase C: Peak Normalization across both stereo channels ---
@@ -574,10 +576,12 @@ class ProceduralIRGenerator {
       highCutFreq: highCutFreq * offAxisHighDampingR,
     );
 
+    final double cabDecayStep = math.exp(-1.0 / (totalSamples * 0.4));
+    double cabDecay = 1.0;
     for (int i = 0; i < filteredL.length; i++) {
-      final decay = math.exp(-i / (totalSamples * 0.4));
-      filteredL[i] *= decay;
-      filteredR[i] *= decay;
+      filteredL[i] *= cabDecay;
+      filteredR[i] *= cabDecay;
+      cabDecay *= cabDecayStep;
     }
 
     // Energy / RMS transmission scaling for cabinet speaker response to achieve unity loudness (0 dB)

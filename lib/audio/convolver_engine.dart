@@ -111,8 +111,22 @@ class ConvolverEngine extends ChangeNotifier {
     return true;
   }
 
+  /// Checks if a named IR sample is already registered in memory.
+  bool hasIrSample(String name) {
+    final cleanName = name.replaceAll('\\', '/').split('/').last;
+    return _stereoIrSamples.containsKey(name) || _stereoIrSamples.containsKey(cleanName);
+  }
+
   /// Bakes a procedural space or amp cabinet on demand and registers it in memory.
-  List<double> bakeCustomSpace(AcousticSpaceParams params, {int sampleRate = 44100}) {
+  /// Returns the cached stereo buffer immediately if already generated, preventing redundant UI thread freezing.
+  List<double> bakeCustomSpace(AcousticSpaceParams params, {int sampleRate = 44100, bool force = false}) {
+    final cleanName = params.name.replaceAll('\\', '/').split('/').last;
+    if (!force && (_stereoIrSamples.containsKey(cleanName) || _stereoIrSamples.containsKey(params.name))) {
+      final existing = _stereoIrSamples[cleanName] ?? _stereoIrSamples[params.name];
+      if (existing != null && existing.left.isNotEmpty) {
+        return existing.left;
+      }
+    }
     final stereo = ProceduralIRGenerator.generateStereo(params, sampleRate: sampleRate);
     registerStereoIrSample(params.name, stereo);
     return stereo.left;

@@ -411,11 +411,11 @@ class ModularRackDsl {
 
       case 'eats_sfxr':
         modulesByRow[1] = [
-          const DynamicModuleDefinition(id: 'sfx_vco', title: 'SFX GENERATOR VCO', subtitle: 'VCO', hpWidth: 16, accentColor: Color(0xFFE040FB), category: 'VCO', inputJacks: ['Gate', 'Pitch CV'], outputJacks: ['Audio', 'Noise']),
+          const DynamicModuleDefinition(id: 'sfx_vco', title: 'SFX GENERATOR VCO', subtitle: 'VCO', hpWidth: 16, accentColor: Color(0xFFE52521), category: 'VCO', inputJacks: ['Gate', 'Pitch CV'], outputJacks: ['Audio', 'Noise']),
           const DynamicModuleDefinition(id: 'sweep_env', title: 'PITCH SWEEP ENV', subtitle: 'MOD', hpWidth: 14, accentColor: Color(0xFF00E5FF), category: 'MOD', inputJacks: ['Gate', 'Mod In'], outputJacks: ['Pitch Out', 'Env Out']),
         ];
         modulesByRow[2] = [
-          const DynamicModuleDefinition(id: 'echo_fir', title: '8-TAP FIR ECHO', subtitle: 'FX', hpWidth: 16, accentColor: Color(0xFFE040FB), category: 'FX', inputJacks: ['Audio In', 'FB CV'], outputJacks: ['Echo Out', 'Wet Out']),
+          const DynamicModuleDefinition(id: 'echo_fir', title: '8-TAP FIR ECHO', subtitle: 'FX', hpWidth: 16, accentColor: Color(0xFFE52521), category: 'FX', inputJacks: ['Audio In', 'FB CV'], outputJacks: ['Echo Out', 'Wet Out']),
           const DynamicModuleDefinition(id: 'master', title: 'SFXR MASTER OUT', subtitle: 'OUT', hpWidth: 14, accentColor: Color(0xFFFFD600), category: 'OUT', inputJacks: ['L In', 'R In'], outputJacks: ['Main L', 'Main R']),
         ];
         cables.addAll([
@@ -442,11 +442,11 @@ class ModularRackDsl {
 
       case 'snes_console_synth':
         modulesByRow[1] = [
-          const DynamicModuleDefinition(id: 'brr_vco', title: 'BRR WAVETABLE VCO', subtitle: 'VCO', hpWidth: 16, accentColor: Color(0xFF7B52AB), category: 'VCO', inputJacks: ['Pitch CV', 'Gate In'], outputJacks: ['Raw Wave', 'Audio Out']),
+          const DynamicModuleDefinition(id: 'brr_vco', title: 'BRR WAVETABLE VCO', subtitle: 'VCO', hpWidth: 16, accentColor: Color(0xFFE52521), category: 'VCO', inputJacks: ['Pitch CV', 'Gate In'], outputJacks: ['Raw Wave', 'Audio Out']),
           const DynamicModuleDefinition(id: 'snes_adsr', title: 'ADSR / GAIN ENV', subtitle: 'MOD', hpWidth: 14, accentColor: Color(0xFF00E5FF), category: 'MOD', inputJacks: ['Gate In', 'Mod In'], outputJacks: ['Env Out', 'Gain Out']),
         ];
         modulesByRow[2] = [
-          const DynamicModuleDefinition(id: 'echo', title: '8-TAP FIR ECHO', subtitle: 'FX', hpWidth: 16, accentColor: Color(0xFF7B52AB), category: 'FX', inputJacks: ['Audio In', 'Delay CV'], outputJacks: ['Echo Out', 'Wet Out']),
+          const DynamicModuleDefinition(id: 'echo', title: '8-TAP FIR ECHO', subtitle: 'FX', hpWidth: 16, accentColor: Color(0xFFE52521), category: 'FX', inputJacks: ['Audio In', 'Delay CV'], outputJacks: ['Echo Out', 'Wet Out']),
           const DynamicModuleDefinition(id: 'master', title: 'S-DSP MASTER OUT', subtitle: 'OUT', hpWidth: 14, accentColor: Color(0xFFFFD600), category: 'OUT', inputJacks: ['L In', 'R In'], outputJacks: ['Main L', 'Main R']),
         ];
         cables.addAll([

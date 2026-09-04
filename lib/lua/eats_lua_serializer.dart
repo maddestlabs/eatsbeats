@@ -80,6 +80,9 @@ class EatsLuaSerializer {
       }
       buffer.writeln('  },');
       buffer.writeln();
+    } else {
+      buffer.writeln('  chordTrack = {},');
+      buffer.writeln();
     }
 
     // 5. Master FX Rack
@@ -271,6 +274,7 @@ class EatsLuaSerializer {
     buffer.writeln('${childIndent}trackId = "${_escapeString(clip.trackId)}",');
     buffer.writeln('${childIndent}startBar = ${clip.startBar},');
     buffer.writeln('${childIndent}barLength = ${clip.barLength},');
+    buffer.writeln('${childIndent}patternIndex = ${clip.patternIndex},');
     if (clip.loopLengthBars != null) {
       buffer.writeln('${childIndent}loopLengthBars = ${clip.loopLengthBars},');
     }

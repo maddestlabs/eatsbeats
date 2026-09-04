@@ -14,7 +14,9 @@ import 'widgets/eatsbeats_slider.dart';
 import 'widgets/fx_rack_dialog.dart';
 import 'widgets/preset_search_dialog.dart';
 import 'widgets/project_browser_drawer.dart';
+import 'widgets/skeuomorphic_hardware_button.dart';
 import 'widgets/skeuomorphic_hardware_knob.dart';
+import 'sequence_editor_view.dart';
 
 class ArrangerView extends StatefulWidget {
   final DawState dawState;
@@ -64,7 +66,27 @@ class _ArrangerViewState extends State<ArrangerView> {
   int? _dragLoopStartBar;
 
   @override
+  void initState() {
+    super.initState();
+    widget.dawState.addListener(_onDawStateChanged);
+  }
+
+  void _onDawStateChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didUpdateWidget(covariant ArrangerView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.dawState != widget.dawState) {
+      oldWidget.dawState.removeListener(_onDawStateChanged);
+      widget.dawState.addListener(_onDawStateChanged);
+    }
+  }
+
+  @override
   void dispose() {
+    widget.dawState.removeListener(_onDawStateChanged);
     _horizontalScroll.dispose();
     _leftTrackScroll.dispose();
     _rightGridScroll.dispose();
@@ -83,18 +105,53 @@ class _ArrangerViewState extends State<ArrangerView> {
         ? _kPropertiesPullTabWidth + _propertiesWidth
         : _kPropertiesPullTabWidth;
 
-    return Stack(
-      children: [
-        // Main Multitrack Arranger Content (Timeline & Track Panels)
-        AnimatedPositioned(
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.fastOutSlowIn,
-          top: 0,
-          bottom: 0,
-          left: 0,
-          right: (isBrowserOpen ? 320.0 : 0.0) + drawerWidth,
-          child: Row(
-            children: [
+    return Focus(
+      focusNode: _focusNode,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.tab) {
+          setState(() {
+            widget.dawState.toggleArrangerViewMode();
+          });
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Stack(
+        children: [
+          // Main Multitrack Arranger Content (Timeline & Track Panels)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.fastOutSlowIn,
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: (isBrowserOpen ? 320.0 : 0.0) + drawerWidth,
+            child: Column(
+              children: [
+                _buildArrangerHeader(),
+                Expanded(
+                  child: widget.dawState.arrangerViewMode == ArrangerViewMode.sequence
+                      ? SequenceEditorView(
+                          dawState: widget.dawState,
+                          onOpenTrackProperties: (track) {
+                            setState(() {
+                              _isPropertiesExpanded = true;
+                              final allIdx = widget.dawState.activePattern.tracks.indexOf(track);
+                              if (allIdx != -1) widget.dawState.activeTrackIndex = allIdx;
+                              widget.dawState.selectClip(null);
+                            });
+                          },
+                          onOpenClipProperties: (track, clip) {
+                            setState(() {
+                              _isPropertiesExpanded = true;
+                              final allIdx = widget.dawState.activePattern.tracks.indexOf(track);
+                              if (allIdx != -1) widget.dawState.activeTrackIndex = allIdx;
+                              widget.dawState.selectClip(clip);
+                            });
+                          },
+                        )
+                      : Row(
+                          children: [
               // Left Panel: Vertical Track Control Strips (Synced Scroll)
                       SizedBox(
                         width: 210,
@@ -180,7 +237,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    widget.dawState.songKey,
+                                    widget.dawState.songKey.replaceAll(' Major', '').replaceAll(' Minor', 'm'),
                                     style: const TextStyle(color: EatsTheme.accentGold, fontSize: 8.5, fontWeight: FontWeight.bold),
                                   ),
                                   const Icon(Icons.arrow_drop_down, size: 10, color: EatsTheme.accentGold),
@@ -196,30 +253,8 @@ class _ArrangerViewState extends State<ArrangerView> {
                             },
                             onSelected: (k) => widget.dawState.setSongKey(k),
                           ),
-                          // Progression Presets Quick Picker Button
-                          InkWell(
-                            onTap: () {
-                              final curBar = (widget.dawState.arrangerStep ~/ 16).clamp(0, totalBars - 1);
-                              PresetSearchDialog.showChordProgressions(
-                                context,
-                                dawState: widget.dawState,
-                                startBar: curBar,
-                              );
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: BoxDecoration(
-                                color: EatsTheme.accentGold.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Tooltip(
-                                message: 'Browse & Insert Chord Progression Presets',
-                                child: Icon(Icons.queue_music, size: 13, color: EatsTheme.accentGold),
-                              ),
-                            ),
-                          ),
                           const SizedBox(width: 4),
-                          // Circle of Fifths Dialog Button
+                          // Chords Dialog Button
                           InkWell(
                             onTap: () {
                               final curBar = (widget.dawState.arrangerStep ~/ 16).clamp(0, totalBars - 1);
@@ -227,14 +262,29 @@ class _ArrangerViewState extends State<ArrangerView> {
                               CircleOfFifthsDialog.show(context, dawState: widget.dawState, targetBar: curBar, initialChord: existing);
                             },
                             child: Container(
-                              padding: const EdgeInsets.all(2),
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                               decoration: BoxDecoration(
-                                color: EatsTheme.primaryCyan.withOpacity(0.2),
+                                color: EatsTheme.primaryCyan.withOpacity(0.18),
                                 borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.5), width: 0.8),
                               ),
                               child: Tooltip(
-                                message: 'Open Circle of Fifths Chord Selector',
-                                child: Icon(Icons.circle_outlined, size: 13, color: EatsTheme.primaryCyan),
+                                message: 'Chords',
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.album_outlined, size: 11, color: EatsTheme.primaryCyan),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      'Chords',
+                                      style: TextStyle(
+                                        color: EatsTheme.primaryCyan,
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -784,8 +834,8 @@ class _ArrangerViewState extends State<ArrangerView> {
                         GestureDetector(
                           onTapUp: (details) {
                             final double localX = details.localPosition.dx;
-                            final int tappedBar = (localX / barWidth).floor().clamp(0, totalBars - 1);
-                            widget.dawState.seekToBar(tappedBar);
+                            final double step = (localX / barWidth) * 16.0;
+                            widget.dawState.seekToArrangerStep(step);
                           },
                           onLongPressStart: (details) {
                             final double localX = details.localPosition.dx;
@@ -899,7 +949,13 @@ class _ArrangerViewState extends State<ArrangerView> {
                               Row(
                                 children: List.generate(totalBars, (barIdx) {
                                   return GestureDetector(
-                                    onTap: () {
+                                    behavior: HitTestBehavior.opaque,
+                                    onTapUp: (details) {
+                                      final double localX = (barIdx * barWidth) + details.localPosition.dx;
+                                      final double step = (localX / barWidth) * 16.0;
+                                      widget.dawState.seekToArrangerStep(step);
+                                    },
+                                    onDoubleTap: () {
                                       final existing = widget.dawState.getActiveChordAtBar(barIdx);
                                       CircleOfFifthsDialog.show(
                                         context,
@@ -939,7 +995,12 @@ class _ArrangerViewState extends State<ArrangerView> {
                                   bottom: 2,
                                   child: GestureDetector(
                                     behavior: HitTestBehavior.opaque,
-                                    onTap: () {
+                                    onTapUp: (details) {
+                                      final double localX = chordX + details.localPosition.dx;
+                                      final double step = (localX / barWidth) * 16.0;
+                                      widget.dawState.seekToArrangerStep(step);
+                                    },
+                                    onDoubleTap: () {
                                       CircleOfFifthsDialog.show(
                                         context,
                                         dawState: widget.dawState,
@@ -1193,7 +1254,14 @@ class _ArrangerViewState extends State<ArrangerView> {
                                            Row(
                                              children: List.generate(totalBars, (barIdx) {
                                                return GestureDetector(
-                                                 onTap: () {
+                                                 behavior: HitTestBehavior.opaque,
+                                                 onTapUp: (details) {
+                                                   widget.dawState.activeTrackIndex = trackIdx;
+                                                   final double stepWithinBar = (details.localPosition.dx / barWidth) * 16.0;
+                                                   final double step = (barIdx * 16.0 + stepWithinBar).clamp(0.0, (totalBars * 16.0) - 1.0);
+                                                   widget.dawState.seekToArrangerStep(step);
+                                                 },
+                                                 onDoubleTap: () {
                                                    widget.dawState.activeTrackIndex = trackIdx;
                                                    widget.dawState.addClipToTrack(track, barIdx);
                                                  },
@@ -1405,7 +1473,7 @@ class _ArrangerViewState extends State<ArrangerView> {
 
                                                          return GestureDetector(
                                                            behavior: HitTestBehavior.opaque,
-                                                           onTapDown: (_) {
+                                                           onTapDown: (details) {
                                                              final now = DateTime.now();
                                                              final isDoubleTap = _lastClipTapId == clip.id &&
                                                                  _lastClipTapTime != null &&
@@ -1415,6 +1483,12 @@ class _ArrangerViewState extends State<ArrangerView> {
 
                                                              widget.dawState.activeTrackIndex = trackIdx;
                                                              widget.dawState.selectClip(clip);
+
+                                                             // Move playhead to tapped position
+                                                             final double clipGlobalX = (clip.startBar * barWidth) + details.localPosition.dx;
+                                                             final double step = (clipGlobalX / barWidth) * 16.0;
+                                                             widget.dawState.seekToArrangerStep(step);
+
                                                              if (isDoubleTap) {
                                                                // DOUBLE-TAP CLIP: Open MIDI clip in Piano Roll / Tracker; for Audio clips, focus clip properties inspector
                                                                if (track.type != TrackType.sampler && !clip.isAudioClip) {
@@ -1592,6 +1666,23 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                                                ),
                                                                              ),
                                                                            ],
+                                                                           Container(
+                                                                             padding: const EdgeInsets.symmetric(horizontal: 2.5, vertical: 0.5),
+                                                                             margin: const EdgeInsets.only(right: 3),
+                                                                             decoration: BoxDecoration(
+                                                                               color: Colors.black38,
+                                                                               borderRadius: BorderRadius.circular(2),
+                                                                             ),
+                                                                             child: Text(
+                                                                               clip.patternHex,
+                                                                               style: const TextStyle(
+                                                                                 color: EatsTheme.accentGold,
+                                                                                 fontSize: 7.5,
+                                                                                 fontWeight: FontWeight.bold,
+                                                                                 fontFamily: 'monospace',
+                                                                               ),
+                                                                             ),
+                                                                           ),
                                                                            Expanded(
                                                                              child: Text(
                                                                                clip.name,
@@ -1912,6 +2003,9 @@ class _ArrangerViewState extends State<ArrangerView> {
     ],
   ),
 ),
+],
+),
+),
 
     // Right-Sidebar Vertical Track Properties Pullout Drawer (Styled with exact pullout method from Virtual Piano Keyboard)
     AnimatedPositioned(
@@ -1924,7 +2018,120 @@ class _ArrangerViewState extends State<ArrangerView> {
       child: _buildVerticalTrackPropertiesPullout(context),
     ),
   ],
+),
 );
+  }
+
+  Widget _buildArrangerHeader() {
+    final isTimeline = widget.dawState.arrangerViewMode == ArrangerViewMode.timeline;
+    final tracks = widget.dawState.visibleTracks;
+
+    return Container(
+      height: 32,
+      color: EatsTheme.panelHeader,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          SkeuomorphicHardwareButton(
+            label: 'TIMELINE',
+            icon: Icons.view_timeline,
+            isActive: isTimeline,
+            activeColor: EatsTheme.primaryCyan,
+            onTap: () {
+              if (widget.dawState.arrangerViewMode != ArrangerViewMode.timeline) {
+                setState(() {
+                  widget.dawState.arrangerViewMode = ArrangerViewMode.timeline;
+                });
+              }
+            },
+            height: 24,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+          const SizedBox(width: 4),
+          SkeuomorphicHardwareButton(
+            label: 'SEQUENCE',
+            icon: Icons.view_column,
+            isActive: !isTimeline,
+            activeColor: EatsTheme.secondaryMagenta,
+            onTap: () {
+              if (widget.dawState.arrangerViewMode != ArrangerViewMode.sequence) {
+                setState(() {
+                  widget.dawState.arrangerViewMode = ArrangerViewMode.sequence;
+                });
+              }
+            },
+            height: 24,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: 'Toggle view with Tab key',
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: const Text('TAB', style: TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'TRACKS (${tracks.length})',
+            style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9, fontWeight: FontWeight.bold),
+          ),
+          const Spacer(),
+          InkWell(
+            onTap: widget.dawState.toggleLoop,
+            child: Tooltip(
+              message: 'Toggle Loop Mode',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.repeat,
+                    size: 13,
+                    color: widget.dawState.isLooping ? EatsTheme.accentGold : EatsTheme.textMuted,
+                  ),
+                  const SizedBox(width: 2),
+                  Text(
+                    widget.dawState.isLooping ? 'LOOP' : 'OFF',
+                    style: TextStyle(
+                      color: widget.dawState.isLooping ? EatsTheme.accentGold : EatsTheme.textMuted,
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          InkWell(
+            onTap: () => PresetSearchDialog.showAddTrack(context, dawState: widget.dawState),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: EatsTheme.primaryCyan.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.6), width: 0.8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.add, size: 11, color: EatsTheme.primaryCyan),
+                  const SizedBox(width: 2),
+                  Text(
+                    'TRACK',
+                    style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 9, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildVerticalTrackPropertiesPullout(BuildContext context) {

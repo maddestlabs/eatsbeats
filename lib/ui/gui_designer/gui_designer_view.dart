@@ -719,7 +719,10 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
 
     final isLight = isMinimal || isSilver || isSnes || bgStyle == PanelBackgroundStyle.blondePine || (chassisBg.computeLuminance() > 0.5);
     final effectiveTrackColor = widget.target.trackColor;
-    final accent = _panel.accentColor ?? (isMinimal ? const Color(0xFF1E1E24) : effectiveTrackColor);
+    final accent = _panel.accentColor ??
+        (isMinimal
+            ? const Color(0xFF1E1E24)
+            : (isSnes ? const Color(0xFFE52521) : effectiveTrackColor));
 
     Widget faceplate = DawTexturedContainer(
       texture: textureType,
@@ -733,7 +736,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
             ? const Color(0xFFD8DBE2)
             : (isSilver
                 ? const Color(0xFF9E9A8A)
-                : (isSnes ? const Color(0xFF7B52AB) : accent.withOpacity(0.5))),
+                : (isSnes ? const Color(0xFFE52521) : accent.withOpacity(0.5))),
         width: 2.0,
       ),
       child: Column(

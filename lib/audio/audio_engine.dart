@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+
 import '../models/track_model.dart';
 import '../lua/lua_engine.dart';
 import 'poly_synth.dart';
@@ -166,14 +168,47 @@ class AudioEngine {
   }
 
   DateTime _lastMeterUpdateTime = DateTime.now();
+  DateTime _lastNativeMeterCall = DateTime.fromMillisecondsSinceEpoch(0);
+  // Separate throttle for visualization-driven meter polls (waveform/spectrum widgets).
+  DateTime _lastVizMeterUpdateTime = DateTime.fromMillisecondsSinceEpoch(0);
 
-  void updateMeters() {
+  /// Fast pure-Dart meter decay without calling native FFI. Used when idle/stopped.
+  void decayMeters() {
+    final now = DateTime.now();
+    final dt = (now.difference(_lastMeterUpdateTime).inMicroseconds / 1000000.0).clamp(0.001, 0.5);
+    _lastMeterUpdateTime = now;
+    final decay = math.exp(-dt / 0.15); // Smooth 150ms release
+    _leftPeak = (_leftPeak * decay) < 0.001 ? 0.0 : _leftPeak * decay;
+    _rightPeak = (_rightPeak * decay) < 0.001 ? 0.0 : _rightPeak * decay;
+    _cpuLoad = (_cpuLoad * 0.90) + (0.015 * 0.10);
+    _trackLeftPeaks.updateAll((_, val) => (val * decay) < 0.001 ? 0.0 : val * decay);
+    _trackRightPeaks.updateAll((_, val) => (val * decay) < 0.001 ? 0.0 : val * decay);
+  }
+
+  void updateMeters({bool force = false}) {
+    if (!_backend.hasActiveAudioSources) {
+      decayMeters();
+      return;
+    }
+
     final now = DateTime.now();
     final dt = (now.difference(_lastMeterUpdateTime).inMicroseconds / 1000000.0).clamp(0.001, 0.5);
     _lastMeterUpdateTime = now;
 
-    // Time-constant decay: ~300ms release time (decay = exp(-dt / 0.3))
+    // Time-constant decay: ~300ms release time
     final decay = math.exp(-dt / 0.30);
+
+    // On native desktop, query native FFI analyser at most every 150ms (or on force)
+    // to eliminate JUCE audio device thread lock contention on heavy FX graphs.
+    // Note-driven peaks provide instantaneous, 60fps responsive LED meter visuals.
+    if (!kIsWeb && !force && now.difference(_lastNativeMeterCall).inMilliseconds < 150) {
+      _leftPeak *= decay;
+      _rightPeak *= decay;
+      _trackLeftPeaks.updateAll((_, v) => v * decay);
+      _trackRightPeaks.updateAll((_, v) => v * decay);
+      return;
+    }
+    _lastNativeMeterCall = now;
 
     _backend.updateMeters(_meterBuffer, (l, r) {
       if (l > 0.001 || r > 0.001) {
@@ -224,11 +259,14 @@ class AudioEngine {
     double gain = 1.0,
     double timebase = 1.0,
   }) {
-    updateMeters();
+    final now = DateTime.now();
     final isMaster = trackId == null || trackId == 'master_bus' || trackId == 'master' || trackId.toLowerCase().contains('master');
     final targetId = isMaster ? null : trackId;
 
-    _backend.getTimeDomainData(_trackTapBuffer, targetId: targetId);
+    if (now.difference(_lastVizMeterUpdateTime).inMilliseconds >= 30) {
+      _lastVizMeterUpdateTime = now;
+      _backend.getTimeDomainData(_trackTapBuffer, targetId: targetId);
+    }
 
     // Derive activity directly from the buffer RMS — avoids relying solely on decaying note-on peaks
     final bufRms = _bufferRms(_trackTapBuffer);
@@ -266,7 +304,12 @@ class AudioEngine {
     double gain = 1.0,
     double decay = 0.6,
   }) {
-    updateMeters();
+    final now = DateTime.now();
+    // Throttle to 30ms (≈33Hz) — same gate as getWaveformSamples.
+    if (now.difference(_lastVizMeterUpdateTime).inMilliseconds >= 30) {
+      updateMeters();
+      _lastVizMeterUpdateTime = now;
+    }
     final isMaster = trackId == null || trackId == 'master_bus' || trackId == 'master' || trackId.toLowerCase().contains('master');
     final targetId = isMaster ? null : trackId;
 
@@ -378,7 +421,6 @@ class AudioEngine {
 
     final bool activeAccent = isAccent || velocity > 0.75;
 
-    // Retrieve or synthesize the PCM buffer
     final (samples, cacheKey) = _getOrCreateBuffer(
       track: track,
       midiNote: midiNote,
@@ -537,6 +579,9 @@ class AudioEngine {
     recordDspExecution(sw.elapsedMicroseconds, durationSec);
 
     if (cacheKey != null) {
+      if (_pcmCache.length >= 256) {
+        _pcmCache.remove(_pcmCache.keys.first);
+      }
       _pcmCache[cacheKey] = buffer;
     }
     return (buffer, cacheKey);
@@ -636,8 +681,10 @@ class AudioEngine {
 
   static int _computeParamsHash(TrackChannel track) {
     int h = track.type.hashCode ^ track.sampleName.hashCode ^ track.synthWaveform.hashCode ^ track.luaScriptCode.hashCode;
-    for (final e in track.luaParams.entries) {
-      h = (h * 31) ^ (e.key.hashCode ^ (e.value * 100).round());
+    final sortedKeys = track.luaParams.keys.toList()..sort();
+    for (final k in sortedKeys) {
+      final v = track.luaParams[k] ?? 0.0;
+      h = (h * 31) ^ (k.hashCode ^ (v * 100).round());
     }
     return h;
   }
@@ -666,7 +713,7 @@ class AudioEngine {
     required TrackChannel track,
     required int midiNote,
     required double velocity,
-    double sustainDurationSec = 3.0,
+    double sustainDurationSec = 1.5,
     String? articulation,
   }) {
     if (track.isMuted) return;
@@ -790,7 +837,7 @@ class AudioEngine {
             continue;
           }
 
-          final dur = stepDurationSec * note.durationSteps;
+          final dur = math.min(2.5, stepDurationSec * note.durationSteps);
           int? targetPitch;
           if (track.isMonophonicTrack) {
             final nextNotes = notes.where((n) => n.startStep > note.startStep && n.startStep <= (note.startStep + math.max(1.5, note.durationSteps + 0.5))).toList();
@@ -804,13 +851,20 @@ class AudioEngine {
               targetPitch = nextColNotes.first.pitch;
             }
           }
+          final hasSlideParam = (track.luaParams['Slide'] ?? 0.0) > 0.01 ||
+              (track.luaParams['Portamento'] ?? 0.0) > 0.01 ||
+              (track.luaParams['Glide'] ?? 0.0) > 0.01;
+          final bool isSlideNote = note.isSlide || hasSlideParam || targetPitch != null;
+          final bool isAccentNote = note.isAccent || note.velocity > 0.75;
+          final double noteDurSec = math.max(0.02, math.min(3.0, stepDurationSec * note.durationSteps));
+
           _getOrCreateBuffer(
             track: track,
             midiNote: note.pitch,
             velocity: note.velocity,
-            durationSec: dur,
-            isSlide: note.isSlide || targetPitch != null,
-            isAccent: note.isAccent,
+            durationSec: noteDurSec,
+            isSlide: isSlideNote,
+            isAccent: isAccentNote,
             targetMidiNote: targetPitch,
           );
         }

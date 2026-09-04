@@ -15,6 +15,7 @@ import 'widgets/ui_scale_dialog.dart';
 import 'widgets/shader_picker_dialog.dart';
 import 'widgets/theme_picker_dialog.dart';
 import 'widgets/ai_assistant_dialog.dart';
+import 'widgets/ai_task_status_bar.dart';
 import '../shaders/shader_settings_manager.dart';
 
 
@@ -204,6 +205,9 @@ class TransportHeader extends StatelessWidget {
               );
             },
           ),
+
+          // Live AI Background Status Indicator
+          AiTaskStatusBar(dawState: dawState),
 
           const SizedBox(width: 6),
 
@@ -792,6 +796,42 @@ class TransportHeader extends StatelessWidget {
                                   },
                                   height: 32,
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 16, color: Colors.white10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('GUI ANIMATIONS & CPU', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        dawState.guiAnimationsEnabled
+                                            ? 'Enabled (Full Visualizers & Tickers)'
+                                            : 'Disabled (Static UI / Conserve CPU)',
+                                        style: TextStyle(
+                                          color: dawState.guiAnimationsEnabled
+                                              ? EatsTheme.primaryCyan
+                                              : EatsTheme.textMuted,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SkeuomorphicHardwareSwitch(
+                                  value: dawState.guiAnimationsEnabled,
+                                  activeColor: EatsTheme.primaryCyan,
+                                  onChanged: (val) {
+                                    setDialogState(() {
+                                      dawState.setGuiAnimationsEnabled(val);
+                                    });
+                                  },
                                 ),
                               ],
                             ),

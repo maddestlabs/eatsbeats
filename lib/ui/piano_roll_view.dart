@@ -72,7 +72,7 @@ class _PianoRollViewState extends State<PianoRollView> {
         track: track,
         midiNote: pitch,
         velocity: velocity,
-        sustainDurationSec: 3.5,
+        sustainDurationSec: 0.85,
       );
     },
     onNoteOff: (pitch) {
@@ -127,10 +127,15 @@ class _PianoRollViewState extends State<PianoRollView> {
     if (!mounted) return;
     final bool isEditTab = widget.dawState.activeTabIndex == 1;
     final bool isPianoRoll = widget.dawState.activeTrack.activeView == MusicViewType.pianoRoll;
-    if (isEditTab && isPianoRoll && (_lastTabIndex != 1 || _lastActiveView != MusicViewType.pianoRoll)) {
+    final bool shouldCenter = widget.dawState.shouldCenterEditViewOnOpen;
+    if (shouldCenter || (isEditTab && isPianoRoll && (_lastTabIndex != 1 || _lastActiveView != MusicViewType.pianoRoll))) {
+      widget.dawState.shouldCenterEditViewOnOpen = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && !_focusNode.hasFocus) {
-          _focusNode.requestFocus();
+        if (mounted) {
+          if (!_focusNode.hasFocus) {
+            _focusNode.requestFocus();
+          }
+          _centerViewOnNotesOrDefault(animate: false);
         }
       });
     }
@@ -192,6 +197,26 @@ class _PianoRollViewState extends State<PianoRollView> {
       _gridScrollController.jumpTo(targetY);
     }
     _syncKeysScroll();
+
+    // Center horizontally on playhead position within clip
+    if (_horizontalScroll.hasClients) {
+      final activeClip = widget.dawState.activeClip;
+      final clipStartStep = (activeClip?.startBar ?? 0) * 16;
+      final stepInClip = (widget.dawState.arrangerStep - clipStartStep).clamp(0, (activeClip?.barLength ?? 4) * 16);
+      final playheadX = stepInClip * _stepWidth;
+      final viewportW = _horizontalScroll.position.viewportDimension;
+      final targetX = (playheadX - (viewportW / 2.0)).clamp(0.0, _horizontalScroll.position.maxScrollExtent);
+
+      if (animate) {
+        _horizontalScroll.animateTo(
+          targetX,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+        );
+      } else {
+        _horizontalScroll.jumpTo(targetX);
+      }
+    }
   }
 
   @override
@@ -1582,12 +1607,14 @@ class _PianoRollViewState extends State<PianoRollView> {
       return KeyEventResult.handled;
     }
 
-    // Escape -> Deselect All
+    // Escape -> Deselect All, or return to Arranger pane if already deselected
     if (key == LogicalKeyboardKey.escape) {
       if (_selectedNoteIds.isNotEmpty) {
         _clearSelection();
         return KeyEventResult.handled;
       }
+      widget.dawState.activeTabIndex = 0;
+      return KeyEventResult.handled;
     }
 
     // S key (without Ctrl) -> Toggle Slide/Bend on selected note(s), or toggle Draw Bend Mode

@@ -161,11 +161,17 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Should show Header
+      // Should show Header and all 4 tabs
       expect(find.text('GEMINI AI ASSISTANT'), findsOneWidget);
       expect(find.text('MIX & MASTER'), findsOneWidget);
+      expect(find.text('SONG ARCHITECT'), findsOneWidget);
       expect(find.text('SOUND ARCHITECT'), findsOneWidget);
-      expect(find.text('AI SETTINGS (BYOK)'), findsOneWidget);
+      expect(find.text('AI SETTINGS'), findsOneWidget);
+
+      // Switch to Song Architect tab
+      await tester.tap(find.text('SONG ARCHITECT'));
+      await tester.pumpAndSettle();
+      expect(find.text('SONG ARRANGEMENT PROMPT:'), findsOneWidget);
 
       // Switch to Sound Architect tab
       await tester.tap(find.text('SOUND ARCHITECT'));
@@ -173,7 +179,7 @@ void main() {
       expect(find.text('PROMPT SOUND DESIGN:'), findsOneWidget);
 
       // Switch to AI Settings tab
-      await tester.tap(find.text('AI SETTINGS (BYOK)'));
+      await tester.tap(find.text('AI SETTINGS'));
       await tester.pumpAndSettle();
       expect(find.text('GOOGLE GEMINI API KEY (FREE)'), findsOneWidget);
       expect(find.text('TEST KEY CONNECTION'), findsOneWidget);

@@ -58,6 +58,7 @@ class _AudioToMidiDialogState extends State<AudioToMidiDialog> {
   bool _enablePitchBend = false;
   bool _createNewTrack = true;
   String _trackName = '';
+  bool _extractChordsToChordTrack = true;
 
   bool _isProcessing = false;
   double _processProgress = 0.0;
@@ -162,13 +163,19 @@ class _AudioToMidiDialogState extends State<AudioToMidiDialog> {
         },
       );
 
+      int chordCount = 0;
+      if (_extractChordsToChordTrack && parsedTrack.notes.isNotEmpty) {
+        chordCount = widget.dawState.extractAndApplyChordsFromMidiTrack(parsedTrack);
+      }
+
       if (mounted) {
         Navigator.of(context).pop();
+        final chordMsg = chordCount > 0 ? ' and applied $chordCount chords to Chord Track (Ctrl+Z to Undo)' : '';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: EatsTheme.primaryCyan,
             content: Text(
-              'Transcribed ${parsedTrack.notes.length} MIDI notes successfully into "${_createNewTrack ? parsedTrack.name : widget.dawState.activeTrack.name}"!',
+              'Transcribed ${parsedTrack.notes.length} MIDI notes into "${_createNewTrack ? parsedTrack.name : widget.dawState.activeTrack.name}"$chordMsg!',
               style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
             ),
           ),
@@ -475,6 +482,19 @@ class _AudioToMidiDialogState extends State<AudioToMidiDialog> {
                     ),
                   ),
                 ],
+              ),
+
+              // Chord Track extraction toggle
+              CheckboxListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                secondary: const Icon(Icons.queue_music, color: EatsTheme.accentGold, size: 20),
+                title: const Text('Analyze & Apply to Chord Track', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                subtitle: const Text('Detect harmonic chord progression from transcribed MIDI and place on Chord Track', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                value: _extractChordsToChordTrack,
+                activeColor: EatsTheme.accentGold,
+                checkColor: Colors.black,
+                onChanged: (v) => setState(() => _extractChordsToChordTrack = v ?? false),
               ),
 
               // Destination Track Name

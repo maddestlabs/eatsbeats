@@ -115,10 +115,23 @@ class _TrackerViewState extends State<TrackerView> {
     if (!mounted) return;
     final bool isEditTab = widget.dawState.activeTabIndex == 1;
     final bool isTrackerActive = widget.dawState.activeTrack.activeView == MusicViewType.tracker;
-    if (isEditTab && isTrackerActive && (_lastTabIndex != 1 || _lastActiveView != MusicViewType.tracker)) {
+    final bool shouldCenter = widget.dawState.shouldCenterEditViewOnOpen;
+    if (shouldCenter || (isEditTab && isTrackerActive && (_lastTabIndex != 1 || _lastActiveView != MusicViewType.tracker))) {
+      widget.dawState.shouldCenterEditViewOnOpen = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && !_focusNode.hasFocus) {
+        if (!mounted) return;
+        if (!_focusNode.hasFocus) {
           _focusNode.requestFocus();
+        }
+        if (_verticalScroll.hasClients) {
+          final activeClip = widget.dawState.activeClip;
+          final clipStartStep = (activeClip?.startBar ?? 0) * 16;
+          final totalSteps = (activeClip?.barLength ?? 4) * 16;
+          final stepInClip = (widget.dawState.arrangerStep - clipStartStep).clamp(0, totalSteps - 1);
+          widget.dawState.selectTrackerCell(stepInClip, widget.dawState.trackerSelectedColumn);
+          final viewportH = _verticalScroll.position.viewportDimension;
+          final targetOffset = (stepInClip * 32.0) - (viewportH / 2.0) + 16.0;
+          _verticalScroll.jumpTo(targetOffset.clamp(0.0, _verticalScroll.position.maxScrollExtent));
         }
       });
     }
@@ -302,12 +315,21 @@ class _TrackerViewState extends State<TrackerView> {
       return KeyEventResult.handled;
     }
 
-    // Escape -> Clear Block Selection
+    // Escape -> Clear Block Selection, or return to Arranger tab if already cleared
     if (key == LogicalKeyboardKey.escape) {
       if (_hasBlockSelection) {
         _clearBlockSelection();
         return KeyEventResult.handled;
       }
+      final activeClip = widget.dawState.activeClip;
+      if (activeClip != null) {
+        final tIdx = widget.dawState.visibleTracks.indexWhere((t) => t.id == activeClip.trackId);
+        if (tIdx != -1) {
+          widget.dawState.selectSequenceCell(activeClip.startBar, tIdx);
+        }
+      }
+      widget.dawState.activeTabIndex = 0;
+      return KeyEventResult.handled;
     }
 
     // Helper for Shift-Arrow / Arrow Navigation

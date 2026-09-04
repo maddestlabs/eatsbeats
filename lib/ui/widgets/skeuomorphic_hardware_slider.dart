@@ -105,6 +105,7 @@ class _SkeuomorphicHardwareSliderState extends State<SkeuomorphicHardwareSlider>
         );
 
         return GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTapDown: (details) {
             widget.onChangeStart?.call();
             _updateValueFromPos(details.localPosition, totalLength, isHoriz);

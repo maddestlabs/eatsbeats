@@ -713,6 +713,95 @@ class LuaEngine {
       );
     }
 
+    if (code.contains('Glockenspiel') ||
+        code.contains('glockenspiel') ||
+        (code.contains('BarDecay') && code.contains('BellShimmer')) ||
+        (code.contains('BellShimmer') && code.contains('MalletHardness'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildGlockenspiel(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('MusicBox') ||
+        code.contains('music_box') ||
+        code.contains('Music Box') ||
+        (code.contains('PinScrape') && code.contains('BoxWarmth')) ||
+        (code.contains('PinScrape') && code.contains('HighTineRing'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildMusicBox(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('Xylophone') ||
+        code.contains('xylophone') ||
+        (code.contains('WoodDecay') && code.contains('TripleOctave')) ||
+        (code.contains('WoodDecay') && code.contains('ResonatorPop'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildXylophone(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('Vibraphone') ||
+        code.contains('vibraphone') ||
+        (code.contains('MotorSpeed') && code.contains('TremoloDepth')) ||
+        (code.contains('DoubleOctave') && code.contains('TremoloDepth'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildVibraphone(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
     if (code.contains('ReggaeGuitar') ||
         code.contains('reggae_guitar') ||
         code.contains('Reggae Skank') ||
@@ -1202,6 +1291,30 @@ class LuaEngine {
         (code.contains('Algorithm') && code.contains('TineBell') && code.contains('BodyWarmth'))) {
       return GraphEvaluator.evaluate(
         root: GraphEvaluator.buildDX7EPiano(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('C64SID') ||
+        code.contains('c64_sid') ||
+        code.contains('MOS6581') ||
+        code.contains('MOS8580') ||
+        code.contains('Commodore 64') ||
+        (code.contains('PulseWidth') && code.contains('PwmRate') && code.contains('ArpMode'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildSIDSynth(),
         durationSec: durationSec,
         freq: freq,
         note: note,

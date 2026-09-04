@@ -279,11 +279,11 @@ return Eats303
       expect(eats303Panel, isNotNull);
       expect(eats303Panel!.accentColor, const Color(0xFF000000), reason: 'Eats-303 should use authentic black dials/levels');
 
-      // 3. Check SNES instruments retain their console purple theme
+      // 3. Check SNES instruments retain their console red theme
       final snesPreset = LuaPresetLibrary.getPresetById('eats_sfxr')!;
       final snesPanel = LuaGuiParser.parseFromCode(snesPreset.code);
       expect(snesPanel, isNotNull);
-      expect(snesPanel!.accentColor, const Color(0xFF7B52AB), reason: 'SNES instrument should retain custom console styling');
+      expect(snesPanel!.accentColor, const Color(0xFFE52521), reason: 'SNES instrument should retain custom console styling');
     });
 
     test('Simultaneous notes in pattern sequencer trigger note slides on Eats-303 track', () {

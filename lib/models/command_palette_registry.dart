@@ -7,6 +7,8 @@ import '../ui/widgets/ui_scale_dialog.dart';
 import '../utils/fullscreen_helper.dart';
 import 'daw_state.dart';
 import 'track_model.dart';
+import '../ui/widgets/circle_of_fifths_dialog.dart';
+import '../ui/widgets/script_search_dialog.dart';
 
 enum CommandCategory {
   action,
@@ -222,6 +224,85 @@ class CommandPaletteRegistry {
           );
         },
       ),
+      // --- CHORD TRACK COMMANDS ---
+      QuickCommand(
+        id: 'chord_extract_active_track',
+        title: 'Chord Track: Extract Chords from Active Track',
+        subtitle: 'Analyze MIDI notes across all clips on "${dawState.activeTrack.name}" and place on Chord Track',
+        category: CommandCategory.action,
+        icon: Icons.queue_music,
+        onExecute: (state, ctx) {
+          final count = state.extractAndApplyChordsFromTrack(state.activeTrack);
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            SnackBar(
+              backgroundColor: EatsTheme.primaryCyan,
+              content: Text('Extracted $count chords from "${state.activeTrack.name}" to Chord Track (Ctrl+Z to Undo)!',
+                style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+              ),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        },
+      ),
+      if (dawState.activeClip != null)
+        QuickCommand(
+          id: 'chord_extract_active_clip',
+          title: 'Chord Track: Extract Chords from Selected Clip',
+          subtitle: 'Analyze MIDI notes in "${dawState.activeClip!.name}" and place on Chord Track',
+          category: CommandCategory.action,
+          icon: Icons.auto_awesome,
+          onExecute: (state, ctx) {
+            final count = state.extractAndApplyChordsFromClip(state.activeClip!);
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                backgroundColor: EatsTheme.primaryCyan,
+                content: Text('Extracted $count chords from "${state.activeClip!.name}" to Chord Track (Ctrl+Z to Undo)!',
+                  style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                ),
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          },
+        ),
+      QuickCommand(
+        id: 'chord_circle_of_fifths',
+        title: 'Chord Track: Open Circle of Fifths Selector',
+        subtitle: 'Explore harmonic relationships and set chords',
+        category: CommandCategory.action,
+        icon: Icons.circle_outlined,
+        onExecute: (state, ctx) {
+          final curBar = (state.arrangerStep ~/ 16).clamp(0, 128);
+          CircleOfFifthsDialog.show(ctx, dawState: state, targetBar: curBar);
+        },
+      ),
+      QuickCommand(
+        id: 'chord_presets',
+        title: 'Chord Track: Browse Progression Presets',
+        subtitle: 'Insert curated multi-genre chord progressions',
+        category: CommandCategory.action,
+        icon: Icons.library_music,
+        onExecute: (state, ctx) {
+          final curBar = (state.arrangerStep ~/ 16).clamp(0, 128);
+          ScriptSearchDialog.showChordProgressions(ctx, dawState: state, startBar: curBar);
+        },
+      ),
+      if (dawState.chordTrack.isNotEmpty)
+        QuickCommand(
+          id: 'chord_clear',
+          title: 'Chord Track: Clear All Chords',
+          subtitle: 'Remove all chord events from the global Chord Track (Undo-able)',
+          category: CommandCategory.action,
+          icon: Icons.clear_all,
+          onExecute: (state, ctx) {
+            state.clearChordTrack();
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              const SnackBar(
+                content: Text('Cleared Chord Track (Ctrl+Z to Undo)'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          },
+        ),
       QuickCommand(
         id: 'action_play_pause',
         title: dawState.isPlaying ? 'Pause Playback' : 'Start Playback',

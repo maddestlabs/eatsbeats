@@ -113,8 +113,10 @@ class LuaScriptDef {
       list.addAll(['acoustic_piano', 'piano', 'keys', 'midrange', 'stereo_wide', 'dynamic_expressive', 'hpf_safe_80hz']);
     } else if (lowerName.contains('rhodes') || lowerName.contains('dx7') || lowerName.contains('wurlitzer') || lowerName.contains('epiano') || lowerName.contains('e-piano') || lowerId.contains('rhodes') || lowerId.contains('dx7')) {
       list.addAll(['electric_piano', 'keys', 'low_mid_warmth', 'stereo_wide', 'hpf_safe_100hz']);
-    } else if (lowerName.contains('clavinet') || lowerName.contains('harpsichord') || lowerName.contains('cembalo') || lowerName.contains('toy piano') || lowerId.contains('clavinet') || lowerId.contains('harpsichord')) {
+    } else if (lowerName.contains('clavinet') || lowerName.contains('harpsichord') || lowerName.contains('cembalo') || lowerId.contains('clavinet') || lowerId.contains('harpsichord')) {
       list.addAll(['keys', 'percussive_keys', 'high_presence', 'hpf_safe_120hz']);
+    } else if (lowerName.contains('glockenspiel') || lowerName.contains('music box') || lowerName.contains('xylophone') || lowerName.contains('vibraphone') || lowerName.contains('metallophone') || lowerName.contains('toy piano') || lowerId.contains('glockenspiel') || lowerId.contains('music_box') || lowerId.contains('xylophone') || lowerId.contains('vibraphone') || lowerId.contains('toy_piano')) {
+      list.addAll(['tuned_percussion', 'mallets', 'bells', 'percussive_keys', 'high_presence', 'air_sparkle', 'hpf_safe_120hz']);
     } else if (lowerName.contains('acoustic guitar') || lowerName.contains('spanish') || lowerName.contains('flamenco') || lowerName.contains('steel guitar') || lowerName.contains('12-string') || lowerName.contains('dobro') || lowerName.contains('harp guitar') || lowerName.contains('dub guitar') || lowerId.contains('guitar') || lowerId.contains('dobro')) {
       list.addAll(['acoustic_guitar', 'guitar', 'plucked_strings', 'mid_dominant', 'dynamic_expressive', 'hpf_safe_100hz']);
     } else if (lowerName.contains('ukulele') || lowerName.contains('lute') || lowerName.contains('banjo') || lowerName.contains('mandolin') || lowerId.contains('ukulele') || lowerId.contains('lute') || lowerId.contains('banjo') || lowerId.contains('mandolin')) {
@@ -449,6 +451,18 @@ class LuaScriptLibrary {
     }
     if (luaCode.contains('ToyPiano') || luaCode.contains('toy_piano') || luaCode.contains('Toy Piano') || (luaCode.contains('ClangRatio') && luaCode.contains('TineDecay'))) {
       return getPresetById('toy_piano');
+    }
+    if (luaCode.contains('Glockenspiel') || luaCode.contains('glockenspiel') || (luaCode.contains('BarDecay') && luaCode.contains('BellShimmer')) || (luaCode.contains('BellShimmer') && luaCode.contains('MalletHardness'))) {
+      return getPresetById('glockenspiel');
+    }
+    if (luaCode.contains('MusicBox') || luaCode.contains('music_box') || luaCode.contains('Music Box') || (luaCode.contains('PinScrape') && luaCode.contains('BoxWarmth')) || (luaCode.contains('PinScrape') && luaCode.contains('HighTineRing'))) {
+      return getPresetById('music_box');
+    }
+    if (luaCode.contains('Xylophone') || luaCode.contains('xylophone') || (luaCode.contains('WoodDecay') && luaCode.contains('TripleOctave')) || (luaCode.contains('WoodDecay') && luaCode.contains('ResonatorPop'))) {
+      return getPresetById('xylophone');
+    }
+    if (luaCode.contains('Vibraphone') || luaCode.contains('vibraphone') || (luaCode.contains('MotorSpeed') && luaCode.contains('TremoloDepth')) || (luaCode.contains('DoubleOctave') && luaCode.contains('TremoloDepth'))) {
+      return getPresetById('vibraphone');
     }
 
     return null;
@@ -3577,12 +3591,12 @@ return HonkyTonkPiano
       id: 'toy_piano',
       name: 'Toy Piano',
       category: LuaPresetCategory.instrument,
-      description: 'Physical modal modeling of a classic Toy Piano / Metallophone: clamped cantilever steel bar overtones (1.0, 2.756, 5.404, 8.933 modal ratios), plastic/wood hammer clack, fast bell-chime decay, and miniature wooden soundbox resonance.',
+      description: 'Physical modal modeling of an authentic Toy Piano / Metallophone: clamped cantilever steel bar overtones (1.0, 2.756, 5.404, 8.933 modal ratios), hammer micro-bounce flam ("double-hit"), keybed bottoming clack, gravity release drop thump, chime air, and miniature wooden soundbox resonance.',
       code: '''
 -- @id: toy_piano
 -- @name: Toy Piano
 -- @category: instrument
--- @description: Physical modal modeling of a classic Toy Piano / Metallophone: clamped cantilever steel bar overtones (1.0, 2.756, 5.404, 8.933 modal ratios), plastic/wood hammer clack, fast bell-chime decay, and miniature wooden soundbox resonance.
+-- @description: Physical modal modeling of an authentic Toy Piano / Metallophone: clamped cantilever steel bar overtones (1.0, 2.756, 5.404, 8.933 modal ratios), hammer micro-bounce flam ("double-hit"), keybed bottoming clack, gravity release drop thump, chime air, and miniature wooden soundbox resonance.
 
 local ToyPiano = {}
 
@@ -3590,10 +3604,14 @@ function ToyPiano.init()
   -- Metal Rod Modal Physics
   Param.add("ClangRatio", 0.0, 1.5, 0.70)     -- Inharmonic bar overtone mix
   Param.add("TineDecay", 0.2, 3.5, 1.25)      -- Ring decay time (seconds)
-  Param.add("HammerClack", 0.0, 1.0, 0.55)    -- Plastic / wood strike clack
+  
+  -- Acoustic Action & Mechanical Noise
+  Param.add("HammerClack", 0.0, 1.0, 0.55)    -- Plastic / wood strike clack & keybed thud
+  Param.add("HammerBounce", 0.0, 1.0, 0.45)   -- Micro-rebound flam (double-hit) intensity
+  Param.add("ReleaseDrop", 0.0, 1.0, 0.40)    -- Gravity key/hammer return drop thud
+  Param.add("BoxResonance", 0.0, 1.0, 0.45)   -- Miniature toy box cavity boom
   
   -- Soundbox Cavity & Air
-  Param.add("BoxResonance", 0.0, 1.0, 0.45)   -- Miniature toy box cavity boom
   Param.add("ChimeAir", -4.0, 8.0, 2.0)       -- High chime sheen EQ (dB)
   Param.add("Tone", 1000.0, 18000.0, 11000.0) -- Lowpass cutoff
 end
@@ -3602,6 +3620,8 @@ function ToyPiano.process(time, freq, note, params)
   local clang = params["ClangRatio"] or 0.70
   local decay = params["TineDecay"] or 1.25
   local clack = params["HammerClack"] or 0.55
+  local bounce = params["HammerBounce"] or 0.45
+  local relDrop = params["ReleaseDrop"] or 0.40
   local boxReso = params["BoxResonance"] or 0.45
 
   -- Cantilever rod non-harmonic mode series
@@ -3620,12 +3640,24 @@ function ToyPiano.process(time, freq, note, params)
   local y3 = math.sin(2.0 * math.pi * f3 * time) * math.exp(-time * d3) * 0.35 * clang
   local y4 = math.sin(2.0 * math.pi * f4 * time) * math.exp(-time * d4) * 0.20 * clang
 
-  -- Plastic strike clack
+  -- Plastic strike clack & keybed bottoming thud
   local clackTransient = math.sin(2.0 * math.pi * 3200.0 * time) * math.exp(-time * 260.0) * (0.45 * clack)
+                       + math.sin(2.0 * math.pi * 240.0 * time) * math.exp(-time * 180.0) * (0.30 * clack)
+
+  -- Secondary hammer micro-rebound flam ("double-hit") at ~20ms
+  local bounceTransient = 0.0
+  if bounce > 0.001 and time >= 0.020 then
+    local tb = time - 0.020
+    if tb < 0.03 then
+      bounceTransient = (math.sin(2.0 * math.pi * f1 * tb) * 0.35 + math.sin(2.0 * math.pi * 3100.0 * tb) * 0.25)
+                      * math.exp(-tb * 200.0) * bounce * 0.40
+    end
+  end
+
   -- Wooden housing cavity
   local boxTransient = math.sin(2.0 * math.pi * 340.0 * time) * math.exp(-time * 45.0) * (0.25 * boxReso)
 
-  local raw = (y1 * 0.85 + y2 + y3 + y4 + clackTransient + boxTransient) * 0.55
+  local raw = (y1 * 0.85 + y2 + y3 + y4 + clackTransient + bounceTransient + boxTransient) * 0.55
   return math.tanh(raw * 1.15) * 0.95
 end
 
@@ -3633,7 +3665,7 @@ function ToyPiano.gui()
   return {
     panel = {
       title = "TOY PIANO / METALLOPHONE",
-      subtitle = "Cantilever Steel Bar Modal Physics & Toy Soundbox",
+      subtitle = "Cantilever Steel Bar Modal Physics & Mechanical Action",
       accent = "#FF3366",
       background = "minimal_white",
       knobStyle = "minimal_white",
@@ -3649,23 +3681,25 @@ function ToyPiano.gui()
               children = {
                 { type = "knob", param = "ClangRatio", label = "CLANG OVERTONE", unit = "%", size = 52 },
                 { type = "knob", param = "TineDecay", label = "CHIME DECAY", unit = "s", size = 52 },
-                { type = "knob", param = "HammerClack", label = "STRIKE CLACK", unit = "%", size = 52 },
-                { type = "knob", param = "BoxResonance", label = "TOY BOX BOOM", unit = "%", size = 52 },
+                { type = "knob", param = "ChimeAir", label = "CHIME AIR", unit = "dB", size = 52 },
+                { type = "knob", param = "Tone", label = "TONE CUT", unit = "Hz", size = 52 },
               }
             }
           }
         },
-        -- TEAL/CYAN SECTION: Tone & Brilliance
+        -- TEAL/CYAN SECTION: Mechanical Action & Soundbox
         {
           type = "group",
-          label = "CHIME BRILLIANCE & AIR",
+          label = "ACOUSTIC MECHANICS & SOUNDBOX",
           accent = "#00B4D8",
           children = {
             {
               type = "row",
               children = {
-                { type = "knob", param = "ChimeAir", label = "CHIME AIR", unit = "dB", size = 52 },
-                { type = "knob", param = "Tone", label = "TONE CUT", unit = "Hz", size = 52 },
+                { type = "knob", param = "HammerClack", label = "STRIKE CLACK", unit = "%", size = 52 },
+                { type = "knob", param = "HammerBounce", label = "HAMMER BOUNCE", unit = "%", size = 52 },
+                { type = "knob", param = "ReleaseDrop", label = "RELEASE DROP", unit = "%", size = 52 },
+                { type = "knob", param = "BoxResonance", label = "TOY BOX BOOM", unit = "%", size = 52 },
               }
             }
           }
@@ -3679,12 +3713,12 @@ function ToyPiano.rack()
   return {
     rows = {
       {
-        { id = "plastic_strike", title = "PLASTIC HAMMER CLACK", hp = 16, row = 1, category = "VCO" },
-        { id = "cantilever_rod", title = "MODAL STEEL ROD TINES",hp = 14, row = 1, category = "MOD" },
+        { id = "plastic_strike", title = "PLASTIC HAMMER & FLAM", hp = 16, row = 1, category = "VCO" },
+        { id = "cantilever_rod", title = "MODAL STEEL ROD TINES", hp = 14, row = 1, category = "MOD" },
       },
       {
-        { id = "toy_soundbox",   title = "TOY SOUNDBOX CAVITY",  hp = 16, row = 2, category = "VCF" },
-        { id = "chime_master",   title = "CHIME & TONE OUT",     hp = 14, row = 2, category = "OUT" },
+        { id = "toy_soundbox",   title = "TOY SOUNDBOX CAVITY",   hp = 16, row = 2, category = "VCF" },
+        { id = "chime_master",   title = "CHIME & TONE OUT",      hp = 14, row = 2, category = "OUT" },
       },
     },
     cables = {
@@ -3696,6 +3730,502 @@ function ToyPiano.rack()
 end
 
 return ToyPiano
+''',
+    ),
+
+    // 00a5. Orchestral Glockenspiel Physical Model
+    LuaPreset(
+      id: 'glockenspiel',
+      name: 'Glockenspiel',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modal modeling of an orchestral glockenspiel (German bells): free-free high-carbon steel rectangular bar Euler-Bernoulli modes (1.0, 2.7565, 5.404, 8.933), pristine low-damping sustain, brass/hard mallet contact click, and high-frequency air shimmer.',
+      code: '''
+-- @id: glockenspiel
+-- @name: Glockenspiel
+-- @category: instrument
+-- @description: Physical modal modeling of an orchestral glockenspiel (German bells): free-free high-carbon steel rectangular bar Euler-Bernoulli modes (1.0, 2.7565, 5.404, 8.933), pristine low-damping sustain, brass/hard mallet contact click, and high-frequency air shimmer.
+
+local Glockenspiel = {}
+
+function Glockenspiel.init()
+  Param.add("BarDecay", 0.5, 6.0, 3.2)         -- Natural sustain time (seconds)
+  Param.add("BellShimmer", 0.0, 1.5, 0.70)     -- High inharmonic overtone mix
+  Param.add("MalletHardness", 0.1, 1.0, 0.75)  -- Brass / phenolic mallet contact click
+  Param.add("AirSheen", -4.0, 8.0, 3.0)        -- High-frequency shimmer shelf (dB)
+  Param.add("Tone", 1000.0, 20000.0, 16000.0)  -- Overall tone brightness
+end
+
+function Glockenspiel.process(time, freq, note, params)
+  local decay = params["BarDecay"] or 3.2
+  local shimmer = params["BellShimmer"] or 0.70
+  local hardness = params["MalletHardness"] or 0.75
+
+  local f1 = freq
+  local f2 = freq * 2.7565
+  local f3 = freq * 5.404
+  local f4 = math.min(19200.0, freq * 8.933)
+
+  local d1 = 0.40 / decay
+  local d2 = (1.6 / decay) + (freq / 900.0)
+  local d3 = (4.8 / decay) + (freq / 450.0)
+  local d4 = (12.0 / decay) + (freq / 220.0)
+
+  local y1 = math.sin(2.0 * math.pi * f1 * time) * math.exp(-time * d1)
+  local y2 = math.sin(2.0 * math.pi * f2 * time) * math.exp(-time * d2) * 0.60 * shimmer
+  local y3 = math.sin(2.0 * math.pi * f3 * time) * math.exp(-time * d3) * 0.35 * shimmer
+  local y4 = math.sin(2.0 * math.pi * f4 * time) * math.exp(-time * d4) * 0.22 * shimmer
+
+  -- Hard brass mallet contact click
+  local click = 0.0
+  if time < 0.012 then
+    click = math.sin(2.0 * math.pi * 7800.0 * time) * math.exp(-time * 900.0) * (0.45 * hardness)
+  end
+
+  local raw = (y1 * 0.90 + y2 + y3 + y4 + click) * 0.52
+  return math.tanh(raw * 1.10) * 0.90
+end
+
+function Glockenspiel.gui()
+  return {
+    panel = {
+      title = "ORCHESTRAL GLOCKENSPIEL",
+      subtitle = "Free-Free High-Carbon Steel Bar Modal Resonator",
+      accent = "#E0A96D",
+      background = "minimal_white",
+      knobStyle = "minimal_white",
+      layout = {
+        {
+          type = "group",
+          label = "STEEL BAR MODES & SUSTAIN",
+          accent = "#E0A96D",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "BarDecay", label = "SUSTAIN", unit = "s", size = 52 },
+                { type = "knob", param = "BellShimmer", label = "SHIMMER", unit = "%", size = 52 },
+                { type = "knob", param = "MalletHardness", label = "MALLET", unit = "%", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "BRILLIANCE & AIR",
+          accent = "#38EF7D",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "AirSheen", label = "AIR SHEEN", unit = "dB", size = 52 },
+                { type = "knob", param = "Tone", label = "TONE", unit = "Hz", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function Glockenspiel.rack()
+  return {
+    rows = {
+      {
+        { id = "mallet_strike", title = "BRASS MALLET CLICK", hp = 14, row = 1, category = "VCO" },
+        { id = "steel_bars",    title = "FREE-FREE STEEL BARS", hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "bell_air",      title = "CRYSTAL AIR SHEEN",   hp = 14, row = 2, category = "VCF" },
+        { id = "master_out",    title = "GLOCKENSPIEL MASTER", hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return Glockenspiel
+''',
+    ),
+
+    // 00a6. Antique Music Box Physical Model
+    LuaPreset(
+      id: 'music_box',
+      name: 'Music Box',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modal modeling of an antique music box comb: clamped-free steel lamellae tines (1.0, 6.267, 17.55 modes), Heaviside step displacement pluck release, cylinder pin friction scrape tick, and wooden box/tabletop soundboard resonance.',
+      code: '''
+-- @id: music_box
+-- @name: Music Box
+-- @category: instrument
+-- @description: Physical modal modeling of an antique music box comb: clamped-free steel lamellae tines (1.0, 6.267, 17.55 modes), Heaviside step displacement pluck release, cylinder pin friction scrape tick, and wooden box/tabletop soundboard resonance.
+
+local MusicBox = {}
+
+function MusicBox.init()
+  Param.add("TineDecay", 0.3, 4.5, 2.0)        -- Comb tine ring decay (seconds)
+  Param.add("PinScrape", 0.0, 1.0, 0.45)       -- Cylinder pin pre-slip friction tick
+  Param.add("BoxWarmth", 0.0, 1.0, 0.50)       -- Wooden casing / soundboard resonance
+  Param.add("HighTineRing", 0.0, 1.2, 0.50)    -- Upper inharmonic overtone mix
+  Param.add("Tone", 1000.0, 18000.0, 12000.0)  -- Lowpass tone cutoff
+end
+
+function MusicBox.process(time, freq, note, params)
+  local decay = params["TineDecay"] or 2.0
+  local scrape = params["PinScrape"] or 0.45
+  local warmth = params["BoxWarmth"] or 0.50
+  local highRing = params["HighTineRing"] or 0.50
+
+  local f1 = freq
+  local f2 = freq * 6.267
+  local f3 = math.min(18500.0, freq * 17.55)
+
+  local d1 = 1.1 / decay
+  local d2 = (5.8 / decay) + (freq / 400.0)
+  local d3 = (22.0 / decay) + (freq / 120.0)
+
+  -- Plucked Heaviside step displacement: Cosine initial phase
+  local y1 = math.cos(2.0 * math.pi * f1 * time) * math.exp(-time * d1)
+  local y2 = math.cos(2.0 * math.pi * f2 * time) * math.exp(-time * d2) * 0.35 * highRing
+  local y3 = math.cos(2.0 * math.pi * f3 * time) * math.exp(-time * d3) * 0.16 * highRing
+
+  -- Cylinder pin friction scrape & slip tick
+  local scrapeTransient = 0.0
+  if time < 0.008 and scrape > 0.001 then
+    scrapeTransient = math.sin(2.0 * math.pi * 4400.0 * time) * (time / 0.008) * (0.40 * scrape)
+  end
+
+  -- Wooden soundboard warm resonance
+  local soundboardRing = math.sin(2.0 * math.pi * 560.0 * time) * math.exp(-time * 55.0) * (0.30 * warmth)
+
+  local raw = (y1 * 0.95 + y2 + y3 + scrapeTransient + soundboardRing) * 0.55
+  return math.tanh(raw * 1.12) * 0.92
+end
+
+function MusicBox.gui()
+  return {
+    panel = {
+      title = "ANTIQUE MUSIC BOX",
+      subtitle = "Plucked Steel Comb Lamellae & Cylinder Pin Physics",
+      accent = "#C77DFF",
+      background = "minimal_white",
+      knobStyle = "minimal_white",
+      layout = {
+        {
+          type = "group",
+          label = "PLUCKED STEEL COMB TINES",
+          accent = "#C77DFF",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "TineDecay", label = "TINE DECAY", unit = "s", size = 52 },
+                { type = "knob", param = "HighTineRing", label = "OVERTONE", unit = "%", size = 52 },
+                { type = "knob", param = "PinScrape", label = "PIN SCRAPE", unit = "%", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "SOUNDBOARD & WARMTH",
+          accent = "#FFAA00",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "BoxWarmth", label = "BOX WARMTH", unit = "%", size = 52 },
+                { type = "knob", param = "Tone", label = "TONE", unit = "Hz", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function MusicBox.rack()
+  return {
+    rows = {
+      {
+        { id = "pin_action",   title = "CYLINDER PIN PLUCK", hp = 14, row = 1, category = "VCO" },
+        { id = "comb_tines",   title = "STEEL COMB TINES",   hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "table_board",  title = "SOUNDBOARD BODY",    hp = 14, row = 2, category = "VCF" },
+        { id = "musicbox_out", title = "MUSIC BOX MASTER",   hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return MusicBox
+''',
+    ),
+
+    // 00a7. Orchestral Xylophone Physical Model
+    LuaPreset(
+      id: 'xylophone',
+      name: 'Xylophone',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modal modeling of an orchestral rosewood xylophone: undercut arched Honduras rosewood bar with Mode 2 tuned to the triple octave (3.0 * f0), high internal wood damping (dry staccato pop), tuned quarter-wave air resonator tube burst, and hard mallet impact.',
+      code: '''
+-- @id: xylophone
+-- @name: Xylophone
+-- @category: instrument
+-- @description: Physical modal modeling of an orchestral rosewood xylophone: undercut arched Honduras rosewood bar with Mode 2 tuned to the triple octave (3.0 * f0), high internal wood damping (dry staccato pop), tuned quarter-wave air resonator tube burst, and hard mallet impact.
+
+local Xylophone = {}
+
+function Xylophone.init()
+  Param.add("WoodDecay", 0.08, 1.0, 0.32)       -- Staccato wood ring decay (seconds)
+  Param.add("ResonatorPop", 0.0, 1.2, 0.65)     -- Tuned tube air resonator burst
+  Param.add("MalletHardness", 0.1, 1.0, 0.70)   -- Hard wood / rubber mallet attack
+  Param.add("TripleOctave", 0.0, 1.0, 0.55)     -- Tuned 3.0x harmonic overtone
+  Param.add("WoodCrack", -3.0, 6.0, 2.0)        -- High wood bite presence (dB)
+  Param.add("Tone", 1500.0, 20000.0, 15000.0)   -- Lowpass cutoff
+end
+
+function Xylophone.process(time, freq, note, params)
+  local decay = params["WoodDecay"] or 0.32
+  local pop = params["ResonatorPop"] or 0.65
+  local hardness = params["MalletHardness"] or 0.70
+  local overtone3x = params["TripleOctave"] or 0.55
+
+  -- Undercut arched rosewood bar modes:
+  -- Mode 1: Fundamental
+  -- Mode 2: Tuned triple-octave harmonic (3.0 * f0)
+  -- Mode 3: Inharmonic transient click (~6.52 * f0)
+  local f1 = freq
+  local f2 = freq * 3.00
+  local f3 = math.min(18000.0, freq * 6.52)
+
+  local d1 = 6.2 / decay
+  local d2 = (16.0 / decay) + (freq / 250.0)
+  local d3 = (42.0 / decay) + (freq / 100.0)
+
+  local y1 = math.sin(2.0 * math.pi * f1 * time) * math.exp(-time * d1)
+  local y2 = math.sin(2.0 * math.pi * f2 * time) * math.exp(-time * d2) * 0.60 * overtone3x
+  local y3 = math.sin(2.0 * math.pi * f3 * time) * math.exp(-time * d3) * 0.28 * overtone3x
+
+  -- Tuned quarter-wave resonator tube air column pop burst
+  local tubeResonator = math.sin(2.0 * math.pi * f1 * time) * math.exp(-time * 90.0) * (0.50 * pop)
+
+  -- Hard mallet contact knock
+  local malletTransient = 0.0
+  if time < 0.010 then
+    malletTransient = math.sin(2.0 * math.pi * 3800.0 * time) * math.exp(-time * 600.0) * (0.40 * hardness)
+  end
+
+  local raw = (y1 * 0.88 + y2 + y3 + tubeResonator + malletTransient) * 0.58
+  return math.tanh(raw * 1.20) * 0.95
+end
+
+function Xylophone.gui()
+  return {
+    panel = {
+      title = "ORCHESTRAL XYLOPHONE",
+      subtitle = "Arched Rosewood Bar Triple-Octave Physics & Tube Resonator",
+      accent = "#E76F51",
+      background = "minimal_white",
+      knobStyle = "minimal_white",
+      layout = {
+        {
+          type = "group",
+          label = "ROSEWOOD MODAL ARCH",
+          accent = "#E76F51",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "WoodDecay", label = "WOOD DECAY", unit = "s", size = 52 },
+                { type = "knob", param = "TripleOctave", label = "3X OVERTONE", unit = "%", size = 52 },
+                { type = "knob", param = "ResonatorPop", label = "TUBE POP", unit = "%", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "MALLET & PRESENCE",
+          accent = "#F4A261",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "MalletHardness", label = "MALLET", unit = "%", size = 52 },
+                { type = "knob", param = "WoodCrack", label = "WOOD BITE", unit = "dB", size = 52 },
+                { type = "knob", param = "Tone", label = "TONE", unit = "Hz", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function Xylophone.rack()
+  return {
+    rows = {
+      {
+        { id = "wood_mallet",    title = "HARD WOOD MALLET",  hp = 14, row = 1, category = "VCO" },
+        { id = "rosewood_bars",  title = "ARCHED ROSEWOOD",   hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "resonator_tube", title = "QUARTER-WAVE TUBE", hp = 14, row = 2, category = "VCF" },
+        { id = "xylophone_out",  title = "XYLOPHONE MASTER",  hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return Xylophone
+''',
+    ),
+
+    // 00a8. Orchestral Vibraphone Physical Model
+    LuaPreset(
+      id: 'vibraphone',
+      name: 'Vibraphone',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modal modeling of an orchestral vibraphone: undercut arched aluminum alloy bar with Mode 2 tuned to the double octave (4.0 * f0), singing sustain, wound yarn mallet attack, and motor-driven rotating butterfly valve resonator tube tremolo/phase modulation.',
+      code: '''
+-- @id: vibraphone
+-- @name: Vibraphone
+-- @category: instrument
+-- @description: Physical modal modeling of an orchestral vibraphone: undercut arched aluminum alloy bar with Mode 2 tuned to the double octave (4.0 * f0), singing sustain, wound yarn mallet attack, and motor-driven rotating butterfly valve resonator tube tremolo/phase modulation.
+
+local Vibraphone = {}
+
+function Vibraphone.init()
+  Param.add("BarDecay", 1.0, 8.0, 4.5)         -- Singing aluminum sustain (seconds)
+  Param.add("MotorSpeed", 0.5, 9.0, 4.2)       -- Butterfly valve rotation speed (Hz)
+  Param.add("TremoloDepth", 0.0, 1.0, 0.60)    -- Tube resonator tremolo depth
+  Param.add("DoubleOctave", 0.0, 1.0, 0.40)    -- Tuned 4.0x harmonic overtone
+  Param.add("YarnSoftness", 0.0, 1.0, 0.50)    -- Yarn-wrapped mallet contact softness
+  Param.add("ToneCut", 2000.0, 16000.0, 9500.0)-- Tube acoustic cutoff
+end
+
+function Vibraphone.process(time, freq, note, params)
+  local decay = params["BarDecay"] or 4.5
+  local mSpeed = params["MotorSpeed"] or 4.2
+  local tDepth = params["TremoloDepth"] or 0.60
+  local overtone4x = params["DoubleOctave"] or 0.40
+  local softness = params["YarnSoftness"] or 0.50
+
+  -- Aluminum bar modes:
+  -- Mode 1: Fundamental
+  -- Mode 2: Tuned double-octave harmonic (4.0 * f0)
+  -- Mode 3: Inharmonic mode (~9.20 * f0)
+  local f1 = freq
+  local f2 = freq * 4.00
+  local f3 = math.min(18500.0, freq * 9.20)
+
+  local d1 = 0.35 / decay
+  local d2 = (1.5 / decay) + (freq / 1200.0)
+  local d3 = (7.5 / decay) + (freq / 350.0)
+
+  -- Rotating butterfly valve modulation: 2 * motorSpeed modulation rate
+  local valveOmega = 2.0 * math.pi * (2.0 * mSpeed)
+  local valveExposure = 0.5 + 0.5 * math.cos(valveOmega * time)
+  local tremoloMod = 1.0 - (tDepth * (1.0 - valveExposure))
+
+  local y1 = math.sin(2.0 * math.pi * f1 * time) * math.exp(-time * d1)
+  local y2 = math.sin(2.0 * math.pi * f2 * time) * math.exp(-time * d2) * 0.50 * overtone4x
+  local y3 = math.sin(2.0 * math.pi * f3 * time) * math.exp(-time * d3) * 0.20 * overtone4x * (1.0 - 0.5 * softness)
+
+  -- Soft yarn mallet contact thud
+  local yarnThud = 0.0
+  if time < 0.015 then
+    yarnThud = math.sin(2.0 * math.pi * 450.0 * time) * math.exp(-time * 220.0) * 0.30
+  end
+
+  local acousticBar = (y1 * 0.92 + y2 + y3 + yarnThud) * 0.54
+  local outWithTremolo = acousticBar * tremoloMod
+  return math.tanh(outWithTremolo * 1.10) * 0.90
+end
+
+function Vibraphone.gui()
+  return {
+    panel = {
+      title = "ORCHESTRAL VIBRAPHONE",
+      subtitle = "Arched Aluminum Bar Double-Octave & Motor Tremolo Resonator",
+      accent = "#4CC9F0",
+      background = "minimal_white",
+      knobStyle = "minimal_white",
+      layout = {
+        {
+          type = "group",
+          label = "ALUMINUM BAR & MALLET",
+          accent = "#4CC9F0",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "BarDecay", label = "SUSTAIN", unit = "s", size = 52 },
+                { type = "knob", param = "DoubleOctave", label = "4X OVERTONE", unit = "%", size = 52 },
+                { type = "knob", param = "YarnSoftness", label = "YARN MALLET", unit = "%", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "MOTOR TREMOLO & RESONATOR TUBE",
+          accent = "#7209B7",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "MotorSpeed", label = "MOTOR RATE", unit = "Hz", size = 52 },
+                { type = "knob", param = "TremoloDepth", label = "TREMOLO", unit = "%", size = 52 },
+                { type = "knob", param = "ToneCut", label = "TUBE TONE", unit = "Hz", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function Vibraphone.rack()
+  return {
+    rows = {
+      {
+        { id = "yarn_mallet",   title = "WOUND YARN MALLET",    hp = 14, row = 1, category = "VCO" },
+        { id = "aluminum_bars", title = "ARCHED ALUMINUM BARS", hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "motor_valve",   title = "BUTTERFLY TREMOLO",    hp = 14, row = 2, category = "LFO" },
+        { id = "vibraphone_out",title = "VIBRAPHONE MASTER",    hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:1:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "mod" },
+    }
+  }
+end
+
+return Vibraphone
 ''',
     ),
 
@@ -3717,6 +4247,8 @@ local DX7EPiano = {}
 function DX7EPiano.init()
   -- FM Architecture & Algorithm
   Param.add("Algorithm", 1, 32, 5)
+  Param.add("Feedback", 0, 7, 6)
+  Param.add("Patch", 0, 5, 0)
   Param.add("Brightness", 0.0, 3.0, 1.0)
   Param.add("TineBell", 0.0, 3.0, 0.85)
   Param.add("BodyWarmth", 0.0, 3.0, 1.0)
@@ -3773,6 +4305,8 @@ function DX7EPiano.gui()
               type = "row",
               children = {
                 { type = "knob", param = "Algorithm", label = "ALGORITHM", unit = "ALG", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "Feedback", label = "FEEDBACK", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "Patch", label = "ROM PATCH", knobStyle = "chrome", size = 52 },
                 { type = "knob", param = "Brightness", label = "BRIGHTNESS", knobStyle = "chrome", size = 52 },
                 { type = "knob", param = "TineBell", label = "TINE BELL", knobStyle = "chrome", size = 52 },
                 { type = "knob", param = "BodyWarmth", label = "BODY WARMTH", knobStyle = "chrome", size = 52 },
@@ -3831,7 +4365,142 @@ return DX7EPiano
 ''',
     ),
 
-    // 00c. Hohner Clavinet D6 Physical Model
+    // 00c. Commodore 64 SID Chiptune Synthesizer
+    LuaPreset(
+      id: 'c64_sid_synth',
+      name: 'Commodore 64 SID Synth',
+      category: LuaPresetCategory.instrument,
+      description: 'Authentic MOS 6581 / 8580 Commodore 64 Sound Interface Device: 12-bit Pulse Width Modulation (PWM), 23-bit Galois LFSR noise, hardware ADSR, 50Hz/60Hz chiptune arpeggiator, glissando, and 12dB/oct multimode resonant filter with non-linear FET saturation.',
+      code: '''
+-- @id: c64_sid_synth
+-- @name: Commodore 64 SID Synth
+-- @category: instrument
+-- @description: Authentic MOS 6581 / 8580 Commodore 64 Sound Interface Device: 12-bit Pulse Width Modulation (PWM), 23-bit Galois LFSR noise, hardware ADSR, 50Hz/60Hz chiptune arpeggiator, glissando, and 12dB/oct multimode resonant filter with non-linear FET saturation.
+
+local C64SID = {}
+
+function C64SID.init()
+  Param.add("Waveform", 0, 5, 0)
+  Param.add("PulseWidth", 100, 4000, 2048)
+  Param.add("PwmRate", 0.1, 10.0, 1.6)
+  Param.add("PwmDepth", 0.0, 1.0, 0.45)
+  Param.add("ArpMode", 0, 5, 0)
+  Param.add("GlideSpeed", 0.0, 0.5, 0.0)
+
+  -- 12dB Resonant Multimode Filter
+  Param.add("ChipModel", 0, 1, 0)
+  Param.add("FilterMode", 0, 4, 0)
+  Param.add("Cutoff", 100, 2047, 1350)
+  Param.add("Resonance", 0, 15, 9)
+  Param.add("Overdrive", 1.0, 3.0, 1.2)
+
+  -- Envelope
+  Param.add("Attack", 0, 15, 1)
+  Param.add("Decay", 0, 15, 6)
+  Param.add("Sustain", 0, 15, 12)
+  Param.add("Release", 0, 15, 5)
+end
+
+function C64SID.process(time, freq, note, params)
+  local t = time
+  local phase = (t * freq) % 1.0
+  local pw = (params.PulseWidth or 2048) / 4095.0
+  local raw = phase < pw and 1.0 or -1.0
+  local env = math.exp(-t * 2.5)
+  return raw * env
+end
+
+function C64SID.gui()
+  return {
+    panel = {
+      title = "COMMODORE 64 — SID SOUND SYNTHESIZER",
+      subtitle = "MOS 6581 / 8580 3-Voice Chiptune Instrument",
+      accent = "#6C5EB5",
+      background = "c64_breadbin",
+      rackSides = "none",
+      cornerRadius = 4,
+      layout = {
+        {
+          type = "group",
+          label = "OSCILLATOR & HARDWARE PWM",
+          accent = "#6C5EB5",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "Waveform", label = "WAVEFORM", unit = "WAV", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "PulseWidth", label = "PULSE WIDTH", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "PwmRate", label = "PWM RATE", unit = "Hz", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "PwmDepth", label = "PWM DEPTH", knobStyle = "chrome", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "CHIPTUNE ARPEGGIATOR & GLIDE",
+          accent = "#A0864B",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "ArpMode", label = "ARP (50/60Hz)", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "GlideSpeed", label = "GLIDE", unit = "s", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "Attack", label = "ATTACK", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "Decay", label = "DECAY", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "Sustain", label = "SUSTAIN", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "Release", label = "RELEASE", knobStyle = "vintage", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "12dB/OCT RESONANT MULTIMODE FILTER (6581 / 8580)",
+          accent = "#3E9B48",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "ChipModel", label = "MODEL (6581/8580)", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "FilterMode", label = "MODE (LP/BP/HP)", knobStyle = "vintage", size = 52 },
+                { type = "knob", param = "Cutoff", label = "CUTOFF", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "Resonance", label = "RESONANCE", knobStyle = "chrome", size = 52 },
+                { type = "knob", param = "Overdrive", label = "FET DRIVE", knobStyle = "chrome", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function C64SID.rack()
+  return {
+    rows = {
+      {
+        { id = "osc",     title = "SID 12-BIT OSCILLATOR & PWM", hp = 16, row = 1, category = "VCO" },
+        { id = "arp",     title = "50Hz CHIPTUNE ARPEGGIATOR",   hp = 14, row = 1, category = "MOD" },
+      },
+      {
+        { id = "filter",  title = "MOS 6581/8580 12dB FILTER",   hp = 16, row = 2, category = "VCF" },
+        { id = "env",     title = "STEPPED ADSR ENVELOPE",       hp = 14, row = 2, category = "ENV" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return C64SID
+''',
+    ),
+
+    // 00d. Hohner Clavinet D6 Physical Model
     LuaPreset(
       id: 'clavinet_d6',
       name: 'Hohner Clavinet D6',
@@ -6169,7 +6838,7 @@ function SNESSFX.gui()
       title = "SNES Sfxr",
       subtitle = "16-Bit Procedural Sound Engine",
       background = "snes",
-      accent = "#7B52AB",
+      accent = "#E52521",
       knobStyle = "snes",
       layout = {
         {
@@ -6364,7 +7033,7 @@ function SNESConsole.gui()
       title = "SNES Synth",
       subtitle = "16-Bit Polyphonic S-DSP Console Synthesizer",
       background = "snes",
-      accent = "#7B52AB",
+      accent = "#E52521",
       knobStyle = "snes",
       layout = {
         {
