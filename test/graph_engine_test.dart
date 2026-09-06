@@ -718,14 +718,13 @@ void main() {
       }
     });
 
-    test('Eats Water, Eats Furnace, Eats Fire, and Eats Volts presets compile and synthesize seamlessly', () {
+    test('Eats Water, Eats Furnace, EatsFX Fire, EatsFX Rain, and EatsFX Wind presets compile and synthesize seamlessly', () {
       final voltsPreset = LuaPresetLibrary.getPresetById('eats_volts');
       final furnacePreset = LuaPresetLibrary.getPresetById('eats_furnace');
-      final firePreset = LuaPresetLibrary.getPresetById('eats_fire');
+      final firePreset = LuaPresetLibrary.getPresetById('eatsfx_fire');
       final waterPreset = LuaPresetLibrary.getPresetById('eats_water');
-      final rainPreset = LuaPresetLibrary.getPresetById('eats_rain');
-      final windPreset = LuaPresetLibrary.getPresetById('eats_wind');
-      final thunderPreset = LuaPresetLibrary.getPresetById('eats_thunder');
+      final rainPreset = LuaPresetLibrary.getPresetById('eatsfx_rain');
+      final windPreset = LuaPresetLibrary.getPresetById('eatsfx_wind');
 
       expect(voltsPreset, isNotNull);
       expect(furnacePreset, isNotNull);
@@ -733,10 +732,9 @@ void main() {
       expect(waterPreset, isNotNull);
       expect(rainPreset, isNotNull);
       expect(windPreset, isNotNull);
-      expect(thunderPreset, isNotNull);
 
       // Verify compile & GUI
-      for (final p in [voltsPreset!, furnacePreset!, firePreset!, waterPreset!, rainPreset!, windPreset!, thunderPreset!]) {
+      for (final p in [voltsPreset!, furnacePreset!, firePreset!, waterPreset!, rainPreset!, windPreset!]) {
         final comp = LuaEngine.compile(p.code);
         expect(comp.isSuccess, isTrue, reason: '${p.name}: ${comp.errorMessage}');
         expect(comp.guiLayout, isNotNull, reason: '${p.name} missing GUI layout');
@@ -866,36 +864,34 @@ void main() {
       }
     });
 
-    test('ModalCavityBankNode and AcousticPropagationNode process cleanly without artifacts', () {
+    test('ModalCavityBankNode processes cleanly across surface types', () {
       final ctx = GraphContext(durationSec: 0.1, freq: 440.0, midiNote: 60);
       const noise = ColoredNoiseNode(color: NoiseColor.pink);
-      const cavity = ModalCavityBankNode(input: noise, surfaceType: CavitySurfaceType.tinRoof);
-      const prop = AcousticPropagationNode(input: cavity, distanceMeters: 500.0, dispersion: 0.6);
+      for (final surface in CavitySurfaceType.values) {
+        final cavity = ModalCavityBankNode(input: noise, surfaceType: surface);
+        final outBuf = Float32List(ctx.totalSamples);
+        cavity.process(ctx, outBuf);
 
-      final outBuf = Float32List(ctx.totalSamples);
-      prop.process(ctx, outBuf);
-
-      expect(outBuf.any((s) => s.abs() > 0.01), isTrue);
-      for (final s in outBuf) {
-        expect(s.isNaN, isFalse);
-        expect(s.isInfinite, isFalse);
-        expect(s, inInclusiveRange(-1.0, 1.0));
+        expect(outBuf.any((s) => s.abs() > 0.01), isTrue, reason: '$surface emitted silence');
+        for (final s in outBuf) {
+          expect(s.isNaN, isFalse);
+          expect(s.isInfinite, isFalse);
+          expect(s, inInclusiveRange(-1.0, 1.0));
+        }
       }
     });
 
-    test('Environmental Synthesizer Suite renders valid PCM across all 5 instruments', () {
+    test('Environmental Synthesizer Suite renders valid PCM across all 4 FX instruments', () {
       final furnace = GraphEvaluator.buildEatsFurnaceSynth();
-      final rain = GraphEvaluator.buildEatsRainSynth();
-      final wind = GraphEvaluator.buildEatsWindSynth();
-      final fire = GraphEvaluator.buildEatsFireSynth();
-      final thunder = GraphEvaluator.buildEatsThunderSynth();
+      final rain = GraphEvaluator.buildEatsFXRainSynth();
+      final wind = GraphEvaluator.buildEatsFXWindSynth();
+      final fire = GraphEvaluator.buildEatsFXFireSynth();
 
       for (final entry in {
         'Furnace': furnace,
         'Rain': rain,
         'Wind': wind,
         'Fire': fire,
-        'Thunder': thunder,
       }.entries) {
         final pcm = GraphEvaluator.evaluate(
           root: entry.value,
@@ -915,22 +911,18 @@ void main() {
       }
     });
 
-    test('GM Instrument Registry resolves environmental tracks to native presets', () {
+    test('GM Instrument Registry resolves environmental tracks to native FX presets', () {
       final rainRes = GmInstrumentRegistry.resolve(trackName: 'Heavy Rain');
       expect(rainRes.isNative, isTrue);
-      expect(rainRes.presetId, equals('eats_rain'));
+      expect(rainRes.presetId, equals('eatsfx_rain'));
 
       final windRes = GmInstrumentRegistry.resolve(trackName: 'Mountain Wind');
       expect(windRes.isNative, isTrue);
-      expect(windRes.presetId, equals('eats_wind'));
+      expect(windRes.presetId, equals('eatsfx_wind'));
 
       final fireRes = GmInstrumentRegistry.resolve(trackName: 'Campfire Hearth');
       expect(fireRes.isNative, isTrue);
-      expect(fireRes.presetId, equals('eats_fire'));
-
-      final thunderRes = GmInstrumentRegistry.resolve(trackName: 'Rolling Thunder');
-      expect(thunderRes.isNative, isTrue);
-      expect(thunderRes.presetId, equals('eats_thunder'));
+      expect(fireRes.presetId, equals('eatsfx_fire'));
 
       final furnaceRes = GmInstrumentRegistry.resolve(trackName: 'Blast Furnace');
       expect(furnaceRes.isNative, isTrue);

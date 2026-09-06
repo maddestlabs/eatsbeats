@@ -1048,23 +1048,23 @@ class GmInstrumentRegistry {
       programNumber: 112,
       gmName: 'Tinkle Bell',
       family: GmFamily.percussive,
-      nativePresetId: null,
+      nativePresetId: 'tinkle_bell',
       iconName: 'synth',
-      keywords: ['tinkle bell'],
+      keywords: ['tinkle bell', 'wind chime', 'chime'],
     ),
     GmInstrumentDef(
       programNumber: 113,
       gmName: 'Agogo',
       family: GmFamily.percussive,
-      nativePresetId: null,
+      nativePresetId: 'agogo_bell',
       iconName: 'drums',
-      keywords: ['agogo', 'agogo bell'],
+      keywords: ['agogo', 'agogo bell', 'cowbell', 'campana'],
     ),
     GmInstrumentDef(
       programNumber: 114,
       gmName: 'Steel Drums',
       family: GmFamily.percussive,
-      nativePresetId: null,
+      nativePresetId: 'steel_drums',
       iconName: 'drums',
       keywords: ['steel drums', 'steel pan', 'steelpan'],
     ),
@@ -1072,41 +1072,41 @@ class GmInstrumentRegistry {
       programNumber: 115,
       gmName: 'Woodblock',
       family: GmFamily.percussive,
-      nativePresetId: null,
+      nativePresetId: 'woodblock',
       iconName: 'drums',
-      keywords: ['woodblock'],
+      keywords: ['woodblock', 'wood block', 'temple block', 'castanets'],
     ),
     GmInstrumentDef(
       programNumber: 116,
       gmName: 'Taiko Drum',
       family: GmFamily.percussive,
-      nativePresetId: null,
+      nativePresetId: 'taiko_drum',
       iconName: 'drums',
-      keywords: ['taiko', 'taiko drum'],
+      keywords: ['taiko', 'taiko drum', 'surdo', 'wadaiko'],
     ),
     GmInstrumentDef(
       programNumber: 117,
       gmName: 'Melodic Tom',
       family: GmFamily.percussive,
-      nativePresetId: 'fm_acoustic_tom',
+      nativePresetId: 'melodic_tom',
       iconName: 'drums',
-      keywords: ['melodic tom', 'tom'],
+      keywords: ['melodic tom', 'tom', 'concert tom', 'rototom'],
     ),
     GmInstrumentDef(
       programNumber: 118,
       gmName: 'Synth Drum',
       family: GmFamily.percussive,
-      nativePresetId: 'analog_808_kick',
+      nativePresetId: 'synth_drum',
       iconName: 'drums',
-      keywords: ['synth drum', 'electronic drum'],
+      keywords: ['synth drum', 'electronic drum', 'simmons', 'sds-v'],
     ),
     GmInstrumentDef(
       programNumber: 119,
       gmName: 'Reverse Cymbal',
       family: GmFamily.percussive,
-      nativePresetId: null,
+      nativePresetId: 'reverse_cymbal',
       iconName: 'drums',
-      keywords: ['reverse cymbal'],
+      keywords: ['reverse cymbal', 'reverse crash', 'cymbal swell'],
     ),
 
     // -------------------------------------------------------------
@@ -1332,19 +1332,15 @@ class GmInstrumentRegistry {
         if (p != null) return _buildDirectPresetResult(p, 'bass', 'semantic_keyword');
       }
       if (cleanName.contains('rain') || cleanName.contains('downpour') || cleanName.contains('storm')) {
-        final p = LuaPresetLibrary.getPresetById('eats_rain');
+        final p = LuaPresetLibrary.getPresetById('eatsfx_rain') ?? LuaPresetLibrary.getPresetById('eats_rain');
         if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
       }
       if (cleanName.contains('wind') || cleanName.contains('breeze') || cleanName.contains('gale')) {
-        final p = LuaPresetLibrary.getPresetById('eats_wind');
+        final p = LuaPresetLibrary.getPresetById('eatsfx_wind') ?? LuaPresetLibrary.getPresetById('eats_wind');
         if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
       }
       if (cleanName.contains('campfire') || cleanName.contains('hearth') || cleanName.contains('fire')) {
-        final p = LuaPresetLibrary.getPresetById('eats_fire');
-        if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
-      }
-      if (cleanName.contains('thunder') || cleanName.contains('lightning')) {
-        final p = LuaPresetLibrary.getPresetById('eats_thunder');
+        final p = LuaPresetLibrary.getPresetById('eatsfx_fire') ?? LuaPresetLibrary.getPresetById('eats_fire');
         if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
       }
       if (cleanName.contains('furnace') || cleanName.contains('pyrophone')) {
@@ -1398,19 +1394,15 @@ class GmInstrumentRegistry {
       }
 
       if (cleanName.contains('rain') || cleanName.contains('downpour') || cleanName.contains('storm')) {
-        final p = LuaPresetLibrary.getPresetById('eats_rain');
+        final p = LuaPresetLibrary.getPresetById('eatsfx_rain') ?? LuaPresetLibrary.getPresetById('eats_rain');
         if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
       }
       if (cleanName.contains('wind') || cleanName.contains('breeze') || cleanName.contains('gale')) {
-        final p = LuaPresetLibrary.getPresetById('eats_wind');
+        final p = LuaPresetLibrary.getPresetById('eatsfx_wind') ?? LuaPresetLibrary.getPresetById('eats_wind');
         if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
       }
       if (cleanName.contains('campfire') || cleanName.contains('hearth') || cleanName.contains('fire')) {
-        final p = LuaPresetLibrary.getPresetById('eats_fire');
-        if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
-      }
-      if (cleanName.contains('thunder') || cleanName.contains('lightning')) {
-        final p = LuaPresetLibrary.getPresetById('eats_thunder');
+        final p = LuaPresetLibrary.getPresetById('eatsfx_fire') ?? LuaPresetLibrary.getPresetById('eats_fire');
         if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
       }
       if (cleanName.contains('furnace') || cleanName.contains('pyrophone')) {

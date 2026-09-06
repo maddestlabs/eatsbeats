@@ -118,7 +118,7 @@ class LuaScriptDef {
       list.addAll(['electric_piano', 'keys', 'low_mid_warmth', 'stereo_wide', 'hpf_safe_100hz']);
     } else if (lowerName.contains('clavinet') || lowerName.contains('harpsichord') || lowerName.contains('cembalo') || lowerId.contains('clavinet') || lowerId.contains('harpsichord')) {
       list.addAll(['keys', 'percussive_keys', 'high_presence', 'hpf_safe_120hz']);
-    } else if (lowerName.contains('glockenspiel') || lowerName.contains('music box') || lowerName.contains('xylophone') || lowerName.contains('vibraphone') || lowerName.contains('metallophone') || lowerName.contains('toy piano') || lowerId.contains('glockenspiel') || lowerId.contains('music_box') || lowerId.contains('xylophone') || lowerId.contains('vibraphone') || lowerId.contains('toy_piano')) {
+    } else if (lowerName.contains('glockenspiel') || lowerName.contains('music box') || lowerName.contains('xylophone') || lowerName.contains('vibraphone') || lowerName.contains('metallophone') || lowerName.contains('toy piano') || lowerName.contains('tinkle bell') || lowerName.contains('woodblock') || lowerName.contains('agogo') || lowerName.contains('cowbell') || lowerName.contains('steel drum') || lowerName.contains('steelpan') || lowerName.contains('taiko') || lowerName.contains('surdo') || lowerName.contains('melodic tom') || lowerName.contains('synth drum') || lowerName.contains('simmons') || lowerName.contains('reverse cymbal') || lowerId.contains('glockenspiel') || lowerId.contains('music_box') || lowerId.contains('xylophone') || lowerId.contains('vibraphone') || lowerId.contains('toy_piano') || lowerId.contains('tinkle_bell') || lowerId.contains('woodblock') || lowerId.contains('agogo') || lowerId.contains('steel_drums') || lowerId.contains('taiko') || lowerId.contains('melodic_tom') || lowerId.contains('synth_drum') || lowerId.contains('reverse_cymbal')) {
       list.addAll(['tuned_percussion', 'mallets', 'bells', 'percussive_keys', 'high_presence', 'air_sparkle', 'hpf_safe_120hz']);
     } else if (lowerName.contains('acoustic guitar') || lowerName.contains('spanish') || lowerName.contains('flamenco') || lowerName.contains('steel guitar') || lowerName.contains('12-string') || lowerName.contains('dobro') || lowerName.contains('harp guitar') || lowerName.contains('dub guitar') || lowerId.contains('guitar') || lowerId.contains('dobro')) {
       list.addAll(['acoustic_guitar', 'guitar', 'plucked_strings', 'mid_dominant', 'dynamic_expressive', 'hpf_safe_100hz']);
@@ -134,7 +134,7 @@ class LuaScriptDef {
       list.addAll(['vocal_synth', 'vocal', 'speech', 'lead', 'mid_dominant', 'intimate_center', 'hpf_safe_120hz', 'mud_cut_300hz']);
     } else if (lowerName.contains('volts') || lowerName.contains('furnace') || lowerName.contains('lead') || lowerId.contains('eats_volts') || lowerId.contains('eats_furnace')) {
       list.addAll(['synth_lead', 'lead', 'presence_bite', 'hpf_safe_100hz']);
-    } else if (lowerName.contains('rain') || lowerName.contains('wind') || lowerName.contains('thunder') || lowerName.contains('water') || lowerName.contains('fire') || lowerName.contains('pad') || lowerName.contains('ambient') || lowerId.contains('eats_water') || lowerId.contains('eats_rain') || lowerId.contains('eats_wind') || lowerId.contains('eats_fire') || lowerId.contains('eats_thunder')) {
+    } else if (lowerName.contains('rain') || lowerName.contains('wind') || lowerName.contains('water') || lowerName.contains('fire') || lowerName.contains('pad') || lowerName.contains('ambient') || lowerId.contains('eats_water') || lowerId.contains('eatsfx_rain') || lowerId.contains('eatsfx_wind') || lowerId.contains('eatsfx_fire') || lowerId.contains('eats_rain') || lowerId.contains('eats_wind') || lowerId.contains('eats_fire')) {
       list.addAll(['environmental', 'ambient', 'foley', 'sound_effects', 'stereo_wide', 'hpf_safe_80hz']);
     } else if (lowerId.contains('vintage_era_degrader') || lowerName.contains('vinyl')) {
       list.addAll(['audio_fx', 'vintage_character', 'tape_warmth']);
@@ -220,6 +220,12 @@ class LuaScriptLibrary {
           (id == 'voltaic_plasma_synth' && p.id == 'eats_volts') ||
           (id == 'eats_volts' && p.id == 'voltaic_plasma_synth') ||
           (id == 'pyrophone_synth' && p.id == 'eats_furnace') ||
+          (id == 'eats_rain' && p.id == 'eatsfx_rain') ||
+          (id == 'eatsfx_rain' && p.id == 'eats_rain') ||
+          (id == 'eats_wind' && p.id == 'eatsfx_wind') ||
+          (id == 'eatsfx_wind' && p.id == 'eats_wind') ||
+          (id == 'eats_fire' && p.id == 'eatsfx_fire') ||
+          (id == 'eatsfx_fire' && p.id == 'eats_fire') ||
           (id == 'eats_303' && (p.id == 'jc_303' || p.id == 'acid_303')) ||
           (id == 'jc_303' && (p.id == 'eats_303' || p.id == 'acid_303')) ||
           (id == 'acid_303' && (p.id == 'eats_303' || p.id == 'jc_303')));
@@ -429,17 +435,14 @@ class LuaScriptLibrary {
     if (luaCode.contains('EatsFurnace') || luaCode.contains('eats_furnace') || luaCode.contains('Eats Furnace') || luaCode.contains('PyrophoneSynth') || luaCode.contains('pyrophone_synth') || luaCode.contains('PYROPHONE') || luaCode.contains('Thermoacoustic') || luaCode.contains('Singing Flame') || luaCode.contains('Rijke Tube') || (luaCode.contains('FuelPressure') && luaCode.contains('FlameCusp'))) {
       return getPresetById('eats_furnace');
     }
-    if (luaCode.contains('EatsRain') || luaCode.contains('eats_rain') || luaCode.contains('Eats Rain') || luaCode.contains('RainIntensity') || (luaCode.contains('RainHiss') && luaCode.contains('DropletForce'))) {
-      return getPresetById('eats_rain');
+    if (luaCode.contains('EatsFXRain') || luaCode.contains('eatsfx_rain') || luaCode.contains('EatsFX Rain') || luaCode.contains('EatsRain') || luaCode.contains('eats_rain') || luaCode.contains('Eats Rain') || luaCode.contains('RainIntensity') || (luaCode.contains('RainHiss') && luaCode.contains('DropletForce'))) {
+      return getPresetById('eatsfx_rain');
     }
-    if (luaCode.contains('EatsWind') || luaCode.contains('eats_wind') || luaCode.contains('Eats Wind') || luaCode.contains('AeolianPitch') || (luaCode.contains('GustSpeed') && luaCode.contains('HowlDepth'))) {
-      return getPresetById('eats_wind');
+    if (luaCode.contains('EatsFXWind') || luaCode.contains('eatsfx_wind') || luaCode.contains('EatsFX Wind') || luaCode.contains('EatsWind') || luaCode.contains('eats_wind') || luaCode.contains('Eats Wind') || luaCode.contains('AeolianPitch') || (luaCode.contains('GustSpeed') && luaCode.contains('HowlDepth'))) {
+      return getPresetById('eatsfx_wind');
     }
-    if (luaCode.contains('EatsFire') || luaCode.contains('eats_fire') || luaCode.contains('Eats Fire') || luaCode.contains('SapCrackle') || (luaCode.contains('FlameRoar') && luaCode.contains('EmberSizzle'))) {
-      return getPresetById('eats_fire');
-    }
-    if (luaCode.contains('EatsThunder') || luaCode.contains('eats_thunder') || luaCode.contains('Eats Thunder') || luaCode.contains('StrikeTrigger') || (luaCode.contains('StrikeProximity') && luaCode.contains('RumbleDecay'))) {
-      return getPresetById('eats_thunder');
+    if (luaCode.contains('EatsFXFire') || luaCode.contains('eatsfx_fire') || luaCode.contains('EatsFX Fire') || luaCode.contains('EatsFire') || luaCode.contains('eats_fire') || luaCode.contains('Eats Fire') || luaCode.contains('SapCrackle') || (luaCode.contains('FlameRoar') && luaCode.contains('EmberSizzle'))) {
+      return getPresetById('eatsfx_fire');
     }
     if (luaCode.contains('EatsWater') || luaCode.contains('eats_water') || luaCode.contains('Eats Water') || luaCode.contains('Hydraulophone') || (luaCode.contains('WaterFlow') && luaCode.contains('BubblePinch'))) {
       return getPresetById('eats_water');
@@ -479,6 +482,30 @@ class LuaScriptLibrary {
     }
     if (luaCode.contains('Vibraphone') || luaCode.contains('vibraphone') || (luaCode.contains('MotorSpeed') && luaCode.contains('TremoloDepth')) || (luaCode.contains('DoubleOctave') && luaCode.contains('TremoloDepth'))) {
       return getPresetById('vibraphone');
+    }
+    if (luaCode.contains('TinkleBell') || luaCode.contains('tinkle_bell') || luaCode.contains('Tinkle Bell') || luaCode.contains('WindChime') || (luaCode.contains('ChimeDecay') && luaCode.contains('BreezeFlutter'))) {
+      return getPresetById('tinkle_bell');
+    }
+    if (luaCode.contains('Woodblock') || luaCode.contains('woodblock') || luaCode.contains('Wood Block') || luaCode.contains('TempleBlock') || (luaCode.contains('WoodDecay') && luaCode.contains('CavityPop'))) {
+      return getPresetById('woodblock');
+    }
+    if (luaCode.contains('AgogoBell') || luaCode.contains('agogo_bell') || luaCode.contains('Agogo Bell') || luaCode.contains('Agogo') || (luaCode.contains('BellDecay') && luaCode.contains('ClangRatio'))) {
+      return getPresetById('agogo_bell');
+    }
+    if (luaCode.contains('SteelDrums') || luaCode.contains('steel_drums') || luaCode.contains('Steel Drums') || luaCode.contains('SteelPan') || luaCode.contains('steelpan') || (luaCode.contains('PanDecay') && luaCode.contains('OctaveHarmonic'))) {
+      return getPresetById('steel_drums');
+    }
+    if (luaCode.contains('TaikoDrum') || luaCode.contains('taiko_drum') || luaCode.contains('Taiko Drum') || luaCode.contains('Taiko') || luaCode.contains('Surdo') || (luaCode.contains('DrumDecay') && luaCode.contains('PitchSag'))) {
+      return getPresetById('taiko_drum');
+    }
+    if (luaCode.contains('MelodicTom') || luaCode.contains('melodic_tom') || luaCode.contains('Melodic Tom') || (luaCode.contains('TomDecay') && luaCode.contains('HeadCoupling'))) {
+      return getPresetById('melodic_tom');
+    }
+    if (luaCode.contains('SimmonsSynthDrum') || luaCode.contains('simmons_synth_drum') || luaCode.contains('Simmons SDS') || luaCode.contains('SynthDrum') || luaCode.contains('synth_drum') || (luaCode.contains('PitchDrop') && luaCode.contains('SweepTime'))) {
+      return getPresetById('synth_drum');
+    }
+    if (luaCode.contains('ReverseCymbal') || luaCode.contains('reverse_cymbal') || luaCode.contains('Reverse Cymbal') || (luaCode.contains('SwellDuration') && luaCode.contains('CrescendoCurve'))) {
+      return getPresetById('reverse_cymbal');
     }
     if (luaCode.contains('ConcertPiccolo') || luaCode.contains('concert_piccolo') || luaCode.contains('Piccolo')) {
       return getPresetById('concert_piccolo');
@@ -1262,21 +1289,21 @@ return EatsWater
 ''',
     ),
 
-    // 00d. Eats Rain Physical Model (Granular Precipitation & Surface Cavity Matrix)
+    // 00d. EatsFX Rain Physical Model (Granular Precipitation & Surface Cavity Matrix)
     LuaPreset(
-      id: 'eats_rain',
-      name: 'Eats Rain',
+      id: 'eatsfx_rain',
+      name: 'EatsFX Rain',
       category: LuaPresetCategory.instrument,
-      description: 'Physical modeling of real-world precipitation, rainfall, and surface impacts: Poisson granular droplet generator with Minnaert bubble pinch-off cavitation chirp, continuous atmospheric pink rain wash hiss, multi-surface modal cavity resonators (puddle, tin roof, foliage), and gutter drip dynamics.',
+      description: 'Physical modeling of real-world precipitation, rainfall, and surface impacts: stochastic Poisson droplet micro-noise blips, continuous atmospheric pink rain wash hiss, multi-surface modal cavity resonators (puddle, tin roof, foliage), and gutter drip dynamics.',
       code: '''
--- @id: eats_rain
--- @name: Eats Rain
+-- @id: eatsfx_rain
+-- @name: EatsFX Rain
 -- @category: instrument
--- @description: Physical modeling of real-world precipitation, rainfall, and surface impacts: Poisson granular droplet generator with Minnaert bubble pinch-off cavitation chirp, continuous atmospheric pink rain wash hiss, multi-surface modal cavity resonators (puddle, tin roof, foliage), and gutter drip dynamics.
+-- @description: Physical modeling of real-world precipitation, rainfall, and surface impacts: stochastic Poisson droplet micro-noise blips, continuous atmospheric pink rain wash hiss, multi-surface modal cavity resonators (puddle, tin roof, foliage), and gutter drip dynamics.
 
-local EatsRain = {}
+local EatsFXRain = {}
 
-function EatsRain.init()
+function EatsFXRain.init()
   -- Granular Precipitation Core
   Param.add("RainIntensity", 0.0, 1.0, 0.55)
   Param.add("DropletForce", 0.1, 1.5, 0.80)
@@ -1293,7 +1320,7 @@ function EatsRain.init()
   Param.add("Decay", 0.1, 4.0, 1.2)
 end
 
-function EatsRain.process(time, freq, note, params)
+function EatsFXRain.process(time, freq, note, params)
   local intens = params["RainIntensity"] or 0.55
   local force = params["DropletForce"] or 0.80
   local pitch = params["DropletPitch"] or 1.0
@@ -1303,18 +1330,18 @@ function EatsRain.process(time, freq, note, params)
   -- Continuous rain wash (pink noise floor approximation)
   local washTone = (math.random() * 2.0 - 1.0) * hiss * 0.22
 
-  -- Discrete Minnaert droplet plink chirp
-  local dropPlink = (math.random() < (intens * 0.045)) and (math.sin(2.0 * math.pi * 780.0 * pitch * time) * force * 0.55) or 0.0
+  -- Discrete raindrop micro-impact (crisp white noise blip)
+  local dropBlip = (math.random() < (intens * 0.08)) and ((math.random() * 2.0 - 1.0) * force * 0.45) or 0.0
 
   local ampEnv = math.exp(-time / math.max(0.1, decay))
-  local raw = (washTone + dropPlink) * ampEnv
+  local raw = (washTone + dropBlip) * ampEnv
   return math.tanh(raw * 1.2) * 0.95
 end
 
-function EatsRain.gui()
+function EatsFXRain.gui()
   return {
     panel = {
-      title = "EATS RAIN",
+      title = "EATSFX RAIN",
       subtitle = "Granular Precipitation & Surface Acoustic Matrix",
       accent = "#00E5FF",
       background = "matte_metal",
@@ -1358,25 +1385,25 @@ function EatsRain.gui()
   }
 end
 
-return EatsRain
+return EatsFXRain
 ''',
     ),
 
-    // 00e. Eats Wind Physical Model (Aeolian Tempest & Cavity Howl)
+    // 00e. EatsFX Wind Physical Model (Aeolian Tempest & Cavity Howl)
     LuaPreset(
-      id: 'eats_wind',
-      name: 'Eats Wind',
+      id: 'eatsfx_wind',
+      name: 'EatsFX Wind',
       category: LuaPresetCategory.instrument,
       description: 'Physical modeling of atmospheric wind, Aeolian tones, and architectural cavity whistling: fractional Brownian motion aerodynamic gust generator, Strouhal vortex shedding resonance, Harmon-derived window crack cavity notch, and chimney howl modal resonator.',
       code: '''
--- @id: eats_wind
--- @name: Eats Wind
+-- @id: eatsfx_wind
+-- @name: EatsFX Wind
 -- @category: instrument
 -- @description: Physical modeling of atmospheric wind, Aeolian tones, and architectural cavity whistling: fractional Brownian motion aerodynamic gust generator, Strouhal vortex shedding resonance, Harmon-derived window crack cavity notch, and chimney howl modal resonator.
 
-local EatsWind = {}
+local EatsFXWind = {}
 
-function EatsWind.init()
+function EatsFXWind.init()
   -- Aerodynamic Gust Core
   Param.add("GustSpeed", 0.05, 3.0, 0.25)
   Param.add("Turbulence", 0.0, 1.0, 0.65)
@@ -1390,7 +1417,7 @@ function EatsWind.init()
   Param.add("Decay", 0.2, 5.0, 2.0)
 end
 
-function EatsWind.process(time, freq, note, params)
+function EatsFXWind.process(time, freq, note, params)
   local speed = params["GustSpeed"] or 0.25
   local turb = params["Turbulence"] or 0.65
   local fAeol = params["AeolianPitch"] or freq or 440.0
@@ -1409,10 +1436,10 @@ function EatsWind.process(time, freq, note, params)
   return math.tanh(raw * 1.3) * 0.95
 end
 
-function EatsWind.gui()
+function EatsFXWind.gui()
   return {
     panel = {
-      title = "EATS WIND",
+      title = "EATSFX WIND",
       subtitle = "Aeolian Tempest & Cavity Howl Synthesizer",
       accent = "#26A69A",
       background = "matte_metal",
@@ -1454,25 +1481,25 @@ function EatsWind.gui()
   }
 end
 
-return EatsWind
+return EatsFXWind
 ''',
     ),
 
-    // 00f. Eats Fire Physical Model (Organic Campfire, Hearth & Sap Crackle)
+    // 00f. EatsFX Fire Physical Model (Organic Campfire, Hearth & Sap Crackle)
     LuaPreset(
-      id: 'eats_fire',
-      name: 'Eats Fire',
+      id: 'eatsfx_fire',
+      name: 'EatsFX Fire',
       category: LuaPresetCategory.instrument,
       description: 'Physical modeling of natural open fire, living hearths, and campfires: low-frequency turbulent deflagration combustion roar, convective thermal draft drift, supercritical wood sap pocket explosions, flying ember sizzle crackle matrix, and hollow hearth log resonance.',
       code: '''
--- @id: eats_fire
--- @name: Eats Fire
+-- @id: eatsfx_fire
+-- @name: EatsFX Fire
 -- @category: instrument
 -- @description: Physical modeling of natural open fire, living hearths, and campfires: low-frequency turbulent deflagration combustion roar, convective thermal draft drift, supercritical wood sap pocket explosions, flying ember sizzle crackle matrix, and hollow hearth log resonance.
 
-local EatsFire = {}
+local EatsFXFire = {}
 
-function EatsFire.init()
+function EatsFXFire.init()
   -- Combustion Roar & Convection Draft
   Param.add("FlameRoar", 0.0, 1.0, 0.60)
   Param.add("FlameDraft", 0.05, 2.0, 0.40)
@@ -1488,7 +1515,7 @@ function EatsFire.init()
   Param.add("Decay", 0.1, 4.0, 1.5)
 end
 
-function EatsFire.process(time, freq, note, params)
+function EatsFXFire.process(time, freq, note, params)
   local roar = params["FlameRoar"] or 0.60
   local draft = params["FlameDraft"] or 0.40
   local sap = params["SapCrackle"] or 0.45
@@ -1511,10 +1538,10 @@ function EatsFire.process(time, freq, note, params)
   return math.tanh(raw * 1.25) * 0.95
 end
 
-function EatsFire.gui()
+function EatsFXFire.gui()
   return {
     panel = {
-      title = "EATS FIRE",
+      title = "EATSFX FIRE",
       subtitle = "Organic Campfire, Hearth & Sap Crackle Generator",
       accent = "#FF3D00",
       background = "matte_metal",
@@ -1558,104 +1585,7 @@ function EatsFire.gui()
   }
 end
 
-return EatsFire
-''',
-    ),
-
-    // 00g. Eats Thunder Physical Model (Dispersive Shockwave & Rolling Thunderstrike)
-    LuaPreset(
-      id: 'eats_thunder',
-      name: 'Eats Thunder',
-      category: LuaPresetCategory.instrument,
-      description: 'Physical modeling of lightning shockwaves, atmospheric acoustic dispersion, and terrain reverberation: hypersonic Dirac shockwave impulse, Commuted Grand Piano soundboard modal dispersion network, distance-dependent air absorption lowpass, and deep valley chasm sub-bass roll.',
-      code: '''
--- @id: eats_thunder
--- @name: Eats Thunder
--- @category: instrument
--- @description: Physical modeling of lightning shockwaves, atmospheric acoustic dispersion, and terrain reverberation: hypersonic Dirac shockwave impulse, Commuted Grand Piano soundboard modal dispersion network, distance-dependent air absorption lowpass, and deep valley chasm sub-bass roll.
-
-local EatsThunder = {}
-
-function EatsThunder.init()
-  -- Hypersonic Strike Shockwave
-  Param.add("StrikeTrigger", 0.0, 1.0, 0.25)
-  Param.add("StrikeProximity", 0.1, 1.5, 1.0)
-
-  -- Atmospheric Propagation & Dispersion
-  Param.add("Distance", 10.0, 3000.0, 450.0)
-  Param.add("Dispersion", 0.0, 1.0, 0.75)
-  Param.add("AirAbsorption", 0.0, 1.0, 0.80)
-
-  -- Chasm & Piano Soundboard Rolling Resonance
-  Param.add("RumbleReso", 0.1, 0.95, 0.70)
-  Param.add("RumbleDecay", 0.2, 8.0, 3.5)
-  Param.add("Tone", 200.0, 8000.0, 1600.0)
-end
-
-function EatsThunder.process(time, freq, note, params)
-  local prox = params["StrikeProximity"] or 1.0
-  local dist = params["Distance"] or 450.0
-  local disp = params["Dispersion"] or 0.75
-  local decay = params["RumbleDecay"] or 3.5
-
-  -- Hypersonic shock snap
-  local snap = math.exp(-time * 50.0) * prox * (math.random() * 2.0 - 1.0)
-
-  -- Deep dispersive rolling sub-bass rumble
-  local fRumble = math.max(30.0, (freq or 45.0) * (1.0 - math.exp(-time * 0.8)))
-  local rumble = math.sin(2.0 * math.pi * fRumble * time) * math.exp(-time / math.max(0.5, decay)) * (0.5 + 0.5 * disp)
-
-  local raw = snap * (50.0 / math.max(10.0, dist * 0.1)) + rumble * 0.85
-  return math.tanh(raw * 1.3) * 0.95
-end
-
-function EatsThunder.gui()
-  return {
-    panel = {
-      title = "EATS THUNDER",
-      subtitle = "Dispersive Shockwave & Rolling Thunderstrike",
-      accent = "#7C4DFF",
-      background = "matte_metal",
-      rackSides = "brushed_steel",
-      cornerRadius = 0,
-      layout = {
-        {
-          type = "group",
-          label = "HYPERSONIC LIGHTNING STRIKE (VIOLET)",
-          accent = "#7C4DFF",
-          children = {
-            {
-              type = "row",
-              children = {
-                { type = "knob", param = "StrikeProximity", label = "STRIKE FORCE", unit = "kA", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "Distance", label = "DISTANCE", unit = "m", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "Dispersion", label = "ROLL DISPERSION", unit = "%", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "AirAbsorption", label = "AIR ABSORPTION", unit = "%", knobStyle = "chrome", size = 52 },
-              }
-            }
-          }
-        },
-        {
-          type = "group",
-          label = "SOUNDBOARD CAVITY & SUB-BASS RUMBLE (INDIGO)",
-          accent = "#3D5AFE",
-          children = {
-            {
-              type = "row",
-              children = {
-                { type = "knob", param = "RumbleReso", label = "CHASM RESO", unit = "%", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "RumbleDecay", label = "RUMBLE DECAY", unit = "s", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "Tone", label = "AIR LOWPASS", unit = "Hz", knobStyle = "vintage", size = 52 },
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-end
-
-return EatsThunder
+return EatsFXFire
 ''',
     ),
 
@@ -4708,6 +4638,980 @@ function Vibraphone.rack()
 end
 
 return Vibraphone
+''',
+    ),
+
+    // 00a9. Tinkle Bell / Wind Chime Physical Model
+    LuaPreset(
+      id: 'tinkle_bell',
+      name: 'Tinkle Bell',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modal modeling of a suspended cylindrical chime / wind chime (GM 112 / 113): free-free beam overtones (1.0, 2.756, 5.404, 8.933), pristine high-Q singing sustain, micro-clapper strike click, breeze flutter tap, and glass air sheen.',
+      code: '''
+-- @id: tinkle_bell
+-- @name: Tinkle Bell
+-- @category: instrument
+-- @description: Physical modal modeling of a suspended cylindrical chime / wind chime (GM 112 / 113): free-free beam overtones (1.0, 2.756, 5.404, 8.933), pristine high-Q singing sustain, micro-clapper strike click, breeze flutter tap, and glass air sheen.
+
+local TinkleBell = {}
+
+function TinkleBell.init()
+  Param.add("ChimeDecay", 0.8, 7.0, 3.8)       -- Ringing sustain decay (seconds)
+  Param.add("BreezeFlutter", 0.0, 1.0, 0.45)   -- Secondary wind flutter tap intensity
+  Param.add("GlassAir", 0.0, 1.5, 0.70)        -- High overtone brilliance / crystalline ring
+  Param.add("ClapperHardness", 0.1, 1.2, 0.65) -- Initial striker transient sharpness
+  Param.add("AirSheen", -4.0, 8.0, 2.5)        -- Highshelf sheen boost (dB)
+  Param.add("Tone", 2000.0, 18000.0, 14000.0)  -- Lowpass cutoff
+end
+
+function TinkleBell.process(time, freq, note, params)
+  local decay = params["ChimeDecay"] or 3.8
+  local flutter = params["BreezeFlutter"] or 0.45
+  local sheen = params["GlassAir"] or 0.70
+  local hardness = params["ClapperHardness"] or 0.65
+
+  local f1 = freq
+  local f2 = freq * 2.7565
+  local f3 = freq * 5.404
+  local f4 = math.min(19500.0, freq * 8.933)
+
+  local d1 = 0.22 / decay
+  local d2 = (0.85 / decay) + (freq / 1800.0)
+  local d3 = (2.60 / decay) + (freq / 900.0)
+  local d4 = (7.00 / decay) + (freq / 450.0)
+
+  local y1 = math.sin(2.0 * math.pi * f1 * time) * math.exp(-time * d1)
+  local y2 = math.sin(2.0 * math.pi * f2 * time) * math.exp(-time * d2) * (0.62 * sheen)
+  local y3 = math.sin(2.0 * math.pi * f3 * time) * math.exp(-time * d3) * (0.36 * sheen)
+  local y4 = math.sin(2.0 * math.pi * f4 * time) * math.exp(-time * d4) * (0.22 * sheen)
+
+  -- Light clapper impact transient
+  local click = 0.0
+  if time < 0.008 then
+    click = math.sin(2.0 * math.pi * 8400.0 * time) * math.exp(-time * 850.0) * (0.45 * hardness)
+  end
+
+  -- Breeze flutter secondary tap
+  local tap = 0.0
+  if flutter > 0.01 and time >= 0.028 then
+    local tf = time - 0.028
+    if tf < 0.015 then
+      tap = math.sin(2.0 * math.pi * f1 * tf) * math.exp(-tf * d1) * (0.35 * flutter)
+    end
+  end
+
+  local raw = (y1 * 0.90 + y2 + y3 + y4 + click + tap) * 0.52
+  return math.tanh(raw * 1.05) * 0.92
+end
+
+function TinkleBell.gui()
+  return {
+    panel = {
+      title = "TINKLE BELL / WIND CHIME",
+      subtitle = "Suspended Free-Free Cylindrical Chime Modal Resonator",
+      accent = "#70E0D0",
+      background = "minimal_white",
+      knobStyle = "minimal_white",
+      layout = {
+        {
+          type = "group",
+          label = "CHIME MODES & SUSTAIN",
+          accent = "#70E0D0",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "ChimeDecay", label = "SUSTAIN", unit = "s", size = 52 },
+                { type = "knob", param = "GlassAir", label = "CRYSTAL", unit = "%", size = 52 },
+                { type = "knob", param = "BreezeFlutter", label = "FLUTTER", unit = "%", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "EXCITATION & SHEEN",
+          accent = "#A0E8AF",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "ClapperHardness", label = "CLAPPER", unit = "%", size = 52 },
+                { type = "knob", param = "AirSheen", label = "AIR SHEEN", unit = "dB", size = 52 },
+                { type = "knob", param = "Tone", label = "TONE", unit = "Hz", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function TinkleBell.rack()
+  return {
+    rows = {
+      {
+        { id = "clapper_strike", title = "CLAPPER CONTACT",  hp = 14, row = 1, category = "VCO" },
+        { id = "chime_tubes",    title = "CYLINDRICAL CHIMES",hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "air_sheen",      title = "CRYSTAL SHEEN",    hp = 14, row = 2, category = "VCF" },
+        { id = "bell_out",       title = "CHIME MASTER",     hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return TinkleBell
+''',
+    ),
+
+    // 00a10. Woodblock / Temple Block Physical Model
+    LuaPreset(
+      id: 'woodblock',
+      name: 'Woodblock',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modal modeling of an orchestral woodblock / temple block (GM 115 / 116): dense resonant hardwood block with deep undercut slit Helmholtz cavity, rapid internal wood damping (dry woody pop), cavity burst, and hardwood beater strike crack.',
+      code: '''
+-- @id: woodblock
+-- @name: Woodblock
+-- @category: instrument
+-- @description: Physical modal modeling of an orchestral woodblock / temple block (GM 115 / 116): dense resonant hardwood block with deep undercut slit Helmholtz cavity, rapid internal wood damping (dry woody pop), cavity burst, and hardwood beater strike crack.
+
+local Woodblock = {}
+
+function Woodblock.init()
+  Param.add("WoodDecay", 0.02, 0.18, 0.045)     -- Ultra-dry wood damping decay (seconds)
+  Param.add("CavityPop", 0.0, 1.4, 0.70)        -- Slit Helmholtz acoustic cavity pop
+  Param.add("WoodHardness", 0.2, 1.2, 0.75)     -- Hardwood beater strike transient
+  Param.add("SlitTuning", 0.7, 1.4, 1.00)       -- Slit acoustic ratio multiplier
+  Param.add("WoodCrack", -3.0, 6.0, 2.0)        -- High wood presence peak (dB)
+  Param.add("Tone", 1000.0, 16000.0, 9500.0)    -- Lowpass cutoff
+end
+
+function Woodblock.process(time, freq, note, params)
+  local decay = params["WoodDecay"] or 0.045
+  local pop = params["CavityPop"] or 0.70
+  local hardness = params["WoodHardness"] or 0.75
+  local slit = params["SlitTuning"] or 1.00
+
+  local fWood = freq
+  local fCavity = freq * 1.618 * slit
+  local fKnock = math.min(16000.0, freq * 3.48)
+
+  local dWood = 22.0 / decay
+  local dCavity = 35.0 / decay
+  local dKnock = 60.0 / decay
+
+  local y1 = math.sin(2.0 * math.pi * fWood * time) * math.exp(-time * dWood)
+  local yCavity = math.sin(2.0 * math.pi * fCavity * time) * math.exp(-time * dCavity) * (0.75 * pop)
+  local yKnock = math.sin(2.0 * math.pi * fKnock * time) * math.exp(-time * dKnock) * 0.30
+
+  -- Hardwood beater impact transient
+  local click = 0.0
+  if time < 0.006 then
+    click = math.sin(2.0 * math.pi * 5200.0 * time) * math.exp(-time * 900.0) * (0.55 * hardness)
+  end
+
+  local raw = (y1 * 0.85 + yCavity + yKnock + click) * 0.62
+  return math.tanh(raw * 1.25) * 0.95
+end
+
+function Woodblock.gui()
+  return {
+    panel = {
+      title = "ORCHESTRAL WOODBLOCK",
+      subtitle = "Hardwood Slit Helmholtz Cavity Modal Resonator",
+      accent = "#D4A373",
+      background = "minimal_white",
+      knobStyle = "minimal_white",
+      layout = {
+        {
+          type = "group",
+          label = "WOOD DYNAMICS & POP",
+          accent = "#D4A373",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "WoodDecay", label = "DECAY", unit = "s", size = 52 },
+                { type = "knob", param = "CavityPop", label = "CAVITY POP", unit = "%", size = 52 },
+                { type = "knob", param = "SlitTuning", label = "SLIT TUNE", unit = "x", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "BEATER IMPACT & TONE",
+          accent = "#A98467",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "WoodHardness", label = "BEATER", unit = "%", size = 52 },
+                { type = "knob", param = "WoodCrack", label = "CRACK", unit = "dB", size = 52 },
+                { type = "knob", param = "Tone", label = "TONE", unit = "Hz", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function Woodblock.rack()
+  return {
+    rows = {
+      {
+        { id = "beater_strike", title = "HARDWOOD BEATER",   hp = 14, row = 1, category = "VCO" },
+        { id = "slit_cavity",   title = "SLIT CAVITY BODY",  hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "wood_eq",       title = "WOOD PRESENCE",     hp = 14, row = 2, category = "VCF" },
+        { id = "block_out",     title = "WOODBLOCK MASTER",  hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return Woodblock
+''',
+    ),
+
+    // 00a11. Agogô Bell / Cowbell Physical Model
+    LuaPreset(
+      id: 'agogo_bell',
+      name: 'Agogô Bell',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modal modeling of an Agogô / Cowbell (GM 113 / 114): welded sheet metal double bell with coupled plate modes (1.0, 1.54), hardwood stick strike crack, and dynamic pitch deflection on hard hits.',
+      code: '''
+-- @id: agogo_bell
+-- @name: Agogô Bell
+-- @category: instrument
+-- @description: Physical modal modeling of an Agogô / Cowbell (GM 113 / 114): welded sheet metal double bell with coupled plate modes (1.0, 1.54), hardwood stick strike crack, and dynamic pitch deflection on hard hits.
+
+local AgogoBell = {}
+
+function AgogoBell.init()
+  Param.add("BellDecay", 0.2, 2.2, 0.75)        -- Metallic ring decay (seconds)
+  Param.add("ClangRatio", 0.0, 1.5, 0.65)       -- High inharmonic clang overtone mix
+  Param.add("StickHardness", 0.2, 1.2, 0.70)    -- Hardwood stick strike transient
+  Param.add("PitchBend", 0.0, 1.0, 0.40)        -- Dynamic strike tension pitch bend
+  Param.add("MetalSnap", -3.0, 6.0, 2.0)        -- High plate presence EQ (dB)
+  Param.add("Tone", 2000.0, 18000.0, 13000.0)   -- Lowpass cutoff
+end
+
+function AgogoBell.process(time, freq, note, params)
+  local decay = params["BellDecay"] or 0.75
+  local clang = params["ClangRatio"] or 0.65
+  local hardness = params["StickHardness"] or 0.70
+  local bend = params["PitchBend"] or 0.40
+
+  local fInst = freq * (1.0 + bend * 0.22 * math.exp(-time * 65.0))
+  local f1 = fInst
+  local f2 = fInst * 1.542
+  local f3 = fInst * 2.460
+  local f4 = math.min(18000.0, fInst * 3.920)
+
+  local d1 = 3.2 / decay
+  local d2 = 4.8 / decay
+  local d3 = (18.0 / decay) + (freq / 250.0)
+  local d4 = (38.0 / decay) + (freq / 120.0)
+
+  local y1 = math.sin(2.0 * math.pi * f1 * time) * math.exp(-time * d1)
+  local y2 = math.sin(2.0 * math.pi * f2 * time) * math.exp(-time * d2) * 0.85
+  local y3 = math.sin(2.0 * math.pi * f3 * time) * math.exp(-time * d3) * (0.45 * clang)
+  local y4 = math.sin(2.0 * math.pi * f4 * time) * math.exp(-time * d4) * (0.25 * clang)
+
+  local click = 0.0
+  if time < 0.008 then
+    click = (math.sin(2.0 * math.pi * 4200.0 * time) * math.exp(-time * 800.0) * 0.50) * hardness
+  end
+
+  local raw = (y1 * 0.90 + y2 * 0.80 + y3 + y4 + click) * 0.56
+  return math.tanh(raw * 1.15) * 0.92
+end
+
+function AgogoBell.gui()
+  return {
+    panel = {
+      title = "AGOGÔ / COWBELL",
+      subtitle = "Welded Sheet Steel Double Bell Modal Resonator",
+      accent = "#F4A261",
+      background = "minimal_white",
+      knobStyle = "minimal_white",
+      layout = {
+        {
+          type = "group",
+          label = "BELL MODES & RING",
+          accent = "#F4A261",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "BellDecay", label = "DECAY", unit = "s", size = 52 },
+                { type = "knob", param = "ClangRatio", label = "CLANG", unit = "%", size = 52 },
+                { type = "knob", param = "PitchBend", label = "PITCH DIVE", unit = "%", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "HARDWOOD STRIKE",
+          accent = "#E76F51",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "StickHardness", label = "STICK", unit = "%", size = 52 },
+                { type = "knob", param = "MetalSnap", label = "SNAP", unit = "dB", size = 52 },
+                { type = "knob", param = "Tone", label = "TONE", unit = "Hz", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function AgogoBell.rack()
+  return {
+    rows = {
+      {
+        { id = "hardwood_strike", title = "HARDWOOD HIT",  hp = 14, row = 1, category = "VCO" },
+        { id = "sheet_bell",     title = "COUPLED PLATES",hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "metal_eq",       title = "PLATE SNAP",    hp = 14, row = 2, category = "VCF" },
+        { id = "agogo_out",      title = "AGOGO MASTER",  hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return AgogoBell
+''',
+    ),
+
+    // 00a12. Steel Drums / Steelpan Physical Model
+    LuaPreset(
+      id: 'steel_drums',
+      name: 'Steel Drums',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modal modeling of Trinidadian Steel Drums / Steelpan (GM 114 / 115): dished steel oil drum head with tuned octave & fifth quadrants, rubber-tipped mallet impact, and adjacent note sympathetic bowl shimmer.',
+      code: '''
+-- @id: steel_drums
+-- @name: Steel Drums
+-- @category: instrument
+-- @description: Physical modal modeling of Trinidadian Steel Drums / Steelpan (GM 114 / 115): dished steel oil drum head with tuned octave & fifth quadrants, rubber-tipped mallet impact, and adjacent note sympathetic bowl shimmer.
+
+local SteelDrums = {}
+
+function SteelDrums.init()
+  Param.add("PanDecay", 0.6, 4.0, 1.80)         -- Singing steel sustain (seconds)
+  Param.add("OctaveHarmonic", 0.0, 1.2, 0.60)   -- Tuned octave & fifth harmonic level
+  Param.add("BowlSympathy", 0.0, 1.0, 0.45)     -- Adjacent pad sympathetic beating wash
+  Param.add("MalletSoftness", 0.0, 1.0, 0.55)   -- Rubber mallet contact softness
+  Param.add("AirPresence", -3.0, 6.0, 1.5)      -- High pan brilliance EQ (dB)
+  Param.add("Tone", 2000.0, 18000.0, 12000.0)   -- Lowpass cutoff
+end
+
+function SteelDrums.process(time, freq, note, params)
+  local decay = params["PanDecay"] or 1.80
+  local oct = params["OctaveHarmonic"] or 0.60
+  local sympathy = params["BowlSympathy"] or 0.45
+  local softness = params["MalletSoftness"] or 0.55
+
+  local f1 = freq
+  local f2 = freq * 2.00
+  local f3 = freq * 3.00
+  local fRim = math.min(19000.0, freq * 5.82)
+
+  local fSym1 = freq * 1.004
+  local fSym2 = freq * 1.996
+
+  local d1 = 1.4 / decay
+  local d2 = (2.6 / decay) + (freq / 900.0)
+  local d3 = (5.5 / decay) + (freq / 400.0)
+  local dRim = (14.0 / decay) + (freq / 150.0)
+
+  local y1 = math.sin(2.0 * math.pi * f1 * time) * math.exp(-time * d1)
+  local y2 = math.sin(2.0 * math.pi * f2 * time) * math.exp(-time * d2) * (0.70 * oct)
+  local y3 = math.sin(2.0 * math.pi * f3 * time) * math.exp(-time * d3) * (0.35 * oct)
+  local yRim = math.sin(2.0 * math.pi * fRim * time) * math.exp(-time * dRim) * (0.20 * (1.2 - softness))
+
+  local ySym = (math.sin(2.0 * math.pi * fSym1 * time) * 0.5 + math.sin(2.0 * math.pi * fSym2 * time) * 0.5) *
+      math.exp(-time * (d1 * 1.1)) * (0.35 * sympathy)
+
+  local malletThud = 0.0
+  if time < 0.012 then
+    local thudFreq = 320.0 + (1.0 - softness) * 450.0
+    malletThud = math.sin(2.0 * math.pi * thudFreq * time) * math.exp(-time * 280.0) * 0.35
+  end
+
+  local raw = (y1 * 0.88 + y2 + y3 + yRim + ySym + malletThud) * 0.55
+  return math.tanh(raw * 1.12) * 0.92
+end
+
+function SteelDrums.gui()
+  return {
+    panel = {
+      title = "STEEL DRUMS / STEELPAN",
+      subtitle = "Dished Oil Drum Head Tuned Harmonic Modal Resonator",
+      accent = "#2A9D8F",
+      background = "minimal_white",
+      knobStyle = "minimal_white",
+      layout = {
+        {
+          type = "group",
+          label = "DISH HARMONICS & WASH",
+          accent = "#2A9D8F",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "PanDecay", label = "SUSTAIN", unit = "s", size = 52 },
+                { type = "knob", param = "OctaveHarmonic", label = "OCTAVES", unit = "%", size = 52 },
+                { type = "knob", param = "BowlSympathy", label = "BOWL WASH", unit = "%", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "RUBBER MALLET & AIR",
+          accent = "#264653",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "MalletSoftness", label = "RUBBER", unit = "%", size = 52 },
+                { type = "knob", param = "AirPresence", label = "AIR", unit = "dB", size = 52 },
+                { type = "knob", param = "Tone", label = "TONE", unit = "Hz", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function SteelDrums.rack()
+  return {
+    rows = {
+      {
+        { id = "rubber_mallet", title = "RUBBER MALLET",   hp = 14, row = 1, category = "VCO" },
+        { id = "drum_pads",     title = "STEELPAN DISH",   hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "bowl_wash",     title = "BOWL SYMPATHY",   hp = 14, row = 2, category = "VCF" },
+        { id = "pan_out",       title = "STEELPAN MASTER", hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return SteelDrums
+''',
+    ),
+
+    // 00a13. Taiko Drum / Surdo Physical Model
+    LuaPreset(
+      id: 'taiko_drum',
+      name: 'Taiko Drum',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modal modeling of a Japanese Taiko Drum / Surdo (GM 116 / 117): heavy carved wooden barrel shell, 2D circular clamped Bessel membrane modes, thick bachi stick slap, dynamic pitch sag, and deep barrel cavity boom.',
+      code: '''
+-- @id: taiko_drum
+-- @name: Taiko Drum
+-- @category: instrument
+-- @description: Physical modal modeling of a Japanese Taiko Drum / Surdo (GM 116 / 117): heavy carved wooden barrel shell, 2D circular clamped Bessel membrane modes, thick bachi stick slap, dynamic pitch sag, and deep barrel cavity boom.
+
+local TaikoDrum = {}
+
+function TaikoDrum.init()
+  Param.add("DrumDecay", 0.4, 3.5, 1.60)         -- Hide membrane resonance decay (seconds)
+  Param.add("PitchSag", 0.0, 1.0, 0.50)         -- Strike tension downward pitch sag
+  Param.add("BachiImpact", 0.2, 1.2, 0.75)      -- Heavy wooden bachi slap transient
+  Param.add("BarrelBoom", 0.0, 1.2, 0.65)       -- Deep wooden barrel chamber air boom
+  Param.add("SubBoost", -2.0, 8.0, 3.0)         -- Deep sub-bass shelving EQ (dB)
+  Param.add("Tone", 1000.0, 16000.0, 8000.0)    -- Lowpass cutoff
+end
+
+function TaikoDrum.process(time, freq, note, params)
+  local decay = params["DrumDecay"] or 1.60
+  local sag = params["PitchSag"] or 0.50
+  local impact = params["BachiImpact"] or 0.75
+  local boom = params["BarrelBoom"] or 0.65
+
+  local fInst = freq * (1.0 + sag * 0.32 * math.exp(-time * 38.0))
+  local f1 = fInst
+  local f2 = fInst * 1.593
+  local f3 = fInst * 2.135
+  local f4 = fInst * 2.295
+
+  local d1 = 2.4 / decay
+  local d2 = 4.2 / decay
+  local d3 = 7.5 / decay
+  local d4 = 11.0 / decay
+
+  local fBarrel = math.max(42.0, math.min(85.0, freq * 0.72))
+  local dBarrel = 1.8 / decay
+
+  local y1 = math.sin(2.0 * math.pi * f1 * time) * math.exp(-time * d1)
+  local y2 = math.sin(2.0 * math.pi * f2 * time) * math.exp(-time * d2) * 0.65
+  local y3 = math.sin(2.0 * math.pi * f3 * time) * math.exp(-time * d3) * 0.40
+  local y4 = math.sin(2.0 * math.pi * f4 * time) * math.exp(-time * d4) * 0.30
+  local yBarrel = math.sin(2.0 * math.pi * fBarrel * time) * math.exp(-time * dBarrel) * (0.80 * boom)
+
+  local bachiTransient = 0.0
+  if time < 0.015 then
+    bachiTransient = math.sin(2.0 * math.pi * 1800.0 * time) * math.exp(-time * 320.0) * (0.60 * impact)
+  end
+
+  local raw = (y1 * 0.95 + y2 + y3 + y4 + yBarrel + bachiTransient) * 0.60
+  return math.tanh(raw * 1.30) * 0.95
+end
+
+function TaikoDrum.gui()
+  return {
+    panel = {
+      title = "TAIKO DRUM / SURDO",
+      subtitle = "Heavy Wooden Barrel & Thick Hide Membrane Modal Resonator",
+      accent = "#E63946",
+      background = "minimal_white",
+      knobStyle = "minimal_white",
+      layout = {
+        {
+          type = "group",
+          label = "MEMBRANE & BARREL",
+          accent = "#E63946",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "DrumDecay", label = "DECAY", unit = "s", size = 52 },
+                { type = "knob", param = "PitchSag", label = "PITCH SAG", unit = "%", size = 52 },
+                { type = "knob", param = "BarrelBoom", label = "BARREL BOOM", unit = "%", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "BACHI IMPACT & SUB",
+          accent = "#9D0208",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "BachiImpact", label = "BACHI SLAP", unit = "%", size = 52 },
+                { type = "knob", param = "SubBoost", label = "SUB BASS", unit = "dB", size = 52 },
+                { type = "knob", param = "Tone", label = "TONE", unit = "Hz", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function TaikoDrum.rack()
+  return {
+    rows = {
+      {
+        { id = "bachi_slap",   title = "WOODEN BACHI",    hp = 14, row = 1, category = "VCO" },
+        { id = "hide_head",    title = "BESSEL MEMBRANE", hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "barrel_body",  title = "BARREL CHAMBER",  hp = 14, row = 2, category = "VCF" },
+        { id = "taiko_out",    title = "TAIKO MASTER",    hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return TaikoDrum
+''',
+    ),
+
+    // 00a14. Melodic Tom Physical Model
+    LuaPreset(
+      id: 'melodic_tom',
+      name: 'Melodic Tom',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modal modeling of an acoustic Melodic Tom / Concert Tom (GM 117 / 118): cylindrical wooden shell, circular Bessel membrane modes, stick contact impulse, dual-head resonant air coupling, and chromatic pitch tracking.',
+      code: '''
+-- @id: melodic_tom
+-- @name: Melodic Tom
+-- @category: instrument
+-- @description: Physical modal modeling of an acoustic Melodic Tom / Concert Tom (GM 117 / 118): cylindrical wooden shell, circular Bessel membrane modes, stick contact impulse, dual-head resonant air coupling, and chromatic pitch tracking.
+
+local MelodicTom = {}
+
+function MelodicTom.init()
+  Param.add("TomDecay", 0.2, 2.2, 0.85)         -- Acoustic tom shell decay (seconds)
+  Param.add("HeadCoupling", 0.0, 1.0, 0.55)     -- Resonant bottom head coupling
+  Param.add("PitchBend", 0.0, 1.0, 0.40)        -- Drumhead tension pitch deflection
+  Param.add("StickCrack", 0.0, 1.2, 0.60)       -- Drumstick tip contact transient
+  Param.add("TomPunch", -2.0, 6.0, 2.5)         -- Low-mid punch peaking EQ (dB)
+  Param.add("Tone", 1000.0, 16000.0, 9500.0)    -- Lowpass cutoff
+end
+
+function MelodicTom.process(time, freq, note, params)
+  local decay = params["TomDecay"] or 0.85
+  local coupling = params["HeadCoupling"] or 0.55
+  local bend = params["PitchBend"] or 0.40
+  local crack = params["StickCrack"] or 0.60
+
+  local fInst = freq * (1.0 + bend * 0.20 * math.exp(-time * 50.0))
+  local f1 = fInst
+  local f2 = fInst * 1.593
+  local f3 = fInst * 2.135
+  local fBottom = freq * (1.08 + coupling * 0.04)
+
+  local d1 = 3.5 / decay
+  local d2 = 6.2 / decay
+  local d3 = 9.8 / decay
+  local dBottom = 3.8 / decay
+
+  local y1 = math.sin(2.0 * math.pi * f1 * time) * math.exp(-time * d1)
+  local y2 = math.sin(2.0 * math.pi * f2 * time) * math.exp(-time * d2) * 0.55
+  local y3 = math.sin(2.0 * math.pi * f3 * time) * math.exp(-time * d3) * 0.30
+  local yBottom = math.sin(2.0 * math.pi * fBottom * time) * math.exp(-time * dBottom) * (0.50 * coupling)
+
+  local stickTransient = 0.0
+  if time < 0.010 then
+    stickTransient = math.sin(2.0 * math.pi * 3200.0 * time) * math.exp(-time * 600.0) * (0.50 * crack)
+  end
+
+  local raw = (y1 * 0.92 + y2 + y3 + yBottom + stickTransient) * 0.58
+  return math.tanh(raw * 1.20) * 0.94
+end
+
+function MelodicTom.gui()
+  return {
+    panel = {
+      title = "MELODIC TOM",
+      subtitle = "Acoustic Cylindrical Shell & Dual-Head Membrane Resonator",
+      accent = "#3A86FF",
+      background = "minimal_white",
+      knobStyle = "minimal_white",
+      layout = {
+        {
+          type = "group",
+          label = "MEMBRANE & COUPLING",
+          accent = "#3A86FF",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "TomDecay", label = "DECAY", unit = "s", size = 52 },
+                { type = "knob", param = "HeadCoupling", label = "BOTTOM HEAD", unit = "%", size = 52 },
+                { type = "knob", param = "PitchBend", label = "PITCH DROP", unit = "%", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "STICK CONTACT & PUNCH",
+          accent = "#0077B6",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "StickCrack", label = "STICK TIP", unit = "%", size = 52 },
+                { type = "knob", param = "TomPunch", label = "PUNCH", unit = "dB", size = 52 },
+                { type = "knob", param = "Tone", label = "TONE", unit = "Hz", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function MelodicTom.rack()
+  return {
+    rows = {
+      {
+        { id = "stick_tip",    title = "STICK IMPACT",    hp = 14, row = 1, category = "VCO" },
+        { id = "top_head",     title = "TOP MEMBRANE",    hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "bottom_head",  title = "BOTTOM HEAD AIR", hp = 14, row = 2, category = "VCF" },
+        { id = "tom_out",      title = "TOM MASTER",      hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return MelodicTom
+''',
+    ),
+
+    // 00a15. Simmons SDS-V Electronic Synth Drum Model
+    LuaPreset(
+      id: 'synth_drum',
+      name: 'Simmons Synth Drum',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical analog circuit simulation of the classic 1980s Simmons SDS-V Electronic Drum (GM 118 / 119): polycarbonate pad stick click generator, downward exponential pitch sweep VCO, resonant 4-pole lowpass VCF sweep, and filtered white noise snap.',
+      code: '''
+-- @id: synth_drum
+-- @name: Simmons Synth Drum
+-- @category: instrument
+-- @description: Physical analog circuit simulation of the classic 1980s Simmons SDS-V Electronic Drum (GM 118 / 119): polycarbonate pad stick click generator, downward exponential pitch sweep VCO, resonant 4-pole lowpass VCF sweep, and filtered white noise snap.
+
+local SynthDrum = {}
+
+function SynthDrum.init()
+  Param.add("PitchDrop", 0.1, 1.0, 0.70)        -- Laser pitch dive sweep depth
+  Param.add("SweepTime", 0.04, 0.35, 0.14)      -- Pitch sweep envelope time constant (seconds)
+  Param.add("ClickLevel", 0.0, 1.2, 0.65)       -- Polycarbonate pad strike click level
+  Param.add("NoiseSnap", 0.0, 1.0, 0.45)        -- Filtered white noise burst mix
+  Param.add("ToneDecay", 0.2, 2.2, 0.80)        -- Analog VCO core decay (seconds)
+  Param.add("FilterReso", 0.0, 0.90, 0.50)      -- SSM2044 style resonant VCF Q
+end
+
+function SynthDrum.process(time, freq, note, params)
+  local drop = params["PitchDrop"] or 0.70
+  local sweep = params["SweepTime"] or 0.14
+  local click = params["ClickLevel"] or 0.65
+  local noise = params["NoiseSnap"] or 0.45
+  local decay = params["ToneDecay"] or 0.80
+
+  local freqSweep = freq + (freq * 3.4 * drop) * math.exp(-time / sweep)
+  local toneAmp = math.exp(-time * (3.8 / decay))
+
+  local vco = math.sin(2.0 * math.pi * freqSweep * time)
+  local clickTransient = 0.0
+  if time < 0.005 then
+    clickTransient = math.sin(2.0 * math.pi * 3600.0 * time) * math.exp(-time * 900.0) * (0.75 * click)
+  end
+
+  local raw = (vco * toneAmp + clickTransient) * 0.58
+  return math.tanh(raw * 1.25) * 0.95
+end
+
+function SynthDrum.gui()
+  return {
+    panel = {
+      title = "SIMMONS SYNTH DRUM",
+      subtitle = "1980s Discrete Analog Drum Module & SSM VCF Model",
+      accent = "#FF006E",
+      background = "minimal_white",
+      knobStyle = "minimal_white",
+      layout = {
+        {
+          type = "group",
+          label = "VCO PITCH SWEEP",
+          accent = "#FF006E",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "PitchDrop", label = "PITCH DIVE", unit = "%", size = 52 },
+                { type = "knob", param = "SweepTime", label = "SWEEP TIME", unit = "s", size = 52 },
+                { type = "knob", param = "ToneDecay", label = "VCO DECAY", unit = "s", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "PAD CLICK & NOISE",
+          accent = "#8338EC",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "ClickLevel", label = "PAD CLICK", unit = "%", size = 52 },
+                { type = "knob", param = "NoiseSnap", label = "NOISE SNAP", unit = "%", size = 52 },
+                { type = "knob", param = "FilterReso", label = "VCF RESO", unit = "%", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function SynthDrum.rack()
+  return {
+    rows = {
+      {
+        { id = "pad_click",   title = "PAD CLICK GEN",   hp = 14, row = 1, category = "VCO" },
+        { id = "sweep_vco",   title = "PITCH SWEEP VCO", hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "ssm_vcf",     title = "4-POLE SSM VCF",  hp = 14, row = 2, category = "VCF" },
+        { id = "simmons_out", title = "SIMMONS MASTER",  hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return SynthDrum
+''',
+    ),
+
+    // 00a16. Reverse Cymbal Physical Model
+    LuaPreset(
+      id: 'reverse_cymbal',
+      name: 'Reverse Cymbal',
+      category: LuaPresetCategory.instrument,
+      description: 'Physical modeling of a Reverse Cymbal (GM 119 / 120): high-density inharmonic bronze plate modal cluster driven with a time-inverted power-law crescendo envelope, culminating in an abrupt choke cutoff and ring-off.',
+      code: '''
+-- @id: reverse_cymbal
+-- @name: Reverse Cymbal
+-- @category: instrument
+-- @description: Physical modeling of a Reverse Cymbal (GM 119 / 120): high-density inharmonic bronze plate modal cluster driven with a time-inverted power-law crescendo envelope, culminating in an abrupt choke cutoff and ring-off.
+
+local ReverseCymbal = {}
+
+function ReverseCymbal.init()
+  Param.add("SwellDuration", 0.5, 3.0, 1.50)    -- Inverted swell build time (seconds)
+  Param.add("CrescendoCurve", 1.2, 3.5, 2.20)   -- Power law crescendo acceleration
+  Param.add("ShimmerAir", 0.2, 1.4, 0.75)       -- High bronze plate shimmer brilliance
+  Param.add("ChokeSnap", 0.0, 1.0, 0.60)        -- Choke cutoff abruptness
+  Param.add("AirSheen", -2.0, 6.0, 2.0)         -- High brilliance EQ (dB)
+  Param.add("Tone", 3000.0, 18000.0, 15000.0)   -- Lowpass cutoff
+end
+
+function ReverseCymbal.process(time, freq, note, params)
+  local totalSwell = params["SwellDuration"] or 1.50
+  local power = params["CrescendoCurve"] or 2.20
+  local air = params["ShimmerAir"] or 0.75
+  local choke = params["ChokeSnap"] or 0.60
+
+  local env = 0.04
+  if time < totalSwell then
+    env = 0.04 + 0.96 * ((time / totalSwell) ^ power)
+  else
+    local tPost = time - totalSwell
+    local chokeRate = 75.0 + choke * 120.0
+    env = math.exp(-tPost * chokeRate) * (0.45 * (1.0 - choke * 0.6))
+  end
+
+  local m1 = math.sin(2.0 * math.pi * 3120.0 * time)
+  local m2 = math.sin(2.0 * math.pi * 4650.0 * time)
+  local m3 = math.sin(2.0 * math.pi * 6890.0 * time) * air
+  local m4 = math.sin(2.0 * math.pi * 10250.0 * time) * air
+
+  local raw = (m1 * 0.4 + m2 * 0.35 + m3 * 0.3 + m4 * 0.25) * env * 0.58
+  return math.tanh(raw * 1.20) * 0.92
+end
+
+function ReverseCymbal.gui()
+  return {
+    panel = {
+      title = "REVERSE CYMBAL",
+      subtitle = "Time-Inverted Bronze Alloy Modal Plate Crescendo & Choke",
+      accent = "#FFBE0B",
+      background = "minimal_white",
+      knobStyle = "minimal_white",
+      layout = {
+        {
+          type = "group",
+          label = "CRESCENDO & SWELL",
+          accent = "#FFBE0B",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "SwellDuration", label = "BUILD TIME", unit = "s", size = 52 },
+                { type = "knob", param = "CrescendoCurve", label = "CURVE", unit = "x", size = 52 },
+                { type = "knob", param = "ChokeSnap", label = "CHOKE", unit = "%", size = 52 },
+              }
+            }
+          }
+        },
+        {
+          type = "group",
+          label = "BRONZE AIR & SHIMMER",
+          accent = "#FB5607",
+          children = {
+            {
+              type = "row",
+              children = {
+                { type = "knob", param = "ShimmerAir", label = "SHIMMER", unit = "%", size = 52 },
+                { type = "knob", param = "AirSheen", label = "AIR", unit = "dB", size = 52 },
+                { type = "knob", param = "Tone", label = "TONE", unit = "Hz", size = 52 },
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+end
+
+function ReverseCymbal.rack()
+  return {
+    rows = {
+      {
+        { id = "time_env",     title = "REVERSE ENVELOPE", hp = 14, row = 1, category = "VCO" },
+        { id = "bronze_plate", title = "BRONZE MODES",     hp = 16, row = 1, category = "MOD" },
+      },
+      {
+        { id = "choke_vcf",    title = "CHOKE FILTER",     hp = 14, row = 2, category = "VCF" },
+        { id = "cymbal_out",   title = "CYMBAL MASTER",    hp = 16, row = 2, category = "OUT" },
+      },
+    },
+    cables = {
+      { from = "1:0:1", to = "1:1:0", color = "audio" },
+      { from = "1:1:1", to = "2:0:0", color = "audio" },
+      { from = "2:0:1", to = "2:1:0", color = "audio" },
+    }
+  }
+end
+
+return ReverseCymbal
 ''',
     ),
 

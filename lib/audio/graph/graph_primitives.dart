@@ -4686,6 +4686,678 @@ class VibraphoneBarNode extends GraphNode {
   }
 }
 
+/// Physical Modal Resonator for Tinkle Bell (Suspended Free-Free Chime / Wind Chime).
+/// Suspended cylindrical rod / chime tube with Euler-Bernoulli free beam overtones
+/// (1.0, 2.7565, 5.404, 8.933), pristine high-Q sustain tail, micro-clapper strike
+/// click, and secondary stochastic breeze flutter transient.
+class TinkleBellChimeNode extends GraphNode {
+  final double chimeDecay;
+  final String? chimeDecayParam;
+  final double breezeFlutter;
+  final String? breezeFlutterParam;
+  final double glassAir;
+  final String? glassAirParam;
+  final double clapperHardness;
+  final String? clapperHardnessParam;
+
+  const TinkleBellChimeNode({
+    this.chimeDecay = 3.8,
+    this.chimeDecayParam,
+    this.breezeFlutter = 0.45,
+    this.breezeFlutterParam,
+    this.glassAir = 0.70,
+    this.glassAirParam,
+    this.clapperHardness = 0.65,
+    this.clapperHardnessParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double f0 = ctx.freq > 0 ? ctx.freq : 1046.5; // Default C6
+    final double vel = ctx.velocity.clamp(0.01, 1.0);
+    final double decay = (chimeDecayParam != null ? ctx.getParam(chimeDecayParam!, chimeDecay) : chimeDecay).clamp(0.4, 8.0);
+    final double flutter = (breezeFlutterParam != null ? ctx.getParam(breezeFlutterParam!, breezeFlutter) : breezeFlutter).clamp(0.0, 1.0);
+    final double sheen = (glassAirParam != null ? ctx.getParam(glassAirParam!, glassAir) : glassAir).clamp(0.0, 1.5);
+    final double hardness = (clapperHardnessParam != null ? ctx.getParam(clapperHardnessParam!, clapperHardness) : clapperHardness).clamp(0.1, 1.2);
+
+    // Free-free beam cylindrical rod/chime modal series:
+    final double f1 = f0;
+    final double f2 = f0 * 2.7565;
+    final double f3 = f0 * 5.404;
+    final double f4 = math.min(19500.0, f0 * 8.933);
+
+    // High Q / low internal friction for ringing chime metal/glass
+    final double d1 = 0.22 / decay;
+    final double d2 = (0.85 / decay) + (f0 / 1800.0);
+    final double d3 = (2.60 / decay) + (f0 / 900.0);
+    final double d4 = (7.00 / decay) + (f0 / 450.0);
+
+    // Breeze flutter secondary micro-tap delay (~28ms)
+    final double flutterDelaySec = 0.028;
+
+    int seed = 0x51A7F ^ (ctx.midiNote * 53);
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+
+      // Mode 1: Pure fundamental ring
+      final double y1 = math.sin(2.0 * math.pi * f1 * t) * math.exp(-t * d1);
+
+      // Mode 2: 1st harmonic chime overtone
+      final double y2 = math.sin(2.0 * math.pi * f2 * t) * math.exp(-t * d2) * (0.62 * sheen);
+
+      // Mode 3: High silvery harmonic
+      final double y3 = math.sin(2.0 * math.pi * f3 * t) * math.exp(-t * d3) * (0.36 * sheen);
+
+      // Mode 4: Brilliant glass sheen shimmer
+      final double y4 = math.sin(2.0 * math.pi * f4 * t) * math.exp(-t * d4) * (0.22 * sheen);
+
+      // Light clapper impact transient (high-passed chime strike)
+      double clapperTransient = 0.0;
+      if (t < 0.008) {
+        seed ^= (seed << 13) & 0xFFFFFFFF;
+        seed ^= (seed >> 17) & 0xFFFFFFFF;
+        seed ^= (seed << 5) & 0xFFFFFFFF;
+        final double rand = ((seed & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double glassClick = math.sin(2.0 * math.pi * 8400.0 * t) * math.exp(-t * 850.0) * 0.40;
+        final double noiseBurst = rand * math.exp(-t * 600.0) * 0.20;
+        clapperTransient = (glassClick + noiseBurst) * hardness;
+      }
+
+      // Breeze flutter secondary micro-rebound tap
+      double flutterTransient = 0.0;
+      if (flutter > 0.01 && t >= flutterDelaySec) {
+        final double tf = t - flutterDelaySec;
+        if (tf < 0.015) {
+          final double tapMode = math.sin(2.0 * math.pi * f1 * tf) * math.exp(-tf * d1);
+          final double tapChime = math.sin(2.0 * math.pi * f2 * tf) * math.exp(-tf * d2) * 0.4;
+          flutterTransient = (tapMode + tapChime) * (0.35 * flutter);
+        }
+      }
+
+      final double raw = (y1 * 0.90 + y2 + y3 + y4 + clapperTransient + flutterTransient) * vel;
+      outBuffer[i] = DistortionNode._tanh(raw * 1.05) * 0.92;
+    }
+  }
+}
+
+/// Physical Modal Resonator for Woodblock / Temple Block.
+/// Resonant solid hardwood block with deep undercut slit forming a tuned Helmholtz
+/// cavity. Features fast internal wood damping (dry woody "thock"), distinct cavity
+/// pop burst (~1.62 * f0), and sharp wood beater strike crack.
+class WoodblockBarNode extends GraphNode {
+  final double woodDecay;
+  final String? woodDecayParam;
+  final double cavityPop;
+  final String? cavityPopParam;
+  final double woodHardness;
+  final String? woodHardnessParam;
+  final double slitTuning;
+  final String? slitTuningParam;
+
+  const WoodblockBarNode({
+    this.woodDecay = 0.045,
+    this.woodDecayParam,
+    this.cavityPop = 0.70,
+    this.cavityPopParam,
+    this.woodHardness = 0.75,
+    this.woodHardnessParam,
+    this.slitTuning = 1.0,
+    this.slitTuningParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double f0 = ctx.freq > 0 ? ctx.freq : 800.0;
+    final double vel = ctx.velocity.clamp(0.01, 1.0);
+    final double decay = (woodDecayParam != null ? ctx.getParam(woodDecayParam!, woodDecay) : woodDecay).clamp(0.015, 0.25);
+    final double pop = (cavityPopParam != null ? ctx.getParam(cavityPopParam!, cavityPop) : cavityPop).clamp(0.0, 1.5);
+    final double hardness = (woodHardnessParam != null ? ctx.getParam(woodHardnessParam!, woodHardness) : woodHardness).clamp(0.1, 1.3);
+    final double slitRatio = (slitTuningParam != null ? ctx.getParam(slitTuningParam!, slitTuning) : slitTuning).clamp(0.7, 1.4);
+
+    // Hardwood block vibrational mode and undercut slit cavity:
+    final double fWood = f0;
+    final double fCavity = f0 * 1.618 * slitRatio;
+    final double fKnock = math.min(16000.0, f0 * 3.48);
+
+    // Woodblock is heavily damped - sound completely extinguishes in 25-65ms
+    final double dWood = 22.0 / decay;
+    final double dCavity = 35.0 / decay;
+    final double dKnock = 60.0 / decay;
+
+    int seed = 0x39C4D ^ (ctx.midiNote * 71);
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+
+      // Solid hardwood bar fundamental
+      final double y1 = math.sin(2.0 * math.pi * fWood * t) * math.exp(-t * dWood);
+
+      // Undercut slit Helmholtz cavity pop burst
+      final double yCavity = math.sin(2.0 * math.pi * fCavity * t) * math.exp(-t * dCavity) * (0.75 * pop);
+
+      // Upper wood shear mode (short knock)
+      final double yKnock = math.sin(2.0 * math.pi * fKnock * t) * math.exp(-t * dKnock) * 0.30;
+
+      // Hardwood stick strike transient (ultra-fast dry wood click)
+      double strikeTransient = 0.0;
+      if (t < 0.006) {
+        seed ^= (seed << 13) & 0xFFFFFFFF;
+        seed ^= (seed >> 17) & 0xFFFFFFFF;
+        seed ^= (seed << 5) & 0xFFFFFFFF;
+        final double rand = ((seed & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double woodCrack = rand * math.exp(-t * 700.0) * 0.45;
+        final double highClick = math.sin(2.0 * math.pi * 5200.0 * t) * math.exp(-t * 900.0) * 0.50;
+        strikeTransient = (woodCrack + highClick) * hardness;
+      }
+
+      final double raw = (y1 * 0.85 + yCavity + yKnock + strikeTransient) * vel;
+      outBuffer[i] = DistortionNode._tanh(raw * 1.25) * 0.95;
+    }
+  }
+}
+
+/// Physical Modal Resonator for Agogô / Cowbell (Welded Sheet Metal Double Bell).
+/// Stamped sheet steel cone with two coupled dominant low-order plate modes
+/// producing the characteristic metallic hollow "clonk", high clangs, hardwood
+/// stick strike crack, and dynamic pitch deflection on hard hits.
+class AgogoBellNode extends GraphNode {
+  final double bellDecay;
+  final String? bellDecayParam;
+  final double clangRatio;
+  final String? clangRatioParam;
+  final double stickHardness;
+  final String? stickHardnessParam;
+  final double pitchBend;
+  final String? pitchBendParam;
+
+  const AgogoBellNode({
+    this.bellDecay = 0.75,
+    this.bellDecayParam,
+    this.clangRatio = 0.65,
+    this.clangRatioParam,
+    this.stickHardness = 0.70,
+    this.stickHardnessParam,
+    this.pitchBend = 0.40,
+    this.pitchBendParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double f0 = ctx.freq > 0 ? ctx.freq : 587.33; // Default D5
+    final double vel = ctx.velocity.clamp(0.01, 1.0);
+    final double decay = (bellDecayParam != null ? ctx.getParam(bellDecayParam!, bellDecay) : bellDecay).clamp(0.15, 2.5);
+    final double clang = (clangRatioParam != null ? ctx.getParam(clangRatioParam!, clangRatio) : clangRatio).clamp(0.0, 1.5);
+    final double hardness = (stickHardnessParam != null ? ctx.getParam(stickHardnessParam!, stickHardness) : stickHardness).clamp(0.1, 1.2);
+    final double bend = (pitchBendParam != null ? ctx.getParam(pitchBendParam!, pitchBend) : pitchBend).clamp(0.0, 1.0);
+
+    // Damping rates: high partials die quickly, low plate modes ring together
+    final double d1 = 3.2 / decay;
+    final double d2 = 4.8 / decay;
+    final double d3 = (18.0 / decay) + (f0 / 250.0);
+    final double d4 = (38.0 / decay) + (f0 / 120.0);
+
+    int seed = 0x47B1A ^ (ctx.midiNote * 43);
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+
+      // Dynamic non-linear pitch bend (tension stiffening relaxation on strike)
+      final double fInst = f0 * (1.0 + bend * 0.22 * math.exp(-t * 65.0) * vel);
+      final double f1 = fInst;
+      final double f2 = fInst * 1.542; // Coupled plate mode: the classic hollow metal interval
+      final double f3 = fInst * 2.460;
+      final double f4 = math.min(18000.0, fInst * 3.920);
+
+      // Low hollow plate modes
+      final double y1 = math.sin(2.0 * math.pi * f1 * t) * math.exp(-t * d1);
+      final double y2 = math.sin(2.0 * math.pi * f2 * t) * math.exp(-t * d2) * 0.85;
+
+      // High metallic clang overtones
+      final double y3 = math.sin(2.0 * math.pi * f3 * t) * math.exp(-t * d3) * (0.45 * clang);
+      final double y4 = math.sin(2.0 * math.pi * f4 * t) * math.exp(-t * d4) * (0.25 * clang);
+
+      // Dense hardwood stick on sheet steel strike transient
+      double stickTransient = 0.0;
+      if (t < 0.008) {
+        seed ^= (seed << 13) & 0xFFFFFFFF;
+        seed ^= (seed >> 17) & 0xFFFFFFFF;
+        seed ^= (seed << 5) & 0xFFFFFFFF;
+        final double rand = ((seed & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double metalSnap = math.sin(2.0 * math.pi * 4200.0 * t) * math.exp(-t * 800.0) * 0.50;
+        final double woodCrack = rand * math.exp(-t * 600.0) * 0.35;
+        stickTransient = (metalSnap + woodCrack) * hardness;
+      }
+
+      final double raw = (y1 * 0.90 + y2 * 0.80 + y3 + y4 + stickTransient) * vel;
+      outBuffer[i] = DistortionNode._tanh(raw * 1.15) * 0.92;
+    }
+  }
+}
+
+/// Physical Modal Resonator for Steel Drums / Steelpan (Trinidadian Steel Pan).
+/// Dished concave 55-gallon oil drum head divided into grooved elliptic note pads.
+/// Features tuned harmonic quadrants (fundamental + octave + compound fifth),
+/// soft rubber-tipped mallet impact, and sympathetic adjacent bowl shimmer.
+class SteelPanNode extends GraphNode {
+  final double panDecay;
+  final String? panDecayParam;
+  final double octaveHarmonic;
+  final String? octaveHarmonicParam;
+  final double bowlSympathy;
+  final String? bowlSympathyParam;
+  final double malletSoftness;
+  final String? malletSoftnessParam;
+
+  const SteelPanNode({
+    this.panDecay = 1.8,
+    this.panDecayParam,
+    this.octaveHarmonic = 0.60,
+    this.octaveHarmonicParam,
+    this.bowlSympathy = 0.45,
+    this.bowlSympathyParam,
+    this.malletSoftness = 0.55,
+    this.malletSoftnessParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double f0 = ctx.freq > 0 ? ctx.freq : 523.25; // Default C5
+    final double vel = ctx.velocity.clamp(0.01, 1.0);
+    final double decay = (panDecayParam != null ? ctx.getParam(panDecayParam!, panDecay) : panDecay).clamp(0.4, 4.5);
+    final double oct = (octaveHarmonicParam != null ? ctx.getParam(octaveHarmonicParam!, octaveHarmonic) : octaveHarmonic).clamp(0.0, 1.2);
+    final double sympathy = (bowlSympathyParam != null ? ctx.getParam(bowlSympathyParam!, bowlSympathy) : bowlSympathy).clamp(0.0, 1.0);
+    final double softness = (malletSoftnessParam != null ? ctx.getParam(malletSoftnessParam!, malletSoftness) : malletSoftness).clamp(0.0, 1.0);
+
+    // Tuned harmonic modes of hammered steel pan pad:
+    final double f1 = f0;
+    final double f2 = f0 * 2.00; // Tuned 1st octave
+    final double f3 = f0 * 3.00; // Tuned compound fifth
+    final double fRim = math.min(19000.0, f0 * 5.82);
+
+    // Sympathetic adjacent note pad detune beating (1.8 Hz - 3.2 Hz beating wash)
+    final double fSym1 = f0 * 1.004;
+    final double fSym2 = f0 * 1.996;
+
+    final double d1 = 1.4 / decay;
+    final double d2 = (2.6 / decay) + (f0 / 900.0);
+    final double d3 = (5.5 / decay) + (f0 / 400.0);
+    final double dRim = (14.0 / decay) + (f0 / 150.0);
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+
+      // Mode 1: Warm fundamental
+      final double y1 = math.sin(2.0 * math.pi * f1 * t) * math.exp(-t * d1);
+
+      // Mode 2: Harmonic octave ring
+      final double y2 = math.sin(2.0 * math.pi * f2 * t) * math.exp(-t * d2) * (0.70 * oct);
+
+      // Mode 3: Compound fifth sparkle
+      final double y3 = math.sin(2.0 * math.pi * f3 * t) * math.exp(-t * d3) * (0.35 * oct);
+
+      // Rim metallic ping
+      final double yRim = math.sin(2.0 * math.pi * fRim * t) * math.exp(-t * dRim) * (0.20 * (1.2 - softness));
+
+      // Adjacent note bowl sympathetic shimmer
+      final double ySym = (math.sin(2.0 * math.pi * fSym1 * t) * 0.5 + math.sin(2.0 * math.pi * fSym2 * t) * 0.5) *
+          math.exp(-t * (d1 * 1.1)) * (0.35 * sympathy);
+
+      // Rubber-tipped mallet attack: rounded low-mid indentation thud
+      double malletThud = 0.0;
+      if (t < 0.012) {
+        final double thudFreq = 320.0 + (1.0 - softness) * 450.0;
+        malletThud = math.sin(2.0 * math.pi * thudFreq * t) * math.exp(-t * 280.0) * (0.40 * (1.1 - 0.3 * softness));
+      }
+
+      final double raw = (y1 * 0.88 + y2 + y3 + yRim + ySym + malletThud) * vel;
+      outBuffer[i] = DistortionNode._tanh(raw * 1.12) * 0.92;
+    }
+  }
+}
+
+/// Physical Modal Resonator for Taiko Drum / Surdo (Japanese Wadaiko / Brazilian Surdo).
+/// Massive hollow carved wooden barrel shell with thick stretched hide membranes.
+/// Features 2D circular clamped Bessel membrane modes, heavy wooden bachi stick slap,
+/// dynamic tension stiffening pitch sag, and deep 55-85 Hz barrel cavity boom.
+class TaikoDrumNode extends GraphNode {
+  final double drumDecay;
+  final String? drumDecayParam;
+  final double pitchSag;
+  final String? pitchSagParam;
+  final double bachiImpact;
+  final String? bachiImpactParam;
+  final double barrelBoom;
+  final String? barrelBoomParam;
+
+  const TaikoDrumNode({
+    this.drumDecay = 1.6,
+    this.drumDecayParam,
+    this.pitchSag = 0.50,
+    this.pitchSagParam,
+    this.bachiImpact = 0.75,
+    this.bachiImpactParam,
+    this.barrelBoom = 0.65,
+    this.barrelBoomParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double f0 = ctx.freq > 0 ? ctx.freq : 82.41; // Default E2 deep taiko pitch
+    final double vel = ctx.velocity.clamp(0.01, 1.0);
+    final double decay = (drumDecayParam != null ? ctx.getParam(drumDecayParam!, drumDecay) : drumDecay).clamp(0.3, 4.0);
+    final double sag = (pitchSagParam != null ? ctx.getParam(pitchSagParam!, pitchSag) : pitchSag).clamp(0.0, 1.0);
+    final double impact = (bachiImpactParam != null ? ctx.getParam(bachiImpactParam!, bachiImpact) : bachiImpact).clamp(0.1, 1.2);
+    final double boom = (barrelBoomParam != null ? ctx.getParam(barrelBoomParam!, barrelBoom) : barrelBoom).clamp(0.0, 1.2);
+
+    final double d1 = 2.4 / decay;
+    final double d2 = 4.2 / decay;
+    final double d3 = 7.5 / decay;
+    final double d4 = 11.0 / decay;
+
+    // Deep wooden barrel cavity Helmholtz frequency (~58 Hz)
+    final double fBarrel = math.max(42.0, math.min(85.0, f0 * 0.72));
+    final double dBarrel = 1.8 / decay;
+
+    int seed = 0x63C9E ^ (ctx.midiNote * 31);
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+
+      // Membrane tension stiffening relaxation -> downward pitch sag
+      final double fInst = f0 * (1.0 + sag * 0.32 * math.exp(-t * 38.0) * vel);
+
+      // 2D circular Bessel membrane modes:
+      final double f1 = fInst;
+      final double f2 = fInst * 1.593;
+      final double f3 = fInst * 2.135;
+      final double f4 = fInst * 2.295;
+
+      final double y1 = math.sin(2.0 * math.pi * f1 * t) * math.exp(-t * d1);
+      final double y2 = math.sin(2.0 * math.pi * f2 * t) * math.exp(-t * d2) * 0.65;
+      final double y3 = math.sin(2.0 * math.pi * f3 * t) * math.exp(-t * d3) * 0.40;
+      final double y4 = math.sin(2.0 * math.pi * f4 * t) * math.exp(-t * d4) * 0.30;
+
+      // Heavy wooden barrel chamber air resonance
+      final double yBarrel = math.sin(2.0 * math.pi * fBarrel * t) * math.exp(-t * dBarrel) * (0.80 * boom);
+
+      // Heavy wooden bachi strike slap
+      double bachiTransient = 0.0;
+      if (t < 0.015) {
+        seed ^= (seed << 13) & 0xFFFFFFFF;
+        seed ^= (seed >> 17) & 0xFFFFFFFF;
+        seed ^= (seed << 5) & 0xFFFFFFFF;
+        final double rand = ((seed & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double skinSlap = math.sin(2.0 * math.pi * 1800.0 * t) * math.exp(-t * 320.0) * 0.60;
+        final double stickNoise = rand * math.exp(-t * 450.0) * 0.40;
+        bachiTransient = (skinSlap + stickNoise) * impact;
+      }
+
+      final double raw = (y1 * 0.95 + y2 + y3 + y4 + yBarrel + bachiTransient) * vel;
+      outBuffer[i] = DistortionNode._tanh(raw * 1.30) * 0.95;
+    }
+  }
+}
+
+/// Physical Modal Resonator for Melodic Tom / Concert Tom.
+/// Tuned cylindrical acoustic drum shell with circular Bessel membrane physics,
+/// stick tip impact transient, dual-head air coupling, and chromatic pitch tracking.
+class MelodicTomNode extends GraphNode {
+  final double tomDecay;
+  final String? tomDecayParam;
+  final double headCoupling;
+  final String? headCouplingParam;
+  final double pitchBend;
+  final String? pitchBendParam;
+  final double stickCrack;
+  final String? stickCrackParam;
+
+  const MelodicTomNode({
+    this.tomDecay = 0.85,
+    this.tomDecayParam,
+    this.headCoupling = 0.55,
+    this.headCouplingParam,
+    this.pitchBend = 0.40,
+    this.pitchBendParam,
+    this.stickCrack = 0.60,
+    this.stickCrackParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double f0 = ctx.freq > 0 ? ctx.freq : 164.81; // Default E3
+    final double vel = ctx.velocity.clamp(0.01, 1.0);
+    final double decay = (tomDecayParam != null ? ctx.getParam(tomDecayParam!, tomDecay) : tomDecay).clamp(0.2, 2.5);
+    final double coupling = (headCouplingParam != null ? ctx.getParam(headCouplingParam!, headCoupling) : headCoupling).clamp(0.0, 1.0);
+    final double bend = (pitchBendParam != null ? ctx.getParam(pitchBendParam!, pitchBend) : pitchBend).clamp(0.0, 1.0);
+    final double crack = (stickCrackParam != null ? ctx.getParam(stickCrackParam!, stickCrack) : stickCrack).clamp(0.0, 1.2);
+
+    final double d1 = 3.5 / decay;
+    final double d2 = 6.2 / decay;
+    final double d3 = 9.8 / decay;
+
+    // Resonant bottom head inter-membrane coupled mode
+    final double fBottom = f0 * (1.08 + coupling * 0.04);
+    final double dBottom = 3.8 / decay;
+
+    int seed = 0x582D1 ^ (ctx.midiNote * 37);
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+
+      // Natural acoustic tom downward pitch deflection
+      final double fInst = f0 * (1.0 + bend * 0.20 * math.exp(-t * 50.0) * vel);
+
+      // Top head Bessel modes:
+      final double f1 = fInst;
+      final double f2 = fInst * 1.593;
+      final double f3 = fInst * 2.135;
+
+      final double y1 = math.sin(2.0 * math.pi * f1 * t) * math.exp(-t * d1);
+      final double y2 = math.sin(2.0 * math.pi * f2 * t) * math.exp(-t * d2) * 0.55;
+      final double y3 = math.sin(2.0 * math.pi * f3 * t) * math.exp(-t * d3) * 0.30;
+
+      // Bottom head sympathetic bloom
+      final double yBottom = math.sin(2.0 * math.pi * fBottom * t) * math.exp(-t * dBottom) * (0.50 * coupling);
+
+      // Drumstick tip contact transient
+      double stickTransient = 0.0;
+      if (t < 0.010) {
+        seed ^= (seed << 13) & 0xFFFFFFFF;
+        seed ^= (seed >> 17) & 0xFFFFFFFF;
+        seed ^= (seed << 5) & 0xFFFFFFFF;
+        final double rand = ((seed & 0xFFFFFF) / 8388607.5) - 1.0;
+        final double tipClick = math.sin(2.0 * math.pi * 3200.0 * t) * math.exp(-t * 600.0) * 0.45;
+        final double skinNoise = rand * math.exp(-t * 500.0) * 0.30;
+        stickTransient = (tipClick + skinNoise) * crack;
+      }
+
+      final double raw = (y1 * 0.92 + y2 + y3 + yBottom + stickTransient) * vel;
+      outBuffer[i] = DistortionNode._tanh(raw * 1.20) * 0.94;
+    }
+  }
+}
+
+/// Physical Analog Circuit Model for Simmons SDS-V Electronic Synth Drum.
+/// Authentic 1980s analog electronic drum architecture: polycarbonate pad stick click
+/// generator, downward exponential pitch sweep VCO (triangle/sine), resonant 4-pole
+/// lowpass VCF sweep (SSM2044 style), and filtered white noise snap blend.
+class SimmonsSynthDrumNode extends GraphNode {
+  final double pitchDrop;
+  final String? pitchDropParam;
+  final double sweepTime;
+  final String? sweepTimeParam;
+  final double clickLevel;
+  final String? clickLevelParam;
+  final double noiseSnap;
+  final String? noiseSnapParam;
+  final double toneDecay;
+  final String? toneDecayParam;
+  final double filterReso;
+  final String? filterResoParam;
+
+  const SimmonsSynthDrumNode({
+    this.pitchDrop = 0.70,
+    this.pitchDropParam,
+    this.sweepTime = 0.14,
+    this.sweepTimeParam,
+    this.clickLevel = 0.65,
+    this.clickLevelParam,
+    this.noiseSnap = 0.45,
+    this.noiseSnapParam,
+    this.toneDecay = 0.80,
+    this.toneDecayParam,
+    this.filterReso = 0.50,
+    this.filterResoParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double f0 = ctx.freq > 0 ? ctx.freq : 130.81; // Default C3
+    final double vel = ctx.velocity.clamp(0.01, 1.0);
+    final double drop = (pitchDropParam != null ? ctx.getParam(pitchDropParam!, pitchDrop) : pitchDrop).clamp(0.1, 1.0);
+    final double sweep = (sweepTimeParam != null ? ctx.getParam(sweepTimeParam!, sweepTime) : sweepTime).clamp(0.04, 0.40);
+    final double click = (clickLevelParam != null ? ctx.getParam(clickLevelParam!, clickLevel) : clickLevel).clamp(0.0, 1.2);
+    final double noise = (noiseSnapParam != null ? ctx.getParam(noiseSnapParam!, noiseSnap) : noiseSnap).clamp(0.0, 1.0);
+    final double decay = (toneDecayParam != null ? ctx.getParam(toneDecayParam!, toneDecay) : toneDecay).clamp(0.2, 2.5);
+    final double reso = (filterResoParam != null ? ctx.getParam(filterResoParam!, filterReso) : filterReso).clamp(0.0, 0.95);
+
+    double phase = 0.0;
+    int seed = 0x18B2F ^ (ctx.midiNote * 59);
+
+    // Simmons SDS-V 4-pole VCF state
+    double lp1 = 0.0, lp2 = 0.0, lp3 = 0.0, lp4 = 0.0;
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+
+      // 1. Analog Pitch Envelope: Extreme downward exponential sweep
+      final double freqSweep = f0 + (f0 * 3.4 * drop) * math.exp(-t / sweep);
+      phase += (2.0 * math.pi * freqSweep) / sr;
+      if (phase > 2.0 * math.pi) phase -= 2.0 * math.pi;
+
+      // 2. VCO Core: Triangle-to-sine morph (classic Simmons analog discrete VCO)
+      final double tri = (phase < math.pi) ? (2.0 * (phase / math.pi) - 1.0) : (1.0 - 2.0 * ((phase - math.pi) / math.pi));
+      final double vcoTone = DistortionNode._tanh(tri * 1.5);
+
+      // Tone envelope
+      final double toneAmp = math.exp(-t * (3.8 / decay));
+
+      // 3. Polycarbonate Pad Click Generator
+      double padClick = 0.0;
+      if (t < 0.005) {
+        padClick = math.sin(2.0 * math.pi * 3600.0 * t) * math.exp(-t * 900.0) * (0.75 * click);
+      }
+
+      // 4. White Noise Snap
+      seed ^= (seed << 13) & 0xFFFFFFFF;
+      seed ^= (seed >> 17) & 0xFFFFFFFF;
+      seed ^= (seed << 5) & 0xFFFFFFFF;
+      final double rand = ((seed & 0xFFFFFF) / 8388607.5) - 1.0;
+      final double noiseBurst = rand * math.exp(-t * 45.0) * (0.40 * noise);
+
+      // Mix raw oscillator + noise
+      final double rawVoice = (vcoTone * toneAmp + noiseBurst + padClick);
+
+      // 5. SSM2044 style resonant 4-pole low-pass filter
+      final double cutoffHz = math.max(120.0, freqSweep * 2.8 + 800.0 * math.exp(-t * 18.0));
+      final double fc = (cutoffHz / sr).clamp(0.001, 0.45);
+      final double qK = 4.0 * reso;
+      final double fb = rawVoice - qK * lp4;
+
+      lp1 += fc * (fb - lp1);
+      lp2 += fc * (lp1 - lp2);
+      lp3 += fc * (lp2 - lp3);
+      lp4 += fc * (lp3 - lp4);
+
+      outBuffer[i] = DistortionNode._tanh(lp4 * 1.25 * vel) * 0.95;
+    }
+  }
+}
+
+/// Physical Resonator for Reverse Cymbal (Swelling Suspended Bronze Alloy Plate).
+/// High-density inharmonic bronze plate modal cluster driven with a time-inverted
+/// power-law crescendo envelope, culminating in an abrupt choke cutoff and ring-off.
+class ReverseCymbalNode extends GraphNode {
+  final double swellDuration;
+  final String? swellDurationParam;
+  final double crescendoCurve;
+  final String? crescendoCurveParam;
+  final double shimmerAir;
+  final String? shimmerAirParam;
+  final double chokeSnap;
+  final String? chokeSnapParam;
+
+  const ReverseCymbalNode({
+    this.swellDuration = 1.5,
+    this.swellDurationParam,
+    this.crescendoCurve = 2.2,
+    this.crescendoCurveParam,
+    this.shimmerAir = 0.75,
+    this.shimmerAirParam,
+    this.chokeSnap = 0.60,
+    this.chokeSnapParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final double sr = ctx.sampleRate;
+    final double vel = ctx.velocity.clamp(0.01, 1.0);
+    final double userSwell = (swellDurationParam != null ? ctx.getParam(swellDurationParam!, swellDuration) : swellDuration).clamp(0.2, 3.5);
+    final double totalSwell = math.min(userSwell, math.max(0.12, ctx.durationSec * 0.90));
+    final double power = (crescendoCurveParam != null ? ctx.getParam(crescendoCurveParam!, crescendoCurve) : crescendoCurve).clamp(1.2, 3.5);
+    final double air = (shimmerAirParam != null ? ctx.getParam(shimmerAirParam!, shimmerAir) : shimmerAir).clamp(0.1, 1.4);
+    final double choke = (chokeSnapParam != null ? ctx.getParam(chokeSnapParam!, chokeSnap) : chokeSnap).clamp(0.0, 1.0);
+
+    // High modal density bronze cymbal partials (Hz)
+    const modalPitches = [3120.0, 3840.0, 4650.0, 5420.0, 6890.0, 8350.0, 10250.0, 12400.0, 14600.0, 16800.0];
+    final phases = List<double>.filled(modalPitches.length, 0.0);
+
+    int seed = 0x7391F ^ (ctx.midiNote * 83);
+
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double t = i / sr;
+
+      // Reverse crescendo envelope: A(t) = 0.04 + 0.96 * (t / T)^p up to totalSwell
+      double env = 0.04;
+      if (t < totalSwell) {
+        env = 0.04 + 0.96 * math.pow(t / totalSwell, power).toDouble();
+      } else {
+        // Abrupt choke cutoff with slight ring-off
+        final double tPost = t - totalSwell;
+        final double chokeRate = 75.0 + choke * 120.0;
+        env = math.exp(-tPost * chokeRate) * (0.45 * (1.0 - choke * 0.6));
+      }
+
+      // Sum dense inharmonic bronze modes
+      double cymbalModes = 0.0;
+      for (int m = 0; m < modalPitches.length; m++) {
+        phases[m] += (2.0 * math.pi * modalPitches[m]) / sr;
+        if (phases[m] > 2.0 * math.pi) phases[m] -= 2.0 * math.pi;
+        final double weight = (m >= 5) ? (0.6 * air) : 0.7;
+        cymbalModes += math.sin(phases[m]) * weight;
+      }
+
+      // Shimmering bronze plate surface noise
+      seed ^= (seed << 13) & 0xFFFFFFFF;
+      seed ^= (seed >> 17) & 0xFFFFFFFF;
+      seed ^= (seed << 5) & 0xFFFFFFFF;
+      final double rand = ((seed & 0xFFFFFF) / 8388607.5) - 1.0;
+      final double metalNoise = rand * (0.35 * air);
+
+      final double raw = (cymbalModes * 0.18 + metalNoise * 0.25) * env * vel;
+      outBuffer[i] = DistortionNode._tanh(raw * 1.20) * 0.92;
+    }
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  CCRMA / BANK-BENSA COMMUTED WAVEGUIDE PIANO ENGINE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5731,11 +6403,11 @@ class ChaoticGustLfoNode extends GraphNode {
 }
 
 /// Stochastic grain trigger waveform type.
-enum GrainType { dropletMinnaert, sapPinchRupture, emberSizzle, shockTransient }
+enum GrainType { dropletNoiseBlip, sapPinchRupture, emberSizzle }
 
 /// Fundamental Stochastic Particle Grain Generator.
 /// Emits Poisson-distributed micro-grains for rain droplets, wood sap pops,
-/// flying ember sizzles, hail impacts, and lightning shock transients.
+/// and flying ember sizzles.
 class PoissonImpulseGrainNode extends GraphNode {
   final GrainType grainType;
   final String? grainTypeParam;
@@ -5748,7 +6420,7 @@ class PoissonImpulseGrainNode extends GraphNode {
   final int seed;
 
   const PoissonImpulseGrainNode({
-    this.grainType = GrainType.dropletMinnaert,
+    this.grainType = GrainType.dropletNoiseBlip,
     this.grainTypeParam,
     this.density = 0.45,
     this.densityParam,
@@ -5768,7 +6440,7 @@ class PoissonImpulseGrainNode extends GraphNode {
     GrainType activeType = grainType;
     if (grainTypeParam != null) {
       final double pVal = ctx.getParam(grainTypeParam!, grainType.index.toDouble());
-      final int idx = pVal.round().clamp(0, 3);
+      final int idx = pVal.round().clamp(0, 2);
       activeType = GrainType.values[idx];
     }
 
@@ -5793,14 +6465,19 @@ class PoissonImpulseGrainNode extends GraphNode {
         final double grainGain = rAmp * energ;
 
         switch (activeType) {
-          case GrainType.dropletMinnaert:
-            // Minnaert bubble plink: sweeping pitch chirp (550Hz to 1350Hz) with exponential decay
-            final int dropSamples = (0.018 * sr).toInt();
+          case GrainType.dropletNoiseBlip:
+            // Realistic raindrop micro-impact: fast burst of shaped white noise (1.2ms - 3.5ms) with steep exponential decay
+            final double baseDuration = (0.0012 + 0.0025 * (1.0 / pitch)).clamp(0.0008, 0.005);
+            final int dropSamples = (baseDuration * sr).toInt();
+            final double decayRate = (1200.0 * pitch).clamp(400.0, 3000.0);
             for (int p = 0; p < dropSamples && (i + p) < len; p++) {
               final double tP = p / sr;
-              final double dropEnv = math.exp(-tP * 210.0);
-              final double fP = (550.0 + 750.0 * (1.0 - math.exp(-tP * 160.0))) * pitch;
-              outBuffer[i + p] += (math.sin(2.0 * math.pi * fP * tP) * dropEnv * grainGain * 0.6).clamp(-1.0, 1.0);
+              final double dropEnv = math.exp(-tP * decayRate);
+              rng ^= (rng << 13) & 0xFFFFFFFF;
+              rng ^= (rng >> 17) & 0xFFFFFFFF;
+              rng ^= (rng << 5) & 0xFFFFFFFF;
+              final double noiseVal = (((rng & 0xFFFF) / 32767.5) - 1.0);
+              outBuffer[i + p] += (noiseVal * dropEnv * grainGain * 0.75).clamp(-1.0, 1.0);
             }
             break;
 
@@ -5824,19 +6501,6 @@ class PoissonImpulseGrainNode extends GraphNode {
               final double sizzleNoise = (((rng & 0xFFFF) / 32767.5) - 1.0);
               final double sizzleEnv = math.exp(-(p / sr) * 450.0);
               outBuffer[i + p] += (sizzleNoise * sizzleEnv * grainGain * 0.45).clamp(-1.0, 1.0);
-            }
-            break;
-
-          case GrainType.shockTransient:
-            // Lightning / blast wave hypersonic shock transient
-            final int shockSamples = (0.045 * sr).toInt();
-            for (int p = 0; p < shockSamples && (i + p) < len; p++) {
-              final double tP = p / sr;
-              final double shockEnv = math.exp(-tP * 65.0);
-              rng ^= (rng << 13) & 0xFFFFFFFF;
-              final double blastNoise = (((rng & 0xFFFF) / 32767.5) - 1.0);
-              final double subPunch = math.sin(2.0 * math.pi * 55.0 * tP);
-              outBuffer[i + p] += ((blastNoise * 0.6 + subPunch * 0.4) * shockEnv * grainGain * 0.9).clamp(-1.0, 1.0);
             }
             break;
         }
@@ -5954,94 +6618,6 @@ class ModalCavityBankNode extends GraphNode {
 
       final double modalSum = y1 * modalGains[0] + y2 * modalGains[1] + y3 * modalGains[2] + y4 * modalGains[3];
       outBuffer[i] = (x * 0.35 + modalSum * 0.65).clamp(-1.0, 1.0);
-    }
-  }
-}
-
-/// Fundamental Acoustic Atmospheric Propagation Node.
-/// Models distance-dependent high-frequency air absorption ($e^{-\alpha(f) \cdot d}$),
-/// multi-path terrain reflections, and dispersive all-pass phase smearing
-/// for thunder strikes, explosions, and distant environmental audio.
-class AcousticPropagationNode extends GraphNode {
-  final GraphNode input;
-  final double distanceMeters;
-  final String? distanceParam;
-  final double dispersion;
-  final String? dispersionParam;
-  final double airAbsorption;
-  final String? airAbsorptionParam;
-
-  const AcousticPropagationNode({
-    required this.input,
-    this.distanceMeters = 350.0,
-    this.distanceParam,
-    this.dispersion = 0.50,
-    this.dispersionParam,
-    this.airAbsorption = 0.70,
-    this.airAbsorptionParam,
-  });
-
-  @override
-  void process(GraphContext ctx, Float32List outBuffer) {
-    final int len = outBuffer.length;
-    final Float32List inBuf = Float32List(len);
-    input.process(ctx, inBuf);
-
-    final double dist = (distanceParam != null ? ctx.getParam(distanceParam!, distanceMeters) : distanceMeters).clamp(10.0, 5000.0);
-    final double disp = (dispersionParam != null ? ctx.getParam(dispersionParam!, dispersion) : dispersion).clamp(0.0, 1.0);
-    final double absorp = (airAbsorptionParam != null ? ctx.getParam(airAbsorptionParam!, airAbsorption) : airAbsorption).clamp(0.0, 1.0);
-
-    final double sr = ctx.sampleRate;
-
-    // Distance-dependent air absorption lowpass cutoff (higher frequencies attenuate dramatically with distance)
-    final double baseCutoff = 18000.0 / (1.0 + (dist / 220.0) * (1.0 + absorp * 1.5));
-    final double fc = baseCutoff.clamp(120.0, 18000.0);
-    final double w0 = 2.0 * math.pi * fc / sr;
-    final double alpha = math.sin(w0) / (2.0 * 0.707);
-    final double cosw0 = math.cos(w0);
-
-    final double b0 = (1.0 - cosw0) / 2.0;
-    final double b1 = 1.0 - cosw0;
-    final double b2 = (1.0 - cosw0) / 2.0;
-    final double a0 = 1.0 + alpha;
-    final double a1 = -2.0 * cosw0;
-    final double a2 = 1.0 - alpha;
-
-    final double nb0 = b0 / a0, nb1 = b1 / a0, nb2 = b2 / a0;
-    final double na1 = a1 / a0, na2 = a2 / a0;
-
-    double x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
-    // 2-stage all-pass dispersion network state (phase delay smear)
-    double ap1X = 0.0, ap1Y = 0.0;
-    double ap2X = 0.0, ap2Y = 0.0;
-    final double apCoeff = (0.35 * disp).clamp(0.0, 0.85);
-
-    // Multi-path terrain reflection delay buffer (up to 40ms)
-    final int delaySamples = ((dist * 0.0008).clamp(0.005, 0.040) * sr).toInt();
-    final Float32List dBuf = Float32List(math.max(1, delaySamples));
-    int dIdx = 0;
-
-    for (int i = 0; i < len; i++) {
-      final double inSample = inBuf[i];
-
-      // 1. Air Absorption Lowpass
-      final double lp = nb0 * inSample + nb1 * x1 + nb2 * x2 - na1 * y1 - na2 * y2;
-      x2 = x1; x1 = inSample;
-      y2 = y1; y1 = lp;
-
-      // 2. Dispersive Allpass Phase Smear (Stage 1 & 2)
-      final double ap1 = apCoeff * lp + ap1X - apCoeff * ap1Y;
-      ap1X = lp; ap1Y = ap1;
-
-      final double ap2 = apCoeff * ap1 + ap2X - apCoeff * ap2Y;
-      ap2X = ap1; ap2Y = ap2;
-
-      // 3. Multi-path Terrain Echo Reflection
-      final double echo = dBuf[dIdx];
-      dBuf[dIdx] = ap2;
-      dIdx = (dIdx + 1) % dBuf.length;
-
-      outBuffer[i] = (ap2 * 0.75 + echo * 0.35).clamp(-1.0, 1.0);
     }
   }
 }

@@ -11,8 +11,8 @@ When users drag and drop Standard MIDI Files (.mid / .midi) into Eatsbeats, the 
 ## Current Progress Overview
 
 - **Total General MIDI 1 Programs**: 128 Melodic Programs + GM Channel 10 Percussion
-- **Natively Covered Programs**: **52 / 128 (40.6%)**
-- **SoundFont Placeholder Fallbacks**: **76 / 128 (59.4%)**
+- **Natively Covered Programs**: **58 / 128 (45.3%)**
+- **SoundFont Placeholder Fallbacks**: **70 / 128 (54.7%)**
 
 ---
 
@@ -188,17 +188,17 @@ When users drag and drop Standard MIDI Files (.mid / .midi) into Eatsbeats, the 
 
 *(Additional native ethnic plucked instruments supported via semantic track name: `hawaiian_ukulele`, `folk_mandolin`, `renaissance_lute`).*
 
-### Percussive Family (Programs 112 – 119) — 25% Covered
+### Percussive Family (Programs 112 – 119) — 100% Covered
 | GM # | Standard Instrument Name | Status | Native Preset ID / Implementation |
 | :---: | :--- | :---: | :--- |
-| **112** | Tinkle Bell | ⏳ Fallback | *(SoundFont PC #112)* |
-| **113** | Agogo | ⏳ Fallback | *(SoundFont PC #113)* |
-| **114** | Steel Drums | ⏳ Fallback | *(SoundFont PC #114)* |
-| **115** | Woodblock | ⏳ Fallback | *(SoundFont PC #115)* |
-| **116** | Taiko Drum | ⏳ Fallback | *(SoundFont PC #116)* |
-| **117** | Melodic Tom | ✅ Native | `fm_acoustic_tom` |
-| **118** | Synth Drum | ✅ Native | `analog_808_kick` |
-| **119** | Reverse Cymbal | ⏳ Fallback | *(SoundFont PC #119)* |
+| **112** | Tinkle Bell | ✅ Native | `tinkle_bell` (Free-free cylindrical chime modal model) |
+| **113** | Agogo | ✅ Native | `agogo_bell` (Welded double sheet-steel plate model) |
+| **114** | Steel Drums | ✅ Native | `steel_drums` (Trinidadian steelpan dish harmonic model) |
+| **115** | Woodblock | ✅ Native | `woodblock` (Slit Helmholtz cavity hardwood model) |
+| **116** | Taiko Drum | ✅ Native | `taiko_drum` (Barrel shell 2D Bessel membrane model) |
+| **117** | Melodic Tom | ✅ Native | `melodic_tom` (Acoustic cylindrical shell dual-head model) |
+| **118** | Synth Drum | ✅ Native | `synth_drum` (Simmons SDS-V analog circuit model) |
+| **119** | Reverse Cymbal | ✅ Native | `reverse_cymbal` (Inharmonic bronze plate crescendo model) |
 
 ### Sound Effects Family (Programs 120 – 127) — 25% Covered
 | GM # | Standard Instrument Name | Status | Native Preset ID / Implementation |

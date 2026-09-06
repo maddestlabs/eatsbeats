@@ -3,6 +3,7 @@ import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../theme/eats_theme.dart';
 import 'piano_roll_view.dart';
+import 'score/score_view.dart';
 import 'tracker_view.dart';
 import 'script_view.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
@@ -60,6 +61,15 @@ class EditView extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               SkeuomorphicHardwareButton(
+                label: isMobile ? null : 'SCORE',
+                icon: Icons.music_note,
+                isActive: track.activeView == MusicViewType.score,
+                activeColor: EatsTheme.secondaryMagenta,
+                onTap: () => dawState.setTrackActiveView(track, MusicViewType.score),
+                height: 32,
+              ),
+              const SizedBox(width: 6),
+              SkeuomorphicHardwareButton(
                 label: isMobile ? null : 'SCRIPT',
                 icon: Icons.code,
                 isActive: track.activeView == MusicViewType.script,
@@ -85,8 +95,9 @@ class EditView extends StatelessWidget {
         return TrackerView(dawState: dawState);
       case MusicViewType.script:
         return ScriptView(dawState: dawState);
+      case MusicViewType.score:
+        return ScoreView(dawState: dawState);
       case MusicViewType.pianoRoll:
-      default:
         return PianoRollView(dawState: dawState);
     }
   }

@@ -1161,16 +1161,16 @@ class GraphEvaluator {
   static GraphNode buildEatsFurnaceSynth() => buildPyrophoneSynth();
 
   // ───────────────────────────────────────────────────────────────────────────
-  //  ENVIRONMENTAL SYNTHESIS SUITE: RAIN, WIND, FIRE, THUNDER
+  //  EATSFX ENVIRONMENTAL SUITE: RAIN, WIND, FIRE
   // ───────────────────────────────────────────────────────────────────────────
 
-  /// Authentic Procedural Rain & Surface Splash Physical Model.
+  /// Authentic Procedural Rain & Surface Splash Physical Model (EatsFX Rain).
   /// Architecture:
-  /// - Granular Poisson droplet plink stream (Minnaert bubble cavitation chirp)
+  /// - Granular Poisson droplet noise blip stream (crisp, shaped white-noise micro-impulses)
   /// - Continuous pink rain wash hiss with atmospheric bandpass filtering
   /// - Modal cavity resonator bank (Puddle, Tin Roof, Foliage surface resonance)
   /// - High-frequency splash spray and tone lowpass
-  static GraphNode buildEatsRainSynth() {
+  static GraphNode buildEatsFXRainSynth() {
     // 1. Continuous pink rain wash floor
     const rainHiss = ColoredNoiseNode(color: NoiseColor.pink, seed: 0x2468AC);
     const rainWashFilter = BiquadFilterNode(
@@ -1185,9 +1185,9 @@ class GraphEvaluator {
       gainParam: 'RainHiss',
     );
 
-    // 2. Discrete stochastic droplet impact grains (Minnaert bubble chirps)
+    // 2. Discrete stochastic droplet impact grains (crisp white noise blips)
     const dropletGrains = PoissonImpulseGrainNode(
-      grainType: GrainType.dropletMinnaert,
+      grainType: GrainType.dropletNoiseBlip,
       density: 0.50,
       densityParam: 'RainIntensity',
       energy: 0.80,
@@ -1200,7 +1200,7 @@ class GraphEvaluator {
     // 3. Sum wash and droplets
     const rainMixer = MixerNode(
       [rainWashGain, dropletGrains],
-      [0.45, 0.85],
+      [0.40, 0.90],
     );
 
     // 4. Multi-surface modal cavity resonator (Puddle, Tin Roof, Foliage)
@@ -1208,7 +1208,7 @@ class GraphEvaluator {
       input: rainMixer,
       surfaceType: CavitySurfaceType.puddle,
       surfaceTypeParam: 'SurfaceType',
-      resonance: 0.60,
+      resonance: 0.50,
       resonanceParam: 'SurfaceReso',
       brightness: 1.0,
       brightnessParam: 'Brightness',
@@ -1227,13 +1227,16 @@ class GraphEvaluator {
     return const DistortionNode(input: rainGain, drive: 0.95);
   }
 
-  /// Authentic Procedural Wind & Aeolian Tempest Physical Model.
+  /// Backward-compatibility alias for EatsFX Rain
+  static GraphNode buildEatsRainSynth() => buildEatsFXRainSynth();
+
+  /// Authentic Procedural Wind & Aeolian Tempest Physical Model (EatsFX Wind).
   /// Architecture:
   /// - 1/f Brownian & Pink turbulent airflow excited by multi-octave chaotic gust envelopes
   /// - Aeolian vortex shedding whistle (Strouhal frequency tracking)
   /// - Structural aperture cavity notch derived from Harmon brass mute acoustics
   /// - Chimney howl & chasm modal resonance bank
-  static GraphNode buildEatsWindSynth() {
+  static GraphNode buildEatsFXWindSynth() {
     // 1. Atmospheric brown/pink noise core
     const windAir = ColoredNoiseNode(color: NoiseColor.brown, seed: 0x3579BD);
 
@@ -1297,13 +1300,16 @@ class GraphEvaluator {
     return const DistortionNode(input: windGain, drive: 0.95);
   }
 
-  /// Authentic Procedural Fire & Living Hearth Physical Model.
+  /// Backward-compatibility alias for EatsFX Wind
+  static GraphNode buildEatsWindSynth() => buildEatsFXWindSynth();
+
+  /// Authentic Procedural Fire & Living Hearth Physical Model (EatsFX Fire).
   /// Architecture:
   /// - Low-frequency deflagration combustion roar (25Hz - 160Hz) with convective draft
   /// - Supercritical wood sap explosions (instantaneous rupture click + hollow log thump)
   /// - High-frequency fractured ember sizzle crackle matrix
   /// - Hollow hearth wood cavity resonance and thermal convection phaser
-  static GraphNode buildEatsFireSynth() {
+  static GraphNode buildEatsFXFireSynth() {
     // 1. Low-end combustion deflagration roar
     const fireRoar = ColoredNoiseNode(color: NoiseColor.brown, seed: 0x579BDF);
     const fireRoarLp = BiquadFilterNode(
@@ -1376,76 +1382,8 @@ class GraphEvaluator {
     return const DistortionNode(input: fireGain, drive: 0.95);
   }
 
-  /// Authentic Procedural Thunder & Dispersive Shockwave Physical Model.
-  /// Architecture:
-  /// - Hypersonic return-stroke shockwave transient (Dirac snap + sub-punch)
-  /// - Commuted Grand Piano soundboard modal dispersion network (massive rolling resonance)
-  /// - Atmospheric air absorption high-cut & multi-path terrain echo delay
-  /// - Deep valley/chasm low-frequency reverberant rumble
-  static GraphNode buildEatsThunderSynth() {
-    // 1. Hypersonic lightning shockwave impulse
-    const shockWave = PoissonImpulseGrainNode(
-      grainType: GrainType.shockTransient,
-      density: 0.15,
-      densityParam: 'StrikeTrigger',
-      energy: 1.0,
-      energyParam: 'StrikeProximity',
-      seed: 0x9BDF13,
-    );
-
-    // 2. Commuted Grand Piano soundboard exciter (for cavernous acoustic plate diffusion)
-    const soundboardExciter = CommutedSoundboardExciterNode(
-      hammerHardness: 0.95,
-      pedalResonance: 0.85,
-      pedalResonanceParam: 'RumbleDecay',
-      soundboardGain: 1.2,
-    );
-
-    const exciterMixer = MixerNode(
-      [shockWave, soundboardExciter],
-      [0.70, 0.80],
-    );
-
-    // 3. Atmospheric air absorption lowpass, multi-path terrain echoes & dispersion
-    const thunderPropagation = AcousticPropagationNode(
-      input: exciterMixer,
-      distanceMeters: 450.0,
-      distanceParam: 'Distance',
-      dispersion: 0.75,
-      dispersionParam: 'Dispersion',
-      airAbsorption: 0.80,
-      airAbsorptionParam: 'AirAbsorption',
-    );
-
-    // 4. Chasm / valley modal boundary resonance
-    const chasmValley = ModalCavityBankNode(
-      input: thunderPropagation,
-      surfaceType: CavitySurfaceType.chasm,
-      resonance: 0.70,
-      resonanceParam: 'RumbleReso',
-    );
-
-    // 5. Deep sub-bass punch (42Hz)
-    const thunderSub = BiquadFilterNode(
-      input: chasmValley,
-      type: BiquadType.peaking,
-      frequency: 42.0,
-      gainDb: 6.0,
-      q: 1.4,
-    );
-
-    // 6. Master tone lowpass
-    const thunderTone = BiquadFilterNode(
-      input: thunderSub,
-      type: BiquadType.lowpass,
-      frequency: 1600.0,
-      freqParam: 'Tone',
-      q: 0.707,
-    );
-
-    const thunderGain = GainNode(input: thunderTone, staticGain: 1.15);
-    return const DistortionNode(input: thunderGain, drive: 0.95);
-  }
+  /// Backward-compatibility alias for EatsFX Fire
+  static GraphNode buildEatsFireSynth() => buildEatsFXFireSynth();
 
   // ───────────────────────────────────────────────────────────────────────────
   //  YAMAHA DX7 6-OPERATOR FM E-PIANO
@@ -3220,6 +3158,254 @@ class GraphEvaluator {
     const outputGain = GainNode(
       input: tubeWarmth,
       staticGain: 0.54,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Tinkle Bell / Suspended Glass & Metal Wind Chime Physical Model (GM 112 / 113).
+  /// Cylindrical chime tube / rod with Euler-Bernoulli free beam overtones (1.0, 2.756, 5.404, 8.933),
+  /// pristine high-Q singing sustain, micro-clapper strike click, breeze flutter tap, and glass air sheen.
+  static GraphNode buildTinkleBell() {
+    const chime = TinkleBellChimeNode(
+      chimeDecay: 3.8,
+      chimeDecayParam: 'ChimeDecay',
+      breezeFlutter: 0.45,
+      breezeFlutterParam: 'BreezeFlutter',
+      glassAir: 0.70,
+      glassAirParam: 'GlassAir',
+      clapperHardness: 0.65,
+      clapperHardnessParam: 'ClapperHardness',
+    );
+
+    const airSheen = BiquadFilterNode(
+      input: chime,
+      type: BiquadType.highshelf,
+      frequency: 7500.0,
+      gainDb: 2.5,
+      gainDbParam: 'AirSheen',
+    );
+
+    const outputGain = GainNode(
+      input: airSheen,
+      staticGain: 0.52,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Woodblock / Temple Block Physical Model (GM 115 / 116).
+  /// Resonant dense hardwood block with deep undercut slit forming a tuned Helmholtz cavity,
+  /// rapid internal wood damping (dry woody pop), cavity burst, and hardwood beater strike crack.
+  static GraphNode buildWoodblock() {
+    const woodblock = WoodblockBarNode(
+      woodDecay: 0.045,
+      woodDecayParam: 'WoodDecay',
+      cavityPop: 0.70,
+      cavityPopParam: 'CavityPop',
+      woodHardness: 0.75,
+      woodHardnessParam: 'WoodHardness',
+      slitTuning: 1.0,
+      slitTuningParam: 'SlitTuning',
+    );
+
+    const woodPresence = BiquadFilterNode(
+      input: woodblock,
+      type: BiquadType.peaking,
+      frequency: 1600.0,
+      q: 1.4,
+      gainDb: 2.0,
+      gainDbParam: 'WoodCrack',
+    );
+
+    const outputGain = GainNode(
+      input: woodPresence,
+      staticGain: 0.62,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Agogô / Cowbell Physical Model (GM 113 / 114).
+  /// Welded sheet metal double bell with coupled plate modes (1.0, 1.54),
+  /// hardwood stick strike crack, and dynamic pitch bend on strike.
+  static GraphNode buildAgogoBell() {
+    const bell = AgogoBellNode(
+      bellDecay: 0.75,
+      bellDecayParam: 'BellDecay',
+      clangRatio: 0.65,
+      clangRatioParam: 'ClangRatio',
+      stickHardness: 0.70,
+      stickHardnessParam: 'StickHardness',
+      pitchBend: 0.40,
+      pitchBendParam: 'PitchBend',
+    );
+
+    const metalPresence = BiquadFilterNode(
+      input: bell,
+      type: BiquadType.peaking,
+      frequency: 3200.0,
+      q: 1.5,
+      gainDb: 2.0,
+      gainDbParam: 'MetalSnap',
+    );
+
+    const outputGain = GainNode(
+      input: metalPresence,
+      staticGain: 0.56,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Steel Drums / Steelpan Physical Model (GM 114 / 115).
+  /// Dished steel oil drum head with tuned octave & fifth quadrants,
+  /// rubber-tipped mallet impact, and adjacent note sympathetic bowl shimmer.
+  static GraphNode buildSteelDrums() {
+    const pan = SteelPanNode(
+      panDecay: 1.8,
+      panDecayParam: 'PanDecay',
+      octaveHarmonic: 0.60,
+      octaveHarmonicParam: 'OctaveHarmonic',
+      bowlSympathy: 0.45,
+      bowlSympathyParam: 'BowlSympathy',
+      malletSoftness: 0.55,
+      malletSoftnessParam: 'MalletSoftness',
+    );
+
+    const airPresence = BiquadFilterNode(
+      input: pan,
+      type: BiquadType.highshelf,
+      frequency: 6000.0,
+      gainDb: 1.5,
+      gainDbParam: 'AirPresence',
+    );
+
+    const outputGain = GainNode(
+      input: airPresence,
+      staticGain: 0.55,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Taiko Drum / Surdo Physical Model (GM 116 / 117).
+  /// Heavy carved wooden barrel shell, 2D circular clamped Bessel membrane modes,
+  /// thick bachi stick slap, dynamic pitch sag, and deep barrel cavity boom.
+  static GraphNode buildTaikoDrum() {
+    const taiko = TaikoDrumNode(
+      drumDecay: 1.6,
+      drumDecayParam: 'DrumDecay',
+      pitchSag: 0.50,
+      pitchSagParam: 'PitchSag',
+      bachiImpact: 0.75,
+      bachiImpactParam: 'BachiImpact',
+      barrelBoom: 0.65,
+      barrelBoomParam: 'BarrelBoom',
+    );
+
+    const subEQ = BiquadFilterNode(
+      input: taiko,
+      type: BiquadType.lowshelf,
+      frequency: 100.0,
+      gainDb: 3.0,
+      gainDbParam: 'SubBoost',
+    );
+
+    const outputGain = GainNode(
+      input: subEQ,
+      staticGain: 0.60,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Melodic Tom Physical Model (GM 117 / 118).
+  /// Cylindrical wooden shell, circular Bessel membrane modes, stick contact impulse,
+  /// dual-head resonant air coupling, and chromatic pitch tracking.
+  static GraphNode buildMelodicTom() {
+    const tom = MelodicTomNode(
+      tomDecay: 0.85,
+      tomDecayParam: 'TomDecay',
+      headCoupling: 0.55,
+      headCouplingParam: 'HeadCoupling',
+      pitchBend: 0.40,
+      pitchBendParam: 'PitchBend',
+      stickCrack: 0.60,
+      stickCrackParam: 'StickCrack',
+    );
+
+    const tomPunch = BiquadFilterNode(
+      input: tom,
+      type: BiquadType.peaking,
+      frequency: 240.0,
+      q: 1.2,
+      gainDb: 2.5,
+      gainDbParam: 'TomPunch',
+    );
+
+    const outputGain = GainNode(
+      input: tomPunch,
+      staticGain: 0.58,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Simmons SDS-V Analog Synth Drum Physical Model (GM 118 / 119).
+  /// Classic 1980s analog electronic drum architecture: polycarbonate pad stick click
+  /// generator, downward exponential pitch sweep VCO, resonant 4-pole lowpass VCF sweep,
+  /// and filtered white noise snap.
+  static GraphNode buildSimmonsSynthDrum() {
+    const simmons = SimmonsSynthDrumNode(
+      pitchDrop: 0.70,
+      pitchDropParam: 'PitchDrop',
+      sweepTime: 0.14,
+      sweepTimeParam: 'SweepTime',
+      clickLevel: 0.65,
+      clickLevelParam: 'ClickLevel',
+      noiseSnap: 0.45,
+      noiseSnapParam: 'NoiseSnap',
+      toneDecay: 0.80,
+      toneDecayParam: 'ToneDecay',
+      filterReso: 0.50,
+      filterResoParam: 'FilterReso',
+    );
+
+    const outputGain = GainNode(
+      input: simmons,
+      staticGain: 0.58,
+    );
+
+    return outputGain;
+  }
+
+  /// Authentic Reverse Cymbal Physical Model (GM 119 / 120).
+  /// High-density inharmonic bronze plate modal cluster driven with a time-inverted
+  /// power-law crescendo envelope, culminating in an abrupt choke cutoff and ring-off.
+  static GraphNode buildReverseCymbal() {
+    const cymbal = ReverseCymbalNode(
+      swellDuration: 1.5,
+      swellDurationParam: 'SwellDuration',
+      crescendoCurve: 2.2,
+      crescendoCurveParam: 'CrescendoCurve',
+      shimmerAir: 0.75,
+      shimmerAirParam: 'ShimmerAir',
+      chokeSnap: 0.60,
+      chokeSnapParam: 'ChokeSnap',
+    );
+
+    const cymbalAir = BiquadFilterNode(
+      input: cymbal,
+      type: BiquadType.highshelf,
+      frequency: 8000.0,
+      gainDb: 2.0,
+      gainDbParam: 'AirSheen',
+    );
+
+    const outputGain = GainNode(
+      input: cymbalAir,
+      staticGain: 0.58,
     );
 
     return outputGain;

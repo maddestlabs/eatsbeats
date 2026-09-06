@@ -802,6 +802,202 @@ class LuaEngine {
       );
     }
 
+    if (code.contains('TinkleBell') ||
+        code.contains('tinkle_bell') ||
+        code.contains('Tinkle Bell') ||
+        code.contains('WindChime') ||
+        code.contains('Wind Chime') ||
+        (code.contains('ChimeDecay') && code.contains('BreezeFlutter')) ||
+        (code.contains('ChimeDecay') && code.contains('GlassAir'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildTinkleBell(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('Woodblock') ||
+        code.contains('woodblock') ||
+        code.contains('Wood Block') ||
+        code.contains('TempleBlock') ||
+        code.contains('Temple Block') ||
+        (code.contains('WoodDecay') && code.contains('CavityPop')) ||
+        (code.contains('WoodHardness') && code.contains('SlitTuning'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildWoodblock(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('AgogoBell') ||
+        code.contains('agogo_bell') ||
+        code.contains('Agogo Bell') ||
+        code.contains('Agogo') ||
+        (code.contains('BellDecay') && code.contains('ClangRatio') && code.contains('StickHardness'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildAgogoBell(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('SteelDrums') ||
+        code.contains('steel_drums') ||
+        code.contains('Steel Drums') ||
+        code.contains('SteelPan') ||
+        code.contains('Steel Pan') ||
+        code.contains('steelpan') ||
+        (code.contains('PanDecay') && code.contains('OctaveHarmonic')) ||
+        (code.contains('BowlSympathy') && code.contains('MalletSoftness'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildSteelDrums(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('TaikoDrum') ||
+        code.contains('taiko_drum') ||
+        code.contains('Taiko Drum') ||
+        code.contains('Taiko') ||
+        code.contains('Surdo') ||
+        (code.contains('DrumDecay') && code.contains('PitchSag') && code.contains('BachiImpact')) ||
+        (code.contains('BarrelBoom') && code.contains('BachiImpact'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildTaikoDrum(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('MelodicTom') ||
+        code.contains('melodic_tom') ||
+        code.contains('Melodic Tom') ||
+        (code.contains('TomDecay') && code.contains('HeadCoupling')) ||
+        (code.contains('HeadCoupling') && code.contains('StickCrack'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildMelodicTom(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('SimmonsSynthDrum') ||
+        code.contains('simmons_synth_drum') ||
+        code.contains('Simmons SDS') ||
+        code.contains('SynthDrum') ||
+        code.contains('synth_drum') ||
+        code.contains('Synth Drum') ||
+        (code.contains('PitchDrop') && code.contains('SweepTime')) ||
+        (code.contains('ClickLevel') && code.contains('FilterReso'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildSimmonsSynthDrum(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
+    if (code.contains('ReverseCymbal') ||
+        code.contains('reverse_cymbal') ||
+        code.contains('Reverse Cymbal') ||
+        (code.contains('SwellDuration') && code.contains('CrescendoCurve')) ||
+        (code.contains('CrescendoCurve') && code.contains('ChokeSnap'))) {
+      return GraphEvaluator.evaluate(
+        root: GraphEvaluator.buildReverseCymbal(),
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        velocity: isAccent ? 1.0 : velocity,
+        isAccent: isAccent,
+        isSlide: isSlide,
+        targetMidiNote: targetMidiNote,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+      );
+    }
+
     if (code.contains('ReggaeGuitar') ||
         code.contains('reggae_guitar') ||
         code.contains('Reggae Skank') ||
@@ -1262,13 +1458,16 @@ class LuaEngine {
       );
     }
 
-    if (code.contains('EatsRain') ||
+    if (code.contains('EatsFXRain') ||
+        code.contains('eatsfx_rain') ||
+        code.contains('EatsFX Rain') ||
+        code.contains('EatsRain') ||
         code.contains('eats_rain') ||
         code.contains('Eats Rain') ||
         code.contains('RainIntensity') ||
         (code.contains('RainHiss') && code.contains('DropletForce'))) {
       return GraphEvaluator.evaluate(
-        root: GraphEvaluator.buildEatsRainSynth(),
+        root: GraphEvaluator.buildEatsFXRainSynth(),
         durationSec: durationSec,
         freq: freq,
         note: note,
@@ -1280,13 +1479,16 @@ class LuaEngine {
       );
     }
 
-    if (code.contains('EatsWind') ||
+    if (code.contains('EatsFXWind') ||
+        code.contains('eatsfx_wind') ||
+        code.contains('EatsFX Wind') ||
+        code.contains('EatsWind') ||
         code.contains('eats_wind') ||
         code.contains('Eats Wind') ||
         code.contains('AeolianPitch') ||
         (code.contains('GustSpeed') && code.contains('HowlDepth'))) {
       return GraphEvaluator.evaluate(
-        root: GraphEvaluator.buildEatsWindSynth(),
+        root: GraphEvaluator.buildEatsFXWindSynth(),
         durationSec: durationSec,
         freq: freq,
         note: note,
@@ -1298,31 +1500,16 @@ class LuaEngine {
       );
     }
 
-    if (code.contains('EatsFire') ||
+    if (code.contains('EatsFXFire') ||
+        code.contains('eatsfx_fire') ||
+        code.contains('EatsFX Fire') ||
+        code.contains('EatsFire') ||
         code.contains('eats_fire') ||
         code.contains('Eats Fire') ||
         code.contains('SapCrackle') ||
         (code.contains('FlameRoar') && code.contains('EmberSizzle'))) {
       return GraphEvaluator.evaluate(
-        root: GraphEvaluator.buildEatsFireSynth(),
-        durationSec: durationSec,
-        freq: freq,
-        note: note,
-        params: params,
-        velocity: isAccent ? 1.0 : 0.85,
-        isAccent: isAccent,
-        isSlide: isSlide,
-        targetMidiNote: targetMidiNote,
-      );
-    }
-
-    if (code.contains('EatsThunder') ||
-        code.contains('eats_thunder') ||
-        code.contains('Eats Thunder') ||
-        code.contains('StrikeTrigger') ||
-        (code.contains('StrikeProximity') && code.contains('RumbleDecay'))) {
-      return GraphEvaluator.evaluate(
-        root: GraphEvaluator.buildEatsThunderSynth(),
+        root: GraphEvaluator.buildEatsFXFireSynth(),
         durationSec: durationSec,
         freq: freq,
         note: note,
