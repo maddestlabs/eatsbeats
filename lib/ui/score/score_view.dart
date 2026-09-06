@@ -76,12 +76,46 @@ class _ScoreViewState extends State<ScoreView> {
   void initState() {
     super.initState();
     widget.dawState.addListener(_onDawStateChanged);
+    widget.dawState.continuousArrangerStepNotifier.addListener(_onContinuousPlayheadFollow);
+  }
+
+  void _onContinuousPlayheadFollow() {
+    if (!mounted) return;
+    if (widget.dawState.isFollowPlayback && widget.dawState.isPlaying) {
+      if (_horizontalScroll.hasClients && !_isCanvasPanning && !_isMarqueeSelecting && _draggedNoteId == null) {
+        final clip = widget.dawState.activeClip;
+        final clipStartStep = ((clip?.startBar ?? 0) * 16).toDouble();
+        final clipEndStep = clipStartStep + _totalSteps.toDouble();
+        final continuousStep = widget.dawState.continuousArrangerStepNotifier.value;
+        if (continuousStep >= clipStartStep && continuousStep <= clipEndStep) {
+          final activeStepInClip = continuousStep - clipStartStep;
+          final contentPlayheadX = _gutterWidth + (activeStepInClip * _stepWidth);
+          final viewportW = _horizontalScroll.position.viewportDimension;
+          final targetX = (contentPlayheadX - (viewportW / 2.0)).clamp(0.0, _horizontalScroll.position.maxScrollExtent);
+          if ((_horizontalScroll.offset - targetX).abs() > 0.5) {
+            _horizontalScroll.jumpTo(targetX);
+          }
+        }
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ScoreView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.dawState != widget.dawState) {
+      oldWidget.dawState.removeListener(_onDawStateChanged);
+      oldWidget.dawState.continuousArrangerStepNotifier.removeListener(_onContinuousPlayheadFollow);
+      widget.dawState.addListener(_onDawStateChanged);
+      widget.dawState.continuousArrangerStepNotifier.addListener(_onContinuousPlayheadFollow);
+    }
   }
 
   @override
   void dispose() {
     _holdTimer?.cancel();
     widget.dawState.removeListener(_onDawStateChanged);
+    widget.dawState.continuousArrangerStepNotifier.removeListener(_onContinuousPlayheadFollow);
     _horizontalScroll.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -623,18 +657,35 @@ class _ScoreViewState extends State<ScoreView> {
                         ),
                       ),
 
-                      // Real-time Playhead
-                      ValueListenableBuilder<int>(
-                        valueListenable: widget.dawState.arrangerStepNotifier,
-                        builder: (context, step, _) {
+                      // Real-time Playhead (Continuous Sub-Pixel Motion)
+                      ValueListenableBuilder<double>(
+                        valueListenable: widget.dawState.continuousArrangerStepNotifier,
+                        builder: (context, continuousStep, _) {
                           final clip = widget.dawState.activeClip;
-                          final clipStartStep = (clip?.startBar ?? 0) * 16;
-                          final activeStepInClip = (step - clipStartStep).clamp(0, _totalSteps);
+                          final clipStartStep = ((clip?.startBar ?? 0) * 16).toDouble();
+                          final clipEndStep = clipStartStep + _totalSteps.toDouble();
+                          if (continuousStep < clipStartStep || continuousStep > clipEndStep) {
+                            return const SizedBox.shrink();
+                          }
+                          final activeStepInClip = continuousStep - clipStartStep;
                           final double scrollOffset = _horizontalScroll.hasClients ? _horizontalScroll.offset : 0.0;
                           final double playheadX = _gutterWidth + (activeStepInClip * _stepWidth) - scrollOffset;
 
                           if (playheadX < _gutterWidth || playheadX > constraints.maxWidth) {
                             return const SizedBox.shrink();
+                          }
+
+                          // Auto-follow scrolling if enabled
+                          if (widget.dawState.isFollowPlaybackNotifier.value && _horizontalScroll.hasClients) {
+                             WidgetsBinding.instance.addPostFrameCallback((_) {
+                               final center = constraints.maxWidth / 2;
+                               if (playheadX < center - 100 || playheadX > center + 100) {
+                                 final targetOffset = (_horizontalScroll.offset + (playheadX - center)).clamp(
+                                   0.0, _horizontalScroll.position.maxScrollExtent,
+                                 );
+                                 _horizontalScroll.jumpTo(targetOffset);
+                               }
+                             });
                           }
 
                           return Positioned(
@@ -649,8 +700,7 @@ class _ScoreViewState extends State<ScoreView> {
                                   boxShadow: [
                                     BoxShadow(
                                       color: EatsTheme.primaryCyan.withValues(alpha: 0.8),
-                                      blurRadius: 6.0,
-                                      spreadRadius: 1.0,
+                                      blurRadius: 4,
                                     ),
                                   ],
                                 ),
@@ -721,6 +771,58 @@ class _ScoreViewState extends State<ScoreView> {
 
           // Accidental Selector
           _buildAccidentalSelector(),
+
+          const SizedBox(width: 8),
+          _buildDivider(),
+          const SizedBox(width: 8),
+
+          // Follow Playback Toggle Button
+          ValueListenableBuilder<bool>(
+            valueListenable: widget.dawState.isFollowPlaybackNotifier,
+            builder: (context, isFollowing, _) {
+              return InkWell(
+                onTap: widget.dawState.toggleFollowPlayback,
+                borderRadius: BorderRadius.circular(4),
+                child: Tooltip(
+                  message: isFollowing ? 'Follow Playhead: ON (F)' : 'Follow Playhead: OFF (F)',
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isFollowing
+                          ? EatsTheme.primaryCyan.withValues(alpha: 0.2)
+                          : EatsTheme.controlBackground,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: isFollowing
+                            ? EatsTheme.primaryCyan
+                            : (EatsTheme.isLight ? Colors.black12 : Colors.white12),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.my_location,
+                          size: 13,
+                          color: isFollowing ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'FOLLOW',
+                          style: TextStyle(
+                            color: isFollowing ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
 
           const Spacer(),
 

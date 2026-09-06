@@ -4,7 +4,7 @@ import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../models/script_target_model.dart';
 import '../theme/eats_theme.dart';
-import '../lua/lua_engine.dart';
+import '../eatscript/eat_param_model.dart';
 import '../lua/lua_preset_library.dart';
 import '../lua/lua_script_library.dart';
 import '../eatscript/eat_script_engine.dart';
@@ -25,6 +25,9 @@ enum DesignStudioViewMode {
   split,
   guiPreview,
 }
+
+typedef DesignWorkbenchView = LuaWorkbenchView;
+typedef EatscriptWorkbenchView = LuaWorkbenchView;
 
 class LuaWorkbenchView extends StatefulWidget {
   final DawState dawState;

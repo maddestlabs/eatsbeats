@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../models/chord_model.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
-import 'lua_engine.dart';
 import 'lua_script_library.dart';
 
 /// Result of executing a project script.

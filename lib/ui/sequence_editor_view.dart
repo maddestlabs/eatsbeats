@@ -34,7 +34,7 @@ class _SequenceEditorViewState extends State<SequenceEditorView> {
   static const double posColumnWidth = 110.0;
   static const double trackColWidth = 100.0;
 
-  bool _followPlayback = true;
+  bool get _followPlayback => widget.dawState.isFollowPlayback;
   int _lastFollowBar = -1;
 
   // 2-digit Hex input buffer for rapid keyboard entry
@@ -48,6 +48,7 @@ class _SequenceEditorViewState extends State<SequenceEditorView> {
   void initState() {
     super.initState();
     widget.dawState.addListener(_onDawStateChanged);
+    widget.dawState.continuousArrangerStepNotifier.addListener(_onContinuousPlayhead);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _focusNode.requestFocus();
@@ -59,6 +60,7 @@ class _SequenceEditorViewState extends State<SequenceEditorView> {
   @override
   void dispose() {
     widget.dawState.removeListener(_onDawStateChanged);
+    widget.dawState.continuousArrangerStepNotifier.removeListener(_onContinuousPlayhead);
     _hexBufferTimer?.cancel();
     _verticalScroll.dispose();
     _horizontalScroll.dispose();
@@ -68,17 +70,20 @@ class _SequenceEditorViewState extends State<SequenceEditorView> {
 
   void _onDawStateChanged() {
     if (!mounted) return;
+    setState(() {});
+  }
 
-    if (_followPlayback && widget.dawState.isPlaying) {
-      final currentBar = (widget.dawState.arrangerStep / 16.0).floor();
-      if (currentBar != _lastFollowBar && _verticalScroll.hasClients) {
+  void _onContinuousPlayhead() {
+    if (!mounted) return;
+    if (_followPlayback && widget.dawState.isPlaying && _verticalScroll.hasClients) {
+      final currentBar = (widget.dawState.continuousArrangerStepNotifier.value / 16.0).floor();
+      if (currentBar != _lastFollowBar) {
         _lastFollowBar = currentBar;
         final viewportH = _verticalScroll.position.viewportDimension;
         final targetOffset = (currentBar * rowHeight) - (viewportH / 2.0) + (rowHeight / 2.0);
         _verticalScroll.jumpTo(targetOffset.clamp(0.0, _verticalScroll.position.maxScrollExtent));
       }
     }
-    setState(() {});
   }
 
   void _scrollToSelectedBar({bool animate = true}) {
@@ -471,7 +476,7 @@ class _SequenceEditorViewState extends State<SequenceEditorView> {
                       const SizedBox(width: 8),
                     ],
                     InkWell(
-                      onTap: () => setState(() => _followPlayback = !_followPlayback),
+                      onTap: widget.dawState.toggleFollowPlayback,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [

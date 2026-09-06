@@ -3,10 +3,10 @@ import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'eats_file_helper.dart';
 
-/// Helper for loading, compressing, and resolving Lua scripts and songs from
+/// Helper for loading, compressing, and resolving Eatscript scripts and songs from
 /// URLs, GitHub Gists (URLs & IDs), and compressed URL query parameters.
 class UrlScriptHelper {
-  /// Resolves Lua script content from a user input string or URL param.
+  /// Resolves Eatscript or song content from a user input string or URL param.
   /// Handles:
   /// - Pure Gist ID: `b785e0cc352b9aa3ece5dfd3c29c134c`
   /// - Prefixed Gist ID: `gist+<id>`, `gist:<id>`, `gist/<id>`, `gist <id>`

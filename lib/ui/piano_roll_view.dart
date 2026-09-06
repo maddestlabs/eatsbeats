@@ -111,6 +111,7 @@ class _PianoRollViewState extends State<PianoRollView> {
     super.initState();
     _pianoRollKeyController.addListener(_onPianoRollKeysChanged);
     widget.dawState.addListener(_onDawStateChanged);
+    widget.dawState.continuousArrangerStepNotifier.addListener(_onContinuousPlayheadFollow);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _focusNode.requestFocus();
@@ -121,6 +122,27 @@ class _PianoRollViewState extends State<PianoRollView> {
 
   void _onPianoRollKeysChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _onContinuousPlayheadFollow() {
+    if (!mounted) return;
+    if (widget.dawState.isFollowPlayback && widget.dawState.isPlaying) {
+      if (_horizontalScroll.hasClients && !_isMarqueeSelecting && !_isMiddleMouseDragging && _draggedNoteId == null && _activeMoveNoteId == null) {
+        final activeClip = widget.dawState.activeClip;
+        final clipStartStep = ((activeClip?.startBar ?? 0) * 16).toDouble();
+        final clipEndStep = clipStartStep + ((activeClip?.barLength ?? 4) * 16).toDouble();
+        final continuousStep = widget.dawState.continuousArrangerStepNotifier.value;
+        if (continuousStep >= clipStartStep && continuousStep <= clipEndStep) {
+          final stepInClip = continuousStep - clipStartStep;
+          final playheadX = stepInClip * _stepWidth;
+          final viewportW = _horizontalScroll.position.viewportDimension;
+          final targetX = (playheadX - (viewportW / 2.0)).clamp(0.0, _horizontalScroll.position.maxScrollExtent);
+          if ((_horizontalScroll.offset - targetX).abs() > 0.5) {
+            _horizontalScroll.jumpTo(targetX);
+          }
+        }
+      }
+    }
   }
 
   void _onDawStateChanged() {
@@ -149,7 +171,9 @@ class _PianoRollViewState extends State<PianoRollView> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.dawState != widget.dawState) {
       oldWidget.dawState.removeListener(_onDawStateChanged);
+      oldWidget.dawState.continuousArrangerStepNotifier.removeListener(_onContinuousPlayheadFollow);
       widget.dawState.addListener(_onDawStateChanged);
+      widget.dawState.continuousArrangerStepNotifier.addListener(_onContinuousPlayheadFollow);
     }
     if (widget.dawState.activeTabIndex == 1 && widget.dawState.activeTrack.activeView == MusicViewType.pianoRoll) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -225,6 +249,7 @@ class _PianoRollViewState extends State<PianoRollView> {
     _pianoRollKeyController.clearAllTouches();
     _pianoRollKeyController.dispose();
     widget.dawState.removeListener(_onDawStateChanged);
+    widget.dawState.continuousArrangerStepNotifier.removeListener(_onContinuousPlayheadFollow);
     _horizontalScroll.dispose();
     _keysScrollController.dispose();
     _gridScrollController.dispose();
@@ -1865,10 +1890,54 @@ class _PianoRollViewState extends State<PianoRollView> {
                                 ],
                               ),
 
-                              // Right Tools Group (Snap & Zoom)
+                              // Right Tools Group (Snap & Zoom & Follow)
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  // Follow Playback Toggle Button
+                                  ValueListenableBuilder<bool>(
+                                    valueListenable: widget.dawState.isFollowPlaybackNotifier,
+                                    builder: (context, isFollowing, _) {
+                                      return InkWell(
+                                        onTap: widget.dawState.toggleFollowPlayback,
+                                        borderRadius: BorderRadius.circular(3),
+                                        child: Tooltip(
+                                          message: isFollowing ? 'Follow Playhead: ON (F)' : 'Follow Playhead: OFF (F)',
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: isFollowing ? EatsTheme.primaryCyan.withOpacity(0.18) : EatsTheme.controlBackground,
+                                              borderRadius: BorderRadius.circular(3),
+                                              border: Border.all(
+                                                color: isFollowing ? EatsTheme.primaryCyan : Colors.white12,
+                                                width: 0.8,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  Icons.my_location,
+                                                  size: 11,
+                                                  color: isFollowing ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'FOLLOW',
+                                                  style: TextStyle(
+                                                    color: isFollowing ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(width: 8),
                                   // Snap Quantize Dropdown
                                   Text('SNAP:', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
                                   const SizedBox(width: 2),
@@ -2319,18 +2388,30 @@ child: ScrollConfiguration(
                                   ),
                                 ),
 
-                                // Playhead Position Line
-                                ValueListenableBuilder<int>(
-                                  valueListenable: widget.dawState.currentStepNotifier,
-                                  builder: (context, curStep, _) {
+                                // Playhead Position Line (Continuous Sub-Pixel Motion)
+                                ValueListenableBuilder<double>(
+                                  valueListenable: widget.dawState.continuousArrangerStepNotifier,
+                                  builder: (context, continuousStep, _) {
+                                    final activeClip = widget.dawState.activeClip;
+                                    final clipStartStep = ((activeClip?.startBar ?? 0) * 16).toDouble();
+                                    final clipEndStep = clipStartStep + ((activeClip?.barLength ?? 4) * 16).toDouble();
+                                    if (continuousStep < clipStartStep || continuousStep > clipEndStep) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    final stepInClip = continuousStep - clipStartStep;
                                     return Positioned(
-                                      left: curStep * _stepWidth,
+                                      left: stepInClip * _stepWidth,
                                       top: 0,
                                       bottom: 0,
                                       child: RepaintBoundary(
                                         child: Container(
                                           width: 2,
-                                          color: EatsTheme.primaryCyan,
+                                          decoration: BoxDecoration(
+                                            color: EatsTheme.primaryCyan,
+                                            boxShadow: [
+                                              BoxShadow(color: EatsTheme.primaryCyan.withOpacity(0.8), blurRadius: 4),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     );

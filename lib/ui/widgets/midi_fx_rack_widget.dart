@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../lua/lua_engine.dart';
+import '../../eatscript/eat_script_engine.dart';
+import '../../eatscript/eat_param_model.dart';
 import '../../lua/lua_preset_library.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
@@ -244,7 +245,7 @@ class MidiFxRackWidget extends StatelessWidget {
 
   Widget _buildMidiFxControls(BuildContext context, MidiFXInsert fx) {
     if (fx.luaScriptCode.isNotEmpty) {
-      final compilation = LuaEngine.compile(fx.luaScriptCode);
+      final compilation = EatScriptEngine.compile(fx.luaScriptCode).toLuaCompilationResult();
       if (compilation.guiLayout != null) {
         final fxTrack = TrackChannel(
           id: fx.id,

@@ -596,7 +596,10 @@ class LuaScriptLibrary {
   static bool isUpgradeAvailable(String currentCode, {String? trackName}) {
     final preset = findMatchingPreset(currentCode, fallbackName: trackName);
     if (preset == null) return false;
-    return preset.code.trim() != currentCode.trim();
+    final cur = currentCode.trim();
+    // If the track is already running the latest Eatscript factory code, no upgrade is needed
+    if (cur == preset.eatCode.trim()) return false;
+    return true;
   }
 
   static const List<LuaPreset> _builtinPresets = [

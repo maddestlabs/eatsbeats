@@ -2,16 +2,15 @@ import 'dart:math' as math;
 import '../models/track_model.dart';
 import '../models/chord_model.dart';
 import '../audio/time_context.dart';
-import 'lua_engine.dart';
 import '../eatscript/eat_script_engine.dart';
 
 /// Evaluates clips and processes MIDI FX chains to produce scheduled Note events.
 /// Implements persistent Voice ID tracking to prevent stuck notes when parameters
 /// or pitch mappings are transformed dynamically.
 class MidiPipelineEngine {
-  final LuaEngine luaEngine;
+  final Object? luaEngine;
 
-  MidiPipelineEngine({required this.luaEngine});
+  MidiPipelineEngine({this.luaEngine});
 
   /// Processes a [TrackClip] through its base notes and the track's [MidiFXInsert] chain.
   List<Note> processClip({

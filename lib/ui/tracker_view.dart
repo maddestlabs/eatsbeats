@@ -24,7 +24,7 @@ class _TrackerViewState extends State<TrackerView> {
 
   DateTime? _lastTapTime;
   String? _lastTapCellKey;
-  bool _followPlayback = true;
+  bool get _followPlayback => widget.dawState.isFollowPlayback;
   int _lastFollowStep = -1;
 
   // 2D Matrix Block Selection State
@@ -79,6 +79,7 @@ class _TrackerViewState extends State<TrackerView> {
   void initState() {
     super.initState();
     widget.dawState.addListener(_onDawStateChanged);
+    widget.dawState.continuousArrangerStepNotifier.addListener(_onContinuousPlayheadFollow);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _focusNode.requestFocus();
@@ -86,12 +87,34 @@ class _TrackerViewState extends State<TrackerView> {
     });
   }
 
+  void _onContinuousPlayheadFollow() {
+    if (!mounted) return;
+    if (_followPlayback && widget.dawState.isPlaying && _verticalScroll.hasClients) {
+      final activeClip = widget.dawState.activeClip;
+      final clipStartStep = ((activeClip?.startBar ?? 0) * 16).toDouble();
+      final totalSteps = ((activeClip?.barLength ?? 4) * 16).toDouble();
+      final continuousStep = widget.dawState.continuousArrangerStepNotifier.value;
+      if (continuousStep >= clipStartStep && continuousStep <= clipStartStep + totalSteps) {
+        final stepInClip = continuousStep - clipStartStep;
+        final viewportH = _verticalScroll.position.viewportDimension;
+        final targetOffset = (stepInClip * 32.0) - (viewportH / 2.0) + 16.0;
+        final maxScroll = _verticalScroll.position.maxScrollExtent;
+        final clamped = targetOffset.clamp(0.0, maxScroll);
+        if ((_verticalScroll.offset - clamped).abs() > 0.5) {
+          _verticalScroll.jumpTo(clamped);
+        }
+      }
+    }
+  }
+
   @override
   void didUpdateWidget(covariant TrackerView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.dawState != widget.dawState) {
       oldWidget.dawState.removeListener(_onDawStateChanged);
+      oldWidget.dawState.continuousArrangerStepNotifier.removeListener(_onContinuousPlayheadFollow);
       widget.dawState.addListener(_onDawStateChanged);
+      widget.dawState.continuousArrangerStepNotifier.addListener(_onContinuousPlayheadFollow);
     }
     if (widget.dawState.activeTabIndex == 1 && widget.dawState.activeTrack.activeView == MusicViewType.tracker) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -105,6 +128,7 @@ class _TrackerViewState extends State<TrackerView> {
   @override
   void dispose() {
     widget.dawState.removeListener(_onDawStateChanged);
+    widget.dawState.continuousArrangerStepNotifier.removeListener(_onContinuousPlayheadFollow);
     _verticalScroll.dispose();
     _horizontalScroll.dispose();
     _focusNode.dispose();
@@ -636,11 +660,7 @@ class _TrackerViewState extends State<TrackerView> {
 
                 // Follow Playback Toggle Button
                 InkWell(
-                  onTap: () {
-                    setState(() {
-                      _followPlayback = !_followPlayback;
-                    });
-                  },
+                  onTap: widget.dawState.toggleFollowPlayback,
                   borderRadius: BorderRadius.circular(4),
                   child: Tooltip(
                     message: _followPlayback ? 'Follow Playback: ON' : 'Follow Playback: OFF',

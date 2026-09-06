@@ -1,7 +1,6 @@
+import 'dart:math' as math;
 import '../lua/eats_lua_parser.dart';
-import '../lua/lua_engine.dart';
-import '../lua/lua_gui_parser.dart';
-import 'eat_script_engine.dart';
+import 'eat_param_model.dart';
 
 /// Transpiles legacy Lua preset and script definitions into pure, Pythonic Eatscript.
 class EatTranspiler {
@@ -49,8 +48,7 @@ class EatTranspiler {
     buffer.writeln();
 
     // 2. Discover parameters from Param.add / Param.choice
-    final compResult = LuaEngine.compile(luaCode);
-    final params = compResult.params;
+    final params = extractLuaParams(luaCode);
 
     buffer.writeln('# --- Parameter Definitions ---');
     buffer.writeln('def init():');
@@ -67,18 +65,16 @@ class EatTranspiler {
     buffer.writeln();
 
     // 3. Extract and convert GUI layout if present
-    if (luaCode.contains('gui') || luaCode.contains('GUI') || luaCode.contains('panel')) {
-      final guiTableStr = _extractTableBlock(luaCode, 'gui');
-      if (guiTableStr != null) {
-        final parsedMap = EatsLuaParser.parseLuaTableToMap(guiTableStr);
-        if (parsedMap.isNotEmpty) {
-          buffer.writeln('# --- Hardware GUI Layout ---');
-          buffer.writeln('def gui():');
-          buffer.writeln('    return {');
-          _formatMap(parsedMap, buffer, indentLevel: 2);
-          buffer.writeln('    }');
-          buffer.writeln();
-        }
+    final guiTableStr = _extractGuiTableString(luaCode);
+    if (guiTableStr != null) {
+      final parsedMap = EatsLuaParser.parseLuaTableToMap(guiTableStr);
+      if (parsedMap.isNotEmpty) {
+        buffer.writeln('# --- Hardware GUI Layout ---');
+        buffer.writeln('def gui():');
+        buffer.writeln('    return {');
+        _formatMap(parsedMap, buffer, indentLevel: 2);
+        buffer.writeln('    }');
+        buffer.writeln();
       }
     }
 
@@ -134,26 +130,67 @@ class EatTranspiler {
     return buffer.toString();
   }
 
-  static String? _extractTableBlock(String code, String functionName) {
-    final idx = code.indexOf(functionName);
-    if (idx == -1) return null;
-    final braceIdx = code.indexOf('{', idx);
-    if (braceIdx == -1) return null;
+  static String? _extractGuiTableString(String code) {
+    // 1. function ...gui()... return { ... }
+    final funcMatch = RegExp(r'function\s+[\w\.:]*gui\s*\([^)]*\)[\s\S]*?return\s*\{', caseSensitive: false).firstMatch(code);
+    if (funcMatch != null) {
+      final braceIdx = code.indexOf('{', funcMatch.start);
+      if (braceIdx != -1) return _extractBalancedTable(code, braceIdx);
+    }
 
+    // 2. GUI = { or .gui = { or local GUI = {
+    final assignMatch = RegExp(r'(?:local\s+)?(?:[\w\.]+\.)?gui\s*=\s*\{', caseSensitive: false).firstMatch(code);
+    if (assignMatch != null) {
+      final braceIdx = code.indexOf('{', assignMatch.start);
+      if (braceIdx != -1) return _extractBalancedTable(code, braceIdx);
+    }
+
+    // 3. -- @gui: {
+    final commentMatch = RegExp(r'--\s*@gui:\s*\{', caseSensitive: false).firstMatch(code);
+    if (commentMatch != null) {
+      final braceIdx = code.indexOf('{', commentMatch.start);
+      if (braceIdx != -1) return _extractBalancedTable(code, braceIdx);
+    }
+
+    // 4. Fallback: search for `.gui()`
+    final callMatch = RegExp(r'[\w\.:]+gui\s*\(\)', caseSensitive: false).firstMatch(code);
+    if (callMatch != null) {
+      final braceIdx = code.indexOf('{', callMatch.start);
+      if (braceIdx != -1) return _extractBalancedTable(code, braceIdx);
+    }
+
+    return null;
+  }
+
+  static String? _extractBalancedTable(String code, int startBrace) {
     int depth = 0;
-    int endIdx = braceIdx;
-    for (int i = braceIdx; i < code.length; i++) {
-      if (code[i] == '{') {
-        depth++;
-      } else if (code[i] == '}') {
-        depth--;
-        if (depth == 0) {
-          endIdx = i + 1;
-          break;
+    int pos = startBrace;
+    bool inQuote = false;
+    String quoteChar = '';
+
+    while (pos < code.length) {
+      final c = code[pos];
+
+      if (inQuote) {
+        if (c == quoteChar && (pos == 0 || code[pos - 1] != '\\')) {
+          inQuote = false;
+        }
+      } else {
+        if (c == '"' || c == "'") {
+          inQuote = true;
+          quoteChar = c;
+        } else if (c == '{') {
+          depth++;
+        } else if (c == '}') {
+          depth--;
+          if (depth == 0) {
+            return code.substring(startBrace, pos + 1);
+          }
         }
       }
+      pos++;
     }
-    return code.substring(braceIdx, endIdx);
+    return null;
   }
 
   static void _formatMap(Map<String, dynamic> map, StringBuffer buffer, {required int indentLevel}) {
@@ -203,5 +240,114 @@ class EatTranspiler {
         buffer.writeln('$indent$item,');
       }
     }
+  }
+
+  static final RegExp _paramRegExp = RegExp(
+    "Param\\.add\\(\\s*[\"']([^\"']+)[\"']\\s*,\\s*([\\d\\.-]+)\\s*,\\s*([\\d\\.-]+)\\s*,\\s*([\\d\\.-]+)(?:\\s*,\\s*([\\d\\.-]+))?\\s*\\)",
+  );
+
+  static final RegExp _choiceParamRegExp = RegExp(
+    "Param\\.choice\\(\\s*[\"']([^\"']+)[\"']\\s*,\\s*\\{([^\\}]+)\\}\\s*(?:,\\s*([\\d\\.-]+))?\\s*\\)",
+  );
+
+  static final RegExp _v1ParamRegExp = RegExp(
+    "getParam\\(\\s*[\"']([^\"']+)[\"']\\s*\\)",
+  );
+
+  static final RegExp _clipParamRegExp = RegExp(
+    "registerParam\\(\\s*[\"']([^\"']+)[\"']\\s*,\\s*([\\d\\.-]+)\\s*,\\s*([\\d\\.-]+)\\s*,\\s*([\\d\\.-]+)\\s*\\)",
+  );
+
+  /// Extracts declared parameters from legacy Lua source code without requiring a Lua runtime.
+  static List<LuaParamDef> extractLuaParams(String code) {
+    final positionedParams = <MapEntry<int, LuaParamDef>>[];
+
+    // 1. Parse Param.add("Name", min, max, default, [step])
+    for (final m in _paramRegExp.allMatches(code)) {
+      final name = m.group(1)!;
+      final minVal = double.tryParse(m.group(2)!) ?? 0.0;
+      final maxVal = double.tryParse(m.group(3)!) ?? 1.0;
+      final defVal = double.tryParse(m.group(4)!) ?? minVal;
+      final stepVal = (m.groupCount >= 5 && m.group(5) != null) ? (double.tryParse(m.group(5)!) ?? 0.0) : 0.0;
+
+      positionedParams.add(MapEntry(
+        m.start,
+        LuaParamDef(
+          name: name,
+          min: minVal,
+          max: maxVal,
+          defaultValue: defVal,
+          step: stepVal,
+        ),
+      ));
+    }
+
+    // 2. Parse Param.choice("Name", {"Opt1", "Opt2", ...}, [defaultIdx])
+    for (final m in _choiceParamRegExp.allMatches(code)) {
+      final name = m.group(1)!;
+      final rawOpts = m.group(2)!;
+      final defIdx = (m.groupCount >= 3 && m.group(3) != null) ? (double.tryParse(m.group(3)!) ?? 0.0) : 0.0;
+
+      final optsList = rawOpts
+          .split(',')
+          .map((s) => s.trim().replaceAll(RegExp("^[\"']|[\"']\$"), ''))
+          .where((s) => s.isNotEmpty)
+          .toList();
+
+      final maxVal = math.max(0, optsList.length - 1).toDouble();
+
+      if (!positionedParams.any((e) => e.value.name == name)) {
+        positionedParams.add(MapEntry(
+          m.start,
+          LuaParamDef(
+            name: name,
+            min: 0.0,
+            max: maxVal,
+            defaultValue: defIdx.clamp(0.0, maxVal),
+            step: 1.0,
+            options: optsList,
+          ),
+        ));
+      }
+    }
+
+    // 3. Check for clip:registerParam
+    for (final m in _clipParamRegExp.allMatches(code)) {
+      final name = m.group(1)!;
+      final minVal = double.tryParse(m.group(2)!) ?? 0.0;
+      final maxVal = double.tryParse(m.group(3)!) ?? 1.0;
+      final defVal = double.tryParse(m.group(4)!) ?? minVal;
+
+      if (!positionedParams.any((e) => e.value.name == name)) {
+        positionedParams.add(MapEntry(
+          m.start,
+          LuaParamDef(
+            name: name,
+            min: minVal,
+            max: maxVal,
+            defaultValue: defVal,
+          ),
+        ));
+      }
+    }
+
+    // 4. Check for getParam handles
+    for (final m in _v1ParamRegExp.allMatches(code)) {
+      final name = m.group(1)!;
+      if (!positionedParams.any((e) => e.value.name == name)) {
+        positionedParams.add(MapEntry(
+          m.start,
+          LuaParamDef(
+            name: name,
+            min: 0.0,
+            max: 1.0,
+            defaultValue: 0.5,
+          ),
+        ));
+      }
+    }
+
+    positionedParams.sort((a, b) => a.key.compareTo(b.key));
+    return positionedParams.map((e) => e.value).toList();
   }
 }

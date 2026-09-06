@@ -69,10 +69,26 @@ class _ArrangerViewState extends State<ArrangerView> {
   void initState() {
     super.initState();
     widget.dawState.addListener(_onDawStateChanged);
+    widget.dawState.continuousArrangerStepNotifier.addListener(_onContinuousPlayheadChanged);
   }
 
   void _onDawStateChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _onContinuousPlayheadChanged() {
+    if (!mounted) return;
+    if (widget.dawState.isFollowPlayback && widget.dawState.isPlaying) {
+      if (_horizontalScroll.hasClients && !_isMiddleMouseDragging && _draggedClip == null) {
+        final continuousStep = widget.dawState.continuousArrangerStepNotifier.value;
+        final curPlayheadX = (continuousStep / 16.0) * barWidth;
+        final viewportW = _horizontalScroll.position.viewportDimension;
+        final targetOffset = (curPlayheadX - (viewportW / 2.0)).clamp(0.0, _horizontalScroll.position.maxScrollExtent);
+        if ((_horizontalScroll.offset - targetOffset).abs() > 0.5) {
+          _horizontalScroll.jumpTo(targetOffset);
+        }
+      }
+    }
   }
 
   @override
@@ -80,13 +96,16 @@ class _ArrangerViewState extends State<ArrangerView> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.dawState != widget.dawState) {
       oldWidget.dawState.removeListener(_onDawStateChanged);
+      oldWidget.dawState.continuousArrangerStepNotifier.removeListener(_onContinuousPlayheadChanged);
       widget.dawState.addListener(_onDawStateChanged);
+      widget.dawState.continuousArrangerStepNotifier.addListener(_onContinuousPlayheadChanged);
     }
   }
 
   @override
   void dispose() {
     widget.dawState.removeListener(_onDawStateChanged);
+    widget.dawState.continuousArrangerStepNotifier.removeListener(_onContinuousPlayheadChanged);
     _horizontalScroll.dispose();
     _leftTrackScroll.dispose();
     _rightGridScroll.dispose();
@@ -907,9 +926,9 @@ class _ArrangerViewState extends State<ArrangerView> {
                                     ),
                                   ),
 
-                                 // Playhead Head Marker Badge
-                                 ValueListenableBuilder<int>(
-                                   valueListenable: widget.dawState.arrangerStepNotifier,
+                                 // Playhead Head Marker Badge (Continuous Sub-Pixel Motion)
+                                 ValueListenableBuilder<double>(
+                                   valueListenable: widget.dawState.continuousArrangerStepNotifier,
                                    builder: (context, curStep, _) {
                                      final curPlayheadX = (curStep / 16.0) * barWidth;
                                      return Positioned(
@@ -1963,11 +1982,12 @@ class _ArrangerViewState extends State<ArrangerView> {
                                   ),
                                 ),
 
-                                  // Vertical Song Timeline Playhead Line Across Multitrack Rows
-                                  ValueListenableBuilder<int>(
-                                    valueListenable: widget.dawState.arrangerStepNotifier,
+                                  // Vertical Song Timeline Playhead Line Across Multitrack Rows (Continuous Sub-Pixel Motion)
+                                  ValueListenableBuilder<double>(
+                                    valueListenable: widget.dawState.continuousArrangerStepNotifier,
                                     builder: (context, curStep, _) {
                                       final curPlayheadX = (curStep / 16.0) * barWidth;
+
                                       return Positioned(
                                         left: curPlayheadX,
                                         top: 0,
@@ -2082,52 +2102,51 @@ class _ArrangerViewState extends State<ArrangerView> {
             style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.textMuted, fontSize: 9, fontWeight: FontWeight.bold),
           ),
           const Spacer(),
-          InkWell(
-            onTap: widget.dawState.toggleLoop,
-            child: Tooltip(
-              message: 'Toggle Loop Mode',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.repeat,
-                    size: 13,
-                    color: widget.dawState.isLooping ? EatsTheme.accentGold : EatsTheme.textMuted,
-                  ),
-                  const SizedBox(width: 2),
-                  Text(
-                    widget.dawState.isLooping ? 'LOOP' : 'OFF',
-                    style: TextStyle(
-                      color: widget.dawState.isLooping ? EatsTheme.accentGold : EatsTheme.textMuted,
-                      fontSize: 8.5,
-                      fontWeight: FontWeight.bold,
+          // Follow Playback Toggle Button (Center Focus on Playhead)
+          ValueListenableBuilder<bool>(
+            valueListenable: widget.dawState.isFollowPlaybackNotifier,
+            builder: (context, isFollowing, _) {
+              return InkWell(
+                onTap: widget.dawState.toggleFollowPlayback,
+                borderRadius: BorderRadius.circular(3),
+                child: Tooltip(
+                  message: isFollowing ? 'Follow Playhead: ON (F)' : 'Follow Playhead: OFF (F)',
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isFollowing ? EatsTheme.primaryCyan.withOpacity(0.2) : EatsTheme.controlBackground,
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                        color: isFollowing ? EatsTheme.primaryCyan : Colors.white12,
+                        width: 0.8,
+                      ),
+                      boxShadow: isFollowing
+                          ? [BoxShadow(color: EatsTheme.primaryCyan.withOpacity(0.3), blurRadius: 4)]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.my_location,
+                          size: 11,
+                          color: isFollowing ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'FOLLOW',
+                          style: TextStyle(
+                            color: isFollowing ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          InkWell(
-            onTap: () => PresetSearchDialog.showAddTrack(context, dawState: widget.dawState),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: EatsTheme.primaryCyan.withOpacity(0.18),
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.6), width: 0.8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.add, size: 11, color: EatsTheme.primaryCyan),
-                  const SizedBox(width: 2),
-                  Text(
-                    'TRACK',
-                    style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 9, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ],
       ),

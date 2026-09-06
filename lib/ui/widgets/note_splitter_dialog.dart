@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../lua/lua_engine.dart';
+import '../../eatscript/eat_script_engine.dart';
+import '../../eatscript/eat_param_model.dart';
 import '../../lua/lua_gui_parser.dart';
 import '../../lua/lua_script_library.dart';
 import '../../lua/note_splitter_engine.dart';
@@ -51,7 +52,8 @@ class _NoteSplitterDialogState extends State<NoteSplitterDialog> {
 
   void _loadPresetParams(LuaScriptDef preset) {
     _paramValues.clear();
-    _paramDefs = LuaEngine.compile(preset.code).params;
+    final compilation = EatScriptEngine.compile(preset.code).toLuaCompilationResult();
+    _paramDefs = compilation.params;
     for (final def in _paramDefs) {
       _paramValues[def.name] = def.defaultValue;
     }

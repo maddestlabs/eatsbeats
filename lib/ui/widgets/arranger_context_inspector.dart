@@ -3,7 +3,8 @@ import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../models/lyric_model.dart';
 import '../../models/chord_model.dart';
-import '../../lua/lua_engine.dart';
+import '../../eatscript/eat_script_engine.dart';
+import '../../eatscript/eat_param_model.dart';
 import '../../lua/lua_preset_library.dart';
 import '../../models/script_target_model.dart';
 import 'preset_browser_dialog.dart';
@@ -206,7 +207,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
     // Resolve specific instrument/script name rather than replicating editable track name
     String instrumentTitle = '';
     if (track.luaScriptCode.isNotEmpty) {
-      final compilation = LuaEngine.compile(track.luaScriptCode);
+      final compilation = EatScriptEngine.compile(track.luaScriptCode).toLuaCompilationResult();
       instrumentTitle = compilation.guiLayout?.title ?? '';
     }
     if (instrumentTitle.isEmpty) {

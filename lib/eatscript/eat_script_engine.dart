@@ -1,13 +1,17 @@
-import '../lua/lua_engine.dart';
+import 'dart:typed_data';
 import '../lua/lua_gui_model.dart';
 import '../lua/lua_gui_parser.dart';
+import '../models/automation_model.dart';
 import '../models/track_model.dart';
 import '../audio/time_context.dart';
 import 'eat_api.dart';
 import 'eat_ast.dart';
+import 'eat_dsp_synthesizer.dart';
 import 'eat_interpreter.dart';
 import 'eat_lexer.dart';
+import 'eat_param_model.dart';
 import 'eat_parser.dart';
+import 'eat_transpiler.dart';
 
 class EatCompilationResult {
   final bool isSuccess;
@@ -48,24 +52,107 @@ class EatScriptEngine {
 
   static void clearCache() => _cache.clear();
 
+  /// Fast DSP synthesis of complete buffer for Eatscript instruments, drums, and physical models.
+  static Float32List synthesizeBuffer({
+    required String code,
+    required double durationSec,
+    required double freq,
+    required int note,
+    required Map<String, double> params,
+    int? targetMidiNote,
+    bool isSlide = false,
+    bool isAccent = false,
+    String? trackId,
+    String? articulation,
+    double releaseVelocity = 0.5,
+    List<List<double>>? pitchBendPoints,
+    List<List<double>>? pressurePoints,
+    List<List<double>>? timbrePoints,
+    double velocity = 0.9,
+  }) => EatDspSynthesizer.synthesizeBuffer(
+    code: code,
+    durationSec: durationSec,
+    freq: freq,
+    note: note,
+    params: params,
+    targetMidiNote: targetMidiNote,
+    isSlide: isSlide,
+    isAccent: isAccent,
+    trackId: trackId,
+    articulation: articulation,
+    releaseVelocity: releaseVelocity,
+    pitchBendPoints: pitchBendPoints,
+    pressurePoints: pressurePoints,
+    timbrePoints: timbrePoints,
+    velocity: velocity,
+  );
+
+  /// Evaluates an automation lane procedurally (LFO, ramp, ADSR) or via keyframe interpolation.
+  static double evaluateAutomation({
+    required AutomationLane lane,
+    required double step,
+    TimeContext? timeCtx,
+  }) => EatDspSynthesizer.evaluateAutomation(lane: lane, step: step, timeCtx: timeCtx);
+
+  /// Resets voice DSP states.
+  static void resetVoiceStates([String? trackId]) => EatDspSynthesizer.resetVoiceStates(trackId);
+
+  /// Evaluates synth sample-by-sample.
+  static double evaluateSynth({
+    required String code,
+    required double time,
+    required double freq,
+    required int note,
+    required Map<String, double> params,
+    int? targetMidiNote,
+    bool isSlide = false,
+    bool isAccent = false,
+    String? trackId,
+    int sampleIndex = 0,
+    int totalSamples = 1,
+  }) => EatDspSynthesizer.evaluateSynth(
+    code: code,
+    time: time,
+    freq: freq,
+    note: note,
+    params: params,
+    targetMidiNote: targetMidiNote,
+    isSlide: isSlide,
+    isAccent: isAccent,
+    trackId: trackId,
+    sampleIndex: sampleIndex,
+    totalSamples: totalSamples,
+  );
+
+  /// Evaluates an ADSR envelope.
+  static double evaluateAdsr(
+    double time,
+    double attack,
+    double decay,
+    double sustain,
+    double release, [
+    double duration = 0.4,
+  ]) => EatDspSynthesizer.evaluateAdsr(time, attack, decay, sustain, release, duration);
+
   /// Determines whether a code block is Eatscript or Lua.
   static bool isEatScript(String code) {
     final trimmed = code.trim();
     if (trimmed.isEmpty) return false;
 
+    // Definite Eatscript markers: Python function definitions
+    if (RegExp(r'^\s*def\s+\w+', multiLine: true).hasMatch(trimmed)) {
+      return true;
+    }
+
     // Explicit Lua markers (functions, ends, local variables, lua comments)
-    final hasLuaKeywords = RegExp(r'\b(function|end|local|then|elseif)\b').hasMatch(trimmed) ||
+    final hasLuaKeywords = RegExp(r'(?:^|[;\s])(?:function\s+[\w\.:]+|function\s*\(|local\s+\w+|then\s*$|elseif\s+|end\s*$|end[;\s])', multiLine: true).hasMatch(trimmed) ||
         trimmed.startsWith('--') ||
         trimmed.contains('\n--');
     if (hasLuaKeywords) {
       return false;
     }
 
-    return trimmed.startsWith('#') ||
-        trimmed.contains('def ') ||
-        trimmed.contains('import ') ||
-        trimmed.contains('from ') ||
-        trimmed.contains('eat.');
+    return true;
   }
 
   /// Compiles Eatscript source code, performs static analysis,
@@ -86,6 +173,25 @@ class EatScriptEngine {
 
     final cached = _cache[code];
     if (cached != null) return cached;
+
+    final isExplicitLua = !isEatScript(code);
+
+    if (isExplicitLua) {
+      final params = EatTranspiler.extractLuaParams(code);
+      final guiPanel = LuaGuiParser.parseFromCode(code);
+      final result = EatCompilationResult(
+        isSuccess: true,
+        errorMessage: 'Script parameters loaded. Active parameters: ${params.length}${guiPanel != null ? " [Custom Hardware GUI Active]" : ""}',
+        params: params,
+        scriptType: (code.contains('processSignal') || code.contains('StereoDelayFX') || code.contains('Bitcrusher')) ? 'effect' : 'synth',
+        guiLayout: guiPanel,
+      );
+      if (_cache.length > 256) {
+        _cache.remove(_cache.keys.first);
+      }
+      _cache[code] = result;
+      return result;
+    }
 
     try {
       final lexer = EatLexer(code);

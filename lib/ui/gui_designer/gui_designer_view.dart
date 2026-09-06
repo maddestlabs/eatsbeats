@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../lua/lua_engine.dart';
+import '../../eatscript/eat_script_engine.dart';
+import '../../eatscript/eat_param_model.dart';
 import '../../lua/lua_gui_model.dart';
 import '../../lua/lua_gui_parser.dart';
 import '../../lua/lua_gui_serializer.dart';
@@ -73,12 +74,16 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     }
   }
 
+  LuaCompilationResult _compileCode(String code) {
+    return EatScriptEngine.compile(code).toLuaCompilationResult();
+  }
+
   void _initPanelFromCode() {
     final parsed = LuaGuiParser.parseFromCode(widget.scriptCode);
     if (parsed != null) {
       _panel = parsed;
     } else {
-      final compilation = LuaEngine.compile(widget.scriptCode);
+      final compilation = _compileCode(widget.scriptCode);
       _panel = LuaGuiSerializer.generateDefaultPanel(
         title: widget.target.title.toUpperCase(),
         params: compilation.params,
@@ -179,7 +184,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     final rows = List<LuaGuiNode>.from(_panel.children);
     final row = rows[rowIndex];
 
-    final compilation = LuaEngine.compile(widget.scriptCode);
+    final compilation = _compileCode(widget.scriptCode);
     final availableParams = compilation.params.map((p) => p.name).toList();
     final nextUnusedParam = availableParams.firstWhere(
       (p) => !_panelHasParam(p),
@@ -226,7 +231,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     if (childIndex < 0 || childIndex >= row.children.length) return;
     final stackNode = row.children[childIndex];
 
-    final compilation = LuaEngine.compile(widget.scriptCode);
+    final compilation = _compileCode(widget.scriptCode);
     final availableParams = compilation.params.map((p) => p.name).toList();
     final nextUnusedParam = availableParams.firstWhere(
       (p) => !_panelHasParam(p),
@@ -554,7 +559,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
 
   @override
   Widget build(BuildContext context) {
-    final compilation = LuaEngine.compile(widget.scriptCode);
+    final compilation = _compileCode(widget.scriptCode);
     final availableParams = compilation.params.map((p) => p.name).toList();
     final effectiveTrackColor = widget.target.trackColor;
 

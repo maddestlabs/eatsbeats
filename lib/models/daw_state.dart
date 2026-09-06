@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../utils/platform_env_helper.dart';
@@ -31,7 +32,6 @@ import '../lua/lua_script_library.dart';
 import '../lua/midi_pipeline_engine.dart';
 import '../lua/note_splitter_engine.dart';
 import '../lua/project_script_engine.dart';
-import '../lua/default_song.dart';
 import '../ui/modular/modular_rack_dsl.dart';
 import 'track_model.dart';
 import 'chord_model.dart';
@@ -43,8 +43,6 @@ import 'automation_model.dart';
 import '../audio/easing.dart';
 import '../audio/track_freeze_engine.dart';
 import '../eatscript/eat_script_engine.dart';
-import '../eatscript/eat_api.dart';
-import '../eatscript/eat_interpreter.dart';
 import '../eatscript/default_song_eat.dart';
 import '../eatscript/eat_transpiler.dart';
 
@@ -54,6 +52,11 @@ class DawState extends ChangeNotifier {
   final AudioEngine audioEngine = AudioEngine();
   final LuaEngine luaEngine = LuaEngine();
   final HistoryManager history = HistoryManager();
+
+  /// Compiles Eatscript or legacy scripts into a unified compilation result.
+  static LuaCompilationResult compileScript(String code) {
+    return EatScriptEngine.compile(code).toLuaCompilationResult();
+  }
 
   String projectName = 'Untitled Song';
   String authorName = 'Anonymous Producer';
@@ -625,7 +628,7 @@ class DawState extends ChangeNotifier {
   /// to eliminate any letterboxing or empty padding in floating windows.
   double getTrackNaturalGuiHeight(TrackChannel track) {
     final compilation = track.luaScriptCode.isNotEmpty
-        ? LuaEngine.compile(track.luaScriptCode)
+        ? compileScript(track.luaScriptCode)
         : compilationResult;
     final gui = compilation.guiLayout;
 
@@ -975,9 +978,7 @@ class DawState extends ChangeNotifier {
       } else {
         track.sampleName = '';
       }
-      final compiled = EatScriptEngine.isEatScript(script.eatCode)
-          ? EatScriptEngine.compile(script.eatCode).toLuaCompilationResult()
-          : LuaEngine.compile(script.eatCode);
+      final compiled = compileScript(script.eatCode);
       track.luaParams.clear();
       for (final p in compiled.params) {
         track.luaParams[p.name] = p.defaultValue;
@@ -1031,7 +1032,7 @@ class DawState extends ChangeNotifier {
 
     if (track.id == activeTrack.id) {
       luaCode = track.luaScriptCode;
-      compilationResult = LuaEngine.compile(track.luaScriptCode);
+      compilationResult = compileScript(track.luaScriptCode);
     }
 
     audioEngine.invalidateLuaCache(track.id);
@@ -1090,9 +1091,9 @@ class DawState extends ChangeNotifier {
     beginHistoryTransaction('Upgrade ${track.name} to latest preset', icon: Icons.upgrade);
 
     final oldParams = Map<String, double>.from(track.luaParams);
-    track.luaScriptCode = preset.code;
+    track.luaScriptCode = preset.eatCode;
     track.type = TrackType.luaScript;
-    final compiled = LuaEngine.compile(preset.code);
+    final compiled = compileScript(preset.eatCode);
 
     final newParams = <String, double>{};
     for (final p in compiled.params) {
@@ -1101,7 +1102,7 @@ class DawState extends ChangeNotifier {
     track.luaParams = newParams;
 
     if (track.id == activeTrack.id) {
-      luaCode = preset.code;
+      luaCode = preset.eatCode;
       compilationResult = compiled;
     }
 
@@ -1121,9 +1122,9 @@ class DawState extends ChangeNotifier {
       final preset = LuaPresetLibrary.findMatchingPreset(track.luaScriptCode, fallbackName: track.name);
       if (preset != null) {
         final oldParams = Map<String, double>.from(track.luaParams);
-        track.luaScriptCode = preset.code;
+        track.luaScriptCode = preset.eatCode;
         track.type = TrackType.luaScript;
-        final compiled = LuaEngine.compile(preset.code);
+        final compiled = compileScript(preset.eatCode);
 
         final newParams = <String, double>{};
         for (final p in compiled.params) {
@@ -1132,7 +1133,7 @@ class DawState extends ChangeNotifier {
         track.luaParams = newParams;
 
         if (track.id == activeTrack.id) {
-          luaCode = preset.code;
+          luaCode = preset.eatCode;
           compilationResult = compiled;
         }
         audioEngine.invalidateLuaCache(track.id);
@@ -1160,7 +1161,7 @@ class DawState extends ChangeNotifier {
     ];
     final color = trackColors[activePattern.tracks.length % trackColors.length];
 
-    final compiled = LuaEngine.compile(preset.code);
+    final compiled = compileScript(preset.code);
     final initialParams = <String, double>{};
     for (final p in compiled.params) {
       initialParams[p.name] = p.defaultValue;
@@ -1186,7 +1187,7 @@ class DawState extends ChangeNotifier {
     newTrack.clips.add(clip);
     activePattern.tracks.add(newTrack);
     _activeTrackIndex = activePattern.tracks.length - 1;
-    luaCode = preset.code;
+    luaCode = preset.eatCode;
     compilationResult = compiled;
     activeClip = null;
     recordHistory('Added track "${preset.name}"', icon: Icons.add);
@@ -1204,8 +1205,8 @@ class DawState extends ChangeNotifier {
       (p) => p.id == 'soundfont_sampler',
       orElse: () => LuaPresetLibrary.presets.first,
     );
-    track.luaScriptCode = sfPreset.code;
-    compileLuaCode(sfPreset.code);
+    track.luaScriptCode = sfPreset.eatCode;
+    compileLuaCode(sfPreset.eatCode);
     notifyListeners();
   }
 
@@ -1368,6 +1369,7 @@ class DawState extends ChangeNotifier {
 
   double _bpm = 124.0;
   double get bpm => _bpm;
+  double get tempo => _bpm;
 
   int _currentStep = 0;
   int get currentStep => _currentStep;
@@ -1420,7 +1422,7 @@ class DawState extends ChangeNotifier {
     }
     if (activeTrack.luaScriptCode.isNotEmpty) {
       luaCode = activeTrack.luaScriptCode;
-      compilationResult = LuaEngine.compile(luaCode);
+      compilationResult = compileScript(luaCode);
     }
     notifyListeners();
   }
@@ -1482,7 +1484,7 @@ class DawState extends ChangeNotifier {
       stop();
     }
     audioEngine.clearChannelStrips();
-    LuaEngine.resetVoiceStates();
+    EatScriptEngine.resetVoiceStates();
     history.pauseRecording();
     try {
       projectName = EatsLuaParser.populateDawState(this, eatsLuaCode);
@@ -1664,7 +1666,7 @@ class DawState extends ChangeNotifier {
     activeClip = null;
     if (activeTrack.luaScriptCode.isNotEmpty) {
       luaCode = activeTrack.luaScriptCode;
-      compilationResult = LuaEngine.compile(luaCode);
+      compilationResult = compileScript(luaCode);
       for (final p in compilationResult.params) {
         activeTrack.luaParams.putIfAbsent(p.name, () => p.defaultValue);
       }
@@ -1686,9 +1688,11 @@ class DawState extends ChangeNotifier {
     ArrangementItem(patternId: 'p1', startBar: 2, barLength: 2),
   ];
 
-  // Lua Editor Active Code & Logs
-  String luaCode = LuaPresetLibrary.presets.first.code;
-  LuaCompilationResult compilationResult = LuaEngine.compile(LuaPresetLibrary.presets.first.code);
+  // Script Editor Active Code & Logs
+  String luaCode = LuaPresetLibrary.presets.first.eatCode;
+  String get scriptCode => luaCode;
+  set scriptCode(String val) => luaCode = val;
+  LuaCompilationResult compilationResult = compileScript(LuaPresetLibrary.presets.first.eatCode);
 
   static bool get isTestEnvironment => PlatformEnvHelper.isFlutterTest;
 
@@ -1763,6 +1767,10 @@ class DawState extends ChangeNotifier {
     }
     _meterTimer?.cancel();
     _playbackTimer?.cancel();
+    _stopSmoothPlayheadTicker();
+    _smoothPlayheadTicker?.dispose();
+    continuousArrangerStepNotifier.dispose();
+    isFollowPlaybackNotifier.dispose();
     isPlayingNotifier.dispose();
     currentStepNotifier.dispose();
     currentBarNotifier.dispose();
@@ -2114,7 +2122,7 @@ def gui():
         final clip = track.clips.where((c) => c.id == target.secondaryId).firstOrNull;
         if (clip != null) {
           clip.luaParams[paramName] = value;
-          final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+          final pipeline = MidiPipelineEngine();
           pipeline.processClip(clip: clip, track: track, timeContext: timeContext);
         }
         break;
@@ -2131,9 +2139,7 @@ def gui():
       _activeTrackIndex = tIdx;
     }
     luaCode = getScriptCodeForTarget(target);
-    compilationResult = EatScriptEngine.isEatScript(luaCode)
-        ? EatScriptEngine.compile(luaCode).toLuaCompilationResult()
-        : LuaEngine.compile(luaCode);
+    compilationResult = compileScript(luaCode);
     notifyListeners();
   }
 
@@ -2149,12 +2155,7 @@ def gui():
     recordHistory('Compile ${target.typeBadge}: ${target.title}', icon: Icons.code, force: true);
 
     luaCode = code;
-    if (EatScriptEngine.isEatScript(code)) {
-      final eatRes = EatScriptEngine.compile(code);
-      compilationResult = eatRes.toLuaCompilationResult();
-    } else {
-      compilationResult = LuaEngine.compile(code);
-    }
+    compilationResult = compileScript(code);
 
     final track = _getTrackForScriptTarget(target);
 
@@ -2225,7 +2226,7 @@ def gui():
                 track.notes = parsedNotes;
               }
             }
-            final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+            final pipeline = MidiPipelineEngine();
             pipeline.processClip(clip: clip, track: track, timeContext: timeContext);
           }
           break;
@@ -2543,7 +2544,7 @@ def gui():
 
     // Invalidate midi pipeline cache if moving to new track
     if (clip.evaluatedNotesCache != null) {
-      final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+      final pipeline = MidiPipelineEngine();
       pipeline.processClip(clip: clip, track: targetTrack, timeContext: timeContext);
     }
 
@@ -2583,7 +2584,7 @@ def gui():
     }
 
     clip.name = script.name;
-    clip.luaScriptCode = '';
+    clip.luaScriptCode = script.code;
 
     // Parse notes from sequence script if present
     final parsedNotes = MidiPipelineEngine.parseNotesFromLuaTable(script.code);
@@ -2612,7 +2613,7 @@ def gui():
     }
 
     // Process clip through MidiPipelineEngine
-    final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+    final pipeline = MidiPipelineEngine();
     pipeline.processClip(
       clip: clip,
       track: track,
@@ -2649,7 +2650,7 @@ def gui():
       startBar: startBar,
       barLength: barLength,
       notes: initialNotes,
-      luaScriptCode: '',
+      luaScriptCode: preset.code,
       luaParams: {},
     );
 
@@ -2659,7 +2660,7 @@ def gui():
       track.notes = newClip.notes.map((n) => n.copyWith()).toList();
     }
 
-    final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+    final pipeline = MidiPipelineEngine();
     pipeline.processClip(
       clip: newClip,
       track: track,
@@ -2735,6 +2736,24 @@ def gui():
   int _arrangerStep = 0;
   int get arrangerStep => _arrangerStep;
   final ValueNotifier<int> arrangerStepNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<double> continuousArrangerStepNotifier = ValueNotifier<double>(0.0);
+
+  bool _isFollowPlayback = true;
+  bool get isFollowPlayback => _isFollowPlayback;
+  final ValueNotifier<bool> isFollowPlaybackNotifier = ValueNotifier<bool>(true);
+
+  void toggleFollowPlayback() {
+    _isFollowPlayback = !_isFollowPlayback;
+    isFollowPlaybackNotifier.value = _isFollowPlayback;
+    notifyListeners();
+  }
+
+  void setFollowPlayback(bool follow) {
+    if (_isFollowPlayback == follow) return;
+    _isFollowPlayback = follow;
+    isFollowPlaybackNotifier.value = follow;
+    notifyListeners();
+  }
 
   void setLoopPoints(int startBar, int endBar) {
     _loopStartBar = math.max(0, math.min(startBar, endBar - 1));
@@ -2780,8 +2799,13 @@ def gui():
     _currentBar = targetBar;
     currentStepNotifier.value = _currentStep;
     arrangerStepNotifier.value = _arrangerStep;
+    continuousArrangerStepNotifier.value = _arrangerStep.toDouble();
     currentBarNotifier.value = _currentBar;
+    _playbackStartStep = _arrangerStep.toDouble();
+    _playbackStopwatch.reset();
     if (_isPlaying) {
+      _playbackStopwatch.start();
+      _playbackBaseAudioTime = audioEngine.currentTime;
       final double stepDurationSec = 60.0 / _bpm / 4.0;
       final double startOffsetSec = _currentStep * stepDurationSec;
       audioEngine.stopAllFrozenTracks();
@@ -2805,8 +2829,13 @@ def gui():
     _currentBar = _arrangerStep ~/ 16;
     currentStepNotifier.value = _currentStep;
     arrangerStepNotifier.value = _arrangerStep;
+    continuousArrangerStepNotifier.value = clamped;
     currentBarNotifier.value = _currentBar;
+    _playbackStartStep = clamped;
+    _playbackStopwatch.reset();
     if (_isPlaying) {
+      _playbackStopwatch.start();
+      _playbackBaseAudioTime = audioEngine.currentTime;
       final double stepDurationSec = 60.0 / _bpm / 4.0;
       final double startOffsetSec = _currentStep * stepDurationSec;
       audioEngine.stopAllFrozenTracks();
@@ -2826,18 +2855,59 @@ def gui():
   double _nextNoteTime = 0.0;
   final Stopwatch _playbackStopwatch = Stopwatch();
   double _playbackBaseAudioTime = 0.0;
+  double _playbackStartStep = 0.0;
+  Ticker? _smoothPlayheadTicker;
+
+  void _startSmoothPlayheadTicker() {
+    _smoothPlayheadTicker ??= Ticker(_onSmoothPlayheadTick);
+    if (!_smoothPlayheadTicker!.isActive) {
+      _smoothPlayheadTicker!.start();
+    }
+  }
+
+  void _stopSmoothPlayheadTicker() {
+    if (_smoothPlayheadTicker != null && _smoothPlayheadTicker!.isActive) {
+      _smoothPlayheadTicker!.stop();
+    }
+  }
+
+  void _onSmoothPlayheadTick(Duration elapsed) {
+    if (!_isPlaying) return;
+    final double elapsedSec = _playbackStopwatch.elapsedMicroseconds / 1000000.0;
+    final double stepDurationSec = (60.0 / _bpm) / 4.0;
+    final int maxSteps = totalTimelineBars * 16;
+    double continuousStep;
+    if (_isLooping && _loopEndBar > _loopStartBar) {
+      final double loopStartStep = _loopStartBar * 16.0;
+      final double loopEndStep = _loopEndBar * 16.0;
+      final double loopSpan = loopEndStep - loopStartStep;
+      final double rawStep = _playbackStartStep + (elapsedSec / stepDurationSec);
+      if (rawStep < loopStartStep) {
+        continuousStep = rawStep;
+      } else {
+        continuousStep = loopStartStep + ((rawStep - loopStartStep) % loopSpan);
+      }
+    } else {
+      continuousStep = (_playbackStartStep + (elapsedSec / stepDurationSec)).clamp(0.0, maxSteps.toDouble());
+    }
+    continuousArrangerStepNotifier.value = continuousStep;
+  }
+
   // Lookahead window: 80ms unified lookahead for tight, responsive audio scheduling.
   double get _scheduleAheadTime => 0.080;
 
-  // Cached MidiPipelineEngine — stateless, holds only a LuaEngine reference.
+  // Cached MidiPipelineEngine.
   // Re-using a single instance eliminates up to 1,280 heap allocations/second during playback.
-  late final MidiPipelineEngine _pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+  late final MidiPipelineEngine _pipeline = MidiPipelineEngine();
 
   void togglePlay() {
     audioEngine.ensureContextRunning();
     _isPlaying = !_isPlaying;
     isPlayingNotifier.value = _isPlaying;
     if (_isPlaying) {
+      _playbackStartStep = _arrangerStep.toDouble();
+      continuousArrangerStepNotifier.value = _playbackStartStep;
+
       // Pre-warm the PCM cache for immediate upcoming notes (JIT lookahead window)
       // from the current playhead step. This ensures 0ms delay when pressing play
       // even for lengthy 24+ bar clips, while keeping beat 1 timing sub-millisecond.
@@ -2866,8 +2936,11 @@ def gui():
         }
       }
 
+      _startSmoothPlayheadTicker();
       _startSchedulerTimer();
     } else {
+      _stopSmoothPlayheadTicker();
+      continuousArrangerStepNotifier.value = _arrangerStep.toDouble();
       _playbackStopwatch.stop();
       _playbackTimer?.cancel();
       audioEngine.stopAllSound();
@@ -2883,14 +2956,17 @@ def gui():
   void stop() {
     _isPlaying = false;
     isPlayingNotifier.value = false;
+    _stopSmoothPlayheadTicker();
     _playbackStopwatch.stop();
     _playbackStopwatch.reset();
     _playbackTimer?.cancel();
     _currentStep = _isLooping ? _loopStartBar * 16 : 0;
     _arrangerStep = _currentStep;
     _currentBar = _currentStep ~/ 16;
+    _playbackStartStep = _currentStep.toDouble();
     currentStepNotifier.value = _currentStep;
     arrangerStepNotifier.value = _arrangerStep;
+    continuousArrangerStepNotifier.value = _playbackStartStep;
     currentBarNotifier.value = _currentBar;
     audioEngine.stopAllSound();
     audioEngine.stopAllFrozenTracks();
@@ -3005,7 +3081,7 @@ def gui():
       // Evaluate Track Automation Lanes
       for (final lane in track.automationLanes) {
         if (!lane.enabled) continue;
-        final val = LuaEngine.evaluateAutomation(lane: lane, step: stepIdx.toDouble(), timeCtx: timeContext);
+        final val = EatScriptEngine.evaluateAutomation(lane: lane, step: stepIdx.toDouble(), timeCtx: timeContext);
         audioEngine.setTrackParam(track.id, lane.target.id, val);
       }
 
@@ -3024,7 +3100,7 @@ def gui():
             // Evaluate Clip Automation Lanes
             for (final lane in clip.automationLanes) {
               if (!lane.enabled) continue;
-              final val = LuaEngine.evaluateAutomation(lane: lane, step: localStep.toDouble(), timeCtx: timeContext);
+              final val = EatScriptEngine.evaluateAutomation(lane: lane, step: localStep.toDouble(), timeCtx: timeContext);
               audioEngine.setTrackParam(track.id, lane.target.id, val);
             }
             
@@ -4384,9 +4460,7 @@ def gui():
 
   void addAudioFXFromPreset(TrackChannel track, LuaPreset preset) {
     final eatCode = preset.eatCode;
-    final compiled = EatScriptEngine.isEatScript(eatCode)
-        ? EatScriptEngine.compile(eatCode).toLuaCompilationResult()
-        : LuaEngine.compile(eatCode);
+    final compiled = compileScript(eatCode);
     final initialParams = <String, double>{};
     for (final p in compiled.params) {
       initialParams[p.name] = p.defaultValue;
@@ -4696,7 +4770,7 @@ def gui():
 
   void addMidiFXFromPreset(TrackChannel track, LuaPreset preset) {
     final initialParams = <String, double>{};
-    final compilation = LuaEngine.compile(preset.code);
+    final compilation = compileScript(preset.code);
     for (final p in compilation.params) {
       initialParams[p.name] = p.defaultValue;
     }
@@ -4771,7 +4845,7 @@ def gui():
   }
 
   void invalidateTrackMidiCache(TrackChannel track) {
-    final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+    final pipeline = MidiPipelineEngine();
     for (final clip in track.clips) {
       clip.evaluatedNotesCache = pipeline.processClip(
         clip: clip,
@@ -4790,7 +4864,7 @@ def gui():
 
   /// Bakes / renders transformed MIDI FX notes down into real permanent notes in a single [clip].
   void bakeMidiFXToClip(TrackChannel track, TrackClip clip, {bool disableTrackMidiFx = false}) {
-    final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+    final pipeline = MidiPipelineEngine();
     final evaluated = pipeline.processClip(
       clip: clip,
       track: track,
@@ -4819,7 +4893,7 @@ def gui():
 
   /// Bakes / renders transformed MIDI FX notes across all clips on the [track] and disables the MIDI FX rack.
   void bakeTrackMidiFX(TrackChannel track) {
-    final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+    final pipeline = MidiPipelineEngine();
     for (final clip in track.clips) {
       final evaluated = pipeline.processClip(
         clip: clip,
@@ -4848,7 +4922,7 @@ def gui():
     if (clip.evaluatedNotesCache != null && clip.evaluatedNotesCache!.isNotEmpty) {
       return clip.evaluatedNotesCache!;
     }
-    final pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+    final pipeline = MidiPipelineEngine();
     return pipeline.processClip(
       clip: clip,
       track: track,

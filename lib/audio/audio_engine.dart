@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 
 import '../models/track_model.dart';
-import '../lua/lua_engine.dart';
+import '../eatscript/eat_script_engine.dart';
 import 'poly_synth.dart';
 import 'sampler_engine.dart';
 import 'soundfont_engine.dart';
@@ -631,7 +631,7 @@ class AudioEngine {
       }
     } else if (track.type == TrackType.luaScript) {
       final double freq = PolySynth.midiToFreq(midiNote);
-      return LuaEngine.synthesizeBuffer(
+      return EatScriptEngine.synthesizeBuffer(
         code: track.luaScriptCode,
         durationSec: durationSec,
         freq: freq,

@@ -1,5 +1,5 @@
 # Eatsbeats
-Mobile-first and web-first, totally unprofessional digital audio workstation (DAW) built around a core of Lua scripting with a multimedia focused API. Made with Flutter (using wajuce for native Web Audio) and Lua, relying on WebAudio API.
+Mobile-first and web-first digital audio workstation (DAW) built with Flutter and powered by **Eatscript**—a pure-Dart, Pythonic audio scripting engine and DSP synthesizer. Utilizes `wajuce` for native Web Audio execution and hardware-accelerated playback.
 
 ---
 
@@ -11,14 +11,12 @@ Mobile-first and web-first, totally unprofessional digital audio workstation (DA
 
 ## Features
 
-- Web-first: Built for easy access on the web
-- Made with Flutter (using wajuce for native Web Audio): Easy portability for native mobile and desktop
-- Lua scripting: Everything is Lua scripts, built on a WebAudio based API
-- Music Tracker and Piano roll editor synced to Lua scripting.
-- AI supported workflow: Everything is Lua scripts, AI knows Lua
-- Rebirth template: 2 303s, an 808, and a 909
-- Full General MIDI coverage in bundled instruments including physical models and synthesizers
-- Built-in synths for C64 SID, OPL3, SNES and more.
+- **Pure-Dart DSP & Eatscript**: 100% VM-less, pure-Dart audio synthesis and Pythonic scripting DSL.
+- **Native & Web Portability**: Built with Flutter and `wajuce` (native Web Audio backend) for Windows, macOS, Linux, Android, iOS, and Web.
+- **Interactive Music Tracker & Piano Roll**: Real-time sequencing synced to live Eatscript clip automation and MIDI FX pipelines.
+- **Dynamic GUI Designer**: Create and customize instrument interfaces with knobs, sliders, XY pads, and ADSR envelopes.
+- **Classic Emulations & Rebirth Template**: Built-in procedural 303 acid basslines with slide/accent, 808/909 drum machines, C64 SID, Yamaha FM/OPL3, and SNES DSP chipsets.
+- **Physical Modeling & SoundFonts**: Commuted waveguide piano physical models, Karplus-Strong string synthesis, and integrated General MIDI SoundFont support.
 
 ---
 

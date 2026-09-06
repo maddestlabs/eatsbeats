@@ -5,9 +5,8 @@
     "display": "standalone",
     "background_color": "#141210",
     "theme_color": "#FF8C00",
-    "description": "Mobile-First WebAudio DAW with Lua Live Scripting.",
+    "description": "Mobile-First WebAudio DAW with Eatscript Live Scripting & Pure-Dart DSP.",
     "orientation": "any",
-    "prefer_related_applications": false,
     "icons": [
         {
             "src": "icons/Icon-192.png",

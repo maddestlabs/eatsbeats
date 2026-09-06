@@ -1,7 +1,8 @@
 import 'dart:ui';
-import 'lua_engine.dart';
+import '../eatscript/eat_param_model.dart';
 import 'lua_gui_model.dart';
 import 'lua_gui_parser.dart';
+import '../eatscript/eat_script_engine.dart';
 
 /// Serializes [LuaGuiPanelDef] and its component tree back into clean, readable Lua code.
 class LuaGuiSerializer {
@@ -166,7 +167,7 @@ class LuaGuiSerializer {
     if (LuaGuiParser.parseFromCode(scriptCode) != null) {
       return scriptCode;
     }
-    final compilation = LuaEngine.compile(scriptCode);
+    final compilation = EatScriptEngine.compile(scriptCode).toLuaCompilationResult();
     final defaultPanel = generateDefaultPanel(
       title: instrumentName.isNotEmpty ? instrumentName.toUpperCase() : 'CUSTOM SYNTH',
       params: compilation.params,

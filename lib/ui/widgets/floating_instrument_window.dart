@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../../lua/lua_engine.dart';
+import '../../eatscript/eat_script_engine.dart';
+import '../../eatscript/eat_param_model.dart';
 import '../../models/daw_state.dart';
 import '../../models/script_target_model.dart';
 import '../../models/track_model.dart';
@@ -86,7 +87,7 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
 
     final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
     final trackCompilation = effectiveTrack.luaScriptCode.isNotEmpty
-        ? LuaEngine.compile(effectiveTrack.luaScriptCode)
+        ? EatScriptEngine.compile(effectiveTrack.luaScriptCode).toLuaCompilationResult()
         : widget.dawState.compilationResult;
     final guiLayout = trackCompilation.guiLayout;
 

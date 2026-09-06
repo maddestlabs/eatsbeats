@@ -6,7 +6,8 @@ import '../../audio/procedural_ir_generator.dart';
 import '../../audio/snes_dsp_engine.dart';
 import '../../audio/soundfont_engine.dart';
 import '../../audio/soundfont_decoder.dart';
-import '../../lua/lua_engine.dart';
+import '../../eatscript/eat_script_engine.dart';
+import '../../eatscript/eat_param_model.dart';
 import '../../lua/lua_gui_model.dart';
 import '../../lua/lua_script_library.dart';
 import '../../models/daw_state.dart';
@@ -56,7 +57,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     if (code.isEmpty) return fallback;
     final cached = _compilationCache[code];
     if (cached != null) return cached;
-    final compiled = LuaEngine.compile(code);
+    final compiled = EatScriptEngine.compile(code).toLuaCompilationResult();
     _compilationCache[code] = compiled;
     if (_compilationCache.length > 50) {
       _compilationCache.remove(_compilationCache.keys.first);

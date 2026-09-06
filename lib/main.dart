@@ -261,6 +261,18 @@ class _DawMainShellState extends State<DawMainShell> {
       }
     }
 
+    // 'F' -> Toggle Playback Follow mode (when not editing text and no modifier is held)
+    if (event.logicalKey == LogicalKeyboardKey.keyF) {
+      if (!HardwareKeyboard.instance.isControlPressed &&
+          !HardwareKeyboard.instance.isMetaPressed &&
+          !HardwareKeyboard.instance.isAltPressed) {
+        if (!_isEditingText()) {
+          widget.dawState.toggleFollowPlayback();
+          return true;
+        }
+      }
+    }
+
     return false;
   }
   @override
@@ -421,7 +433,7 @@ class _DawMainShellState extends State<DawMainShell> {
                                           ),
                                           TickerMode(
                                             enabled: widget.dawState.activeTabIndex == 4,
-                                            child: LuaWorkbenchView(dawState: widget.dawState),
+                                            child: DesignWorkbenchView(dawState: widget.dawState),
                                           ),
                                         ],
                                       ),

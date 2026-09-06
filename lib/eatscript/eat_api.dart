@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import '../models/track_model.dart';
 import '../models/chord_model.dart';
 import '../audio/time_context.dart';
-import '../lua/lua_engine.dart';
+import 'eat_param_model.dart';
 import '../lua/midi_pipeline_engine.dart';
 import '../lua/project_script_engine.dart';
 import 'eat_interpreter.dart';

@@ -386,9 +386,7 @@ class EatLexer {
   }
 
   void _scanNumber(String firstDigit) {
-    bool isHex = false;
     if (firstDigit == '0' && (_peek() == 'x' || _peek() == 'X')) {
-      isHex = true;
       _advance(); // 'x'
       while (_isHexDigit(_peek())) {
         _advance();

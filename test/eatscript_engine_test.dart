@@ -1011,5 +1011,57 @@ end
       final saved = await EatsStorageHelper.listSavedProjects();
       expect(saved.any((p) => p.name == 'LegacyProject'), isTrue);
     });
+
+    test('All presets with GUIs preserve non-null guiLayout in Eatscript', () {
+      final clavinet = LuaPresetLibrary.getPresetById('clavinet_d6');
+      expect(clavinet, isNotNull);
+      final clavCompiled = EatScriptEngine.compile(clavinet!.eatCode);
+      expect(clavCompiled.guiLayout, isNotNull);
+      expect(clavCompiled.guiLayout!.title, equals('HOHNER CLAVINET D6'));
+
+      final dubGuitar = LuaPresetLibrary.getPresetById('reggae_guitar');
+      expect(dubGuitar, isNotNull);
+      final guitarCompiled = EatScriptEngine.compile(dubGuitar!.eatCode);
+      expect(guitarCompiled.guiLayout, isNotNull);
+      expect(guitarCompiled.guiLayout!.title, equals('DUB GUITAR'));
+
+      final ukulele = LuaPresetLibrary.getPresetById('hawaiian_ukulele');
+      expect(ukulele, isNotNull);
+      final ukeCompiled = EatScriptEngine.compile(ukulele!.eatCode);
+      expect(ukeCompiled.guiLayout, isNotNull);
+
+      final doubleBass = LuaPresetLibrary.getPresetById('double_bass');
+      expect(doubleBass, isNotNull);
+      final bassCompiled = EatScriptEngine.compile(doubleBass!.eatCode);
+      expect(bassCompiled.guiLayout, isNotNull);
+
+      // Verify all presets with GUIs
+      for (final p in LuaPresetLibrary.presets) {
+        if (p.code.contains('function') && p.code.contains('gui()')) {
+          final res = EatScriptEngine.compile(p.eatCode);
+          expect(res.guiLayout, isNotNull, reason: 'Preset "${p.name}" (id: ${p.id}) should have non-null guiLayout');
+        }
+      }
+    });
+
+    test('isUpgradeAvailable correctly identifies when presets are already up to date', () {
+      final clavinet = LuaPresetLibrary.getPresetById('clavinet_d6')!;
+      // Eatscript version is already up to date: should NOT need upgrade
+      expect(LuaPresetLibrary.isUpgradeAvailable(clavinet.eatCode), isFalse);
+
+      // Legacy Lua version: should offer upgrade
+      expect(LuaPresetLibrary.isUpgradeAvailable(clavinet.code), isTrue);
+
+      // Test DawState upgrade flow
+      final state = DawState();
+      final track = state.tracks.first;
+      track.luaScriptCode = clavinet.code;
+      expect(state.isPresetUpgradeAvailable(track), isTrue);
+
+      state.upgradeTrackPreset(track);
+      expect(track.luaScriptCode, equals(clavinet.eatCode));
+      expect(state.isPresetUpgradeAvailable(track), isFalse);
+    });
   });
 }
+

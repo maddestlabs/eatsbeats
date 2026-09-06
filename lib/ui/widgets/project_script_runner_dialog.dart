@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../lua/lua_engine.dart';
+import '../../eatscript/eat_script_engine.dart';
+import '../../eatscript/eat_param_model.dart';
 import '../../lua/lua_script_library.dart';
 import '../../lua/project_script_engine.dart';
 import '../../models/daw_state.dart';
@@ -42,7 +43,7 @@ class _ProjectScriptRunnerDialogState extends State<ProjectScriptRunnerDialog> {
   @override
   void initState() {
     super.initState();
-    final compResult = LuaEngine.compile(widget.script.code);
+    final compResult = EatScriptEngine.compile(widget.script.code).toLuaCompilationResult();
     _paramDefs = compResult.params;
     for (final p in _paramDefs) {
       _paramValues[p.name] = p.defaultValue;

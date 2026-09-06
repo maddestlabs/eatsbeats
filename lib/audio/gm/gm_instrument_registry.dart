@@ -1,6 +1,6 @@
-import '../../lua/lua_engine.dart';
 import '../../lua/lua_script_library.dart';
 import '../../models/track_model.dart';
+import '../../eatscript/eat_script_engine.dart';
 
 /// General MIDI 1 instrument families (16 melodic families + GM percussion).
 enum GmFamily {
@@ -1484,9 +1484,9 @@ class GmInstrumentRegistry {
     );
   }
 
-  static Map<String, double> _compileInitialParams(String luaCode) {
+  static Map<String, double> _compileInitialParams(String scriptCode) {
     try {
-      final compiled = LuaEngine.compile(luaCode);
+      final compiled = EatScriptEngine.compile(scriptCode);
       final initialParams = <String, double>{};
       for (final p in compiled.params) {
         initialParams[p.name] = p.defaultValue;
