@@ -19,6 +19,17 @@ class LuaGuiParser {
       final parsed = EatsLuaParser.parseLuaTableToMap(tableStr);
       if (parsed.isEmpty) return null;
 
+      return parseFromMap(parsed);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Parses a [LuaGuiPanelDef] directly from a decoded Map (e.g. from Eatscript or Lua parser).
+  static LuaGuiPanelDef? parseFromMap(Map<String, dynamic> parsed) {
+    if (parsed.isEmpty) return null;
+
+    try {
       // Handle both { panel = { title = "...", layout = {...} } } and { title = "...", layout = {...} }
       Map<String, dynamic> panelMap = parsed;
       if (parsed['panel'] is Map) {
@@ -64,8 +75,6 @@ class LuaGuiParser {
         final node = _parseNode(rawLayout, defaultKnobStyle);
         if (node != null) nodes.add(node);
       }
-
-      if (nodes.isEmpty) return null;
 
       return LuaGuiPanelDef(
         title: title,

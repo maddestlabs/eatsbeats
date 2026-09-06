@@ -686,7 +686,7 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                   children: [
                     Row(
                       children: [
-                        Text('GENERATED SONG PROJECT (.EATS.LUA):', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
+                        Text('GENERATED SONG PROJECT (.EATS / EATSCRIPT):', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
                         const Spacer(),
                         Text('Ready to Load', style: TextStyle(color: const Color(0xFF00FF66), fontSize: 10, fontWeight: FontWeight.bold)),
                       ],

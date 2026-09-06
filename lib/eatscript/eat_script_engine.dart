@@ -1,0 +1,315 @@
+import '../lua/lua_engine.dart';
+import '../lua/lua_gui_model.dart';
+import '../lua/lua_gui_parser.dart';
+import '../models/track_model.dart';
+import '../audio/time_context.dart';
+import 'eat_api.dart';
+import 'eat_ast.dart';
+import 'eat_interpreter.dart';
+import 'eat_lexer.dart';
+import 'eat_parser.dart';
+
+class EatCompilationResult {
+  final bool isSuccess;
+  final String errorMessage;
+  final int errorLine;
+  final int errorColumn;
+  final List<LuaParamDef> params;
+  final String scriptType;
+  final LuaGuiPanelDef? guiLayout;
+  final EatProgram? program;
+
+  const EatCompilationResult({
+    required this.isSuccess,
+    this.errorMessage = '',
+    this.errorLine = 0,
+    this.errorColumn = 0,
+    required this.params,
+    required this.scriptType,
+    this.guiLayout,
+    this.program,
+  });
+
+  // Compatibility bridge with LuaCompilationResult
+  LuaCompilationResult toLuaCompilationResult() {
+    return LuaCompilationResult(
+      isSuccess: isSuccess,
+      errorMessage: errorMessage,
+      errorLine: errorLine,
+      params: params,
+      scriptType: scriptType,
+      guiLayout: guiLayout,
+    );
+  }
+}
+
+class EatScriptEngine {
+  static final Map<String, EatCompilationResult> _cache = {};
+
+  static void clearCache() => _cache.clear();
+
+  /// Determines whether a code block is Eatscript or Lua.
+  static bool isEatScript(String code) {
+    final trimmed = code.trim();
+    if (trimmed.isEmpty) return false;
+
+    // Explicit Lua markers (functions, ends, local variables, lua comments)
+    final hasLuaKeywords = RegExp(r'\b(function|end|local|then|elseif)\b').hasMatch(trimmed) ||
+        trimmed.startsWith('--') ||
+        trimmed.contains('\n--');
+    if (hasLuaKeywords) {
+      return false;
+    }
+
+    return trimmed.startsWith('#') ||
+        trimmed.contains('def ') ||
+        trimmed.contains('import ') ||
+        trimmed.contains('from ') ||
+        trimmed.contains('eat.');
+  }
+
+  /// Compiles Eatscript source code, performs static analysis,
+  /// discovers declared `eat.param(...)` controls, and parses GUI layouts.
+  static EatCompilationResult compile(
+    String code, {
+    Map<String, dynamic>? initialParamValues,
+  }) {
+    final trimmed = code.trim();
+    if (trimmed.isEmpty) {
+      return const EatCompilationResult(
+        isSuccess: false,
+        errorMessage: 'Script is empty.',
+        params: [],
+        scriptType: 'generator',
+      );
+    }
+
+    final cached = _cache[code];
+    if (cached != null) return cached;
+
+    try {
+      final lexer = EatLexer(code);
+      final tokens = lexer.tokenize();
+
+      final parser = EatParser(tokens);
+      final program = parser.parse();
+
+      // Perform a dry-run evaluation with an isolated context to collect eat.param() and eat.gui()
+      final dryContext = EatScriptContext(
+        notes: [],
+        paramValues: initialParamValues != null ? Map.from(initialParamValues) : {},
+      );
+
+      final interpreter = EatInterpreter(maxExecutionSteps: 50000);
+      EatHostApi.install(interpreter, dryContext);
+
+      // Run dry-run
+      try {
+        interpreter.interpret(program);
+
+        // If the script defined an init() function, call it to register parameters
+        if (interpreter.globals.has('init')) {
+          final initFn = interpreter.globals.get('init', line: 1, column: 1);
+          if (initFn is EatCallable) {
+            initFn.call(interpreter, [], {}, line: 1, column: 1);
+          }
+        }
+
+        // If the script defined a gui() function, call it to obtain GUI layout
+        if (interpreter.globals.has('gui')) {
+          final guiFn = interpreter.globals.get('gui', line: 1, column: 1);
+          if (guiFn is EatCallable) {
+            final res = guiFn.call(interpreter, [], {}, line: 1, column: 1);
+            if (res is Map && dryContext.guiLayout == null) {
+              dryContext.guiLayout = Map<String, dynamic>.from(res);
+            }
+          }
+        }
+      } catch (_) {
+        // Dry-run might fail if user code relies on runtime data; params collected up to failure are preserved
+      }
+
+      // Check if GUI definition was declared via eat.gui(...) or fallback to parser
+      LuaGuiPanelDef? guiPanel;
+      if (dryContext.guiLayout != null) {
+        guiPanel = _buildGuiPanelFromMap(dryContext.guiLayout!);
+      } else {
+        guiPanel = LuaGuiParser.parseFromCode(code);
+      }
+
+      String scriptType = 'clip';
+      if (code.contains('eat.add_note') || code.contains('euclidean') || code.contains('arpeggiate')) {
+        scriptType = 'generator';
+      } else if (code.contains('transpose') || code.contains('humanize') || code.contains('transform')) {
+        scriptType = 'transformer';
+      }
+
+      final result = EatCompilationResult(
+        isSuccess: true,
+        errorMessage: 'Compiled successfully (Eatscript Live Engine)! Active parameters: ${dryContext.params.length}',
+        params: dryContext.params,
+        scriptType: scriptType,
+        guiLayout: guiPanel,
+        program: program,
+      );
+
+      if (_cache.length > 256) {
+        _cache.remove(_cache.keys.first);
+      }
+      _cache[code] = result;
+      return result;
+    } on EatLexerException catch (e) {
+      return EatCompilationResult(
+        isSuccess: false,
+        errorMessage: 'Syntax Error (Lexer): ${e.message}',
+        errorLine: e.line,
+        errorColumn: e.column,
+        params: [],
+        scriptType: 'generator',
+      );
+    } on EatParserException catch (e) {
+      return EatCompilationResult(
+        isSuccess: false,
+        errorMessage: 'Syntax Error (Parser): ${e.message}',
+        errorLine: e.line,
+        errorColumn: e.column,
+        params: [],
+        scriptType: 'generator',
+      );
+    } catch (e) {
+      return EatCompilationResult(
+        isSuccess: false,
+        errorMessage: 'Compilation Error: ${e.toString()}',
+        errorLine: 1,
+        errorColumn: 1,
+        params: [],
+        scriptType: 'generator',
+      );
+    }
+  }
+
+  /// Executes an Eatscript clip script, taking base notes and returning transformed/generated notes.
+  static List<Note> executeClipScript(
+    String code,
+    List<Note> baseNotes, {
+    Map<String, dynamic>? paramValues,
+    double tempo = 120.0,
+    int keyRoot = 0,
+    bool isMinor = false,
+    TimeContext? timeContext,
+  }) {
+    final compResult = compile(code, initialParamValues: paramValues);
+    if (!compResult.isSuccess || compResult.program == null) {
+      return baseNotes;
+    }
+
+    final context = EatScriptContext(
+      notes: baseNotes.map((n) => n.copyWith()).toList(),
+      params: compResult.params,
+      paramValues: paramValues != null ? Map.from(paramValues) : {},
+      tempo: tempo,
+      keyRoot: keyRoot,
+      isMinor: isMinor,
+      timeContext: timeContext,
+    );
+
+    final interpreter = EatInterpreter(maxExecutionSteps: 100000);
+    EatHostApi.install(interpreter, context);
+
+    try {
+      interpreter.interpret(compResult.program!);
+
+      final noteMaps = context.notes.map((n) => n.toJson()).toList();
+      final tcMap = {
+        'bpm': tempo,
+        'song_key_root': keyRoot,
+        'is_minor': isMinor,
+      };
+
+      // 1. Check `transform_notes(notes, params, time_context)`
+      if (interpreter.globals.has('transform_notes')) {
+        final fn = interpreter.globals.get('transform_notes', line: 1, column: 1);
+        if (fn is EatCallable) {
+          final res = fn.call(interpreter, [noteMaps, context.paramValues, tcMap], {}, line: 1, column: 1);
+          final converted = _convertResultToNotes(res);
+          if (converted.isNotEmpty) return converted;
+        }
+      }
+      // 2. Check `transform(notes)`
+      else if (interpreter.globals.has('transform')) {
+        final fn = interpreter.globals.get('transform', line: 1, column: 1);
+        if (fn is EatCallable) {
+          final res = fn.call(interpreter, [noteMaps], {}, line: 1, column: 1);
+          final converted = _convertResultToNotes(res);
+          if (converted.isNotEmpty) return converted;
+        }
+      }
+      // 3. Check `process(notes)`
+      else if (interpreter.globals.has('process')) {
+        final fn = interpreter.globals.get('process', line: 1, column: 1);
+        if (fn is EatCallable) {
+          final res = fn.call(interpreter, [noteMaps], {}, line: 1, column: 1);
+          final converted = _convertResultToNotes(res);
+          if (converted.isNotEmpty) return converted;
+        }
+      }
+
+      return context.notes;
+    } catch (e) {
+      // Return base notes on runtime failure
+      return baseNotes;
+    }
+  }
+
+  static List<Note> _convertResultToNotes(dynamic res) {
+    if (res is List) {
+      final converted = <Note>[];
+      for (final item in res) {
+        if (item is Note) {
+          converted.add(item);
+        } else if (item is Map) {
+          final m = Map<String, dynamic>.from(item);
+          final pitch = ((m['pitch'] ?? 60) as num).toInt().clamp(0, 127);
+          final start = ((m['start'] ?? m['startStep'] ?? 0.0) as num).toDouble().clamp(0.0, 1024.0);
+          final dur = ((m['duration'] ?? m['durationSteps'] ?? 1.0) as num).toDouble().clamp(0.05, 1024.0);
+          final vel = ((m['velocity'] ?? m['vel'] ?? 0.85) as num).toDouble().clamp(0.01, 1.0);
+          final id = (m['id'] as String?) ?? 'eat_${DateTime.now().microsecondsSinceEpoch}_${converted.length}';
+          converted.add(Note(id: id, pitch: pitch, startStep: start, durationSteps: dur, velocity: vel));
+        }
+      }
+      return converted;
+    }
+    return [];
+  }
+
+  static LuaGuiPanelDef? _buildGuiPanelFromMap(Map<String, dynamic> map) {
+    try {
+      return LuaGuiParser.parseFromMap(map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Parses an Eatscript / Python dictionary file (e.g. `song = { ... }` or `{ ... }`) into a Map.
+  static Map<String, dynamic> parseDataMap(String code) {
+    try {
+      final lexer = EatLexer(code);
+      final tokens = lexer.tokenize();
+      final parser = EatParser(tokens);
+      final program = parser.parse();
+      final interpreter = EatInterpreter(maxExecutionSteps: 300000);
+      final lastResult = interpreter.interpret(program);
+
+      if (interpreter.globals.has('song')) {
+        final songVal = interpreter.globals.get('song', line: 1, column: 1);
+        if (songVal is Map) return Map<String, dynamic>.from(songVal);
+      }
+      if (lastResult is Map) {
+        return Map<String, dynamic>.from(lastResult);
+      }
+    } catch (_) {
+      // Fallback
+    }
+    return {};
+  }
+}

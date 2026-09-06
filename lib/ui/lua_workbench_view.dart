@@ -7,6 +7,8 @@ import '../theme/eats_theme.dart';
 import '../lua/lua_engine.dart';
 import '../lua/lua_preset_library.dart';
 import '../lua/lua_script_library.dart';
+import '../eatscript/eat_script_engine.dart';
+import '../eatscript/eat_transpiler.dart';
 import 'gui_designer/gui_designer_view.dart';
 import 'modular/eurorack_theme.dart';
 import 'modular/modular_rack_canvas.dart';
@@ -51,7 +53,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
     _lastTargetId = activeTarget.id;
     _codeController = TextEditingController(text: widget.dawState.getScriptCodeForTarget(activeTarget));
     _codeController.addListener(_onCodeChanged);
-    _editorFocusNode = FocusNode(debugLabel: 'LuaWorkbenchEditor');
+    _editorFocusNode = FocusNode(debugLabel: 'EatscriptWorkbenchEditor');
 
     _editorScrollController = ScrollController();
     _gutterScrollController = ScrollController();
@@ -120,8 +122,9 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
 
   void _loadTemplate(String code, String name) {
     final activeTarget = widget.dawState.activeScriptTarget;
+    final eatCode = EatScriptEngine.isEatScript(code) ? code : EatTranspiler.transpileLuaPreset(code);
     setState(() {
-      _codeController.text = code;
+      _codeController.text = eatCode;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -589,7 +592,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
             onAcceptWithDetails: (details) {
               final preset = details.data;
               setState(() {
-                _codeController.text = preset.code;
+                _codeController.text = preset.eatCode;
               });
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -703,7 +706,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
                                 isDense: true,
                                 contentPadding: const EdgeInsets.all(8),
                                 border: InputBorder.none,
-                                hintText: '-- Write Lua DSP, MIDI FX, or Clip script here...',
+                                hintText: '# Write Eatscript DSP, MIDI FX, or Clip script here...',
                                 hintStyle: TextStyle(color: EatsTheme.textMuted, fontFamily: 'monospace'),
                               ),
                             ),
@@ -931,7 +934,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
                 final color = p.isInstrument
                     ? EatsTheme.primaryCyan
                     : (p.isAudioFx ? EatsTheme.secondaryMagenta : (p.isMidiFx ? EatsTheme.accentGold : EatsTheme.accentGreen));
-                return _buildTemplateTile(p.name, p.code, color, subtitle: p.category.displayName);
+                return _buildTemplateTile(p.name, p.eatCode, color, subtitle: p.category.displayName);
               }),
             ],
           ),

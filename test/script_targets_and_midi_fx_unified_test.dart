@@ -59,8 +59,8 @@ void main() {
       dawState.addMidiFXFromPreset(track, arpPreset);
       final mfx = track.midiFXRack.last;
 
-      expect(mfx.luaScriptCode, contains('function ArpeggiatorMidiFX.init()'));
-      expect(mfx.luaScriptCode, contains('function ArpeggiatorMidiFX.transform_notes'));
+      expect(mfx.luaScriptCode, contains('init()'));
+      expect(mfx.luaScriptCode, contains('transform_notes'));
 
       final target = ScriptTarget(
         id: 'mfx_${track.id}_${mfx.id}',

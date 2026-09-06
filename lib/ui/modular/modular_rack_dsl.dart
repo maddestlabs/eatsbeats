@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'modular_theme.dart';
 import 'modular_module_search_dialog.dart';
+import '../../eatscript/eat_script_engine.dart';
 
 /// Identifies a physical jack on a module in the rack
 class JackKey {
@@ -474,7 +475,7 @@ class ModularRackDsl {
       case 'generic':
       default:
         modulesByRow[1] = [
-          const DynamicModuleDefinition(id: 'core', title: 'LUA SCRIPT DSP CORE', subtitle: 'DSP', hpWidth: 16, accentColor: Color(0xFF00E5FF), category: 'VCO', inputJacks: ['Pitch CV', 'Gate CV'], outputJacks: ['Audio L', 'Audio R', 'Aux Out']),
+          const DynamicModuleDefinition(id: 'core', title: 'EATSCRIPT DSP CORE', subtitle: 'DSP', hpWidth: 16, accentColor: Color(0xFF00E5FF), category: 'VCO', inputJacks: ['Pitch CV', 'Gate CV'], outputJacks: ['Audio L', 'Audio R', 'Aux Out']),
           const DynamicModuleDefinition(id: 'vcf', title: 'MULTIMODE VCF', subtitle: 'VCF', hpWidth: 14, accentColor: Color(0xFFFF9800), category: 'VCF', inputJacks: ['Audio In', 'Cutoff CV'], outputJacks: ['LP Out', 'BP Out', 'HP Out']),
         ];
         modulesByRow[2] = [
@@ -514,7 +515,11 @@ class ModularRackDsl {
   /// Ensures that [scriptCode] contains a declarative `function <Name>.rack()` block.
   /// If missing, synthesizes and injects the default rack definition based on preset signature.
   static String ensureRackBlock(String scriptCode, {String trackName = ''}) {
-    if (scriptCode.contains('.rack') || scriptCode.contains('rack =') || scriptCode.contains('rack=')) {
+    if (EatScriptEngine.isEatScript(scriptCode) ||
+        scriptCode.contains('.rack') ||
+        scriptCode.contains('rack =') ||
+        scriptCode.contains('rack=') ||
+        scriptCode.contains('def rack(')) {
       return scriptCode;
     }
     final defaultRack = generateDefault(scriptCode, trackName: trackName);

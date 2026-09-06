@@ -1529,6 +1529,36 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                   ),
                   const SizedBox(width: 4),
 
+                  // Convert All to Eatscript Button
+                  IconButton(
+                    tooltip: 'Convert All Projects to Eatscript (.eats)',
+                    icon: const Icon(Icons.transform, size: 16),
+                    color: EatsTheme.secondaryMagenta,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    style: IconButton.styleFrom(
+                      backgroundColor: EatsTheme.secondaryMagenta.withOpacity(0.12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    onPressed: () async {
+                      final count = await widget.dawState.convertAllLegacyProjectsOnDisk();
+                      await _loadSavedProjects();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              count > 0
+                                  ? 'Successfully converted $count legacy project(s) to Eatscript (.eats)!'
+                                  : 'All projects are already using Eatscript!',
+                            ),
+                            backgroundColor: EatsTheme.panelHeader,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 4),
+
                   // Refresh Button
                   IconButton(
                     tooltip: 'Refresh Projects List',
@@ -1781,7 +1811,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Saves your song as a .eats.lua file inside the ./Projects/ directory.',
+                'Saves your song as a .eats file inside the ./Projects/ directory.',
                 style: TextStyle(color: EatsTheme.textSecondary, fontSize: 11),
               ),
               const SizedBox(height: 12),
@@ -1815,7 +1845,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                   await _loadSavedProjects();
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Saved project "$name.eats.lua" to Projects/ folder!')),
+                      SnackBar(content: Text('Saved project "$name.eats" to Projects/ folder!')),
                     );
                   }
                 }
@@ -2201,7 +2231,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                         ),
                       ),
                       Text(
-                        'DIFF SOURCE: .eats.lua',
+                        'DIFF SOURCE: .eats',
                         style: TextStyle(
                           fontSize: 8,
                           letterSpacing: 0.5,
@@ -2506,7 +2536,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'LUA STATE DIFF',
+                            'EATSCRIPT STATE DIFF',
                             style: EatsTheme.getDisplayFontStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,

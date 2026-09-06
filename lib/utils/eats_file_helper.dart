@@ -23,6 +23,14 @@ class EatsFileHelper {
     }
   }
 
+  /// Save/Download Eatscript `.eat` / `.eats` script file.
+  static void saveEatScriptFile(String content, String fileName) {
+    final cleanName = fileName.endsWith('.eat') || fileName.endsWith('.eats')
+        ? fileName
+        : '$fileName.eat';
+    saveEatsLuaFile(content, cleanName);
+  }
+
   /// Triggers file open dialog for `.eats.zip`, `.zip`, `.eats.lua`, `.sf2`, `.wav`, `.mid`, `.midi`, or `.txt` files.
   /// Works across Web, iOS, Android, and Desktop (Windows, macOS, Linux).
   static void pickEatsFile(

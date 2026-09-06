@@ -640,7 +640,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
                       Icon(Icons.sync, size: 11, color: Color(0xFF00E676)),
                       SizedBox(width: 4),
                       Text(
-                        'LUA SYNC: OK',
+                        'DSP SYNC: OK',
                         style: TextStyle(fontFamily: 'Courier', fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFF00E676)),
                       ),
                     ],
@@ -1474,7 +1474,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
         final luaParamKeys = widget.track.luaParams.keys.take(4).toList();
         return [
           ModularFaceplateWidget(
-            title: 'LUA SCRIPT DSP CORE',
+            title: 'EATSCRIPT DSP CORE',
             subtitle: widget.track.name.toUpperCase(),
             hpWidth: 18,
             accentColor: const Color(0xFF00E5FF),

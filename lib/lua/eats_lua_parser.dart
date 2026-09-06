@@ -8,9 +8,18 @@ import '../models/automation_model.dart';
 import '../models/lyric_model.dart';
 import '../theme/eats_theme.dart';
 
+import '../eatscript/eat_script_engine.dart';
+import '../eatscript/eat_transpiler.dart';
+
 class EatsLuaParser {
-  /// Parses a `.eats.lua` project string and updates/populates [DawState].
+  /// Parses a `.eats.lua` or `.eat` project string and updates/populates [DawState].
   static Map<String, dynamic> parseLuaTableToMap(String luaCode) {
+    final trimmed = luaCode.trim();
+    if (trimmed.startsWith('#') || trimmed.contains('song =') || trimmed.contains('eat.')) {
+      final eatMap = EatScriptEngine.parseDataMap(luaCode);
+      if (eatMap.isNotEmpty) return eatMap;
+    }
+
     final parser = _LuaValueParser(luaCode);
     final result = parser.parseTopLevel();
     if (result is Map<String, dynamic>) {
@@ -291,9 +300,13 @@ class EatsLuaParser {
         }
       }
       if (match != null) {
-        luaScript = match.code;
+        luaScript = match.eatCode;
         presetId ??= match.id;
       }
+    }
+
+    if (luaScript != null && luaScript.isNotEmpty && !EatScriptEngine.isEatScript(luaScript)) {
+      luaScript = EatTranspiler.transpileLuaPreset(luaScript);
     }
 
     if (luaParams.isEmpty && params.isNotEmpty) {
@@ -437,7 +450,12 @@ class EatsLuaParser {
             notes: cNotes,
             lyrics: cLyrics,
             automationLanes: cAutomation,
-            luaScriptCode: cMap['luaScriptCode'] ?? '',
+            luaScriptCode: (() {
+              final rawClip = (cMap['luaScriptCode'] as String?) ?? '';
+              return (rawClip.isNotEmpty && !EatScriptEngine.isEatScript(rawClip))
+                  ? EatTranspiler.transpileLuaPreset(rawClip)
+                  : rawClip;
+            })(),
             luaParams: cMap['luaParams'] is Map ? Map<String, double>.from(
               (cMap['luaParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
             ) : {},
@@ -492,11 +510,15 @@ class EatsLuaParser {
       for (final mf in rawMidiFx) {
         if (mf is Map) {
           final mfMap = Map<String, dynamic>.from(mf);
+          final rawMfx = (mfMap['luaScriptCode'] as String?) ?? '';
+          final mfxCode = (rawMfx.isNotEmpty && !EatScriptEngine.isEatScript(rawMfx))
+              ? EatTranspiler.transpileLuaPreset(rawMfx)
+              : rawMfx;
           midiFXRack.add(MidiFXInsert(
             id: mfMap['id'] ?? 'mfx_${midiFXRack.length}',
             name: mfMap['name'] ?? 'MIDI FX',
             enabled: _parseBool(mfMap['enabled'], true),
-            luaScriptCode: mfMap['luaScriptCode'] ?? '',
+            luaScriptCode: mfxCode,
             luaParams: mfMap['luaParams'] is Map ? Map<String, double>.from(
               (mfMap['luaParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
             ) : {},
@@ -512,15 +534,19 @@ class EatsLuaParser {
     if (scriptCode.trim().isEmpty && presetId != null && presetId.isNotEmpty) {
       final preset = LuaScriptLibrary.getPresetById(presetId);
       if (preset != null) {
-        scriptCode = preset.code;
+        scriptCode = preset.eatCode;
       }
     }
 
     if (scriptCode.trim().isEmpty) {
       final matchedPreset = LuaScriptLibrary.findMatchingScript('', fallbackName: map['name']);
       if (matchedPreset != null) {
-        scriptCode = matchedPreset.code;
+        scriptCode = matchedPreset.eatCode;
       }
+    }
+
+    if (scriptCode.isNotEmpty && !EatScriptEngine.isEatScript(scriptCode)) {
+      scriptCode = EatTranspiler.transpileLuaPreset(scriptCode);
     }
 
     final trackTypeStr = map['type'] as String? ?? (scriptCode.isNotEmpty ? 'luaScript' : 'synth');

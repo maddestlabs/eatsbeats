@@ -84,10 +84,14 @@ class UrlScriptHelper {
         final data = json.decode(jsonStr) as Map<String, dynamic>;
         if (data.containsKey('files')) {
           final files = data['files'] as Map<String, dynamic>;
-          // Prefer .lua or .eats.lua files
+          // Prefer Eatscript (.eat, .eats) or legacy .lua / .eats.lua files
           for (final f in files.values) {
             final fileName = (f['filename'] ?? '').toString().toLowerCase();
-            if (fileName.endsWith('.lua') || fileName.endsWith('.eats.lua')) {
+            if (fileName.endsWith('.eat') ||
+                fileName.endsWith('.eats') ||
+                fileName.endsWith('.py') ||
+                fileName.endsWith('.lua') ||
+                fileName.endsWith('.eats.lua')) {
               final content = f['content'] as String?;
               if (content != null && content.isNotEmpty) return content;
               final rawUrl = f['raw_url'] as String?;

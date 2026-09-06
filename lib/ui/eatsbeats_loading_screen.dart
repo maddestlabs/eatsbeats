@@ -211,7 +211,7 @@ class _EatsbeatsLoadingScreenState extends State<EatsbeatsLoadingScreen> with Si
                             children: [
                               _buildStatusLed('POWER', true, const Color(0xFF00FF66)),
                               _buildStatusLed('AUDIO', _progress > 0.2, primaryColor),
-                              _buildStatusLed('LUA CORE', _progress > 0.5, accentAmber),
+                              _buildStatusLed('EATSCRIPT CORE', _progress > 0.5, accentAmber),
                               _buildStatusLed('DSP READY', _progress > 0.85, const Color(0xFFFF007A)),
                             ],
                           ),

@@ -3,6 +3,7 @@ import '../models/track_model.dart';
 import '../models/chord_model.dart';
 import '../audio/time_context.dart';
 import 'lua_engine.dart';
+import '../eatscript/eat_script_engine.dart';
 
 /// Evaluates clips and processes MIDI FX chains to produce scheduled Note events.
 /// Implements persistent Voice ID tracking to prevent stuck notes when parameters
@@ -53,6 +54,20 @@ class MidiPipelineEngine {
     TimeContext timeContext,
   ) {
     final script = clip.luaScriptCode.trim();
+
+    // 0. Eatscript Evaluation
+    if (script.contains('eat.') || script.contains('def ') || script.contains('for ')) {
+      final generatedNotes = EatScriptEngine.executeClipScript(
+        script,
+        baseNotes,
+        paramValues: clip.luaParams,
+        tempo: timeContext.bpm,
+        keyRoot: timeContext.songKeyRoot,
+        isMinor: timeContext.isSongKeyMinor,
+        timeContext: timeContext,
+      );
+      if (generatedNotes.isNotEmpty) return generatedNotes;
+    }
 
     // 1. Chord Follower Clip Transformation Hook
     if (script.contains('chord_follow') || script.contains('snap_to_chord') || script.contains('Chord.snap') || script.contains('Chord.conform')) {
@@ -118,6 +133,20 @@ class MidiPipelineEngine {
   ) {
     final code = midiFX.luaScriptCode.trim();
     final nameLower = midiFX.name.toLowerCase();
+
+    // 0. Eatscript Evaluation
+    if (code.contains('eat.') || code.contains('def ') || code.contains('for ')) {
+      final generatedNotes = EatScriptEngine.executeClipScript(
+        code,
+        notes,
+        paramValues: midiFX.luaParams,
+        tempo: timeContext.bpm,
+        keyRoot: timeContext.songKeyRoot,
+        isMinor: timeContext.isSongKeyMinor,
+        timeContext: timeContext,
+      );
+      if (generatedNotes.isNotEmpty) return generatedNotes;
+    }
 
     // 1. Harmonic Chord Follower MIDI FX
     if (code.contains('chord_follower') || code.contains('chord_follow') || nameLower.contains('chord follow') || nameLower.contains('harmonic')) {
@@ -606,5 +635,36 @@ class MidiPipelineEngine {
       ));
     }
     return notes;
+  }
+
+  /// Serializes a list of [Note] objects into clean Eatscript format.
+  static String serializeNotesToEat(List<Note> notes, {String? existingCode}) {
+    final notesBuffer = StringBuffer();
+    notesBuffer.writeln('# Clip Notes Data (eatsbeats.v1)');
+    notesBuffer.writeln('notes = [');
+    for (int i = 0; i < notes.length; i++) {
+      final n = notes[i];
+      notesBuffer.write('    {"pitch": ${n.pitch}, "start": ${n.startStep.toStringAsFixed(2)}, "duration": ${n.durationSteps.toStringAsFixed(2)}, "vel": ${n.velocity.toStringAsFixed(2)}}');
+      if (i < notes.length - 1) notesBuffer.write(',');
+      notesBuffer.writeln();
+    }
+    notesBuffer.writeln(']');
+
+    if (existingCode == null || existingCode.trim().isEmpty) {
+      notesBuffer.writeln('\ndef process(notes, time_ctx):\n    return notes\n');
+      return notesBuffer.toString();
+    }
+
+    String code = existingCode.trim();
+    code = code.replaceFirst(RegExp(r'^#\s*Clip Notes Data[\s\S]*?\n'), '');
+    final notesBlockRegex = RegExp(r'notes\s*=\s*\[(?:\s*\{[^}]*\},?)*\s*\]', multiLine: true);
+    code = code.replaceFirst(notesBlockRegex, '').trim();
+
+    if (code.isEmpty) {
+      notesBuffer.writeln('\ndef process(notes, time_ctx):\n    return notes\n');
+      return notesBuffer.toString();
+    }
+
+    return '${notesBuffer.toString()}\n\n$code';
   }
 }

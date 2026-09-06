@@ -7,6 +7,7 @@ import '../theme/eats_theme.dart';
 import '../utils/eats_file_helper.dart';
 import '../utils/url_script_helper.dart';
 import '../lua/default_song.dart';
+import '../eatscript/default_song_eat.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
 import 'widgets/skeuomorphic_hardware_switch.dart';
 import 'widgets/glowing_nixie_display.dart';
@@ -329,7 +330,7 @@ class TransportHeader extends StatelessWidget {
                             controller: gistUrlController,
                             style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12),
                             decoration: InputDecoration(
-                              hintText: 'Paste Gist ID, Gist URL, or Lua script URL...',
+                              hintText: 'Paste Gist ID, Gist URL, or Eatscript URL...',
                               hintStyle: TextStyle(color: EatsTheme.textMuted, fontSize: 11),
                               labelText: 'LOAD FROM GITHUB GIST / URL',
                               labelStyle: TextStyle(color: EatsTheme.primaryCyan, fontSize: 10, fontWeight: FontWeight.bold),
@@ -361,7 +362,7 @@ class TransportHeader extends StatelessWidget {
                                   final input = gistUrlController.text.trim();
                                   if (input.isEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Please enter a GitHub Gist ID, URL, or Lua script link')),
+                                      const SnackBar(content: Text('Please enter a GitHub Gist ID, URL, or Eatscript link')),
                                     );
                                     return;
                                   }
@@ -373,7 +374,7 @@ class TransportHeader extends StatelessWidget {
                                   if (content != null && content.isNotEmpty) {
                                     controller.text = content;
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Successfully loaded Lua script! Click "Import" to load project.')),
+                                      const SnackBar(content: Text('Successfully loaded script! Click "Import" to load project.')),
                                     );
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -409,7 +410,7 @@ class TransportHeader extends StatelessWidget {
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: controller.text));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Copied .eats.lua to clipboard!')),
+                      const SnackBar(content: Text('Copied Eatscript project to clipboard!')),
                     );
                   },
                 ),
@@ -422,7 +423,7 @@ class TransportHeader extends StatelessWidget {
                       dawState.loadFromEatsLua(controller.text);
                       Navigator.of(context).pop();
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Imported project from .eats.lua script!')),
+                        const SnackBar(content: Text('Imported project from Eatscript!')),
                       );
                     }
                   },
@@ -527,7 +528,7 @@ class TransportHeader extends StatelessWidget {
                           Expanded(
                             child: _buildHubActionButton(
                               icon: Icons.save,
-                              label: 'SAVE (.eats.lua)',
+                              label: 'SAVE (.eats)',
                               color: EatsTheme.accentGold,
                               onTap: () {
                                 Navigator.of(context).pop();
@@ -539,7 +540,7 @@ class TransportHeader extends StatelessWidget {
                           Expanded(
                             child: _buildHubActionButton(
                               icon: Icons.folder_open,
-                              label: 'LOAD (.eats.lua)',
+                              label: 'LOAD (.eats)',
                               color: EatsTheme.primaryCyan,
                               onTap: () {
                                 Navigator.of(context).pop();
@@ -639,7 +640,7 @@ class TransportHeader extends StatelessWidget {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        'Silently writes .eats.lua snapshot to local storage',
+                                        'Silently writes .eats snapshot to local storage',
                                         style: TextStyle(color: EatsTheme.textMuted, fontSize: 10),
                                       ),
                                     ],
@@ -669,7 +670,7 @@ class TransportHeader extends StatelessWidget {
                                 icon: const Icon(Icons.refresh, size: 16),
                                 label: const Text('RESET TO DEFAULT TEMPLATE (CLEAN SLATE)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                                 onPressed: () {
-                                  dawState.loadFromEatsLua(DefaultSong.midnightBitesLua);
+                                  dawState.loadFromEatsLua(DefaultSongEat.midnightBitesEat);
                                   dawState.clearSavedSession();
                                   Navigator.of(context).pop();
                                   ScaffoldMessenger.of(context).showSnackBar(

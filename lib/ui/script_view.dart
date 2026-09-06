@@ -4,6 +4,7 @@ import '../models/daw_state.dart';
 import '../theme/eats_theme.dart';
 import '../lua/lua_engine.dart';
 import '../lua/midi_pipeline_engine.dart';
+import '../eatscript/eat_script_engine.dart';
 
 class ScriptView extends StatefulWidget {
   final DawState dawState;
@@ -19,58 +20,71 @@ class _ScriptViewState extends State<ScriptView> {
   late FocusNode _focusNode;
   LuaCompilationResult _compilationResult = LuaCompilationResult(
     isSuccess: true,
-    errorMessage: 'Ready',
+    errorMessage: 'Ready (Eatscript Engine)',
     params: [],
     scriptType: 'generator',
   );
 
   final List<Map<String, String>> _presetTemplates = [
     {
-      'name': 'Pattern Arpeggiator',
-      'code': '''-- Arpeggiator Clip Script (eatsbeats.v1)
-clip:registerParam("rate", 0.125, 1.0, 0.25)
+      'name': 'Generative Euclidean Rhythm (Eatscript)',
+      'code': '''# Generative Euclidean Rhythm (Eatscript)
+pulses = eat.param("pulses", 1, 16, 5, step=1)
+steps = eat.param("steps", 4, 32, 16, step=1)
+pitch = eat.param("pitch", 36, 84, 60, step=1)
 
-function process(notes, time_ctx)
-  return arpeggiate(notes, params.rate)
-end''',
+eat.clear_notes()
+for s in range(steps):
+    if eat.euclidean(s, steps=steps, pulses=pulses):
+        eat.add_note(pitch=pitch, start=s * 0.25, duration=0.20, velocity=0.9)
+''',
     },
     {
-      'name': 'Scale Snap (Major Scale)',
-      'code': '''-- Scale Snap Transformer (eatsbeats.v1)
-clip:registerParam("key", 0, 11, 0) -- 0 = C Major
+      'name': 'Generative Acid Bassline (Eatscript)',
+      'code': '''# Generative Acid Bassline (Eatscript)
+scale = eat.scale("D3", "minor_pentatonic")
+steps = eat.param("steps", 8, 32, 16, step=1)
 
-function process(notes, time_ctx)
-  return scale_snap(notes, params.key)
-end''',
+eat.clear_notes()
+for s in range(steps):
+    if eat.euclidean(s, steps=steps, pulses=7):
+        p = scale[s % len(scale)]
+        eat.add_note(pitch=p, start=s * 0.25, duration=0.22, velocity=0.85)
+''',
     },
     {
-      'name': 'Humanize Velocity & Timing',
-      'code': '''-- Humanizer Hook (eatsbeats.v1)
-clip:registerParam("timing", 0.0, 0.1, 0.02)
-clip:registerParam("velocity", 0.0, 0.3, 0.08)
-
-function process(notes, time_ctx)
-  return humanize(notes, params.timing, params.velocity)
-end''',
+      'name': 'Pattern Arpeggiator (Eatscript)',
+      'code': '''# Pattern Arpeggiator (Eatscript)
+rate = eat.param("rate", 0.125, 1.0, 0.25)
+notes = eat.get_notes()
+eat.arpeggiate(notes, rate=rate)
+''',
     },
     {
-      'name': 'Pitch Transpose (+2 Semitones)',
-      'code': '''-- Transpose Hook (eatsbeats.v1)
-clip:registerParam("semitones", -12, 12, 2)
+      'name': 'Scale Snap Conform (Eatscript)',
+      'code': '''# Scale Snap Transformer (Eatscript)
+key = eat.param("key", 0, 11, 0, step=1)
 
-function process(notes, time_ctx)
-  return transpose(notes, params.semitones)
-end''',
+for n in eat.get_notes():
+    n['pitch'] = eat.scale_conform(n['pitch'], root=key, is_minor=False)
+''',
     },
     {
-      'name': 'Euclidean Rhythm Generator',
-      'code': '''-- Generative Euclidean Rhythm (eatsbeats.v1)
-clip:registerParam("pulses", 1, 16, 5)
-clip:registerParam("steps", 4, 32, 16)
+      'name': 'Humanize Velocity & Timing (Eatscript)',
+      'code': '''# Humanizer Hook (Eatscript)
+timing = eat.param("timing", 0.0, 0.1, 0.02)
+velocity = eat.param("velocity", 0.0, 0.3, 0.08)
 
-function process(notes, time_ctx)
-  return generate_euclidean(params.pulses, params.steps, 60)
-end''',
+eat.humanize(timing=timing, velocity=velocity)
+''',
+    },
+    {
+      'name': 'Pitch Transposition (Eatscript)',
+      'code': '''# Transposition Hook (Eatscript)
+semitones = eat.param("semitones", -12, 12, 2, step=1)
+
+eat.transpose(semitones=semitones)
+''',
     },
   ];
 
@@ -79,11 +93,9 @@ end''',
     super.initState();
     final clip = widget.dawState.activeTrackClip;
 
-    // Synchronize visual notes into Lua table code on demand
-    final initialCode = MidiPipelineEngine.serializeNotesToLua(
-      clip.notes,
-      existingCode: clip.luaScriptCode.isNotEmpty ? clip.luaScriptCode : null,
-    );
+    final initialCode = clip.luaScriptCode.isNotEmpty
+        ? clip.luaScriptCode
+        : _presetTemplates.first['code']!;
 
     clip.luaScriptCode = initialCode;
     _codeController = TextEditingController(text: initialCode);
@@ -100,7 +112,12 @@ end''',
 
   void _recompile(String code) {
     setState(() {
-      _compilationResult = LuaEngine.compile(code);
+      if (code.contains('eat.') || code.contains('def ') || code.contains('for ') || code.contains('#')) {
+        final res = EatScriptEngine.compile(code);
+        _compilationResult = res.toLuaCompilationResult();
+      } else {
+        _compilationResult = LuaEngine.compile(code);
+      }
     });
   }
 
@@ -117,11 +134,26 @@ end''',
       }
     }
 
-    // Parse notes from Lua table if present and sync back to clip notes
-    final parsedNotes = MidiPipelineEngine.parseNotesFromLuaTable(code);
-    if (parsedNotes.isNotEmpty) {
-      clip.notes = parsedNotes;
-      track.notes = parsedNotes;
+    if (code.contains('eat.') || code.contains('def ') || code.contains('for ') || code.contains('#')) {
+      final generatedNotes = EatScriptEngine.executeClipScript(
+        code,
+        clip.notes,
+        paramValues: clip.luaParams,
+        tempo: widget.dawState.bpm,
+        keyRoot: widget.dawState.songKeyRoot,
+        isMinor: widget.dawState.isSongKeyMinor,
+      );
+      if (generatedNotes.isNotEmpty) {
+        clip.notes = generatedNotes;
+        track.notes = generatedNotes;
+      }
+    } else {
+      // Parse notes from legacy Lua table if present and sync back to clip notes
+      final parsedNotes = MidiPipelineEngine.parseNotesFromLuaTable(code);
+      if (parsedNotes.isNotEmpty) {
+        clip.notes = parsedNotes;
+        track.notes = parsedNotes;
+      }
     }
 
     // Re-evaluate clip notes through MidiPipelineEngine

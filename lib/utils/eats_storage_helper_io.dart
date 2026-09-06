@@ -18,7 +18,12 @@ class EatsStorageHelperImpl {
   static final Map<String, String> _testProjects = {};
   static String? _testSessionLua;
 
-  static bool get _isTest => PlatformEnvHelper.isFlutterTest;
+  static bool? _testModeOverride;
+  static void setTestMode(bool value) {
+    _testModeOverride = value;
+  }
+
+  static bool get _isTest => _testModeOverride ?? PlatformEnvHelper.isFlutterTest;
 
   static io.Directory _getBaseDirectory() {
     if (_baseDir != null) return _baseDir!;
@@ -96,7 +101,11 @@ class EatsStorageHelperImpl {
         debugPrint('Error creating sessions directory: $e');
       }
     }
-    return io.File('${sessDir.path}/autosave.eats.lua');
+    final eatsFile = io.File('${sessDir.path}/autosave.eats');
+    if (eatsFile.existsSync()) return eatsFile;
+    final legacyFile = io.File('${sessDir.path}/autosave.eats.lua');
+    if (legacyFile.existsSync()) return legacyFile;
+    return eatsFile;
   }
 
   static Map<String, dynamic> _loadSettingsSync() {
@@ -457,7 +466,7 @@ class EatsStorageHelperImpl {
       return _testProjects.entries.map((e) {
         return SavedProjectItem(
           id: e.key,
-          name: e.key.replaceAll('.eats.lua', ''),
+          name: e.key.replaceAll('.eats.lua', '').replaceAll('.eats', '').replaceAll('.eat', ''),
           fileName: e.key,
           filePath: 'Projects/${e.key}',
           fileSizeBytes: utf8.encode(e.value).length,
@@ -475,11 +484,20 @@ class EatsStorageHelperImpl {
           if (entity is io.File) {
             final fileName = entity.uri.pathSegments.last;
             final lower = fileName.toLowerCase();
-            if (lower.endsWith('.eats.lua') || lower.endsWith('.lua') || lower.endsWith('.json') || lower.endsWith('.mid')) {
+            if (lower.endsWith('.eats') ||
+                lower.endsWith('.eat') ||
+                lower.endsWith('.eats.lua') ||
+                lower.endsWith('.lua') ||
+                lower.endsWith('.json') ||
+                lower.endsWith('.mid')) {
               final stat = await entity.stat();
               String displayName = fileName;
               if (displayName.toLowerCase().endsWith('.eats.lua')) {
                 displayName = displayName.substring(0, displayName.length - 9);
+              } else if (displayName.toLowerCase().endsWith('.eats')) {
+                displayName = displayName.substring(0, displayName.length - 5);
+              } else if (displayName.toLowerCase().endsWith('.eat')) {
+                displayName = displayName.substring(0, displayName.length - 4);
               } else if (displayName.contains('.')) {
                 displayName = displayName.substring(0, displayName.lastIndexOf('.'));
               }
@@ -507,9 +525,10 @@ class EatsStorageHelperImpl {
 
   static Future<SavedProjectItem?> saveProjectFile(String name, String luaCode) async {
     final sanitizedName = name.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-    final fileName = sanitizedName.toLowerCase().endsWith('.eats.lua')
+    final lower = sanitizedName.toLowerCase();
+    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eat') || lower.endsWith('.eats.lua'))
         ? sanitizedName
-        : '$sanitizedName.eats.lua';
+        : '$sanitizedName.eats';
 
     if (_isTest) {
       _testProjects[fileName] = luaCode;
@@ -595,7 +614,10 @@ class EatsStorageHelperImpl {
 
   static Future<bool> renameProjectFile(SavedProjectItem item, String newName) async {
     final sanitized = newName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-    final newFileName = sanitized.toLowerCase().endsWith('.eats.lua') ? sanitized : '$sanitized.eats.lua';
+    final lower = sanitized.toLowerCase();
+    final newFileName = (lower.endsWith('.eats') || lower.endsWith('.eat') || lower.endsWith('.eats.lua'))
+        ? sanitized
+        : '$sanitized.eats';
 
     if (_isTest) {
       final code = _testProjects.remove(item.fileName) ?? _testProjects.remove(item.id) ?? '';

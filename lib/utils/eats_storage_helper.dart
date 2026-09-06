@@ -90,4 +90,6 @@ class EatsStorageHelper {
 
   static Future<bool> renameProjectFile(SavedProjectItem item, String newName) =>
       EatsStorageHelperImpl.renameProjectFile(item, newName);
+
+  static void setTestMode(bool value) => EatsStorageHelperImpl.setTestMode(value);
 }

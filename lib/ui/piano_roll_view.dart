@@ -2948,7 +2948,7 @@ child: ScrollConfiguration(
                         Icon(Icons.code, size: 9, color: activeLane.isCustomLua ? EatsTheme.accentGreen : EatsTheme.textLight),
                         const SizedBox(width: 2),
                         Text(
-                          activeLane.isCustomLua ? 'LUA FX' : 'LUA',
+                          activeLane.isCustomLua ? 'EATSCRIPT FX' : 'SCRIPT',
                           style: TextStyle(
                             color: activeLane.isCustomLua ? EatsTheme.accentGreen : EatsTheme.textLight,
                             fontSize: 8,
@@ -3021,7 +3021,7 @@ child: ScrollConfiguration(
             Icon(Icons.code, color: EatsTheme.primaryCyan, size: 18),
             const SizedBox(width: 8),
             Text(
-              'Lua Automation: ${lane.name}',
+              'Eatscript Automation: ${lane.name}',
               style: TextStyle(color: EatsTheme.textLight, fontSize: 13, fontWeight: FontWeight.bold),
             ),
           ],
@@ -3033,7 +3033,7 @@ child: ScrollConfiguration(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Edit the Lua script to define custom mathematical LFOs, procedural sweeps, or envelope expressions.',
+                'Edit the Eatscript code to define custom mathematical LFOs, procedural sweeps, or envelope expressions.',
                 style: TextStyle(color: EatsTheme.textMuted, fontSize: 11),
               ),
               const SizedBox(height: 8),

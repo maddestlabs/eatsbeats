@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 import '../models/saved_project_model.dart';
 
 class EatsStorageHelperImpl {
+  static void setTestMode(bool value) {}
+
   static const String _dbName = 'eatsbeats_storage_db';
   static const int _dbVersion = 1;
   static const String _soundFontStore = 'soundfonts';
@@ -232,7 +234,10 @@ class EatsStorageHelperImpl {
   static Future<SavedProjectItem?> saveProjectFile(String name, String luaCode) async {
     final sanitized = name.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final id = 'proj_${DateTime.now().millisecondsSinceEpoch}';
-    final fileName = sanitized.toLowerCase().endsWith('.eats.lua') ? sanitized : '$sanitized.eats.lua';
+    final lower = sanitized.toLowerCase();
+    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eat') || lower.endsWith('.eats.lua'))
+        ? sanitized
+        : '$sanitized.eats';
 
     try {
       final item = SavedProjectItem(
@@ -281,7 +286,10 @@ class EatsStorageHelperImpl {
 
   static Future<bool> renameProjectFile(SavedProjectItem item, String newName) async {
     final sanitized = newName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-    final fileName = sanitized.toLowerCase().endsWith('.eats.lua') ? sanitized : '$sanitized.eats.lua';
+    final lower = sanitized.toLowerCase();
+    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eat') || lower.endsWith('.eats.lua'))
+        ? sanitized
+        : '$sanitized.eats';
 
     try {
       final list = await listSavedProjects();

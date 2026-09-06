@@ -9,6 +9,7 @@ import '../models/automation_model.dart';
 import '../models/track_model.dart';
 import 'lua_gui_model.dart';
 import 'lua_gui_parser.dart';
+import '../eatscript/eat_script_engine.dart';
 
 class LuaParamDef {
   final String name;
@@ -156,6 +157,18 @@ class LuaEngine {
         errorMessage: 'Lua script code is empty.',
         params: [],
         scriptType: 'synth',
+      );
+    }
+
+    if (code.contains('eat.') || code.contains('def ') || code.startsWith('#')) {
+      final eatRes = EatScriptEngine.compile(code);
+      return LuaCompilationResult(
+        isSuccess: eatRes.isSuccess,
+        errorMessage: eatRes.errorMessage,
+        errorLine: eatRes.errorLine,
+        params: eatRes.params,
+        scriptType: eatRes.scriptType,
+        guiLayout: eatRes.guiLayout,
       );
     }
 

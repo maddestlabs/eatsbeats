@@ -1,10 +1,15 @@
 import 'pipe_family_presets.dart';
 import 'brass_reed_family_presets.dart';
+import '../eatscript/eat_script_engine.dart';
+import '../eatscript/eat_transpiler.dart';
 
-// Backwards-compatibility aliases for LuaScript definitions
+// Backwards-compatibility aliases for LuaScript definitions & Eatscript branding
 typedef LuaPreset = LuaScriptDef;
 typedef LuaPresetCategory = LuaScriptCategory;
 typedef LuaPresetLibrary = LuaScriptLibrary;
+typedef EatPreset = LuaScriptDef;
+typedef EatScriptCategory = LuaScriptCategory;
+typedef EatScriptLibrary = LuaScriptLibrary;
 
 enum LuaScriptCategory {
   instrument,
@@ -78,6 +83,12 @@ class LuaScriptDef {
   bool get isMidiSeq => category == LuaScriptCategory.midiSeq;
   bool get isNoteSplitter => category == LuaScriptCategory.noteSplitter;
   bool get isProjectAction => category == LuaScriptCategory.projectAction;
+
+  /// Returns the script formatted as Eatscript, transpiling legacy Lua on demand.
+  String get eatCode {
+    if (EatScriptEngine.isEatScript(code)) return code;
+    return EatTranspiler.transpileLuaPreset(code);
+  }
 
   List<String> get effectiveTags {
     if (tags.isNotEmpty) return tags;
@@ -173,18 +184,19 @@ class LuaScriptLibrary {
     final lines = luaCode.split('\n');
     for (final line in lines) {
       final trimmed = line.trim();
-      if (trimmed.startsWith('-- @name:')) {
-        name = trimmed.substring(9).trim();
-      } else if (trimmed.startsWith('-- @category:')) {
-        category = LuaScriptCategory.parse(trimmed.substring(13).trim());
-      } else if (trimmed.startsWith('-- @description:')) {
-        description = trimmed.substring(16).trim();
-      } else if (trimmed.startsWith('-- @tags:') || trimmed.startsWith('-- @tag:')) {
-        final prefixLen = trimmed.startsWith('-- @tags:') ? 9 : 8;
-        final rawTags = trimmed.substring(prefixLen).split(',');
+      final clean = trimmed.startsWith('--') ? trimmed.substring(2).trim() : (trimmed.startsWith('#') ? trimmed.substring(1).trim() : trimmed);
+      if (clean.startsWith('@name:')) {
+        name = clean.substring(6).trim();
+      } else if (clean.startsWith('@category:')) {
+        category = LuaScriptCategory.parse(clean.substring(10).trim());
+      } else if (clean.startsWith('@description:')) {
+        description = clean.substring(13).trim();
+      } else if (clean.startsWith('@tags:') || clean.startsWith('@tag:')) {
+        final prefixLen = clean.startsWith('@tags:') ? 6 : 5;
+        final rawTags = clean.substring(prefixLen).split(',');
         for (final t in rawTags) {
-          final clean = t.trim().toLowerCase();
-          if (clean.isNotEmpty && !tags.contains(clean)) tags.add(clean);
+          final ct = t.trim().toLowerCase();
+          if (ct.isNotEmpty && !tags.contains(ct)) tags.add(ct);
         }
       }
     }
@@ -249,10 +261,11 @@ class LuaScriptLibrary {
     String? explicitName;
     for (final line in lines) {
       final trimmed = line.trim();
-      if (trimmed.startsWith('-- @id:')) {
-        explicitId = trimmed.substring(7).trim();
-      } else if (trimmed.startsWith('-- @name:')) {
-        explicitName = trimmed.substring(9).trim();
+      final clean = trimmed.startsWith('--') ? trimmed.substring(2).trim() : (trimmed.startsWith('#') ? trimmed.substring(1).trim() : trimmed);
+      if (clean.startsWith('@id:')) {
+        explicitId = clean.substring(4).trim();
+      } else if (clean.startsWith('@name:')) {
+        explicitName = clean.substring(6).trim();
       }
     }
 
@@ -8975,54 +8988,58 @@ return SoundFontSampler
 ''',
     ),
 
-    // 14. Lua MIDI Arpeggiator FX
+    // 14. Eatscript MIDI Arpeggiator FX
     LuaPreset(
       id: 'arpeggiator_midi_fx',
       name: 'Arpeggiator FX',
       category: LuaPresetCategory.midiFx,
       description: 'Advanced MIDI arpeggiator with multi-octave cycling, rate dividers, gate, swing, and 8 pattern modes.',
       code: '''
--- @name: Arpeggiator FX
--- @category: midiFx
--- @description: Advanced melodic MIDI arpeggiator with multi-octave cycling and pattern modes.
-local ArpeggiatorMidiFX = {}
+# @id: arpeggiator_midi_fx
+# @name: Arpeggiator FX
+# @category: midiFx
+# @description: Advanced melodic MIDI arpeggiator with multi-octave cycling and pattern modes.
 
-function ArpeggiatorMidiFX.init()
-  Param.add("Rate", 0.25, 4.0, 1.0, 0.25)
-  Param.add("Octaves", 1.0, 4.0, 2.0, 1.0)
-  Param.choice("Pattern", {"Up", "Down", "UpDown", "DownUp", "Converge", "Diverge", "Random", "Chord", "AsPlayed"}, 0.0)
-  Param.add("Gate", 0.1, 2.0, 0.85, 0.05)
-  Param.add("Swing", 0.0, 0.5, 0.0, 0.05)
-end
-
-function ArpeggiatorMidiFX.transform_notes(notes, params, timeContext)
-  return Midi.arpeggiate(notes, params, timeContext)
-end
-
-function ArpeggiatorMidiFX.gui()
-  return {
-    panel = {
-      title = "Arpeggiator FX",
-      subtitle = "Melodic Note Arpeggiator & Gate Modulator",
-      background = "dark",
-      accent = "#FFD700",
-      layout = {
-        {
-          type = "row",
-          children = {
-            { type = "knob", param = "Rate", label = "RATE", unit = "x", size = 52 },
-            { type = "knob", param = "Octaves", label = "OCTAVES", size = 52 },
-            { type = "listbox", param = "Pattern", label = "PATTERN", width = 110, height = 70 },
-            { type = "knob", param = "Gate", label = "GATE", size = 52 },
-            { type = "knob", param = "Swing", label = "SWING", size = 52 },
-          }
-        }
-      }
+def init():
+    return {
+        "Rate": eat.param("Rate", 0.25, 4.0, 1.0, step=0.25),
+        "Octaves": eat.param("Octaves", 1.0, 4.0, 2.0, step=1.0),
+        "Pattern": eat.param("Pattern", 0.0, 8.0, 0.0, options=["Up", "Down", "UpDown", "DownUp", "Converge", "Diverge", "Random", "Chord", "AsPlayed"]),
+        "Gate": eat.param("Gate", 0.1, 2.0, 0.85, step=0.05),
+        "Swing": eat.param("Swing", 0.0, 0.5, 0.0, step=0.05),
     }
-  }
-end
 
-return ArpeggiatorMidiFX
+def transform_notes(notes, params, time_context):
+    return eat.arpeggiate(
+        notes,
+        rate=params.get("Rate", 1.0),
+        octaves=params.get("Octaves", 2.0),
+        pattern=params.get("Pattern", "Up"),
+        gate=params.get("Gate", 0.85),
+        swing=params.get("Swing", 0.0),
+    )
+
+def gui():
+    return {
+        "panel": {
+            "title": "Arpeggiator FX",
+            "subtitle": "Melodic Note Arpeggiator & Gate Modulator",
+            "background": "dark",
+            "accent": "#FFD700",
+            "layout": [
+                {
+                    "type": "row",
+                    "children": [
+                        {"type": "knob", "param": "Rate", "label": "RATE", "unit": "x", "size": 52},
+                        {"type": "knob", "param": "Octaves", "label": "OCTAVES", "size": 52},
+                        {"type": "listbox", "param": "Pattern", "label": "PATTERN", "width": 110, "height": 70},
+                        {"type": "knob", "param": "Gate", "label": "GATE", "size": 52},
+                        {"type": "knob", "param": "Swing", "label": "SWING", "size": 52},
+                    ]
+                }
+            ]
+        }
+    }
 ''',
     ),
 
@@ -9245,59 +9262,55 @@ end
       category: LuaPresetCategory.midiFx,
       description: 'Conforms incoming notes non-destructively to the active project Chord Track.',
       code: '''
--- @name: Harmonic Chord Follower FX
--- @category: midiFx
--- @description: Conforms incoming notes non-destructively to active project Chord Track.
-local ChordFollower = {}
+# @id: chord_follower_midi_fx
+# @name: Harmonic Chord Follower FX
+# @category: midiFx
+# @description: Conforms incoming notes non-destructively to active project Chord Track.
 
-function ChordFollower.init()
-  Param.choice("Mode", {"Chord Tones", "Bass Root", "Scale Steps", "Color Extensions"}, 0.0)
-end
+def init():
+    return {
+        "Mode": eat.param("Mode", 0.0, 3.0, 0.0, options=["Chord Tones", "Bass Root", "Scale Steps", "Color Extensions"]),
+    }
 
-function ChordFollower.transform_notes(notes, params, timeContext)
-  return Midi.chord_follow(notes, params["Mode"] or 0, timeContext)
-end
+def transform_notes(notes, params, time_context):
+    return eat.chord_follow(notes, mode=params.get("Mode", 0.0))
 
-function ChordFollower.gui()
-  return {
-    panel = {
-      title = "Harmonic Chord Follower FX",
-      subtitle = "Project Chord Track Harmonizer",
-      background = "dark",
-      accent = "#FF8C00",
-      layout = {
-        {
-          type = "row",
-          children = {
-            { type = "listbox", param = "Mode", label = "HARMONIC MODE", width = 140, height = 70 },
-          }
+def gui():
+    return {
+        "panel": {
+            "title": "Harmonic Chord Follower FX",
+            "subtitle": "Project Chord Track Harmonizer",
+            "background": "dark",
+            "accent": "#FF8C00",
+            "layout": [
+                {
+                    "type": "row",
+                    "children": [
+                        {"type": "listbox", "param": "Mode", "label": "HARMONIC MODE", "width": 140, "height": 70},
+                    ]
+                }
+            ]
         }
-      }
     }
-  }
-end
 
-function ChordFollower.rack()
-  return {
-    rows = {
-      {
-        { id = "midi_in",     title = "MIDI NOTE IN", hp = 14, row = 1, category = "MOD" },
-        { id = "chord_track", title = "CHORD TRACK REF", hp = 16, row = 1, category = "MOD" },
-      },
-      {
-        { id = "harmonizer", title = "HARMONIZER ENGINE", hp = 16, row = 2, category = "MOD" },
-        { id = "midi_out",   title = "MIDI NOTE OUT", hp = 14, row = 2, category = "MOD" },
-      },
-    },
-    cables = {
-      { from = "1:0:1", to = "2:0:0", color = "pitch" },
-      { from = "1:1:1", to = "2:0:1", color = "modulation" },
-      { from = "2:0:1", to = "2:1:0", color = "pitch" },
+def rack():
+    return {
+        "rows": [
+            [
+                {"id": "midi_in", "title": "MIDI NOTE IN", "hp": 14, "row": 1, "category": "MOD"},
+                {"id": "chord_track", "title": "CHORD TRACK REF", "hp": 16, "row": 1, "category": "MOD"},
+            ],
+            [
+                {"id": "harmonizer", "title": "HARMONIZER ENGINE", "hp": 16, "row": 2, "category": "MOD"},
+                {"id": "midi_out", "title": "MIDI NOTE OUT", "hp": 14, "row": 2, "category": "MOD"},
+            ],
+        ],
+        "cables": [
+            {"from": "1:0:1", "to": "2:0:0", "color": "pitch"},
+            {"from": "1:1:1", "to": "2:0:1", "color": "modulation"},
+            {"from": "2:0:1", "to": "2:1:0", "color": "pitch"},
+        ]
     }
-  }
-end
-
-return ChordFollower
 ''',
     ),
 
@@ -9308,64 +9321,66 @@ return ChordFollower
       category: LuaPresetCategory.midiFx,
       description: 'Generates running arpeggio lines voiced directly from the active chord pitch classes.',
       code: '''
--- @name: Chord Arpeggiator FX
--- @category: midiFx
--- @description: Dynamic arpeggiator voiced to active project Chord Track.
-local ChordArp = {}
+# @id: chord_arp_midi_fx
+# @name: Chord Arpeggiator FX
+# @category: midiFx
+# @description: Dynamic arpeggiator voiced to active project Chord Track.
 
-function ChordArp.init()
-  Param.add("Rate", 0.25, 4.0, 1.0, 0.25)
-  Param.add("Octaves", 1.0, 4.0, 2.0, 1.0)
-  Param.choice("Pattern", {"Up", "Down", "UpDown", "Random"}, 0.0)
-  Param.add("Gate", 0.1, 2.0, 0.85, 0.05)
-end
+def init():
+    return {
+        "Rate": eat.param("Rate", 0.25, 4.0, 1.0, step=0.25),
+        "Octaves": eat.param("Octaves", 1.0, 4.0, 2.0, step=1.0),
+        "Pattern": eat.param("Pattern", 0.0, 3.0, 0.0, options=["Up", "Down", "UpDown", "Random"]),
+        "Gate": eat.param("Gate", 0.1, 2.0, 0.85, step=0.05),
+    }
 
-function ChordArp.transform_notes(notes, params, timeContext)
-  return Midi.chord_arp(notes, params, timeContext)
-end
+def transform_notes(notes, params, time_context):
+    return eat.chord_arp(
+        notes,
+        rate=params.get("Rate", 1.0),
+        octaves=params.get("Octaves", 1.0),
+        pattern=params.get("Pattern", "Up"),
+        gate=params.get("Gate", 0.85)
+    )
 
-function ChordArp.gui()
-  return {
-    panel = {
-      title = "Chord Arpeggiator FX",
-      subtitle = "Chord Progression Voiced Arpeggiator",
-      background = "dark",
-      accent = "#00FF9D",
-      layout = {
-        {
-          type = "row",
-          children = {
-            { type = "knob", param = "Rate", label = "RATE", unit = "x", size = 52 },
-            { type = "knob", param = "Octaves", label = "OCTAVES", size = 52 },
-            { type = "listbox", param = "Pattern", label = "PATTERN", width = 100, height = 65 },
-            { type = "knob", param = "Gate", label = "GATE", size = 52 },
-          }
+def gui():
+    return {
+        "panel": {
+            "title": "Chord Arpeggiator FX",
+            "subtitle": "Chord Progression Voiced Arpeggiator",
+            "background": "dark",
+            "accent": "#00FF9D",
+            "layout": [
+                {
+                    "type": "row",
+                    "children": [
+                        {"type": "knob", "param": "Rate", "label": "RATE", "unit": "x", "size": 52},
+                        {"type": "knob", "param": "Octaves", "label": "OCTAVES", "size": 52},
+                        {"type": "listbox", "param": "Pattern", "label": "PATTERN", "width": 100, "height": 65},
+                        {"type": "knob", "param": "Gate", "label": "GATE", "size": 52},
+                    ]
+                }
+            ]
         }
-      }
     }
-  }
-end
 
-function ChordArp.rack()
-  return {
-    rows = {
-      {
-        { id = "chord_ref",  title = "CHORD TRACK REF", hp = 14, row = 1, category = "MOD" },
-        { id = "arp_engine", title = "CHORD ARP ENGINE", hp = 16, row = 1, category = "MOD" },
-      },
-      {
-        { id = "gate_clock", title = "GATE / SWING CLOCK", hp = 14, row = 2, category = "MOD" },
-        { id = "midi_out",   title = "MIDI NOTE OUT", hp = 14, row = 2, category = "MOD" },
-      },
-    },
-    cables = {
-      { from = "1:0:1", to = "1:1:0", color = "pitch" },
-      { from = "1:1:1", to = "2:1:0", color = "pitch" },
+def rack():
+    return {
+        "rows": [
+            [
+                {"id": "chord_ref", "title": "CHORD TRACK REF", "hp": 14, "row": 1, "category": "MOD"},
+                {"id": "arp_engine", "title": "CHORD ARP ENGINE", "hp": 16, "row": 1, "category": "MOD"},
+            ],
+            [
+                {"id": "gate_clock", "title": "GATE / SWING CLOCK", "hp": 14, "row": 2, "category": "MOD"},
+                {"id": "midi_out", "title": "MIDI NOTE OUT", "hp": 14, "row": 2, "category": "MOD"},
+            ],
+        ],
+        "cables": [
+            {"from": "1:0:1", "to": "1:1:0", "color": "pitch"},
+            {"from": "1:1:1", "to": "2:1:0", "color": "pitch"},
+        ]
     }
-  }
-end
-
-return ChordArp
 ''',
     ),
 
@@ -9376,60 +9391,56 @@ return ChordArp
       category: LuaPresetCategory.midiFx,
       description: 'Quantizes note pitches non-destructively to musical scale degrees.',
       code: '''
--- @name: Scale Snap FX
--- @category: midiFx
--- @description: Quantizes note pitches non-destructively to musical scale degrees.
-local ScaleSnap = {}
+# @id: scale_snap_midi_fx
+# @name: Scale Snap FX
+# @category: midiFx
+# @description: Quantizes note pitches non-destructively to musical scale degrees.
 
-function ScaleSnap.init()
-  Param.add("Key", 0.0, 11.0, 0.0, 1.0)
-  Param.choice("Scale", {"Major", "Natural Minor", "Harmonic Minor", "Melodic Minor", "Dorian", "Mixolydian", "Pentatonic", "Blues"}, 0.0)
-end
+def init():
+    return {
+        "Key": eat.param("Key", 0.0, 11.0, 0.0, step=1.0),
+        "Scale": eat.param("Scale", 0.0, 7.0, 0.0, options=["Major", "Natural Minor", "Harmonic Minor", "Melodic Minor", "Dorian", "Mixolydian", "Pentatonic", "Blues"]),
+    }
 
-function ScaleSnap.transform_notes(notes, params, timeContext)
-  return Midi.scale_snap(notes, params, timeContext)
-end
+def transform_notes(notes, params, time_context):
+    return eat.scale_snap(notes, key=params.get("Key", 0.0), scale=params.get("Scale", 0.0))
 
-function ScaleSnap.gui()
-  return {
-    panel = {
-      title = "Scale Snap FX",
-      subtitle = "Musical Pitch Quantizer & Scale Snapper",
-      background = "dark",
-      accent = "#00E5FF",
-      layout = {
-        {
-          type = "row",
-          children = {
-            { type = "nixie", param = "Key", label = "ROOT KEY" },
-            { type = "listbox", param = "Scale", label = "SCALE MODE", width = 130, height = 70 },
-          }
+def gui():
+    return {
+        "panel": {
+            "title": "Scale Snap FX",
+            "subtitle": "Musical Pitch Quantizer & Scale Snapper",
+            "background": "dark",
+            "accent": "#00E5FF",
+            "layout": [
+                {
+                    "type": "row",
+                    "children": [
+                        {"type": "nixie", "param": "Key", "label": "ROOT KEY"},
+                        {"type": "listbox", "param": "Scale", "label": "SCALE MODE", "width": 130, "height": 70},
+                    ]
+                }
+            ]
         }
-      }
     }
-  }
-end
 
-function ScaleSnap.rack()
-  return {
-    rows = {
-      {
-        { id = "midi_in",     title = "MIDI NOTE IN", hp = 14, row = 1, category = "MOD" },
-        { id = "scale_quant", title = "SCALE QUANTIZER", hp = 16, row = 1, category = "MOD" },
-      },
-      {
-        { id = "root_key", title = "ROOT KEY TRANSPOSE", hp = 14, row = 2, category = "MOD" },
-        { id = "midi_out", title = "QUANTIZED OUT", hp = 14, row = 2, category = "MOD" },
-      },
-    },
-    cables = {
-      { from = "1:0:1", to = "1:1:0", color = "pitch" },
-      { from = "1:1:1", to = "2:1:0", color = "pitch" },
+def rack():
+    return {
+        "rows": [
+            [
+                {"id": "midi_in", "title": "MIDI NOTE IN", "hp": 14, "row": 1, "category": "MOD"},
+                {"id": "scale_quant", "title": "SCALE QUANTIZER", "hp": 16, "row": 1, "category": "MOD"},
+            ],
+            [
+                {"id": "root_key", "title": "ROOT KEY TRANSPOSE", "hp": 14, "row": 2, "category": "MOD"},
+                {"id": "midi_out", "title": "QUANTIZED OUT", "hp": 14, "row": 2, "category": "MOD"},
+            ],
+        ],
+        "cables": [
+            {"from": "1:0:1", "to": "1:1:0", "color": "pitch"},
+            {"from": "1:1:1", "to": "2:1:0", "color": "pitch"},
+        ]
     }
-  }
-end
-
-return ScaleSnap
 ''',
     ),
 
@@ -9440,60 +9451,56 @@ return ScaleSnap
       category: LuaPresetCategory.midiFx,
       description: 'Adds organic human feel with micro-timing jitter and velocity dynamics.',
       code: '''
--- @name: Humanize & Groove FX
--- @category: midiFx
--- @description: Adds organic human feel with micro-timing jitter and velocity dynamics.
-local Humanize = {}
+# @id: humanize_midi_fx
+# @name: Humanize & Groove FX
+# @category: midiFx
+# @description: Adds organic human feel with micro-timing jitter and velocity dynamics.
 
-function Humanize.init()
-  Param.add("Timing", 0.0, 0.15, 0.04, 0.005)
-  Param.add("Velocity", 0.0, 0.5, 0.15, 0.02)
-end
+def init():
+    return {
+        "Timing": eat.param("Timing", 0.0, 0.15, 0.04, step=0.005),
+        "Velocity": eat.param("Velocity", 0.0, 0.5, 0.15, step=0.02),
+    }
 
-function Humanize.transform_notes(notes, params, timeContext)
-  return Midi.humanize(notes, params, timeContext)
-end
+def transform_notes(notes, params, time_context):
+    return eat.humanize(notes, timing=params.get("Timing", 0.04), velocity=params.get("Velocity", 0.15))
 
-function Humanize.gui()
-  return {
-    panel = {
-      title = "Humanize & Groove FX",
-      subtitle = "Organic Micro-Timing & Velocity Humanizer",
-      background = "dark",
-      accent = "#E040FB",
-      layout = {
-        {
-          type = "row",
-          children = {
-            { type = "knob", param = "Timing", label = "TIMING JITTER", size = 56 },
-            { type = "knob", param = "Velocity", label = "VEL DYNAMICS", size = 56 },
-          }
+def gui():
+    return {
+        "panel": {
+            "title": "Humanize & Groove FX",
+            "subtitle": "Organic Micro-Timing & Velocity Humanizer",
+            "background": "dark",
+            "accent": "#E040FB",
+            "layout": [
+                {
+                    "type": "row",
+                    "children": [
+                        {"type": "knob", "param": "Timing", "label": "TIMING JITTER", "size": 56},
+                        {"type": "knob", "param": "Velocity", "label": "VEL DYNAMICS", "size": 56},
+                    ]
+                }
+            ]
         }
-      }
     }
-  }
-end
 
-function Humanize.rack()
-  return {
-    rows = {
-      {
-        { id = "midi_in",    title = "MIDI NOTE IN", hp = 14, row = 1, category = "MOD" },
-        { id = "jitter_mod", title = "MICRO-TIMING JITTER", hp = 16, row = 1, category = "MOD" },
-      },
-      {
-        { id = "vel_human", title = "VELOCITY DYNAMICS", hp = 14, row = 2, category = "MOD" },
-        { id = "midi_out",  title = "GROOVE NOTE OUT", hp = 14, row = 2, category = "MOD" },
-      },
-    },
-    cables = {
-      { from = "1:0:1", to = "1:1:0", color = "pitch" },
-      { from = "1:1:1", to = "2:1:0", color = "pitch" },
+def rack():
+    return {
+        "rows": [
+            [
+                {"id": "midi_in", "title": "MIDI NOTE IN", "hp": 14, "row": 1, "category": "MOD"},
+                {"id": "jitter_mod", "title": "MICRO-TIMING JITTER", "hp": 16, "row": 1, "category": "MOD"},
+            ],
+            [
+                {"id": "vel_human", "title": "VELOCITY DYNAMICS", "hp": 14, "row": 2, "category": "MOD"},
+                {"id": "midi_out", "title": "GROOVE NOTE OUT", "hp": 14, "row": 2, "category": "MOD"},
+            ],
+        ],
+        "cables": [
+            {"from": "1:0:1", "to": "1:1:0", "color": "pitch"},
+            {"from": "1:1:1", "to": "2:1:0", "color": "pitch"},
+        ]
     }
-  }
-end
-
-return Humanize
 ''',
     ),
 
@@ -10628,35 +10635,24 @@ return Teleprompter
       name: '3-Way Voice Splitter (Bass, Chords, Lead)',
       category: LuaScriptCategory.noteSplitter,
       description: 'Separates polyphonic MIDI into dedicated Bass, Middle Harmony Chords, and Skyline Lead tracks.',
-      code: '''-- @name: 3-Way Voice Splitter (Bass, Chords, Lead)
--- @author: Eatsbeats
--- @category: note_splitter
--- @description: Separates polyphonic MIDI into dedicated Bass, Middle Harmony Chords, and Skyline Lead tracks.
--- @param: bass_split "Bass Cutoff (MIDI)" 48 24 60 1
--- @param: lead_split "Lead Threshold (MIDI)" 64 48 84 1
+      code: '''# @name: 3-Way Voice Splitter (Bass, Chords, Lead)
+# @author: Eatsbeats
+# @category: note_splitter
+# @description: Separates polyphonic MIDI into dedicated Bass, Middle Harmony Chords, and Skyline Lead tracks.
 
-function split(notes, params)
-  -- 3-Way Voice Splitter using Skyline Lead detection and Harmonic Bass isolation
-  local bass_track = {}
-  local chords_track = {}
-  local lead_track = {}
-  
-  for _, note in ipairs(notes) do
-    if note.pitch < params.bass_split then
-      table.insert(bass_track, note)
-    elseif note.pitch >= params.lead_split and is_skyline(note, notes) then
-      table.insert(lead_track, note)
-    else
-      table.insert(chords_track, note)
-    end
-  end
-  
-  return {
-    { name = "Bassline", notes = bass_track, color = 0xFF00FF66 },
-    { name = "Harmony & Chords", notes = chords_track, color = 0xFF21F4E8 },
-    { name = "Lead Melody", notes = lead_track, color = 0xFFFF007A },
-  }
-end
+def init():
+    return {
+        "bass_split": eat.param("bass_split", 24, 60, 48, step=1),
+        "lead_split": eat.param("lead_split", 48, 84, 64, step=1),
+    }
+
+def split(notes, params):
+    # Evaluated by NoteSplitterEngine
+    return [
+        {"name": "Bassline", "color": 0xFF00FF66},
+        {"name": "Harmony & Chords", "color": 0xFF21F4E8},
+        {"name": "Lead Melody", "color": 0xFFFF007A},
+    ]
 ''',
     ),
     LuaScriptDef(
@@ -10664,29 +10660,21 @@ end
       name: 'Bass & Treble Clef Splitter (Piano)',
       category: LuaScriptCategory.noteSplitter,
       description: 'Splits notes at a pivot key into Left Hand (Bass Clef) and Right Hand (Treble Clef) tracks.',
-      code: '''-- @name: Bass & Treble Clef Splitter
--- @author: Eatsbeats
--- @category: note_splitter
--- @description: Splits notes at a pivot key into Left Hand (Bass Clef) and Right Hand (Treble Clef) tracks.
--- @param: split_pitch "Pivot Key (MIDI)" 60 36 84 1
+      code: '''# @name: Bass & Treble Clef Splitter
+# @author: Eatsbeats
+# @category: note_splitter
+# @description: Splits notes at a pivot key into Left Hand (Bass Clef) and Right Hand (Treble Clef) tracks.
 
-function split(notes, params)
-  local left_hand = {}
-  local right_hand = {}
-  
-  for _, note in ipairs(notes) do
-    if note.pitch < params.split_pitch then
-      table.insert(left_hand, note)
-    else
-      table.insert(right_hand, note)
-    end
-  end
-  
-  return {
-    { name = "Bass Clef (Left Hand)", notes = left_hand, color = 0xFF3399FF },
-    { name = "Treble Clef (Right Hand)", notes = right_hand, color = 0xFFFFD700 },
-  }
-end
+def init():
+    return {
+        "split_pitch": eat.param("split_pitch", 36, 84, 60, step=1),
+    }
+
+def split(notes, params):
+    return [
+        {"name": "Bass Clef (Left Hand)", "color": 0xFF3399FF},
+        {"name": "Treble Clef (Right Hand)", "color": 0xFFFFD700},
+    ]
 ''',
     ),
     LuaScriptDef(
@@ -10694,19 +10682,18 @@ end
       name: '4-Voice Polyphony Distribute (SATB)',
       category: LuaScriptCategory.noteSplitter,
       description: 'Distributes polyphonic chord voices into Soprano, Alto, Tenor, and Bass monophonic tracks.',
-      code: '''-- @name: 4-Voice Polyphony Distribute (SATB)
--- @author: Eatsbeats
--- @category: note_splitter
--- @description: Distributes polyphonic chord voices into Soprano, Alto, Tenor, and Bass monophonic tracks.
+      code: '''# @name: 4-Voice Polyphony Distribute (SATB)
+# @author: Eatsbeats
+# @category: note_splitter
+# @description: Distributes polyphonic chord voices into Soprano, Alto, Tenor, and Bass monophonic tracks.
 
-function split(notes, params)
-  return {
-    { name = "Voice 1 (Soprano / Top)", color = 0xFFFF007A },
-    { name = "Voice 2 (Alto / High-Mid)", color = 0xFFFF8C00 },
-    { name = "Voice 3 (Tenor / Low-Mid)", color = 0xFF21F4E8 },
-    { name = "Voice 4 (Bass / Root)", color = 0xFF00FF66 },
-  }
-end
+def split(notes, params):
+    return [
+        {"name": "Voice 1 (Soprano / Top)", "color": 0xFFFF007A},
+        {"name": "Voice 2 (Alto / High-Mid)", "color": 0xFFFF8C00},
+        {"name": "Voice 3 (Tenor / Low-Mid)", "color": 0xFF21F4E8},
+        {"name": "Voice 4 (Bass / Root)", "color": 0xFF00FF66},
+    ]
 ''',
     ),
     LuaScriptDef(
@@ -10714,19 +10701,18 @@ end
       name: 'Drum & Percussion Demuxer',
       category: LuaScriptCategory.noteSplitter,
       description: 'Separates standard General MIDI drum tracks into Kick, Snare/Clap, Hats/Cymbals, and Percussion tracks.',
-      code: '''-- @name: Drum & Percussion Demuxer
--- @author: Eatsbeats
--- @category: note_splitter
--- @description: Separates standard General MIDI drum tracks into Kick, Snare/Clap, Hats/Cymbals, and Percussion tracks.
+      code: '''# @name: Drum & Percussion Demuxer
+# @author: Eatsbeats
+# @category: note_splitter
+# @description: Separates standard General MIDI drum tracks into Kick, Snare/Clap, Hats/Cymbals, and Percussion tracks.
 
-function split(notes, params)
-  return {
-    { name = "Drums (Kick)", color = 0xFFFF3333 },
-    { name = "Drums (Snare & Clap)", color = 0xFFFF8C00 },
-    { name = "Drums (Hi-Hats & Cymbals)", color = 0xFFFFE600 },
-    { name = "Drums (Toms & Perc)", color = 0xFFBD00FF },
-  }
-end
+def split(notes, params):
+    return [
+        {"name": "Drums (Kick)", "color": 0xFFFF3333},
+        {"name": "Drums (Snare & Clap)", "color": 0xFFFF8C00},
+        {"name": "Drums (Hi-Hats & Cymbals)", "color": 0xFFFFE600},
+        {"name": "Drums (Toms & Perc)", "color": 0xFFBD00FF},
+    ]
 ''',
     ),
     LuaScriptDef(
@@ -10734,28 +10720,24 @@ end
       name: 'Global Chord-Aware Song Transpose',
       category: LuaScriptCategory.projectAction,
       description: 'Transposes all tracks, clips, and chord track events across the entire project with scale/chord adherence.',
-      code: '''-- @name: Global Chord-Aware Song Transpose
--- @author: Eatsbeats
--- @category: project_action
--- @description: Transposes all tracks, clips, and chord track events across the entire project with scale/chord adherence.
+      code: '''# @name: Global Chord-Aware Song Transpose
+# @author: Eatsbeats
+# @category: project_action
+# @description: Transposes all tracks, clips, and chord track events across the entire project with scale/chord adherence.
 
-Param.add("Semitones", -12, 12, 2, 1)
-Param.choice("HarmonicMode", {"Strict Chromatic", "Snap to Scale", "Smart Chord Shift"}, 0)
-Param.choice("UpdateKey", {"No (Keep Key)", "Yes (Shift Song Key)"}, 1)
+def init():
+    return {
+        "Semitones": eat.param("Semitones", -12, 12, 2, step=1),
+        "HarmonicMode": eat.param("HarmonicMode", 0, 2, 0, options=["Strict Chromatic", "Snap to Scale", "Smart Chord Shift"]),
+        "UpdateKey": eat.param("UpdateKey", 0, 1, 1, options=["No (Keep Key)", "Yes (Shift Song Key)"]),
+    }
 
-function run(project, params)
-  -- Evaluated by ProjectScriptEngine
-  local semitones = params.Semitones or 2
-  local mode = params.HarmonicMode or 0
-  local updateKey = params.UpdateKey or 1
-  
-  -- Transposes chord track & note events across all active patterns
-  return {
-    semitones = semitones,
-    harmonic_mode = mode,
-    update_key = updateKey,
-  }
-end
+def run(project, params):
+    return {
+        "semitones": params.get("Semitones", 2),
+        "harmonic_mode": params.get("HarmonicMode", 0),
+        "update_key": params.get("UpdateKey", 1),
+    }
 ''',
     ),
     LuaScriptDef(
@@ -10763,26 +10745,24 @@ end
       name: 'Harmonic Progression Generator',
       category: LuaScriptCategory.projectAction,
       description: 'Generates Roman numeral / modal chord progressions across the project chord track and conforms tracks.',
-      code: '''-- @name: Harmonic Progression Generator
--- @author: Eatsbeats
--- @category: project_action
--- @description: Generates Roman numeral / modal chord progressions across the project chord track and conforms tracks.
+      code: '''# @name: Harmonic Progression Generator
+# @author: Eatsbeats
+# @category: project_action
+# @description: Generates Roman numeral / modal chord progressions across the project chord track and conforms tracks.
 
-Param.choice("Genre", {"Synthwave", "Pop Anthem", "Deep House / Club", "Jazz / Neo-Soul", "Classic EDM"}, 0)
-Param.add("LengthBars", 2, 32, 8, 2)
-Param.choice("ConformTracks", {"Chord Track Only", "Conform Synth Tracks to Chords"}, 1)
+def init():
+    return {
+        "Genre": eat.param("Genre", 0, 4, 0, options=["Synthwave", "Pop Anthem", "Deep House / Club", "Jazz / Neo-Soul", "Classic EDM"]),
+        "LengthBars": eat.param("LengthBars", 2, 32, 8, step=2),
+        "ConformTracks": eat.param("ConformTracks", 0, 1, 1, options=["Chord Track Only", "Conform Synth Tracks to Chords"]),
+    }
 
-function run(project, params)
-  local genre = params.Genre or 0
-  local bars = params.LengthBars or 8
-  local conform = params.ConformTracks or 1
-  
-  return {
-    genre = genre,
-    length_bars = bars,
-    conform_tracks = conform,
-  }
-end
+def run(project, params):
+    return {
+        "genre": params.get("Genre", 0),
+        "length_bars": params.get("LengthBars", 8),
+        "conform_tracks": params.get("ConformTracks", 1),
+    }
 ''',
     ),
     LuaScriptDef(
@@ -10790,26 +10770,24 @@ end
       name: 'Procedural Multi-Track Song Generator',
       category: LuaScriptCategory.projectAction,
       description: 'Procedurally generates a full arrangement (Drums, Acid Bass, Chords, Lead Arp) based on genre style.',
-      code: '''-- @name: Procedural Multi-Track Song Generator
--- @author: Eatsbeats
--- @category: project_action
--- @description: Procedurally generates a full arrangement (Drums, Acid Bass, Chords, Lead Arp) based on genre style.
+      code: '''# @name: Procedural Multi-Track Song Generator
+# @author: Eatsbeats
+# @category: project_action
+# @description: Procedurally generates a full arrangement (Drums, Acid Bass, Chords, Lead Arp) based on genre style.
 
-Param.choice("Style", {"Synthwave / Retro", "Deep House", "Cyberpunk Acid", "Lo-Fi Hip Hop"}, 0)
-Param.add("Bpm", 80, 175, 124, 1)
-Param.add("Bars", 4, 16, 8, 4)
+def init():
+    return {
+        "Style": eat.param("Style", 0, 3, 0, options=["Synthwave / Retro", "Deep House", "Cyberpunk Acid", "Lo-Fi Hip Hop"]),
+        "Bpm": eat.param("Bpm", 80, 175, 124, step=1),
+        "Bars": eat.param("Bars", 4, 16, 8, step=4),
+    }
 
-function run(project, params)
-  local style = params.Style or 0
-  local bpm = params.Bpm or 124
-  local bars = params.Bars or 8
-
-  return {
-    style = style,
-    bpm = bpm,
-    bars = bars,
-  }
-end
+def run(project, params):
+    return {
+        "style": params.get("Style", 0),
+        "bpm": params.get("Bpm", 124),
+        "bars": params.get("Bars", 8),
+    }
 ''',
     ),
     LuaScriptDef(
@@ -10817,23 +10795,22 @@ end
       name: 'Groove & Velocity Humanizer',
       category: LuaScriptCategory.projectAction,
       description: 'Applies organic micro-timing variations and velocity dynamics across all tracks in the song.',
-      code: '''-- @name: Groove & Velocity Humanizer
--- @author: Eatsbeats
--- @category: project_action
--- @description: Applies organic micro-timing variations and velocity dynamics across all tracks in the song.
+      code: '''# @name: Groove & Velocity Humanizer
+# @author: Eatsbeats
+# @category: project_action
+# @description: Applies organic micro-timing variations and velocity dynamics across all tracks in the song.
 
-Param.add("TimingJitter", 0.0, 0.15, 0.04, 0.01)
-Param.add("VelocityJitter", 0.0, 0.30, 0.12, 0.02)
+def init():
+    return {
+        "TimingJitter": eat.param("TimingJitter", 0.0, 0.15, 0.04, step=0.01),
+        "VelocityJitter": eat.param("VelocityJitter", 0.0, 0.30, 0.12, step=0.02),
+    }
 
-function run(project, params)
-  local timing = params.TimingJitter or 0.04
-  local velocity = params.VelocityJitter or 0.12
-  
-  return {
-    timing_jitter = timing,
-    velocity_jitter = velocity,
-  }
-end
+def run(project, params):
+    return {
+        "timing_jitter": params.get("TimingJitter", 0.04),
+        "velocity_jitter": params.get("VelocityJitter", 0.12),
+    }
 ''',
     ),
   ];
