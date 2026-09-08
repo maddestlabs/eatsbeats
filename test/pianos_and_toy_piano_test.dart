@@ -101,7 +101,7 @@ void main() {
       expect(buf.any((s) => s.abs() > 0.1), isTrue);
     });
 
-    test('GraphEvaluator synthesizes Concert Grand Piano', () {
+    test('GraphEvaluator synthesizes Concert Grand Piano with clean headroom', () {
       final buffer = GraphEvaluator.evaluate(
         root: GraphEvaluator.buildConcertGrandPiano(),
         durationSec: 0.3,
@@ -112,9 +112,10 @@ void main() {
       );
       expect(buffer.every((s) => !s.isNaN && !s.isInfinite), isTrue);
       expect(buffer.any((s) => s.abs() > 0.05), isTrue);
+      expect(buffer.every((s) => s.abs() <= 1.0), isTrue, reason: 'Must stay within digital full scale headroom');
     });
 
-    test('GraphEvaluator synthesizes Warm Felt Studio Upright Piano', () {
+    test('GraphEvaluator synthesizes Warm Felt Studio Upright Piano with clean headroom', () {
       final buffer = GraphEvaluator.evaluate(
         root: GraphEvaluator.buildFeltUprightPiano(),
         durationSec: 0.3,
@@ -125,9 +126,10 @@ void main() {
       );
       expect(buffer.every((s) => !s.isNaN && !s.isInfinite), isTrue);
       expect(buffer.any((s) => s.abs() > 0.05), isTrue);
+      expect(buffer.every((s) => s.abs() <= 1.0), isTrue, reason: 'Must stay within digital full scale headroom');
     });
 
-    test('GraphEvaluator synthesizes Honky-Tonk / Tack Saloon Piano', () {
+    test('GraphEvaluator synthesizes Honky-Tonk / Tack Saloon Piano with clean headroom', () {
       final buffer = GraphEvaluator.evaluate(
         root: GraphEvaluator.buildHonkyTonkPiano(),
         durationSec: 0.3,
@@ -138,9 +140,10 @@ void main() {
       );
       expect(buffer.every((s) => !s.isNaN && !s.isInfinite), isTrue);
       expect(buffer.any((s) => s.abs() > 0.05), isTrue);
+      expect(buffer.every((s) => s.abs() <= 1.0), isTrue, reason: 'Must stay within digital full scale headroom');
     });
 
-    test('GraphEvaluator synthesizes Toy Piano / Metallophone', () {
+    test('GraphEvaluator synthesizes Toy Piano / Metallophone with clean headroom', () {
       final buffer = GraphEvaluator.evaluate(
         root: GraphEvaluator.buildToyPiano(),
         durationSec: 0.3,
@@ -151,6 +154,52 @@ void main() {
       );
       expect(buffer.every((s) => !s.isNaN && !s.isInfinite), isTrue);
       expect(buffer.any((s) => s.abs() > 0.05), isTrue);
+      expect(buffer.every((s) => s.abs() <= 1.0), isTrue, reason: 'Must stay within digital full scale headroom');
+    });
+
+    test('Piano physical models maintain monotonic dynamic scaling without clipping at fortissimo', () {
+      final instruments = <String, GraphNode Function()>{
+        'Grand Piano': GraphEvaluator.buildConcertGrandPiano,
+        'Warm Felt': GraphEvaluator.buildFeltUprightPiano,
+        'Honky-Tonk': GraphEvaluator.buildHonkyTonkPiano,
+        'Toy Piano': GraphEvaluator.buildToyPiano,
+      };
+
+      for (final entry in instruments.entries) {
+        double maxOf(Float32List buf) => buf.fold(0.0, (m, s) => s.abs() > m ? s.abs() : m);
+
+        final pSoft = maxOf(GraphEvaluator.evaluate(
+          root: entry.value(),
+          durationSec: 0.3,
+          freq: 261.63,
+          note: 60,
+          params: {},
+          velocity: 0.2,
+        ));
+
+        final pNormal = maxOf(GraphEvaluator.evaluate(
+          root: entry.value(),
+          durationSec: 0.3,
+          freq: 261.63,
+          note: 60,
+          params: {},
+          velocity: 0.7,
+        ));
+
+        final pLoud = maxOf(GraphEvaluator.evaluate(
+          root: entry.value(),
+          durationSec: 0.3,
+          freq: 261.63,
+          note: 60,
+          params: {},
+          velocity: 1.0,
+        ));
+
+        expect(pSoft, greaterThan(0.01), reason: '${entry.key} soft note must be audible');
+        expect(pNormal, greaterThan(pSoft), reason: '${entry.key} normal velocity must be louder than soft');
+        expect(pLoud, greaterThanOrEqualTo(pNormal), reason: '${entry.key} fortissimo velocity must be louder than or equal to normal');
+        expect(pLoud, lessThanOrEqualTo(1.0), reason: '${entry.key} fortissimo must never clip');
+      }
     });
 
     test('LuaPresetLibrary contains all 4 piano presets with GUIs', () {

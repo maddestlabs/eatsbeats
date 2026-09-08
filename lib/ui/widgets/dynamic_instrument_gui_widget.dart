@@ -12,6 +12,7 @@ import '../../lua/lua_gui_model.dart';
 import '../../lua/lua_script_library.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
+import '../../models/script_target_model.dart';
 import '../../theme/eats_theme.dart';
 import 'compact_value_dialog.dart';
 import 'eatsbeats_slider.dart';
@@ -21,7 +22,7 @@ import 'hardware_listbox_widget.dart';
 import 'interactive_game_canvas_widget.dart';
 import 'lcd_display_widget.dart';
 import 'live_track_visualizer_widget.dart';
-import 'lua_programmable_canvas_widget.dart';
+import 'eatscript_programmable_canvas_widget.dart';
 import 'skeuomorphic_hardware_button.dart';
 import 'skeuomorphic_hardware_knob.dart';
 import 'skeuomorphic_hardware_slider.dart';
@@ -34,6 +35,7 @@ import 'stereo_meter_widget.dart';
 import 'waveform_painter.dart';
 import 'waveshaper_canvas_widget.dart';
 import '../textures/daw_texture_engine.dart';
+import '../vector/panel_svg_background.dart';
 
 class DynamicInstrumentGuiWidget extends StatelessWidget {
   final DawState dawState;
@@ -131,6 +133,36 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                // Open in Design
+                Tooltip(
+                  message: 'Open in Design / Script Editor',
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(4),
+                    onTap: () {
+                      final target = ScriptTarget(
+                        id: 'track_${track.id}_dsp',
+                        type: ScriptTargetType.trackDsp,
+                        title: '${track.name} (Synth DSP)',
+                        subtitle: 'Instrument DSP Script',
+                        trackId: track.id,
+                        trackName: track.name,
+                        trackColor: track.color,
+                      );
+                      dawState.openScriptInEditor(target);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: BoxDecoration(
+                        color: baseAccent.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: baseAccent.withOpacity(0.4)),
+                      ),
+                      child: Icon(Icons.developer_board, size: 13, color: EatsTheme.primaryCyan),
+                    ),
+                  ),
+                ),
+                // Presets
                 InkWell(
                   onTap: () {
                     PresetSearchDialog.show(
@@ -142,6 +174,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    margin: const EdgeInsets.only(right: 6),
                     decoration: BoxDecoration(
                       color: baseAccent.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(4),
@@ -150,6 +183,33 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                     child: Text(
                       'PRESETS',
                       style: TextStyle(color: baseAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                // Fullscreen
+                Tooltip(
+                  message: 'Open Fullscreen Instrument GUI',
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(4),
+                    onTap: () => dawState.openFullscreenDevice(track),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: baseAccent.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: baseAccent.withOpacity(0.6)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.fullscreen, size: 13, color: baseAccent),
+                          const SizedBox(width: 3),
+                          Text(
+                            'FULL',
+                            style: TextStyle(color: baseAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -253,8 +313,60 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         basePanel = const Color(0xFF161618);
       } else if (layout.backgroundStyle == PanelBackgroundStyle.carbon) {
         basePanel = const Color(0xFF121418);
+      } else if (layout.backgroundStyle == PanelBackgroundStyle.pcbGreen) {
+        basePanel = const Color(0xFF133B1E);
       } else {
         basePanel = EatsTheme.panelBackground;
+      }
+
+      final hasSvg = (layout.backgroundSvg != null && layout.backgroundSvg!.isNotEmpty) ||
+          (layout.backgroundSvgLayers != null && layout.backgroundSvgLayers!.isNotEmpty);
+
+      Widget content = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: layout.children.map((node) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: _buildNode(context, node, compilation, baseAccent, isLightChassis, hasSvg),
+          );
+        }).toList(),
+      );
+
+      if (hasSvg) {
+        content = Stack(
+          children: [
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: PanelSvgBackgroundPainter(
+                    svgData: layout.backgroundSvg,
+                    layers: layout.backgroundSvgLayers,
+                    isLightChassis: isLightChassis,
+                    opacity: layout.backgroundSvgOpacity,
+                    accentColor: baseAccent,
+                    strokeWidth: layout.backgroundSvgStrokeWidth,
+                    tileMode: layout.backgroundSvgTile,
+                  ),
+                ),
+              ),
+            ),
+            content,
+          ],
+        );
+      }
+
+      Gradient? effectiveGradient = layout.backgroundGradient?.toFlutterGradient();
+      if (effectiveGradient == null && layout.backgroundStyle == PanelBackgroundStyle.pcbGreen) {
+        effectiveGradient = const RadialGradient(
+          center: Alignment.center,
+          radius: 1.15,
+          colors: [
+            Color(0xFF245D35),
+            Color(0xFF143C1E),
+            Color(0xFF0A2211),
+          ],
+          stops: [0.0, 0.65, 1.0],
+        );
       }
 
       return RepaintBoundary(
@@ -263,26 +375,21 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           textureRotation: layout.textureRotation,
           textureScale: layout.textureScale,
           color: basePanel,
+          gradient: effectiveGradient,
           sideCheeks: layout.sideCheeks,
           cornerRadius: layout.cornerRadius,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           border: Border.all(
-            color: isSnes
-                ? const Color(0xFF908C82)
-                : (isSilver
-                    ? const Color(0xFF8C887D)
-                    : (isGrungy ? const Color(0xFF423B33) : EatsTheme.panelHeader)),
+            color: layout.backgroundStyle == PanelBackgroundStyle.pcbGreen
+                ? const Color(0xFF2E7D32)
+                : (isSnes
+                    ? const Color(0xFF908C82)
+                    : (isSilver
+                        ? const Color(0xFF8C887D)
+                        : (isGrungy ? const Color(0xFF423B33) : EatsTheme.panelHeader))),
             width: 1.2,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: layout.children.map((node) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: _buildNode(context, node, compilation, baseAccent, isLightChassis),
-              );
-            }).toList(),
-          ),
+          child: content,
         ),
       );
     }
@@ -303,6 +410,12 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             textureScale: layout.textureScale,
             cornerRadius: layout.cornerRadius,
             sideCheeks: layout.sideCheeks,
+            backgroundSvg: layout.backgroundSvg,
+            backgroundSvgOpacity: layout.backgroundSvgOpacity,
+            backgroundSvgStrokeWidth: layout.backgroundSvgStrokeWidth,
+            backgroundSvgTile: layout.backgroundSvgTile,
+            backgroundGradient: layout.backgroundGradient,
+            backgroundSvgLayers: layout.backgroundSvgLayers,
             headerActions: [
               if (hasUpgrade) ...[
                 GestureDetector(
@@ -342,28 +455,67 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                   ),
                 ),
               ],
-              _buildPresetStrip(context, baseAccent, isSilver),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: (isSilver ? const Color(0xFF141416) : baseAccent).withOpacity(isSilver ? 0.08 : 0.18),
+              // 1. Open in Design / Script Editor
+              Tooltip(
+                message: 'Open in Design / Script Editor',
+                child: InkWell(
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: (isSilver ? const Color(0xFF141416) : baseAccent).withOpacity(isSilver ? 0.35 : 0.5)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.piano, size: 12, color: isSilver ? const Color(0xFF141416) : baseAccent),
-                    const SizedBox(width: 4),
-                    Text(
-                      'INSTRUMENT',
-                      style: EatsTheme.getPrimaryFontStyle(
-                        color: isSilver ? const Color(0xFF141416) : baseAccent,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  onTap: () {
+                    final target = ScriptTarget(
+                      id: 'track_${track.id}_dsp',
+                      type: ScriptTargetType.trackDsp,
+                      title: '${track.name} (${layout.title.toUpperCase()})',
+                      subtitle: track.luaScriptCode.isNotEmpty ? 'Custom Lua Synth / DSP' : 'Instrument DSP Script',
+                      trackId: track.id,
+                      trackName: track.name,
+                      trackColor: track.color,
+                    );
+                    dawState.openScriptInEditor(target);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    margin: const EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(
+                      color: (isSilver ? Colors.black : Colors.white).withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: (isSilver ? const Color(0xFF141416) : baseAccent).withOpacity(0.35)),
                     ),
-                  ],
+                    child: Icon(Icons.developer_board, size: 13, color: EatsTheme.primaryCyan),
+                  ),
+                ),
+              ),
+              // 2. Presets Selector (already exists)
+              _buildPresetStrip(context, baseAccent, isSilver),
+              // 3. Fullscreen Option
+              Tooltip(
+                message: 'Open Fullscreen Instrument GUI',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(4),
+                  onTap: () => dawState.openFullscreenDevice(track),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    margin: const EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(
+                      color: (isSilver ? const Color(0xFF141416) : baseAccent).withOpacity(isSilver ? 0.08 : 0.18),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: (isSilver ? const Color(0xFF141416) : baseAccent).withOpacity(isSilver ? 0.35 : 0.5)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.fullscreen, size: 12, color: isSilver ? const Color(0xFF141416) : baseAccent),
+                        const SizedBox(width: 3),
+                        Text(
+                          'FULL',
+                          style: EatsTheme.getPrimaryFontStyle(
+                            color: isSilver ? const Color(0xFF141416) : baseAccent,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -371,7 +523,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               children: layout.children.map((node) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12.0),
-                  child: _buildNode(context, node, compilation, baseAccent, isLightChassis),
+                  child: _buildNode(context, node, compilation, baseAccent, isLightChassis, layout.backgroundSvg != null && layout.backgroundSvg!.isNotEmpty),
                 );
               }).toList(),
             ),
@@ -495,6 +647,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     LuaCompilationResult compilation,
     Color defaultAccent, [
     bool isLightChassis = false,
+    bool hasBackgroundSvg = false,
   ]) {
     final accent = node.accentColor ?? defaultAccent;
 
@@ -504,29 +657,58 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           mainAxisAlignment: _parseMainAxisAlignment(node.align),
           crossAxisAlignment: _parseCrossAxisAlignment(node.crossAlign),
           children: node.children
-              .map((c) => _buildNode(context, c, compilation, accent, isLightChassis))
+              .map((c) => _buildNode(context, c, compilation, accent, isLightChassis, hasBackgroundSvg))
               .toList(),
         );
 
-        if (node.backgroundStyle != null || node.backgroundColor != null) {
+        final hasExplicitRowStyle = node.backgroundStyle != null ||
+            node.backgroundColor != null ||
+            node.opacity != null ||
+            node.borderWidth != null ||
+            node.borderColor != null;
+
+        if (hasExplicitRowStyle) {
           final isNodeLight = node.backgroundStyle == PanelBackgroundStyle.blondePine ||
               node.backgroundStyle == PanelBackgroundStyle.silver ||
               node.backgroundStyle == PanelBackgroundStyle.snes;
-          rowWidget = DawTexturedContainer(
-            backgroundStyle: node.backgroundStyle,
-            color: node.backgroundColor ?? (isLightChassis ? Colors.black.withOpacity(0.05) : Colors.black.withOpacity(0.2)),
-            textureRotation: node.textureRotation ?? 0.0,
-            textureScale: node.textureScale ?? 1.0,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: isNodeLight
-                  ? const Color(0xFF9E9A8E)
-                  : accent.withOpacity(0.25),
-              width: 1.0,
-            ),
-            child: rowWidget,
-          );
+          final double opacityFactor = node.opacity ?? 1.0;
+          final double bWidth = node.borderWidth ?? (node.borderColor != null ? 1.0 : (node.backgroundStyle != null || node.backgroundColor != null ? 1.0 : 0.0));
+          final Border? border = bWidth <= 0.0
+              ? null
+              : Border.all(
+                  color: node.borderColor ?? (isNodeLight ? const Color(0xFF9E9A8E) : accent.withOpacity(0.25)),
+                  width: bWidth,
+                );
+
+          Color baseRowBg = node.backgroundColor ?? (isLightChassis ? Colors.black.withOpacity(0.05) : Colors.black.withOpacity(0.2));
+          if (opacityFactor <= 0.0) {
+            baseRowBg = Colors.transparent;
+          } else if (opacityFactor < 1.0) {
+            baseRowBg = baseRowBg.withOpacity((baseRowBg.opacity * opacityFactor).clamp(0.0, 1.0));
+          }
+
+          if (node.backgroundStyle != null && opacityFactor > 0.0) {
+            rowWidget = DawTexturedContainer(
+              backgroundStyle: node.backgroundStyle,
+              color: baseRowBg,
+              textureRotation: node.textureRotation ?? 0.0,
+              textureScale: node.textureScale ?? 1.0,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              borderRadius: BorderRadius.circular(node.cornerRadius ?? 6),
+              border: border,
+              child: rowWidget,
+            );
+          } else if (baseRowBg != Colors.transparent || border != null) {
+            rowWidget = Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: baseRowBg,
+                borderRadius: BorderRadius.circular(node.cornerRadius ?? 6),
+                border: border,
+              ),
+              child: rowWidget,
+            );
+          }
         }
         return rowWidget;
 
@@ -545,55 +727,97 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             ],
             ...node.children.map((c) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4.0),
-                  child: _buildNode(context, c, compilation, accent, isLightChassis),
+                  child: _buildNode(context, c, compilation, accent, isLightChassis, hasBackgroundSvg),
                 )),
           ],
         );
 
+        final double colOpacity = node.opacity ?? 1.0;
+        final double colBorderWidth = node.borderWidth ?? 1.0;
+
         if (isMinimalColCard) {
+          Color colBg = node.backgroundColor ?? (hasBackgroundSvg ? const Color(0xFFFBFBFC).withOpacity(0.55) : const Color(0xFFFBFBFC));
+          if (colOpacity <= 0.0) {
+            colBg = Colors.transparent;
+          } else if (colOpacity < 1.0) {
+            colBg = colBg.withOpacity((colBg.opacity * colOpacity).clamp(0.0, 1.0));
+          }
+
+          final Border? colBorder = colBorderWidth <= 0.0
+              ? null
+              : Border.all(
+                  color: node.borderColor ?? (hasBackgroundSvg ? const Color(0xFFDCDFE6).withOpacity(0.85) : const Color(0xFFE4E7EE)),
+                  width: colBorderWidth,
+                );
+
+          final List<BoxShadow>? colShadows = colOpacity <= 0.0
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity((hasBackgroundSvg ? 0.04 : 0.06) * colOpacity),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                    spreadRadius: -2,
+                  ),
+                  BoxShadow(
+                    color: Colors.white.withOpacity((hasBackgroundSvg ? 0.65 : 0.95) * colOpacity),
+                    blurRadius: 12,
+                    offset: const Offset(0, -3),
+                  ),
+                ];
+
           colWidget = Container(
             width: node.width,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
             margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFFBFBFC),
+              color: colBg,
               borderRadius: BorderRadius.circular(node.cornerRadius ?? 26.0),
-              border: Border.all(color: const Color(0xFFE4E7EE), width: 1.0),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                  spreadRadius: -2,
-                ),
-                BoxShadow(
-                  color: Colors.white.withOpacity(0.95),
-                  blurRadius: 12,
-                  offset: const Offset(0, -3),
-                ),
-              ],
+              border: colBorder,
+              boxShadow: colShadows,
             ),
             child: colWidget,
           );
-        } else if (node.backgroundStyle != null || node.backgroundColor != null) {
+        } else if (node.backgroundStyle != null || node.backgroundColor != null || node.opacity != null || node.borderWidth != null || node.borderColor != null) {
           final isNodeLight = node.backgroundStyle == PanelBackgroundStyle.blondePine ||
               node.backgroundStyle == PanelBackgroundStyle.silver ||
               node.backgroundStyle == PanelBackgroundStyle.snes;
-          colWidget = DawTexturedContainer(
-            backgroundStyle: node.backgroundStyle,
-            color: node.backgroundColor ?? (isLightChassis ? Colors.black.withOpacity(0.05) : Colors.black.withOpacity(0.2)),
-            textureRotation: node.textureRotation ?? 0.0,
-            textureScale: node.textureScale ?? 1.0,
-            padding: const EdgeInsets.all(8),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: isNodeLight
-                  ? const Color(0xFF9E9A8E)
-                  : accent.withOpacity(0.25),
-              width: 1.0,
-            ),
-            child: colWidget,
-          );
+          Color colBg = node.backgroundColor ?? (isLightChassis ? Colors.black.withOpacity(0.05) : Colors.black.withOpacity(0.2));
+          if (colOpacity <= 0.0) {
+            colBg = Colors.transparent;
+          } else if (colOpacity < 1.0) {
+            colBg = colBg.withOpacity((colBg.opacity * colOpacity).clamp(0.0, 1.0));
+          }
+
+          final Border? colBorder = colBorderWidth <= 0.0
+              ? null
+              : Border.all(
+                  color: node.borderColor ?? (isNodeLight ? const Color(0xFF9E9A8E) : accent.withOpacity(0.25)),
+                  width: colBorderWidth,
+                );
+
+          if (node.backgroundStyle != null && colOpacity > 0.0) {
+            colWidget = DawTexturedContainer(
+              backgroundStyle: node.backgroundStyle,
+              color: colBg,
+              textureRotation: node.textureRotation ?? 0.0,
+              textureScale: node.textureScale ?? 1.0,
+              padding: const EdgeInsets.all(8),
+              borderRadius: BorderRadius.circular(node.cornerRadius ?? 6),
+              border: colBorder,
+              child: colWidget,
+            );
+          } else if (colBg != Colors.transparent || colBorder != null) {
+            colWidget = Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colBg,
+                borderRadius: BorderRadius.circular(node.cornerRadius ?? 6),
+                border: colBorder,
+              ),
+              child: colWidget,
+            );
+          }
         }
         return colWidget;
 
@@ -687,69 +911,122 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               ),
               const SizedBox(height: 8),
             ],
-            ...node.children.map((c) => _buildNode(context, c, compilation, accent, isNodeLight)),
+            ...node.children.map((c) => _buildNode(context, c, compilation, accent, isNodeLight, hasBackgroundSvg)),
           ],
         );
 
+        final double opacityFactor = node.opacity ?? 1.0;
+        final double bWidth = node.borderWidth ?? 1.0;
+
         if (isMinimalGroup) {
+          Color bgColor = node.backgroundColor ?? (hasBackgroundSvg ? const Color(0xFFFBFBFC).withOpacity(0.55) : const Color(0xFFFBFBFC));
+          if (opacityFactor <= 0.0) {
+            bgColor = Colors.transparent;
+          } else if (opacityFactor < 1.0) {
+            bgColor = bgColor.withOpacity((bgColor.opacity * opacityFactor).clamp(0.0, 1.0));
+          }
+
+          final Border? border = bWidth <= 0.0
+              ? null
+              : Border.all(
+                  color: node.borderColor ?? (hasBackgroundSvg ? const Color(0xFFDCDFE6).withOpacity(0.85) : const Color(0xFFE4E7EE)),
+                  width: bWidth,
+                );
+
+          final List<BoxShadow>? shadows = opacityFactor <= 0.0
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity((hasBackgroundSvg ? 0.04 : 0.06) * opacityFactor),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                    spreadRadius: -2,
+                  ),
+                  BoxShadow(
+                    color: Colors.white.withOpacity((hasBackgroundSvg ? 0.65 : 0.95) * opacityFactor),
+                    blurRadius: 12,
+                    offset: const Offset(0, -3),
+                  ),
+                ];
+
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
             margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFFBFBFC),
+              color: bgColor,
               borderRadius: BorderRadius.circular(node.cornerRadius ?? 26.0),
-              border: Border.all(color: const Color(0xFFE4E7EE), width: 1.0),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                  spreadRadius: -2,
-                ),
-                BoxShadow(
-                  color: Colors.white.withOpacity(0.95),
-                  blurRadius: 12,
-                  offset: const Offset(0, -3),
-                ),
-              ],
+              border: border,
+              boxShadow: shadows,
             ),
             child: groupBody,
           );
         }
 
         if (hasCustomBg) {
-          return DawTexturedContainer(
-            backgroundStyle: node.backgroundStyle,
-            color: node.backgroundColor ?? (isNodeLight ? Colors.black.withOpacity(0.05) : EatsTheme.panelHeader.withOpacity(0.6)),
-            textureRotation: node.textureRotation ?? 0.0,
-            textureScale: node.textureScale ?? 1.0,
-            padding: const EdgeInsets.all(10),
-            margin: const EdgeInsets.symmetric(vertical: 4),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: isNodeLight
-                  ? const Color(0xFF9E9A8E)
-                  : accent.withOpacity(0.5),
-              width: 1.2,
-            ),
-            child: groupBody,
-          );
+          Color groupBg = node.backgroundColor ?? (isNodeLight ? Colors.black.withOpacity(0.05) : EatsTheme.panelHeader.withOpacity(0.6));
+          if (opacityFactor <= 0.0) {
+            groupBg = Colors.transparent;
+          } else if (opacityFactor < 1.0) {
+            groupBg = groupBg.withOpacity((groupBg.opacity * opacityFactor).clamp(0.0, 1.0));
+          }
+
+          final Border? border = bWidth <= 0.0
+              ? null
+              : Border.all(
+                  color: node.borderColor ?? (isNodeLight ? const Color(0xFF9E9A8E) : accent.withOpacity(0.5)),
+                  width: bWidth,
+                );
+
+          if (node.backgroundStyle != null && opacityFactor > 0.0) {
+            return DawTexturedContainer(
+              backgroundStyle: node.backgroundStyle,
+              color: groupBg,
+              textureRotation: node.textureRotation ?? 0.0,
+              textureScale: node.textureScale ?? 1.0,
+              padding: const EdgeInsets.all(10),
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              borderRadius: BorderRadius.circular(node.cornerRadius ?? 6),
+              border: border,
+              child: groupBody,
+            );
+          } else {
+            return Container(
+              padding: const EdgeInsets.all(10),
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              decoration: BoxDecoration(
+                color: groupBg,
+                borderRadius: BorderRadius.circular(node.cornerRadius ?? 6),
+                border: border,
+              ),
+              child: groupBody,
+            );
+          }
         }
+
+        Color fallbackBg = isLightChassis
+            ? Colors.black.withOpacity(0.05)
+            : EatsTheme.panelHeader.withOpacity(0.6);
+        if (node.backgroundColor != null) fallbackBg = node.backgroundColor!;
+        if (opacityFactor <= 0.0) {
+          fallbackBg = Colors.transparent;
+        } else if (opacityFactor < 1.0) {
+          fallbackBg = fallbackBg.withOpacity((fallbackBg.opacity * opacityFactor).clamp(0.0, 1.0));
+        }
+
+        final Border? border = bWidth <= 0.0
+            ? null
+            : Border.all(
+                color: node.borderColor ?? (isLightChassis ? const Color(0xFF9E9A8E) : accent.withOpacity(0.5)),
+                width: bWidth,
+              );
 
         return Container(
           padding: const EdgeInsets.all(10),
           margin: const EdgeInsets.symmetric(vertical: 4),
           decoration: BoxDecoration(
-            color: isLightChassis
-                ? Colors.black.withOpacity(0.05)
-                : EatsTheme.panelHeader.withOpacity(0.6),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: isLightChassis
-                  ? const Color(0xFF9E9A8E)
-                  : accent.withOpacity(0.5),
-              width: 1.2,
-            ),
+            color: fallbackBg,
+            borderRadius: BorderRadius.circular(node.cornerRadius ?? 6),
+            border: border,
           ),
           child: groupBody,
         );
@@ -770,6 +1047,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           size: node.size ?? 56.0,
           accentColor: accent,
           knobStyle: node.knobStyle,
+          customSkin: node.customSkin,
           isLightChassis: isLightChassis,
           onChanged: (val) {
             final snapped = paramDef.isInteger ? val.roundToDouble() : val;
@@ -1191,6 +1469,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             context: context,
             title: node.label ?? paramDef.name.toUpperCase(),
             initialValue: displayVal,
+            minValue: paramDef.min,
+            maxValue: paramDef.max,
             minMaxHint: 'Range: ${paramDef.min} - ${paramDef.max}',
             accentColor: accent,
             onSubmit: (val) {
@@ -1683,6 +1963,68 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                           fontSize: 12,
                         ),
                         overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    // 1. Open in Design
+                    Tooltip(
+                      message: 'Open in Design / Script Editor',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(4),
+                        onTap: () {
+                          final target = ScriptTarget(
+                            id: 'track_${track.id}_dsp',
+                            type: ScriptTargetType.trackDsp,
+                            title: '${track.name} (Dynamic Params)',
+                            subtitle: 'Instrument DSP Script',
+                            trackId: track.id,
+                            trackName: track.name,
+                            trackColor: track.color,
+                          );
+                          dawState.openScriptInEditor(target);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          margin: const EdgeInsets.only(right: 6),
+                          decoration: BoxDecoration(
+                            color: baseAccent.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: baseAccent.withOpacity(0.4)),
+                          ),
+                          child: Icon(Icons.developer_board, size: 13, color: EatsTheme.primaryCyan),
+                        ),
+                      ),
+                    ),
+                    // 2. Presets Selector
+                    _buildPresetStrip(context, baseAccent, false),
+                    // 3. Fullscreen Option
+                    Tooltip(
+                      message: 'Open Fullscreen Instrument GUI',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(4),
+                        onTap: () => dawState.openFullscreenDevice(track),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: baseAccent.withOpacity(0.18),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: baseAccent.withOpacity(0.5)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.fullscreen, size: 12, color: baseAccent),
+                              const SizedBox(width: 3),
+                              Text(
+                                'FULL',
+                                style: EatsTheme.getPrimaryFontStyle(
+                                  color: baseAccent,
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ],

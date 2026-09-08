@@ -679,22 +679,61 @@ class _LuaValueParser {
     final char = source[pos];
     if (char == '{') {
       return _parseTable();
+    } else if (char == '[') {
+      if (_isLongBracketStart()) {
+        return _parseLongBracketString();
+      }
+      return _parseList();
     } else if (char == '"' || char == "'") {
       return _parseQuotedString();
-    } else if (char == '[' && _isLongBracketStart()) {
-      return _parseLongBracketString();
     } else if (char == 't' && source.startsWith('true', pos)) {
+      pos += 4;
+      return true;
+    } else if (char == 'T' && source.startsWith('True', pos)) {
       pos += 4;
       return true;
     } else if (char == 'f' && source.startsWith('false', pos)) {
       pos += 5;
       return false;
+    } else if (char == 'F' && source.startsWith('False', pos)) {
+      pos += 5;
+      return false;
     } else if (char == 'n' && source.startsWith('nil', pos)) {
       pos += 3;
+      return null;
+    } else if (char == 'N' && source.startsWith('None', pos)) {
+      pos += 4;
       return null;
     } else {
       return _parseNumberOrLiteral();
     }
+  }
+
+  dynamic _parseList() {
+    _expect('[');
+    final list = <dynamic>[];
+    int lastPos = -1;
+
+    while (pos < source.length) {
+      _skipWhitespace();
+      if (pos >= source.length || source[pos] == ']') {
+        if (pos < source.length && source[pos] == ']') pos++;
+        break;
+      }
+
+      if (pos == lastPos) {
+        pos++;
+        continue;
+      }
+      lastPos = pos;
+
+      final val = _parseValue();
+      if (val != null) {
+        list.add(val);
+      }
+      _consumeSeparator();
+    }
+    return list;
   }
 
   dynamic _parseTable() {

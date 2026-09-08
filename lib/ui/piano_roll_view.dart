@@ -33,6 +33,7 @@ class _PianoRollViewState extends State<PianoRollView> {
   final ScrollController _horizontalScroll = ScrollController();
   final ScrollController _keysScrollController = ScrollController();
   final ScrollController _gridScrollController = ScrollController();
+  final ScrollController _automationScrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
 
   bool _isSyncingScroll = false;
@@ -110,6 +111,8 @@ class _PianoRollViewState extends State<PianoRollView> {
   void initState() {
     super.initState();
     _pianoRollKeyController.addListener(_onPianoRollKeysChanged);
+    _horizontalScroll.addListener(_syncAutomationScroll);
+    _automationScrollController.addListener(_syncFromAutomationScroll);
     widget.dawState.addListener(_onDawStateChanged);
     widget.dawState.continuousArrangerStepNotifier.addListener(_onContinuousPlayheadFollow);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -128,12 +131,33 @@ class _PianoRollViewState extends State<PianoRollView> {
     if (!mounted) return;
     if (widget.dawState.isFollowPlayback && widget.dawState.isPlaying) {
       if (_horizontalScroll.hasClients && !_isMarqueeSelecting && !_isMiddleMouseDragging && _draggedNoteId == null && _activeMoveNoteId == null) {
-        final activeClip = widget.dawState.activeClip;
-        final clipStartStep = ((activeClip?.startBar ?? 0) * 16).toDouble();
-        final clipEndStep = clipStartStep + ((activeClip?.barLength ?? 4) * 16).toDouble();
         final continuousStep = widget.dawState.continuousArrangerStepNotifier.value;
+        final currentBar = (continuousStep / 16.0).floor();
+
+        // Auto-advance across arranger clips on the active track during continuous playback
+        if (widget.dawState.activeTrack.clips.isNotEmpty) {
+          final clipAtPlayhead = widget.dawState.getClipAtBar(widget.dawState.activeTrack, currentBar);
+          if (clipAtPlayhead != null && widget.dawState.activeClip?.id != clipAtPlayhead.id) {
+            widget.dawState.selectClip(clipAtPlayhead);
+            return;
+          }
+        }
+
+        final activeClip = widget.dawState.activeTrackClip;
+        final clipStartStep = (activeClip.startBar * 16).toDouble();
+        final clipEndStep = clipStartStep + (activeClip.barLength * 16).toDouble();
+
         if (continuousStep >= clipStartStep && continuousStep <= clipEndStep) {
           final stepInClip = continuousStep - clipStartStep;
+          final playheadX = stepInClip * _stepWidth;
+          final viewportW = _horizontalScroll.position.viewportDimension;
+          final targetX = (playheadX - (viewportW / 2.0)).clamp(0.0, _horizontalScroll.position.maxScrollExtent);
+          if ((_horizontalScroll.offset - targetX).abs() > 0.5) {
+            _horizontalScroll.jumpTo(targetX);
+          }
+        } else if (widget.dawState.activeTrack.clips.isEmpty) {
+          final patternSteps = widget.dawState.activePattern.lengthSteps > 0 ? widget.dawState.activePattern.lengthSteps.toDouble() : 16.0;
+          final stepInClip = continuousStep % patternSteps;
           final playheadX = stepInClip * _stepWidth;
           final viewportW = _horizontalScroll.position.viewportDimension;
           final targetX = (playheadX - (viewportW / 2.0)).clamp(0.0, _horizontalScroll.position.maxScrollExtent);
@@ -224,9 +248,9 @@ class _PianoRollViewState extends State<PianoRollView> {
 
     // Center horizontally on playhead position within clip
     if (_horizontalScroll.hasClients) {
-      final activeClip = widget.dawState.activeClip;
-      final clipStartStep = (activeClip?.startBar ?? 0) * 16;
-      final stepInClip = (widget.dawState.arrangerStep - clipStartStep).clamp(0, (activeClip?.barLength ?? 4) * 16);
+      final activeClip = widget.dawState.activeTrackClip;
+      final clipStartStep = activeClip.startBar * 16;
+      final stepInClip = (widget.dawState.arrangerStep - clipStartStep).clamp(0, activeClip.barLength * 16);
       final playheadX = stepInClip * _stepWidth;
       final viewportW = _horizontalScroll.position.viewportDimension;
       final targetX = (playheadX - (viewportW / 2.0)).clamp(0.0, _horizontalScroll.position.maxScrollExtent);
@@ -250,7 +274,10 @@ class _PianoRollViewState extends State<PianoRollView> {
     _pianoRollKeyController.dispose();
     widget.dawState.removeListener(_onDawStateChanged);
     widget.dawState.continuousArrangerStepNotifier.removeListener(_onContinuousPlayheadFollow);
+    _horizontalScroll.removeListener(_syncAutomationScroll);
+    _automationScrollController.removeListener(_syncFromAutomationScroll);
     _horizontalScroll.dispose();
+    _automationScrollController.dispose();
     _keysScrollController.dispose();
     _gridScrollController.dispose();
     _focusNode.dispose();
@@ -266,6 +293,26 @@ class _PianoRollViewState extends State<PianoRollView> {
       _isSyncingScroll = true;
       _keysScrollController.jumpTo(_gridScrollController.offset);
       _isSyncingScroll = false;
+    }
+  }
+
+  void _syncAutomationScroll() {
+    if (!_isSyncingScroll && _horizontalScroll.hasClients && _automationScrollController.hasClients) {
+      if ((_automationScrollController.offset - _horizontalScroll.offset).abs() > 0.5) {
+        _isSyncingScroll = true;
+        _automationScrollController.jumpTo(_horizontalScroll.offset.clamp(0.0, _automationScrollController.position.maxScrollExtent));
+        _isSyncingScroll = false;
+      }
+    }
+  }
+
+  void _syncFromAutomationScroll() {
+    if (!_isSyncingScroll && _horizontalScroll.hasClients && _automationScrollController.hasClients) {
+      if ((_horizontalScroll.offset - _automationScrollController.offset).abs() > 0.5) {
+        _isSyncingScroll = true;
+        _horizontalScroll.jumpTo(_automationScrollController.offset.clamp(0.0, _horizontalScroll.position.maxScrollExtent));
+        _isSyncingScroll = false;
+      }
     }
   }
 
@@ -2350,6 +2397,25 @@ child: ScrollConfiguration(
                                       ),
                                     ),
 
+                                // High-Performance Background Ghost Notes Layer (All Non-Active Tracks)
+                                if (widget.dawState.isGhostNotesEnabled)
+                                  RepaintBoundary(
+                                    child: CustomPaint(
+                                      size: Size(totalSteps * _stepWidth, totalKeys * _keyHeight),
+                                      painter: _PianoRollGhostNotesPainter(
+                                        tracks: widget.dawState.visibleTracks
+                                            .where((t) => t.id != track.id && !t.isMuted)
+                                            .toList(),
+                                        opacity: widget.dawState.ghostNotesOpacity,
+                                        totalKeys: totalKeys,
+                                        keyHeight: _keyHeight,
+                                        stepWidth: _stepWidth,
+                                        maxPitch: maxPitch,
+                                        minPitch: minPitch,
+                                      ),
+                                    ),
+                                  ),
+
                                 // Active Clip Loop End Line & Tag Badge
                                 Positioned(
                                   left: activeClipSteps * _stepWidth,
@@ -2392,13 +2458,19 @@ child: ScrollConfiguration(
                                 ValueListenableBuilder<double>(
                                   valueListenable: widget.dawState.continuousArrangerStepNotifier,
                                   builder: (context, continuousStep, _) {
-                                    final activeClip = widget.dawState.activeClip;
-                                    final clipStartStep = ((activeClip?.startBar ?? 0) * 16).toDouble();
-                                    final clipEndStep = clipStartStep + ((activeClip?.barLength ?? 4) * 16).toDouble();
-                                    if (continuousStep < clipStartStep || continuousStep > clipEndStep) {
+                                    final activeClip = widget.dawState.activeTrackClip;
+                                    final clipStartStep = (activeClip.startBar * 16).toDouble();
+                                    final clipEndStep = clipStartStep + (activeClip.barLength * 16).toDouble();
+
+                                    double stepInClip;
+                                    if (continuousStep >= clipStartStep && continuousStep <= clipEndStep) {
+                                      stepInClip = continuousStep - clipStartStep;
+                                    } else if (widget.dawState.activeTrack.clips.isEmpty) {
+                                      final patternSteps = widget.dawState.activePattern.lengthSteps > 0 ? widget.dawState.activePattern.lengthSteps.toDouble() : 16.0;
+                                      stepInClip = continuousStep % patternSteps;
+                                    } else {
                                       return const SizedBox.shrink();
                                     }
-                                    final stepInClip = continuousStep - clipStartStep;
                                     return Positioned(
                                       left: stepInClip * _stepWidth,
                                       top: 0,
@@ -3044,10 +3116,10 @@ child: ScrollConfiguration(
             ),
           ),
 
-          // Main Graph Canvas (Horizontally scrollable with _horizontalScroll)
+          // Main Graph Canvas (Horizontally scrollable with _automationScrollController)
           Expanded(
             child: SingleChildScrollView(
-              controller: _horizontalScroll,
+              controller: _automationScrollController,
               scrollDirection: Axis.horizontal,
               physics: const ClampingScrollPhysics(),
               child: GestureDetector(
@@ -3364,5 +3436,78 @@ class _PianoRollGridPainter extends CustomPainter {
         old.activeClipSteps != activeClipSteps ||
         old.isLight != isLight ||
         old.cyanColor != cyanColor;
+  }
+}
+
+class _PianoRollGhostNotesPainter extends CustomPainter {
+  final List<TrackChannel> tracks;
+  final double opacity;
+  final int totalKeys;
+  final double keyHeight;
+  final double stepWidth;
+  final int maxPitch;
+  final int minPitch;
+
+  _PianoRollGhostNotesPainter({
+    required this.tracks,
+    required this.opacity,
+    required this.totalKeys,
+    required this.keyHeight,
+    required this.stepWidth,
+    required this.maxPitch,
+    required this.minPitch,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (opacity <= 0.0 || tracks.isEmpty) return;
+
+    final clipBounds = canvas.getLocalClipBounds();
+    final double visibleLeft = clipBounds.isFinite ? clipBounds.left : 0.0;
+    final double visibleRight = clipBounds.isFinite ? clipBounds.right : size.width;
+
+    for (final t in tracks) {
+      if (t.notes.isEmpty) continue;
+      final fillPaint = Paint()
+        ..color = t.color.withValues(alpha: (opacity * 0.42).clamp(0.0, 1.0))
+        ..style = PaintingStyle.fill;
+      final strokePaint = Paint()
+        ..color = t.color.withValues(alpha: (opacity * 0.90).clamp(0.0, 1.0))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0;
+
+      for (final note in t.notes) {
+        final noteLeft = note.startStep * stepWidth + 1.0;
+        final noteWidth = ((note.durationSteps * stepWidth) - 2.0).clamp(4.0, double.infinity);
+        final noteRight = noteLeft + noteWidth;
+
+        // Viewport culling horizontally
+        if (noteRight < visibleLeft || noteLeft > visibleRight) continue;
+
+        final keyIdx = maxPitch - note.pitch;
+        if (keyIdx < 0 || keyIdx >= totalKeys) continue;
+
+        final noteTop = keyIdx * keyHeight + 1.0;
+        final noteHeight = keyHeight - 2.0;
+
+        final rrect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(noteLeft, noteTop, noteWidth, noteHeight),
+          const Radius.circular(3.0),
+        );
+
+        canvas.drawRRect(rrect, fillPaint);
+        canvas.drawRRect(rrect, strokePaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PianoRollGhostNotesPainter old) {
+    return old.opacity != opacity ||
+        old.tracks != tracks ||
+        old.keyHeight != keyHeight ||
+        old.stepWidth != stepWidth ||
+        old.totalKeys != totalKeys ||
+        old.maxPitch != maxPitch;
   }
 }

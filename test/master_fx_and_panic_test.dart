@@ -155,18 +155,15 @@ void main() {
       );
       await tester.pump();
 
-      // Master Strip should have an FX button
-      final masterFxBtnFinder = find.byWidgetPredicate(
-        (w) => w is Tooltip && w.message == 'Master Bus FX Rack (Limiter, Compressor, Reverb, etc.)',
-      );
-      expect(masterFxBtnFinder, findsOneWidget);
+      // Tap Master strip to select Master Bus and show Master FX rack in sidebar
+      final masterLcdFinder = find.text('MASTER');
+      expect(masterLcdFinder, findsOneWidget);
 
-      // Tap Master FX button to open dialog
-      await tester.tap(masterFxBtnFinder);
+      await tester.tap(masterLcdFinder, warnIfMissed: false);
       await tester.pumpAndSettle();
 
-      // Verify Dialog is open for Master
-      expect(find.text('FX INSERT RACK: MASTER'), findsOneWidget);
+      // Verify Master Modular FX Rack is open in Track Properties sidebar
+      expect(find.text('MASTER BUS'), findsOneWidget);
       expect(find.byType(ModularFxRackWidget), findsOneWidget);
 
       state.stop();

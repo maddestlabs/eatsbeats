@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
-import 'package:eatsbeats/ui/lua_workbench_view.dart';
+import 'package:eatsbeats/ui/eatscript_workbench_view.dart';
 import 'package:eatsbeats/ui/modular/modular_theme.dart';
 import 'package:eatsbeats/ui/modular/modular_faceplate_widget.dart';
 import 'package:eatsbeats/ui/modular/modular_jack_widget.dart';
@@ -236,7 +236,7 @@ void main() {
       expect(find.byType(ModularRackCanvas), findsOneWidget);
     });
 
-    testWidgets('LuaWorkbenchView (Design Studio) switches modes: CODE, MODULAR, SPLIT, GUI', (tester) async {
+    testWidgets('EatscriptWorkbenchView (Design Studio) switches modes: CODE, MODULAR, SPLIT, GUI', (tester) async {
       tester.view.physicalSize = const Size(1200, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -258,7 +258,7 @@ void main() {
             body: SizedBox(
               width: 1200,
               height: 900,
-              child: LuaWorkbenchView(
+              child: EatscriptWorkbenchView(
                 dawState: dawState,
               ),
             ),
@@ -290,7 +290,7 @@ void main() {
       await tester.tap(find.text('GUI'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(LuaWorkbenchView), findsOneWidget);
+      expect(find.byType(EatscriptWorkbenchView), findsOneWidget);
     });
 
     testWidgets('+ ADD MODULE opens ModularModuleSearchDialog with search and category filters', (tester) async {

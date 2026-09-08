@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../lua/lua_gui_model.dart';
 import '../../theme/eats_theme.dart';
 import '../textures/daw_texture_engine.dart';
+import '../vector/panel_svg_background.dart';
+
 
 /// A versatile skeuomorphic rack panel container supporting procedural wood finishes,
 /// brushed steel, tolex, carbon fiber, silver/TB-303, industrial grunge, and sleek studio faceplates.
@@ -17,6 +19,12 @@ class GrungyRackPanel extends StatelessWidget {
   final double textureScale;
   final double? cornerRadius;
   final String? sideCheeks;
+  final String? backgroundSvg;
+  final double backgroundSvgOpacity;
+  final double? backgroundSvgStrokeWidth;
+  final SvgTileMode backgroundSvgTile;
+  final LuaGuiGradientDef? backgroundGradient;
+  final List<SvgLayerDef>? backgroundSvgLayers;
   final List<Widget>? headerActions;
 
   const GrungyRackPanel({
@@ -32,31 +40,43 @@ class GrungyRackPanel extends StatelessWidget {
     this.textureScale = 1.0,
     this.cornerRadius,
     this.sideCheeks,
+    this.backgroundSvg,
+    this.backgroundSvgOpacity = 0.20,
+    this.backgroundSvgStrokeWidth,
+    this.backgroundSvgTile = SvgTileMode.none,
+    this.backgroundGradient,
+    this.backgroundSvgLayers,
     this.headerActions,
   });
 
+
   @override
   Widget build(BuildContext context) {
+    final isPcbGreen = backgroundStyle == PanelBackgroundStyle.pcbGreen;
     final isGrungy = backgroundStyle == PanelBackgroundStyle.grunge ||
         (backgroundStyle == PanelBackgroundStyle.dark && EatsTheme.currentPreset == EatsThemePreset.ateTrack);
     final isSilver = backgroundStyle == PanelBackgroundStyle.silver;
     final isSnes = backgroundStyle == PanelBackgroundStyle.snes;
     final isMinimal = backgroundStyle == PanelBackgroundStyle.minimalWhite;
+    final isLightChassis = isSilver || isSnes || isMinimal || backgroundStyle == PanelBackgroundStyle.blondePine;
     final textureType = DawTextureEngine.mapStyleToTexture(backgroundStyle);
 
-    final isLightChassis = isSilver || isSnes || isMinimal || backgroundStyle == PanelBackgroundStyle.blondePine;
     final baseAccent = accentColor ??
         (isMinimal
-            ? const Color(0xFF1E1E24)
+            ? const Color(0xFF2D68FF)
             : (isSnes
                 ? const Color(0xFFE52521)
                 : (isSilver
                     ? const Color(0xFF141416)
-                    : (isGrungy ? const Color(0xFFFF8C00) : EatsTheme.primaryCyan))));
+                    : (isPcbGreen
+                        ? const Color(0xFF39FF14)
+                        : (isGrungy ? const Color(0xFFFF8C00) : EatsTheme.primaryCyan)))));
 
     Color basePanel;
     if (panelColor != null) {
       basePanel = panelColor!;
+    } else if (isPcbGreen) {
+      basePanel = const Color(0xFF133B1E);
     } else if (isMinimal) {
       basePanel = const Color(0xFFF0F1F4);
     } else if (isSnes) {
@@ -83,21 +103,41 @@ class GrungyRackPanel extends StatelessWidget {
       basePanel = EatsTheme.panelBackground;
     }
 
+    Gradient? effectiveGradient = backgroundGradient?.toFlutterGradient();
+    if (effectiveGradient == null && isPcbGreen) {
+      effectiveGradient = const RadialGradient(
+        center: Alignment.center,
+        radius: 1.15,
+        colors: [
+          Color(0xFF245D35),
+          Color(0xFF143C1E),
+          Color(0xFF0A2211),
+        ],
+        stops: [0.0, 0.65, 1.0],
+      );
+    }
+
     final headerBg = isMinimal
         ? const Color(0xFFE8EAEF)
-        : (isSnes
-            ? const Color(0xFFE5E2D9)
-            : (isSilver
-                ? const Color(0xFFE2DFD6)
-                : (isGrungy ? const Color(0xFF1E1A16) : (textureType != null ? basePanel.withOpacity(0.92) : EatsTheme.panelHeader))));
+        : (isPcbGreen
+            ? const Color(0xFF0E2C16)
+            : (isSnes
+                ? const Color(0xFFE5E2D9)
+                : (isSilver
+                    ? const Color(0xFFE2DFD6)
+                    : (isGrungy ? const Color(0xFF1E1A16) : (textureType != null ? basePanel.withOpacity(0.92) : EatsTheme.panelHeader)))));
 
     final titleColor = (isSnes || isSilver || isMinimal || backgroundStyle == PanelBackgroundStyle.blondePine)
         ? const Color(0xFF1E1E24)
-        : (isGrungy ? const Color(0xFFDCD2C5) : EatsTheme.textPrimary);
+        : (isPcbGreen
+            ? const Color(0xFFE8F5E9)
+            : (isGrungy ? const Color(0xFFDCD2C5) : EatsTheme.textPrimary));
 
     final subtitleColor = (isSnes || isSilver || isMinimal || backgroundStyle == PanelBackgroundStyle.blondePine)
         ? const Color(0xFF5E626E)
-        : (isGrungy ? const Color(0xFF8C8275) : EatsTheme.textMuted);
+        : (isPcbGreen
+            ? const Color(0xFF81C784)
+            : (isGrungy ? const Color(0xFF8C8275) : EatsTheme.textMuted));
 
     final panelContent = Container(
       margin: const EdgeInsets.all(4.0),
@@ -106,16 +146,19 @@ class GrungyRackPanel extends StatelessWidget {
         textureRotation: textureRotation,
         textureScale: textureScale,
         color: basePanel,
+        gradient: effectiveGradient,
         cornerRadius: cornerRadius ?? (isMinimal ? 16.0 : null),
         borderRadius: BorderRadius.circular(isMinimal ? 16 : 6),
         border: Border.all(
-          color: isMinimal
-              ? const Color(0xFFD4D8DF)
-              : (isSnes
-                  ? const Color(0xFF908C82)
-                  : (isSilver
-                      ? const Color(0xFF8C887D)
-                      : (isGrungy ? const Color(0xFF423B33) : EatsTheme.panelHeader))),
+          color: isPcbGreen
+              ? const Color(0xFF2E7D32)
+              : (isMinimal
+                  ? const Color(0xFFD4D8DF)
+                  : (isSnes
+                      ? const Color(0xFF908C82)
+                      : (isSilver
+                          ? const Color(0xFF8C887D)
+                          : (isGrungy ? const Color(0xFF423B33) : EatsTheme.panelHeader)))),
           width: 1.2,
         ),
         child: Column(
@@ -207,10 +250,33 @@ class GrungyRackPanel extends StatelessWidget {
                 ],
               ),
             ),
-            // Main Module Body Content
-            Padding(
-              padding: padding,
-              child: child,
+            // Main Module Body Content with optional SVG watermark
+            Stack(
+              children: [
+                if ((backgroundSvg != null && backgroundSvg!.isNotEmpty) ||
+                    (backgroundSvgLayers != null && backgroundSvgLayers!.isNotEmpty))
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: PanelSvgBackgroundPainter(
+                          svgData: backgroundSvg,
+                          layers: backgroundSvgLayers,
+                          isLightChassis: isLightChassis,
+                          opacity: backgroundSvgOpacity,
+                          accentColor: baseAccent,
+                          strokeWidth: backgroundSvgStrokeWidth,
+                          tileMode: backgroundSvgTile,
+                        ),
+
+                      ),
+                    ),
+                  ),
+
+                Padding(
+                  padding: padding,
+                  child: child,
+                ),
+              ],
             ),
           ],
         ),

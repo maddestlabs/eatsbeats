@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+import '../ui/vector/vector_skin_model.dart';
+
+// EatScript first-class naming aliases
+typedef EatScriptGuiNodeType = LuaGuiNodeType;
+typedef EatScriptGuiNode = LuaGuiNode;
+typedef EatScriptGuiPanelDef = LuaGuiPanelDef;
+typedef EatScriptGuiGradientDef = LuaGuiGradientDef;
 
 enum LuaGuiNodeType {
   knob,
@@ -33,6 +40,7 @@ enum KnobStyle {
   vintage,
   snes,
   minimalWhite,
+  customVector,
 }
 
 enum SliderStyle {
@@ -61,6 +69,7 @@ enum PanelBackgroundStyle {
   harpsichordLacquer,
   c64Breadbin,
   minimalWhite,
+  pcbGreen,
 }
 
 class LuaGuiNode {
@@ -96,6 +105,10 @@ class LuaGuiNode {
   final bool showLabel;
   final bool showValue;
   final List<Color> palette;
+  final CustomControlSkin? customSkin;
+  final double? opacity; // 0.0 = completely transparent background, 1.0 = solid
+  final double? borderWidth; // 0.0 = no border
+  final Color? borderColor;
   final List<LuaGuiNode> children;
 
   const LuaGuiNode({
@@ -131,8 +144,92 @@ class LuaGuiNode {
     this.showLabel = true,
     this.showValue = true,
     this.palette = const [],
+    this.customSkin,
+    this.opacity,
+    this.borderWidth,
+    this.borderColor,
     this.children = const [],
   });
+
+  LuaGuiNode copyWith({
+    LuaGuiNodeType? type,
+    String? param,
+    String? label,
+    String? unit,
+    double? size,
+    double? width,
+    double? height,
+    Color? accentColor,
+    PanelBackgroundStyle? backgroundStyle,
+    Color? backgroundColor,
+    double? textureRotation,
+    double? textureScale,
+    double? cornerRadius,
+    List<String>? options,
+    String? orientation,
+    String? align,
+    String? crossAlign,
+    String? leftText,
+    String? rightText,
+    String? text,
+    String? action,
+    KnobStyle? knobStyle,
+    SliderStyle? sliderStyle,
+    String? canvasMode,
+    int? cols,
+    int? rows,
+    double? scale,
+    bool? showDpad,
+    bool? showActionButtons,
+    bool? showLabel,
+    bool? showValue,
+    List<Color>? palette,
+    CustomControlSkin? customSkin,
+    double? opacity,
+    double? borderWidth,
+    Color? borderColor,
+    List<LuaGuiNode>? children,
+  }) {
+    return LuaGuiNode(
+      type: type ?? this.type,
+      param: param ?? this.param,
+      label: label ?? this.label,
+      unit: unit ?? this.unit,
+      size: size ?? this.size,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      accentColor: accentColor ?? this.accentColor,
+      backgroundStyle: backgroundStyle ?? this.backgroundStyle,
+      backgroundColor: backgroundColor ?? this.backgroundColor,
+      textureRotation: textureRotation ?? this.textureRotation,
+      textureScale: textureScale ?? this.textureScale,
+      cornerRadius: cornerRadius ?? this.cornerRadius,
+      options: options ?? this.options,
+      orientation: orientation ?? this.orientation,
+      align: align ?? this.align,
+      crossAlign: crossAlign ?? this.crossAlign,
+      leftText: leftText ?? this.leftText,
+      rightText: rightText ?? this.rightText,
+      text: text ?? this.text,
+      action: action ?? this.action,
+      knobStyle: knobStyle ?? this.knobStyle,
+      sliderStyle: sliderStyle ?? this.sliderStyle,
+      canvasMode: canvasMode ?? this.canvasMode,
+      cols: cols ?? this.cols,
+      rows: rows ?? this.rows,
+      scale: scale ?? this.scale,
+      showDpad: showDpad ?? this.showDpad,
+      showActionButtons: showActionButtons ?? this.showActionButtons,
+      showLabel: showLabel ?? this.showLabel,
+      showValue: showValue ?? this.showValue,
+      palette: palette ?? this.palette,
+      customSkin: customSkin ?? this.customSkin,
+      opacity: opacity ?? this.opacity,
+      borderWidth: borderWidth ?? this.borderWidth,
+      borderColor: borderColor ?? this.borderColor,
+      children: children ?? this.children,
+    );
+  }
 
   static LuaGuiNodeType parseType(String? rawType) {
     if (rawType == null) return LuaGuiNodeType.unknown;
@@ -255,6 +352,9 @@ class LuaGuiNode {
   static KnobStyle parseKnobStyle(String? raw) {
     if (raw == null) return KnobStyle.standard;
     final clean = raw.toLowerCase().trim();
+    if (clean.contains('custom') || clean.contains('vector') || clean.contains('svg')) {
+      return KnobStyle.customVector;
+    }
     if (clean.contains('minimal') || clean.contains('ceramic') || clean.contains('clean_white') || clean.contains('matte_white')) {
       return KnobStyle.minimalWhite;
     }
@@ -280,6 +380,15 @@ class LuaGuiNode {
       return SliderStyle.console;
     }
     return SliderStyle.capsule;
+  }
+
+  static SvgTileMode parseSvgTileMode(dynamic raw) {
+    if (raw == null) return SvgTileMode.none;
+    final s = raw.toString().toLowerCase().trim();
+    if (s == 'x' || s == 'repeat_x' || s == 'repeat-x' || s == 'horizontal' || s == 'tile_x') return SvgTileMode.x;
+    if (s == 'y' || s == 'repeat_y' || s == 'repeat-y' || s == 'vertical' || s == 'tile_y') return SvgTileMode.y;
+    if (s == 'xy' || s == 'both' || s == 'repeat' || s == 'repeat_xy' || s == 'all') return SvgTileMode.xy;
+    return SvgTileMode.none;
   }
 
   static PanelBackgroundStyle parseBackgroundStyle(String? raw) {
@@ -339,8 +448,13 @@ class LuaGuiNode {
     if (clean.contains('c64') || clean.contains('breadbin') || clean.contains('commodore') || clean.contains('sid')) {
       return PanelBackgroundStyle.c64Breadbin;
     }
+    if (clean.contains('pcb') || clean.contains('circuit') || clean.contains('solder') || clean.contains('board')) {
+      return PanelBackgroundStyle.pcbGreen;
+    }
     return PanelBackgroundStyle.dark;
   }
+
+
 
   static Color? parseColor(dynamic colorVal) {
     if (colorVal == null) return null;
@@ -390,6 +504,79 @@ class LuaGuiNode {
   }
 }
 
+enum PanelGradientType {
+  linear,
+  radial,
+}
+
+class LuaGuiGradientDef {
+  final PanelGradientType type;
+  final List<Color> colors;
+  final List<double>? stops;
+  final Alignment begin;
+  final Alignment end;
+  final Alignment center;
+  final double radius;
+
+  const LuaGuiGradientDef({
+    this.type = PanelGradientType.radial,
+    required this.colors,
+    this.stops,
+    this.begin = Alignment.topLeft,
+    this.end = Alignment.bottomRight,
+    this.center = Alignment.center,
+    this.radius = 1.0,
+  });
+
+  Gradient toFlutterGradient() {
+    if (type == PanelGradientType.linear) {
+      return LinearGradient(
+        colors: colors,
+        stops: stops,
+        begin: begin,
+        end: end,
+      );
+    } else {
+      return RadialGradient(
+        colors: colors,
+        stops: stops,
+        center: center,
+        radius: radius,
+      );
+    }
+  }
+}
+
+enum SvgTileMode {
+  none,
+  x,
+  y,
+  xy,
+}
+
+enum SvgLayerStyle {
+  stroke,
+  fill,
+}
+
+class SvgLayerDef {
+  final String path;
+  final Color? color;
+  final double? strokeWidth;
+  final SvgLayerStyle style;
+  final double opacity;
+  final SvgTileMode tileMode;
+
+  const SvgLayerDef({
+    required this.path,
+    this.color,
+    this.strokeWidth,
+    this.style = SvgLayerStyle.stroke,
+    this.opacity = 1.0,
+    this.tileMode = SvgTileMode.none,
+  });
+}
+
 class LuaGuiPanelDef {
   final String title;
   final String? subtitle;
@@ -402,6 +589,12 @@ class LuaGuiPanelDef {
   final double textureScale;
   final String? sideCheeks; // 'walnut', 'mahogany', 'blondePine', 'rosewood', 'none'
   final double? cornerRadius; // in pixels (e.g. 0 for flush rack, 4, 8, 12)
+  final String? backgroundSvg; // Optional SVG path watermark rendered across panel chassis
+  final double backgroundSvgOpacity;
+  final double? backgroundSvgStrokeWidth; // Optional stroke thickness for watermark line art
+  final SvgTileMode backgroundSvgTile; // Tiling mode: none, x, y, xy
+  final LuaGuiGradientDef? backgroundGradient; // Optional linear or radial GPU gradient
+  final List<SvgLayerDef>? backgroundSvgLayers; // Optional multi-path layered vector watermark
   final List<LuaGuiNode> children;
 
   const LuaGuiPanelDef({
@@ -416,6 +609,56 @@ class LuaGuiPanelDef {
     this.textureScale = 1.0,
     this.sideCheeks,
     this.cornerRadius,
+    this.backgroundSvg,
+    this.backgroundSvgOpacity = 0.20,
+    this.backgroundSvgStrokeWidth,
+    this.backgroundSvgTile = SvgTileMode.none,
+    this.backgroundGradient,
+    this.backgroundSvgLayers,
     required this.children,
   });
+
+  LuaGuiPanelDef copyWith({
+    String? title,
+    String? subtitle,
+    String? style,
+    PanelBackgroundStyle? backgroundStyle,
+    Color? backgroundColor,
+    Color? accentColor,
+    KnobStyle? defaultKnobStyle,
+    double? textureRotation,
+    double? textureScale,
+    String? sideCheeks,
+    double? cornerRadius,
+    String? backgroundSvg,
+    double? backgroundSvgOpacity,
+    double? backgroundSvgStrokeWidth,
+    SvgTileMode? backgroundSvgTile,
+    LuaGuiGradientDef? backgroundGradient,
+    List<SvgLayerDef>? backgroundSvgLayers,
+    List<LuaGuiNode>? children,
+  }) {
+    return LuaGuiPanelDef(
+      title: title ?? this.title,
+      subtitle: subtitle ?? this.subtitle,
+      style: style ?? this.style,
+      backgroundStyle: backgroundStyle ?? this.backgroundStyle,
+      backgroundColor: backgroundColor ?? this.backgroundColor,
+      accentColor: accentColor ?? this.accentColor,
+      defaultKnobStyle: defaultKnobStyle ?? this.defaultKnobStyle,
+      textureRotation: textureRotation ?? this.textureRotation,
+      textureScale: textureScale ?? this.textureScale,
+      sideCheeks: sideCheeks ?? this.sideCheeks,
+      cornerRadius: cornerRadius ?? this.cornerRadius,
+      backgroundSvg: backgroundSvg ?? this.backgroundSvg,
+      backgroundSvgOpacity: backgroundSvgOpacity ?? this.backgroundSvgOpacity,
+      backgroundSvgStrokeWidth: backgroundSvgStrokeWidth ?? this.backgroundSvgStrokeWidth,
+      backgroundSvgTile: backgroundSvgTile ?? this.backgroundSvgTile,
+      backgroundGradient: backgroundGradient ?? this.backgroundGradient,
+      backgroundSvgLayers: backgroundSvgLayers ?? this.backgroundSvgLayers,
+      children: children ?? this.children,
+    );
+  }
 }
+
+

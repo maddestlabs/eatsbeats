@@ -1311,97 +1311,93 @@ return EatsWater
       name: 'EatsFX Rain',
       category: LuaPresetCategory.instrument,
       description: 'Physical modeling of real-world precipitation, rainfall, and surface impacts: stochastic Poisson droplet micro-noise blips, continuous atmospheric pink rain wash hiss, multi-surface modal cavity resonators (puddle, tin roof, foliage), and gutter drip dynamics.',
-      code: '''
--- @id: eatsfx_rain
--- @name: EatsFX Rain
--- @category: instrument
--- @description: Physical modeling of real-world precipitation, rainfall, and surface impacts: stochastic Poisson droplet micro-noise blips, continuous atmospheric pink rain wash hiss, multi-surface modal cavity resonators (puddle, tin roof, foliage), and gutter drip dynamics.
+      code: '''# @id: eatsfx_rain
+# @name: EatsFX Rain
+# @category: instrument
+# @description: Physical modeling of real-world precipitation, rainfall, and surface impacts: stochastic Poisson droplet micro-noise blips, continuous atmospheric pink rain wash hiss, multi-surface modal cavity resonators (puddle, tin roof, foliage), and gutter drip dynamics.
 
-local EatsFXRain = {}
+eatsfx_rain = True
 
-function EatsFXRain.init()
-  -- Granular Precipitation Core
-  Param.add("RainIntensity", 0.0, 1.0, 0.55)
-  Param.add("DropletForce", 0.1, 1.5, 0.80)
-  Param.add("DropletPitch", 0.5, 2.5, 1.0)
-  Param.add("RainHiss", 0.0, 1.0, 0.40)
-
-  -- Surface Cavity Resonator (0=Puddle, 1=Tin Roof, 2=Foliage)
-  Param.add("SurfaceType", 0.0, 2.0, 0.0)
-  Param.add("SurfaceReso", 0.1, 0.95, 0.60)
-  Param.add("Brightness", 0.2, 2.0, 1.0)
-
-  -- Tone & Dispersion
-  Param.add("Tone", 1000.0, 18000.0, 11000.0)
-  Param.add("Decay", 0.1, 4.0, 1.2)
-end
-
-function EatsFXRain.process(time, freq, note, params)
-  local intens = params["RainIntensity"] or 0.55
-  local force = params["DropletForce"] or 0.80
-  local pitch = params["DropletPitch"] or 1.0
-  local hiss = params["RainHiss"] or 0.40
-  local decay = params["Decay"] or 1.2
-
-  -- Continuous rain wash (pink noise floor approximation)
-  local washTone = (math.random() * 2.0 - 1.0) * hiss * 0.22
-
-  -- Discrete raindrop micro-impact (crisp white noise blip)
-  local dropBlip = (math.random() < (intens * 0.08)) and ((math.random() * 2.0 - 1.0) * force * 0.45) or 0.0
-
-  local ampEnv = math.exp(-time / math.max(0.1, decay))
-  local raw = (washTone + dropBlip) * ampEnv
-  return math.tanh(raw * 1.2) * 0.95
-end
-
-function EatsFXRain.gui()
-  return {
-    panel = {
-      title = "EATSFX RAIN",
-      subtitle = "Granular Precipitation & Surface Acoustic Matrix",
-      accent = "#00E5FF",
-      background = "matte_metal",
-      rackSides = "brushed_steel",
-      cornerRadius = 0,
-      layout = {
-        {
-          type = "group",
-          label = "PRECIPITATION & DROPLETS (CYAN)",
-          accent = "#00E5FF",
-          children = {
-            {
-              type = "row",
-              children = {
-                { type = "knob", param = "RainIntensity", label = "DOWNPOUR", unit = "%", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "DropletForce", label = "DROP IMPACT", unit = "J", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "DropletPitch", label = "DROP SIZE", unit = "mm", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "RainHiss", label = "RAIN WASH", unit = "dB", knobStyle = "chrome", size = 52 },
-              }
-            }
-          }
-        },
-        {
-          type = "group",
-          label = "SURFACE CAVITY & ACOUSTIC IMPACT (BLUE)",
-          accent = "#2979FF",
-          children = {
-            {
-              type = "row",
-              children = {
-                { type = "knob", param = "SurfaceType", label = "SURFACE", unit = "idx", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "SurfaceReso", label = "CAVITY RESO", unit = "%", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "Brightness", label = "SPLASH BITE", unit = "%", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "Tone", label = "HIGH CUT", unit = "Hz", knobStyle = "vintage", size = 52 },
-              }
-            }
-          }
-        }
-      }
+def init():
+    return {
+        "RainIntensity": eat.param("RainIntensity", 0.0, 1.0, 0.55),
+        "DropletForce": eat.param("DropletForce", 0.1, 1.5, 0.80),
+        "DropletPitch": eat.param("DropletPitch", 0.5, 2.5, 1.0),
+        "RainHiss": eat.param("RainHiss", 0.0, 1.0, 0.40),
+        "SurfaceType": eat.param("SurfaceType", 0.0, 2.0, 0.0),
+        "SurfaceReso": eat.param("SurfaceReso", 0.1, 0.95, 0.60),
+        "Brightness": eat.param("Brightness", 0.2, 2.0, 1.0),
+        "Tone": eat.param("Tone", 1000.0, 18000.0, 11000.0),
+        "Decay": eat.param("Decay", 0.1, 4.0, 1.2),
     }
-  }
-end
 
-return EatsFXRain
+# --- Hardware GUI Layout ---
+def gui():
+    return {
+        "panel": {
+            "title": "EATSFX RAIN",
+            "subtitle": "Granular Precipitation & Surface Acoustic Matrix",
+            "background": "minimal_white",
+            "cornerRadius": 8,
+            "backgroundSvg": "M 60 90 C 45 90, 30 75, 30 60 C 30 45, 42 35, 55 35 C 60 20, 80 10, 105 10 C 130 10, 150 25, 155 45 C 165 45, 175 55, 175 65 C 175 80, 160 90, 145 90 Z M 50 115 L 40 145 M 85 115 L 75 145 M 120 115 L 110 145 M 155 115 L 145 145 M 65 155 L 55 185 M 100 155 L 90 185 M 135 155 L 125 185",
+            "backgroundSvgOpacity": 0.1,
+            "accent": "#0091EA",
+            "knobStyle": "minimal_white",
+            "layout": [
+                {
+                    "type": "group",
+                    "label": "PRECIPITATION & DROPLETS",
+                    "accent": "#0091EA",
+                    "opacity": 0.0,
+                    "borderWidth": 0.0,
+                    "orientation": "vertical",
+                    "align": "space_around",
+                    "crossAlign": "center",
+                    "children": [
+                        {
+                            "type": "row",
+                            "orientation": "vertical",
+                            "align": "space_around",
+                            "crossAlign": "center",
+                            "children": [
+                                {"type": "knob", "param": "RainIntensity", "label": "DOWNPOUR", "unit": "%", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "DropletForce", "label": "DROP IMPACT", "unit": "J", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "DropletPitch", "label": "DROP SIZE", "unit": "mm", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "RainHiss", "label": "RAIN WASH", "unit": "dB", "size": 36, "knobStyle": "snes", "showValue": False},
+                            ],
+                        },
+                    ],
+                },
+                {
+                    "type": "group",
+                    "label": "SURFACE CAVITY & ACOUSTIC IMPACT",
+                    "accent": "#0277BD",
+                    "opacity": 0.0,
+                    "borderWidth": 0.0,
+                    "orientation": "vertical",
+                    "align": "space_around",
+                    "crossAlign": "center",
+                    "children": [
+                        {
+                            "type": "row",
+                            "orientation": "vertical",
+                            "align": "space_around",
+                            "crossAlign": "center",
+                            "children": [
+                                {"type": "knob", "param": "SurfaceType", "label": "SURFACE", "unit": "idx", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "SurfaceReso", "label": "CAVITY RESO", "unit": "%", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "Brightness", "label": "SPLASH BITE", "unit": "%", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "Tone", "label": "HIGH CUT", "unit": "Hz", "size": 36, "knobStyle": "snes", "showValue": False},
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    }
+
+def process(time, freq, note, params):
+    return 0.0
 ''',
     ),
 
@@ -1411,93 +1407,88 @@ return EatsFXRain
       name: 'EatsFX Wind',
       category: LuaPresetCategory.instrument,
       description: 'Physical modeling of atmospheric wind, Aeolian tones, and architectural cavity whistling: fractional Brownian motion aerodynamic gust generator, Strouhal vortex shedding resonance, Harmon-derived window crack cavity notch, and chimney howl modal resonator.',
-      code: '''
--- @id: eatsfx_wind
--- @name: EatsFX Wind
--- @category: instrument
--- @description: Physical modeling of atmospheric wind, Aeolian tones, and architectural cavity whistling: fractional Brownian motion aerodynamic gust generator, Strouhal vortex shedding resonance, Harmon-derived window crack cavity notch, and chimney howl modal resonator.
+      code: '''# @id: eatsfx_wind
+# @name: EatsFX Wind
+# @category: instrument
+# @description: Physical modeling of atmospheric wind, Aeolian tones, and architectural cavity whistling: fractional Brownian motion aerodynamic gust generator, Strouhal vortex shedding resonance, Harmon-derived window crack cavity notch, and chimney howl modal resonator.
 
-local EatsFXWind = {}
+eatsfx_wind = True
 
-function EatsFXWind.init()
-  -- Aerodynamic Gust Core
-  Param.add("GustSpeed", 0.05, 3.0, 0.25)
-  Param.add("Turbulence", 0.0, 1.0, 0.65)
-
-  -- Aeolian Vortex Shedding & Cavity Whistle
-  Param.add("AeolianPitch", 60.0, 2000.0, 440.0)
-  Param.add("HowlDepth", 0.0, 1.0, 0.70)
-
-  -- Atmospheric Absorption & Tone
-  Param.add("Tone", 400.0, 12000.0, 4800.0)
-  Param.add("Decay", 0.2, 5.0, 2.0)
-end
-
-function EatsFXWind.process(time, freq, note, params)
-  local speed = params["GustSpeed"] or 0.25
-  local turb = params["Turbulence"] or 0.65
-  local fAeol = params["AeolianPitch"] or freq or 440.0
-  local howl = params["HowlDepth"] or 0.70
-  local decay = params["Decay"] or 2.0
-
-  -- Brownian/Pink turbulence airflow
-  local gustMod = 0.5 + 0.5 * math.sin(2.0 * math.pi * speed * time)
-  local airflow = (math.random() * 2.0 - 1.0) * (0.3 + 0.7 * gustMod * turb)
-
-  -- Aeolian vortex whistle
-  local whistle = math.sin(2.0 * math.pi * fAeol * time) * howl * 0.45 * gustMod
-
-  local ampEnv = math.exp(-time / math.max(0.2, decay))
-  local raw = (airflow * 0.5 + whistle * 0.5) * ampEnv
-  return math.tanh(raw * 1.3) * 0.95
-end
-
-function EatsFXWind.gui()
-  return {
-    panel = {
-      title = "EATSFX WIND",
-      subtitle = "Aeolian Tempest & Cavity Howl Synthesizer",
-      accent = "#26A69A",
-      background = "matte_metal",
-      rackSides = "brushed_steel",
-      cornerRadius = 0,
-      layout = {
-        {
-          type = "group",
-          label = "AERODYNAMIC GUST & TURBULENCE (TEAL)",
-          accent = "#26A69A",
-          children = {
-            {
-              type = "row",
-              children = {
-                { type = "knob", param = "GustSpeed", label = "GUST SPEED", unit = "Hz", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "Turbulence", label = "TURBULENCE", unit = "%", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "AeolianPitch", label = "VORTEX PITCH", unit = "Hz", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "HowlDepth", label = "HOWL DEPTH", unit = "%", knobStyle = "chrome", size = 52 },
-              }
-            }
-          }
-        },
-        {
-          type = "group",
-          label = "ATMOSPHERIC AIR ABSORPTION & TONE (SLATE)",
-          accent = "#78909C",
-          children = {
-            {
-              type = "row",
-              children = {
-                { type = "knob", param = "Tone", label = "AIR LOWPASS", unit = "Hz", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "Decay", label = "GUST SUSTAIN", unit = "s", knobStyle = "vintage", size = 52 },
-              }
-            }
-          }
-        }
-      }
+def init():
+    return {
+        "GustSpeed": eat.param("GustSpeed", 0.05, 3.0, 0.25),
+        "Turbulence": eat.param("Turbulence", 0.0, 1.0, 0.65),
+        "AeolianPitch": eat.param("AeolianPitch", 60.0, 2000.0, 440.0),
+        "HowlDepth": eat.param("HowlDepth", 0.0, 1.0, 0.70),
+        "Tone": eat.param("Tone", 400.0, 12000.0, 4800.0),
+        "Decay": eat.param("Decay", 0.2, 5.0, 2.0),
     }
-  }
-end
 
-return EatsFXWind
+# --- Hardware GUI Layout ---
+def gui():
+    return {
+        "panel": {
+            "title": "EATSFX WIND",
+            "subtitle": "Aeolian Tempest & Cavity Howl Synthesizer",
+            "background": "minimal_white",
+            "cornerRadius": 8,
+            "backgroundSvg": "M 10 50 C 70 50, 120 20, 160 20 C 190 20, 210 35, 210 50 C 210 65, 190 80, 170 80 C 145 80, 135 60, 145 45 C 155 35, 175 40, 175 50 M 20 85 C 80 85, 130 65, 165 65 C 195 65, 220 80, 220 95 C 220 110, 200 120, 180 120 C 160 120, 150 105, 160 95 M 5 120 C 65 120, 110 105, 145 105 C 180 105, 200 115, 210 130",
+            "backgroundSvgOpacity": 0.1,
+            "accent": "#546E7A",
+            "knobStyle": "minimal_white",
+            "layout": [
+                {
+                    "type": "group",
+                    "label": "AERODYNAMIC GUST & TURBULENCE",
+                    "accent": "#546E7A",
+                    "opacity": 0.0,
+                    "borderWidth": 0.0,
+                    "orientation": "vertical",
+                    "align": "space_around",
+                    "crossAlign": "center",
+                    "children": [
+                        {
+                            "type": "row",
+                            "orientation": "vertical",
+                            "align": "space_around",
+                            "crossAlign": "center",
+                            "children": [
+                                {"type": "knob", "param": "GustSpeed", "label": "GUST SPEED", "unit": "Hz", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "Turbulence", "label": "TURBULENCE", "unit": "%", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "AeolianPitch", "label": "VORTEX PITCH", "unit": "Hz", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "HowlDepth", "label": "HOWL DEPTH", "unit": "%", "size": 36, "knobStyle": "snes", "showValue": False},
+                            ],
+                        },
+                    ],
+                },
+                {
+                    "type": "group",
+                    "label": "ATMOSPHERIC AIR ABSORPTION & TONE",
+                    "accent": "#78909C",
+                    "opacity": 0.0,
+                    "borderWidth": 0.0,
+                    "orientation": "vertical",
+                    "align": "space_around",
+                    "crossAlign": "center",
+                    "children": [
+                        {
+                            "type": "row",
+                            "orientation": "vertical",
+                            "align": "space_around",
+                            "crossAlign": "center",
+                            "children": [
+                                {"type": "knob", "param": "Tone", "label": "AIR LOWPASS", "unit": "Hz", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "Decay", "label": "GUST SUSTAIN", "unit": "s", "size": 36, "knobStyle": "snes", "showValue": False},
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    }
+
+def process(time, freq, note, params):
+    return 0.0
 ''',
     ),
 
@@ -1507,101 +1498,92 @@ return EatsFXWind
       name: 'EatsFX Fire',
       category: LuaPresetCategory.instrument,
       description: 'Physical modeling of natural open fire, living hearths, and campfires: low-frequency turbulent deflagration combustion roar, convective thermal draft drift, supercritical wood sap pocket explosions, flying ember sizzle crackle matrix, and hollow hearth log resonance.',
-      code: '''
--- @id: eatsfx_fire
--- @name: EatsFX Fire
--- @category: instrument
--- @description: Physical modeling of natural open fire, living hearths, and campfires: low-frequency turbulent deflagration combustion roar, convective thermal draft drift, supercritical wood sap pocket explosions, flying ember sizzle crackle matrix, and hollow hearth log resonance.
+      code: '''# @id: eatsfx_fire
+# @name: EatsFX Fire
+# @category: instrument
+# @description: Physical modeling of natural open fire, living hearths, and campfires: low-frequency turbulent deflagration combustion roar, convective thermal draft drift, supercritical wood sap pocket explosions, flying ember sizzle crackle matrix, and hollow hearth log resonance.
 
-local EatsFXFire = {}
+eatsfx_fire = True
 
-function EatsFXFire.init()
-  -- Combustion Roar & Convection Draft
-  Param.add("FlameRoar", 0.0, 1.0, 0.60)
-  Param.add("FlameDraft", 0.05, 2.0, 0.40)
-
-  -- Supercritical Wood Sap Explosions & Ember Sizzle
-  Param.add("SapCrackle", 0.0, 1.0, 0.45)
-  Param.add("PopEnergy", 0.1, 1.5, 0.85)
-  Param.add("EmberSizzle", 0.0, 1.0, 0.50)
-
-  -- Hollow Hearth Log Resonator
-  Param.add("HearthReso", 0.1, 0.95, 0.55)
-  Param.add("Tone", 500.0, 16000.0, 8000.0)
-  Param.add("Decay", 0.1, 4.0, 1.5)
-end
-
-function EatsFXFire.process(time, freq, note, params)
-  local roar = params["FlameRoar"] or 0.60
-  local draft = params["FlameDraft"] or 0.40
-  local sap = params["SapCrackle"] or 0.45
-  local pop = params["PopEnergy"] or 0.85
-  local ember = params["EmberSizzle"] or 0.50
-  local decay = params["Decay"] or 1.5
-
-  -- Thermal convection flutter
-  local convection = 0.5 + 0.5 * math.sin(2.0 * math.pi * draft * time)
-  local roarTone = (math.random() * 2.0 - 1.0) * roar * 0.30 * convection
-
-  -- Sap pop rupture
-  local sapPop = (math.random() < (sap * 0.035)) and (math.sin(2.0 * math.pi * 340.0 * time) * pop * 0.65) or 0.0
-
-  -- Ember sizzle
-  local emberTick = (math.random() < (ember * 0.065)) and ((math.random() * 2.0 - 1.0) * 0.35) or 0.0
-
-  local ampEnv = math.exp(-time / math.max(0.1, decay))
-  local raw = (roarTone + sapPop + emberTick) * ampEnv
-  return math.tanh(raw * 1.25) * 0.95
-end
-
-function EatsFXFire.gui()
-  return {
-    panel = {
-      title = "EATSFX FIRE",
-      subtitle = "Organic Campfire, Hearth & Sap Crackle Generator",
-      accent = "#FF3D00",
-      background = "matte_metal",
-      rackSides = "brushed_steel",
-      cornerRadius = 0,
-      layout = {
-        {
-          type = "group",
-          label = "COMBUSTION ROAR & CONVECTION (AMBER)",
-          accent = "#FF9100",
-          children = {
-            {
-              type = "row",
-              children = {
-                { type = "knob", param = "FlameRoar", label = "FLAME ROAR", unit = "%", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "FlameDraft", label = "THERMAL DRAFT", unit = "Hz", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "HearthReso", label = "HEARTH LOG", unit = "%", knobStyle = "chrome", size = 52 },
-                { type = "knob", param = "Tone", label = "TONE", unit = "Hz", knobStyle = "chrome", size = 52 },
-              }
-            }
-          }
-        },
-        {
-          type = "group",
-          label = "WOOD SAP EXPLOSIONS & EMBER SIZZLE (ORANGE)",
-          accent = "#FF3D00",
-          children = {
-            {
-              type = "row",
-              children = {
-                { type = "knob", param = "SapCrackle", label = "SAP POP RATE", unit = "%", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "PopEnergy", label = "POP ENERGY", unit = "J", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "EmberSizzle", label = "EMBER SIZZLE", unit = "%", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "Decay", label = "BURN DECAY", unit = "s", knobStyle = "vintage", size = 52 },
-              }
-            }
-          }
-        }
-      }
+def init():
+    return {
+        "FlameRoar": eat.param("FlameRoar", 0.0, 1.0, 0.60),
+        "FlameDraft": eat.param("FlameDraft", 0.05, 2.0, 0.40),
+        "SapCrackle": eat.param("SapCrackle", 0.0, 1.0, 0.45),
+        "PopEnergy": eat.param("PopEnergy", 0.1, 1.5, 0.85),
+        "EmberSizzle": eat.param("EmberSizzle", 0.0, 1.0, 0.50),
+        "HearthReso": eat.param("HearthReso", 0.1, 0.95, 0.55),
+        "Tone": eat.param("Tone", 500.0, 16000.0, 8000.0),
+        "Decay": eat.param("Decay", 0.1, 4.0, 1.5),
     }
-  }
-end
 
-return EatsFXFire
+# --- Hardware GUI Layout ---
+def gui():
+    return {
+        "panel": {
+            "title": "EATSFX FIRE",
+            "subtitle": "Organic Campfire, Hearth & Sap Crackle Generator",
+            "background": "minimal_white",
+            "cornerRadius": 8,
+            "backgroundSvg": "M 100 220 C 60 220, 20 180, 20 130 C 20 90, 60 50, 80 10 C 90 40, 100 60, 110 50 C 130 30, 140 10, 150 0 C 170 50, 190 90, 190 140 C 190 190, 150 220, 100 220 Z M 100 195 C 120 195, 135 175, 135 145 C 135 115, 115 95, 105 70 C 95 95, 75 115, 75 145 C 75 175, 85 195, 100 195 Z",
+            "backgroundSvgOpacity": 0.1,
+            "accent": "#FF3D00",
+            "knobStyle": "minimal_white",
+            "layout": [
+                {
+                    "type": "group",
+                    "label": "COMBUSTION ROAR & CONVECTION",
+                    "accent": "#FF9100",
+                    "opacity": 0.0,
+                    "borderWidth": 0.0,
+                    "orientation": "vertical",
+                    "align": "space_around",
+                    "crossAlign": "center",
+                    "children": [
+                        {
+                            "type": "row",
+                            "orientation": "vertical",
+                            "align": "space_around",
+                            "crossAlign": "center",
+                            "children": [
+                                {"type": "knob", "param": "FlameRoar", "label": "FLAME ROAR", "unit": "%", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "FlameDraft", "label": "THERMAL DRAFT", "unit": "Hz", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "HearthReso", "label": "HEARTH LOG", "unit": "%", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "Tone", "label": "TONE", "unit": "Hz", "size": 36, "knobStyle": "snes", "showValue": False},
+                            ],
+                        },
+                    ],
+                },
+                {
+                    "type": "group",
+                    "label": "WOOD SAP EXPLOSIONS & EMBER SIZZLE",
+                    "accent": "#FF3D00",
+                    "opacity": 0.0,
+                    "borderWidth": 0.0,
+                    "orientation": "vertical",
+                    "align": "space_around",
+                    "crossAlign": "center",
+                    "children": [
+                        {
+                            "type": "row",
+                            "orientation": "vertical",
+                            "align": "space_around",
+                            "crossAlign": "center",
+                            "children": [
+                                {"type": "knob", "param": "SapCrackle", "label": "SAP POP RATE", "unit": "%", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "PopEnergy", "label": "POP ENERGY", "unit": "J", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "EmberSizzle", "label": "EMBER SIZZLE", "unit": "%", "size": 36, "knobStyle": "snes", "showValue": False},
+                                {"type": "knob", "param": "Decay", "label": "BURN DECAY", "unit": "s", "size": 36, "knobStyle": "snes", "showValue": False},
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    }
+
+def process(time, freq, note, params):
+    return 0.0
 ''',
     ),
 
@@ -8017,114 +7999,77 @@ return PolyLeadSynth
       name: 'YM2612 Genesis 4-Op FM',
       category: LuaPresetCategory.instrument,
       description: 'Authentic YM2612 / OPN2 4-operator FM sound chip emulation (16-bit arcade & console sound) with 8 selectable routing algorithms, operator feedback, Total Level brightness, and direct register poke access.',
-      code: '''
--- @name: YM2612 Genesis 4-Op FM
--- @category: instrument
-local YM2612 = {}
+      code: '''# @id: ym2612_synth
+# @name: YM2612 Genesis 4-Op FM
+# @category: instrument
+# @description: Authentic YM2612 / OPN2 4-operator FM sound chip emulation (16-bit arcade & console sound) with 8 selectable routing algorithms, operator feedback, Total Level brightness, and direct register poke access.
 
-function YM2612.init()
-  Param.add("Algorithm", 0.0, 7.0, 4.0, 1.0)
-  Param.add("Feedback", 0.0, 7.0, 5.0, 1.0)
-  Param.add("Op1_Mult", 0.5, 12.0, 1.0, 0.5)
-  Param.add("Op1_TL", 0.0, 127.0, 8.0, 1.0)
-  Param.add("Op2_Mult", 0.5, 12.0, 2.0, 0.5)
-  Param.add("Op2_TL", 0.0, 127.0, 0.0, 1.0)
-  Param.add("Op3_Mult", 0.5, 12.0, 3.0, 0.5)
-  Param.add("Op3_TL", 0.0, 127.0, 16.0, 1.0)
-  Param.add("Op4_Mult", 0.5, 12.0, 1.0, 0.5)
-  Param.add("Op4_TL", 0.0, 127.0, 0.0, 1.0)
-end
+ym2612_synth = True
 
-function YM2612.operator(phase, totalLevel, mult)
-  local tlGain = math.exp(-((totalLevel or 0.0) / 127.0) * 4.0)
-  return math.sin(phase * (mult or 1.0)) * tlGain
-end
+def init():
+    return {
+        "Algorithm": eat.param("Algorithm", 0.0, 7.0, 4.0),
+        "Feedback": eat.param("Feedback", 0.0, 7.0, 5.0),
+        "Op1_Mult": eat.param("Op1_Mult", 0.5, 12.0, 1.0),
+        "Op1_TL": eat.param("Op1_TL", 0.0, 127.0, 8.0),
+        "Op2_Mult": eat.param("Op2_Mult", 0.5, 12.0, 2.0),
+        "Op2_TL": eat.param("Op2_TL", 0.0, 127.0, 0.0),
+        "Op3_Mult": eat.param("Op3_Mult", 0.5, 12.0, 3.0),
+        "Op3_TL": eat.param("Op3_TL", 0.0, 127.0, 16.0),
+        "Op4_Mult": eat.param("Op4_Mult", 0.5, 12.0, 1.0),
+        "Op4_TL": eat.param("Op4_TL", 0.0, 127.0, 0.0),
+    }
 
-function YM2612.ladder_dac(sample)
-  local steps = 512.0
-  return math.floor(sample * steps + 0.5) / steps
-end
-
-function YM2612.process(time, freq, note, params)
-  local algo = math.floor(params["Algorithm"] or 4.0)
-  local fb = (params["Feedback"] or 5.0) / 7.0
-  local op1M = params["Op1_Mult"] or 1.0
-  local op1TL = params["Op1_TL"] or 8.0
-  local op2M = params["Op2_Mult"] or 1.0
-  local op2TL = params["Op2_TL"] or 12.0
-  local op3M = params["Op3_Mult"] or 1.0
-  local op3TL = params["Op3_TL"] or 0.0
-  local op4M = params["Op4_Mult"] or 1.0
-  local op4TL = params["Op4_TL"] or 0.0
-
-  local basePhase = 2.0 * math.pi * freq * time
-  local op1Mod = math.sin(basePhase * op1M) * fb * 1.5
-  local op1 = YM2612.operator(basePhase + op1Mod, op1TL, op1M)
-  local op2 = YM2612.operator(basePhase + op1 * 2.0, op2TL, op2M)
-  local op3 = YM2612.operator(basePhase + op2 * 1.5, op3TL, op3M)
-  local op4 = YM2612.operator(basePhase + op3 * 2.0, op4TL, op4M)
-
-  local env = math.exp(-time * 1.5)
-  local rawOut = (op2 * 0.3 + op4 * 0.7) * env
-  return YM2612.ladder_dac(math.tanh(rawOut * 1.2))
-end
-
-function YM2612.gui()
-  return {
-    panel = {
-      title = "YM2612 FM SOUND PROCESSOR",
-      subtitle = "16-Bit 4-Operator FM Hardware Synthesis",
-      accent = "track",
-      layout = {
-        {
-          type = "row",
-          children = {
-            { type = "nixie", param = "Algorithm", label = "ALGORITHM", width = 110 },
-            { type = "nixie", param = "Feedback", label = "FEEDBACK", width = 110 },
-          }
+# --- Hardware GUI Layout ---
+def gui():
+    return {
+        "panel": {
+            "title": "YM2612 FM SOUND PROCESSOR",
+            "subtitle": "16-Bit 4-Operator FM Hardware Synthesis",
+            "background": "#111111",
+            "accent": "#CCCCCC",
+            "layout": [
+                {
+                    "type": "row",
+                    "background": "#222222",
+                    "opacity": 0.55,
+                    "borderWidth": 0.25,
+                    "orientation": "vertical",
+                    "align": "space_around",
+                    "crossAlign": "center",
+                    "children": [
+                        {"type": "nixie", "param": "Algorithm", "label": "ALGORITHM", "width": 110},
+                        {"type": "nixie", "param": "Feedback", "label": "FEEDBACK", "width": 110},
+                    ],
+                },
+                {
+                    "type": "row",
+                    "background": "#222222",
+                    "opacity": 1.0,
+                    "borderWidth": 0.25,
+                    "orientation": "vertical",
+                    "align": "space_around",
+                    "crossAlign": "center",
+                    "children": [
+                        {"type": "knob", "param": "Op1_Mult", "label": "OP1 MULT", "size": 48},
+                        {"type": "knob", "param": "Op1_TL", "label": "OP1 TL", "size": 48},
+                        {"type": "knob", "param": "Op2_Mult", "label": "OP2 MULT", "size": 48},
+                        {"type": "knob", "param": "Op2_TL", "label": "OP2 TL", "size": 48},
+                        {"type": "knob", "param": "Op3_Mult", "label": "OP3 MULT", "size": 48},
+                        {"type": "knob", "param": "Op3_TL", "label": "OP3 TL", "size": 48},
+                        {"type": "knob", "param": "Op4_Mult", "label": "OP4 MULT", "size": 48},
+                        {"type": "knob", "param": "Op4_TL", "label": "OP4 TL", "size": 48},
+                    ],
+                },
+            ],
         },
-        {
-          type = "row",
-          children = {
-            { type = "knob", param = "Op1_Mult", label = "OP1 MULT", size = 48 },
-            { type = "knob", param = "Op1_TL", label = "OP1 TL", size = 48 },
-            { type = "knob", param = "Op2_Mult", label = "OP2 MULT", size = 48 },
-            { type = "knob", param = "Op2_TL", label = "OP2 TL", size = 48 },
-            { type = "knob", param = "Op3_Mult", label = "OP3 MULT", size = 48 },
-            { type = "knob", param = "Op3_TL", label = "OP3 TL", size = 48 },
-            { type = "knob", param = "Op4_Mult", label = "OP4 MULT", size = 48 },
-            { type = "knob", param = "Op4_TL", label = "OP4 TL", size = 48 },
-          }
-        }
-      }
     }
-  }
-end
 
-function YM2612.rack()
-  return {
-    rows = {
-      {
-        { id = "op12", title = "OP1-OP2 FM VCO", hp = 14, row = 1, category = "VCO" },
-        { id = "op34", title = "OP3-OP4 FM VCO", hp = 14, row = 1, category = "VCO" },
-        { id = "env",  title = "SSG-EG ENVELOPE", hp = 12, row = 1, category = "MOD" },
-      },
-      {
-        { id = "dac",    title = "YM2612 9-BIT DAC", hp = 14, row = 2, category = "FX" },
-        { id = "master", title = "MASTER STEREO OUT", hp = 14, row = 2, category = "OUT" },
-      },
-    },
-    cables = {
-      { from = "1:0:2", to = "1:1:0", color = "modulation" },
-      { from = "1:1:1", to = "2:0:0", color = "audio" },
-      { from = "2:0:1", to = "2:1:0", color = "audio" },
-    }
-  }
-end
-
-return YM2612
+def process(time, freq, note, params):
+    return 0.0
 ''',
     ),
+
 
     // 8. SNES Sfxr (16-Bit S-DSP / SPC700)
     LuaPreset(
@@ -8495,92 +8440,97 @@ return SNESConsole
       name: 'OPL3 Retro Chiptune',
       category: LuaPresetCategory.instrument,
       description: 'YMF262 / OPL3 2-Op & 4-Op FM synthesis modelled after classic 16-bit retro DOS sound cards.',
-      code: '''
--- @name: OPL3 Retro Chiptune
--- @category: instrument
-local OPL3 = {}
+      code: '''# @id: opl3_retro
+# @name: OPL3 Retro Chiptune
+# @category: instrument
+# @description: YMF262 / OPL3 2-Op & 4-Op FM synthesis modelled after classic 16-bit retro DOS sound cards.
 
-function OPL3.init()
-  Param.add("Algorithm", 0.0, 7.0, 4.0, 1.0)
-  Param.add("Feedback", 0.0, 7.0, 4.0, 1.0)
-  Param.add("Op1_Mult", 0.5, 15.0, 1.0, 0.5)
-  Param.add("Op1_TL", 0.0, 127.0, 12.0, 1.0)
-  Param.add("Op2_Mult", 0.5, 15.0, 2.0, 0.5)
-  Param.add("Op2_TL", 0.0, 127.0, 0.0, 1.0)
-end
+opl3_retro = True
 
-function OPL3.operator(phase, totalLevel, mult)
-  local gain = math.exp(-((totalLevel or 0.0) / 127.0) * 3.5)
-  return math.sin(phase * (mult or 1.0)) * gain
-end
+def init():
+    return {
+        "Algorithm": eat.param("Algorithm", 0.0, 7.0, 4.0),
+        "Feedback": eat.param("Feedback", 0.0, 7.0, 4.0),
+        "Op1_Mult": eat.param("Op1_Mult", 0.5, 15.0, 1.0),
+        "Op1_TL": eat.param("Op1_TL", 0.0, 127.0, 12.0),
+        "Op2_Mult": eat.param("Op2_Mult", 0.5, 15.0, 2.0),
+        "Op2_TL": eat.param("Op2_TL", 0.0, 127.0, 0.0),
+    }
 
-function OPL3.process(time, freq, note, params)
-  local algo = params["Algorithm"] or 4.0
-  local fb = (params["Feedback"] or 4.0) / 7.0
-  local op1M = params["Op1_Mult"] or 1.0
-  local op1TL = params["Op1_TL"] or 12.0
-  local op2M = params["Op2_Mult"] or 2.0
-  local op2TL = params["Op2_TL"] or 0.0
+# --- Hardware GUI Layout ---
+def gui():
+    return {
+        "panel": {
+            "title": "YMF262 / OPL3 FM SYNTH",
+            "subtitle": "OPL3 Core v.Furnace | MAME Emulated",
+            "background": "pcb_green",
+            "cornerRadius": 8,
+            "accent": "#39FF14",
+            "backgroundGradient": {
+                "type": "radial",
+                "colors": ["#25633A", "#154222", "#0A2010"],
+                "radius": 1.25,
+                "stops": [0.0, 0.65, 1.0],
+            },
+            "backgroundSvgLayers": [
+                {
+                    "path": "M 25 35 L 45 35 L 55 45 L 55 105 L 65 115 L 75 115 M 25 50 L 40 50 L 50 60 L 50 110 L 60 120 L 70 120 M 25 65 L 35 65 L 45 75 L 45 125 L 65 125 M 25 80 L 35 80 L 40 85 L 40 145 L 55 160 L 70 160 M 25 95 L 30 95 L 35 100 L 35 165 L 50 180 L 70 180 M 125 45 L 145 45 L 155 35 L 175 35 M 125 60 L 140 60 L 150 70 L 175 70 M 225 35 L 245 35 L 255 45 L 275 45 M 225 70 L 250 70 L 260 60 L 275 60 M 95 160 L 110 160 L 125 145 L 145 145 M 100 175 L 115 175 L 130 160 L 145 160 M 175 160 L 190 160 L 205 145 L 225 145 M 180 175 L 195 175 L 210 160 L 225 160 M 255 160 L 270 160 L 285 145 L 305 145 M 260 175 L 275 175 L 290 160 L 305 160 M 335 160 L 350 160 L 365 145 L 385 145 M 340 175 L 355 175 L 370 160 L 385 160 M 15 200 L 70 200 L 85 185 L 120 185 M 220 190 L 250 190 L 265 205 L 385 205 M 15 15 L 385 15 M 15 15 L 15 205 M 385 15 L 385 205 M 15 205 L 385 205",
+                    "color": "#338A4A",
+                    "strokeWidth": 1.4,
+                    "style": "stroke",
+                    "opacity": 0.65,
+                },
+                {
+                    "path": "M 175 25 L 195 25 L 195 45 L 175 45 Z M 205 25 L 225 25 L 225 45 L 205 45 Z M 175 55 L 195 55 L 195 75 L 175 75 Z M 205 55 L 225 55 L 225 75 L 205 75 Z M 185 45 L 185 55 M 195 35 L 205 35 M 215 45 L 215 55 M 72 180 L 88 180 L 88 192 L 72 192 Z M 152 180 L 168 180 L 168 192 L 152 192 Z M 232 180 L 248 180 L 248 192 L 232 192 Z M 312 180 L 328 180 L 328 192 L 312 192 Z M 45 20 L 140 20 L 140 75 L 45 75 Z M 260 20 L 355 20 L 355 75 L 260 75 Z M 20 28 L 30 28 L 30 128 L 20 128 Z",
+                    "color": "#E8F5E9",
+                    "strokeWidth": 0.9,
+                    "style": "stroke",
+                    "opacity": 0.35,
+                },
+                {
+                    "path": "M 45 35 m -1.5 0 a 1.5 1.5 0 1 0 3 0 a 1.5 1.5 0 1 0 -3 0 Z M 75 115 m -1.5 0 a 1.5 1.5 0 1 0 3 0 a 1.5 1.5 0 1 0 -3 0 Z M 70 120 m -1.5 0 a 1.5 1.5 0 1 0 3 0 a 1.5 1.5 0 1 0 -3 0 Z M 65 125 m -1.5 0 a 1.5 1.5 0 1 0 3 0 a 1.5 1.5 0 1 0 -3 0 Z M 145 45 m -1.5 0 a 1.5 1.5 0 1 0 3 0 a 1.5 1.5 0 1 0 -3 0 Z M 255 45 m -1.5 0 a 1.5 1.5 0 1 0 3 0 a 1.5 1.5 0 1 0 -3 0 Z M 145 145 m -1.5 0 a 1.5 1.5 0 1 0 3 0 a 1.5 1.5 0 1 0 -3 0 Z M 225 145 m -1.5 0 a 1.5 1.5 0 1 0 3 0 a 1.5 1.5 0 1 0 -3 0 Z M 305 145 m -1.5 0 a 1.5 1.5 0 1 0 3 0 a 1.5 1.5 0 1 0 -3 0 Z M 385 145 m -1.5 0 a 1.5 1.5 0 1 0 3 0 a 1.5 1.5 0 1 0 -3 0 Z M 12 12 m -3 0 a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0 Z M 388 12 m -3 0 a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0 Z M 12 208 m -3 0 a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0 Z M 388 208 m -3 0 a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0 Z M 200 12 m -3 0 a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0 Z M 200 208 m -3 0 a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0 Z",
+                    "color": "#D4AF37",
+                    "style": "fill",
+                    "opacity": 0.70,
+                },
+            ],
+            "layout": [
+                {
+                    "type": "row",
+                    "opacity": 0.0,
+                    "borderWidth": 0.0,
+                    "accent": "#FF2020",
+                    "align": "space_around",
+                    "crossAlign": "center",
+                    "children": [
+                        {"type": "nixie", "param": "Algorithm", "label": "ALGORITHM", "width": 115, "accent": "#FF2020"},
+                        {"type": "nixie", "param": "Feedback", "label": "FEEDBACK", "width": 115, "accent": "#FF2020"},
+                    ],
+                },
+                {
+                    "type": "row",
+                    "opacity": 0.0,
+                    "borderWidth": 0.0,
+                    "accent": "#39FF14",
+                    "align": "space_around",
+                    "crossAlign": "center",
+                    "children": [
+                        {"type": "knob", "param": "Op1_Mult", "label": "OP1 MULT", "unit": "x", "size": 44, "knobStyle": "standard", "accent": "#39FF14"},
+                        {"type": "knob", "param": "Op1_TL", "label": "OP1 TL", "unit": "", "size": 44, "knobStyle": "standard", "accent": "#39FF14"},
+                        {"type": "knob", "param": "Op2_Mult", "label": "OP2 MULT", "unit": "x", "size": 44, "knobStyle": "standard", "accent": "#39FF14"},
+                        {"type": "knob", "param": "Op2_TL", "label": "OP2 TL", "unit": "", "size": 44, "knobStyle": "standard", "accent": "#39FF14"},
+                    ],
 
-  local basePhase = 2.0 * math.pi * freq * time
-  local op1Out = OPL3.operator(basePhase, op1TL, op1M) * (1.0 + fb)
-  local op2Out = OPL3.operator(basePhase + op1Out * 2.5, op2TL, op2M)
-
-  local env = math.exp(-time * 2.0)
-  return math.tanh((op2Out * env) * 1.1)
-end
-
-function OPL3.gui()
-  return {
-    panel = {
-      title = "YMF262 / OPL3 FM SYNTH",
-      subtitle = "Classic 16-Bit Retro DOS FM Hardware",
-      accent = "#39FF14",
-      layout = {
-        {
-          type = "row",
-          children = {
-            { type = "nixie", param = "Algorithm", label = "ALGORITHM", width = 110 },
-            { type = "nixie", param = "Feedback", label = "FEEDBACK", width = 110 },
-          }
+                },
+            ],
         },
-        {
-          type = "row",
-          children = {
-            { type = "knob", param = "Op1_Mult", label = "OP1 MULT", size = 48 },
-            { type = "knob", param = "Op1_TL", label = "OP1 TL", size = 48 },
-            { type = "knob", param = "Op2_Mult", label = "OP2 MULT", size = 48 },
-            { type = "knob", param = "Op2_TL", label = "OP2 TL", size = 48 },
-          }
-        }
-      }
     }
-  }
-end
 
-function OPL3.rack()
-  return {
-    rows = {
-      {
-        { id = "op1", title = "OPL3 OP1 MODULATOR", hp = 14, row = 1, category = "VCO" },
-        { id = "op2", title = "OPL3 OP2 CARRIER", hp = 14, row = 1, category = "VCO" },
-      },
-      {
-        { id = "dac",    title = "YMF262 16-BIT DAC", hp = 14, row = 2, category = "FX" },
-        { id = "master", title = "OPL3 MASTER OUT", hp = 14, row = 2, category = "OUT" },
-      },
-    },
-    cables = {
-      { from = "1:0:1", to = "1:1:0", color = "modulation" },
-      { from = "1:1:1", to = "2:0:0", color = "audio" },
-      { from = "2:0:1", to = "2:1:0", color = "audio" },
-    }
-  }
-end
-
-return OPL3
+def process(time, freq, note, params):
+    return 0.0
 ''',
     ),
+
 
     // 8. 8-Bit Crusher FX
     LuaPreset(
@@ -10813,6 +10763,40 @@ def run(project, params):
     return {
         "timing_jitter": params.get("TimingJitter", 0.04),
         "velocity_jitter": params.get("VelocityJitter", 0.12),
+    }
+''',
+    ),
+    LuaScriptDef(
+      id: 'action_stmn_procedural_piano',
+      name: 'STMN Procedural Piano',
+      category: LuaScriptCategory.projectAction,
+      description: 'Procedurally generates a complete classical/blues piano piece with rubato timing, figured bass, and melody leading using the Concert Grand Piano.',
+      tags: const ['PIANO', 'PROCGEN', 'CLASSICAL', 'BLUES'],
+      code: '''# @name: STMN Procedural Piano
+# @author: STMN / Eatsbeats
+# @category: project_action
+# @description: Procedurally generates a complete classical/blues piano piece with rubato timing, figured bass, and melody leading using the Concert Grand Piano.
+
+def init():
+    return {
+        "Style": eat.param("Style", 0, 15, 0, options=["Nocturne", "Prelude", "Ballade", "Sonatina", "March", "Chorale", "Elegy", "Etude", "Waltz", "Minuet", "Mazurka", "Polonaise", "Barcarolle", "Lullaby", "Blues", "Tarantella"]),
+        "Root": eat.param("Root", 0, 11, 0, options=["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]),
+        "Mode": eat.param("Mode", 0, 1, 0, options=["Major", "Minor"]),
+        "Seed": eat.param("Seed", 1, 999999, 42, step=1),
+        "TrackLayout": eat.param("TrackLayout", 0, 1, 0, options=["Two Tracks (Right/Left Hand)", "Single Unified Track"]),
+        "Rubato": eat.param("Rubato", 0.0, 1.0, 0.70, step=0.05),
+        "LeftArticulation": eat.param("LeftArticulation", 0.4, 1.5, 1.0, step=0.05),
+    }
+
+def run(project, params):
+    return {
+        "style": params.get("Style", 0),
+        "root": params.get("Root", 0),
+        "mode": params.get("Mode", 0),
+        "seed": params.get("Seed", 42),
+        "track_layout": params.get("TrackLayout", 0),
+        "rubato": params.get("Rubato", 0.70),
+        "left_articulation": params.get("LeftArticulation", 1.0),
     }
 ''',
     ),

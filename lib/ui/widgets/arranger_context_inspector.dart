@@ -19,6 +19,9 @@ import 'eats_color_picker_dialog.dart';
 import 'compact_value_dialog.dart';
 import 'note_splitter_dialog.dart';
 import 'script_search_dialog.dart';
+import 'skeuomorphic_hardware_knob.dart';
+import 'skeuomorphic_hardware_button.dart';
+import 'ai_assistant_dialog.dart';
 import '../audio_to_midi_dialog.dart';
 
 enum InspectorTab { track, clip }
@@ -150,10 +153,302 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
         children: [
           if (clip != null)
             _buildClipSection(context, track, clip)
+          else if (track.id == widget.dawState.masterTrack.id || widget.dawState.isMasterSelected)
+            _buildMasterBusSection(context, track)
           else
             _buildTrackSection(context, track),
         ],
       ),
+    );
+  }
+
+  Widget _buildMasterBusSection(BuildContext context, TrackChannel track) {
+    final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
+    final dawState = widget.dawState;
+    final accentColor = EatsTheme.primaryCyan;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Master Header
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: isGrungy ? const Color(0xFF1B1714) : EatsTheme.panelHeader,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: accentColor.withOpacity(0.4), width: 1.2),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: accentColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(color: accentColor.withOpacity(0.6), blurRadius: 6),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'MASTER BUS',
+                  style: TextStyle(
+                    color: accentColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Tooltip(
+                message: 'Gemini AI Auto-Mastering Assistant',
+                child: SkeuomorphicHardwareButton(
+                  label: 'AI MASTER',
+                  isActive: true,
+                  activeColor: accentColor,
+                  onTap: () => AiAssistantDialog.show(context, dawState, initialTab: 0),
+                  height: 22,
+                  width: 72,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  showLed: false,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        // Master 4-Band EQ & Limiter Card
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: isGrungy ? const Color(0xFF1B1714) : EatsTheme.panelHeader,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: accentColor.withOpacity(0.2), width: 1.0),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.tune, size: 14, color: accentColor),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '4-BAND EQ & LIMITER',
+                      style: TextStyle(
+                        color: accentColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  // Limiter Toggle Button
+                  GestureDetector(
+                    onTap: () => dawState.setMasterLimiter(enabled: !dawState.masterLimiterEnabled),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: dawState.masterLimiterEnabled ? accentColor.withOpacity(0.2) : EatsTheme.controlBackground,
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(color: dawState.masterLimiterEnabled ? accentColor : EatsTheme.textMuted.withOpacity(0.4)),
+                      ),
+                      child: Text(
+                        dawState.masterLimiterEnabled ? 'LIMIT ON' : 'LIMIT OFF',
+                        style: TextStyle(
+                          color: dawState.masterLimiterEnabled ? accentColor : EatsTheme.textMuted,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  // Sub Cut
+                  Expanded(
+                    child: Center(
+                      child: SkeuomorphicHardwareKnob(
+                        label: 'Sub',
+                        value: dawState.masterSubCut,
+                        min: 20.0,
+                        max: 45.0,
+                        defaultValue: 25.0,
+                        size: 28.0,
+                        accentColor: accentColor,
+                        onChanged: (v) => dawState.setMasterEq(subCut: v),
+                        formatValue: (v) => '${v.toInt()}Hz',
+                      ),
+                    ),
+                  ),
+                  // Low Gain
+                  Expanded(
+                    child: Center(
+                      child: SkeuomorphicHardwareKnob(
+                        label: 'Low',
+                        value: dawState.masterLowGain,
+                        min: -12.0,
+                        max: 12.0,
+                        defaultValue: 0.0,
+                        size: 28.0,
+                        accentColor: accentColor,
+                        onChanged: (v) => dawState.setMasterEq(lowGain: v),
+                        formatValue: (v) => '${v > 0 ? "+" : ""}${v.toStringAsFixed(1)}',
+                      ),
+                    ),
+                  ),
+                  // Mid Gain
+                  Expanded(
+                    child: Center(
+                      child: SkeuomorphicHardwareKnob(
+                        label: 'Mid',
+                        value: dawState.masterMidGain,
+                        min: -12.0,
+                        max: 12.0,
+                        defaultValue: 0.0,
+                        size: 28.0,
+                        accentColor: accentColor,
+                        onChanged: (v) => dawState.setMasterEq(midGain: v),
+                        formatValue: (v) => '${v > 0 ? "+" : ""}${v.toStringAsFixed(1)}',
+                      ),
+                    ),
+                  ),
+                  // High Gain
+                  Expanded(
+                    child: Center(
+                      child: SkeuomorphicHardwareKnob(
+                        label: 'High',
+                        value: dawState.masterHighGain,
+                        min: -12.0,
+                        max: 12.0,
+                        defaultValue: 0.0,
+                        size: 28.0,
+                        accentColor: accentColor,
+                        onChanged: (v) => dawState.setMasterEq(highGain: v),
+                        formatValue: (v) => '${v > 0 ? "+" : ""}${v.toStringAsFixed(1)}',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Dedicated Master Limiter Controls Row
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                decoration: BoxDecoration(
+                  color: EatsTheme.controlBackground.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: dawState.masterLimiterEnabled ? accentColor.withOpacity(0.3) : Colors.transparent,
+                    width: 0.8,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'BRICKWALL LIMITER',
+                          style: TextStyle(
+                            color: dawState.masterLimiterEnabled ? accentColor : EatsTheme.textMuted,
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          dawState.masterLimiterEnabled ? 'ENGAGED' : 'BYPASS',
+                          style: TextStyle(
+                            color: dawState.masterLimiterEnabled ? accentColor : EatsTheme.textMuted,
+                            fontSize: 7.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        // Ceiling
+                        Expanded(
+                          child: Center(
+                            child: SkeuomorphicHardwareKnob(
+                              label: 'Ceil',
+                              value: dawState.masterCeilingDbfs,
+                              min: -2.0,
+                              max: 0.0,
+                              defaultValue: -0.3,
+                              size: 28.0,
+                              accentColor: accentColor,
+                              onChanged: (v) => dawState.setMasterLimiter(ceilingDbfs: v),
+                              formatValue: (v) => '${v.toStringAsFixed(1)}dB',
+                            ),
+                          ),
+                        ),
+                        // Drive Boost
+                        Expanded(
+                          child: Center(
+                            child: SkeuomorphicHardwareKnob(
+                              label: 'Drive',
+                              value: dawState.masterLimiterDrive,
+                              min: 0.0,
+                              max: 12.0,
+                              defaultValue: 0.0,
+                              size: 28.0,
+                              accentColor: accentColor,
+                              onChanged: (v) => dawState.setMasterLimiter(driveDb: v),
+                              formatValue: (v) => '+${v.toStringAsFixed(1)}dB',
+                            ),
+                          ),
+                        ),
+                        // Target LUFS
+                        Expanded(
+                          child: Center(
+                            child: SkeuomorphicHardwareKnob(
+                              label: 'LUFS',
+                              value: dawState.masterTargetLufs,
+                              min: -24.0,
+                              max: -6.0,
+                              defaultValue: -14.0,
+                              size: 28.0,
+                              accentColor: accentColor,
+                              onChanged: (v) => dawState.setMasterLimiter(targetLufs: v),
+                              formatValue: (v) => '${v.toInt()}',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        // Master Bus Modular Audio FX Rack
+        ModularFxRackWidget(
+          dawState: dawState,
+          track: dawState.masterTrack,
+        ),
+      ],
     );
   }
 
@@ -163,6 +458,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
     final trackIdx = widget.dawState.activePattern.tracks.indexOf(track);
     final isFirstTrack = trackIdx <= 0;
     final isLastTrack = trackIdx == -1 || trackIdx >= widget.dawState.activePattern.tracks.length - 1;
+    final isMixer = widget.dawState.activeTabIndex == 3;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,6 +466,10 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
         _buildTrackHeader(track),
         const SizedBox(height: 8),
         _buildTrackIdentityCard(context, track),
+        if (isMixer) ...[
+          const SizedBox(height: 10),
+          _buildTrackEqCard(context, track),
+        ],
         if (track.isFolder) ...[
           const SizedBox(height: 10),
           _buildFolderGroupCard(context, track),
@@ -194,6 +494,166 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
         const SizedBox(height: 10),
         _buildTrackActionsCard(context, track, isSingleTrack, isFirstTrack, isLastTrack),
       ],
+    );
+  }
+
+  Widget _buildTrackEqCard(BuildContext context, TrackChannel track) {
+    final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
+    final accentColor = track.color;
+    final dawState = widget.dawState;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isGrungy ? const Color(0xFF1B1714) : EatsTheme.panelHeader,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: accentColor.withOpacity(0.3), width: 1.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune, size: 14, color: accentColor),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'CHANNEL EQ',
+                  style: TextStyle(
+                    color: accentColor,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.8,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: () => dawState.setTrackEq(track: track, enabled: !track.eqEnabled),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: track.eqEnabled ? accentColor.withOpacity(0.2) : EatsTheme.controlBackground,
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(color: track.eqEnabled ? accentColor : EatsTheme.textMuted.withOpacity(0.4)),
+                  ),
+                  child: Text(
+                    track.eqEnabled ? 'ACTIVE' : 'BYPASS',
+                    style: TextStyle(
+                      color: track.eqEnabled ? accentColor : EatsTheme.textMuted,
+                      fontSize: 8,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Row 1: HPF Cutoff, Low Gain, High Gain
+          Row(
+            children: [
+              Expanded(
+                child: Center(
+                  child: SkeuomorphicHardwareKnob(
+                    label: 'HPF',
+                    value: track.eqHpf,
+                    min: 20.0,
+                    max: 500.0,
+                    defaultValue: 20.0,
+                    size: 28.0,
+                    accentColor: accentColor,
+                    onChanged: (v) => dawState.setTrackEq(track: track, hpf: v),
+                    formatValue: (v) => '${v.toInt()}Hz',
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: SkeuomorphicHardwareKnob(
+                    label: 'Low',
+                    value: track.eqLowGain,
+                    min: -18.0,
+                    max: 18.0,
+                    defaultValue: 0.0,
+                    size: 28.0,
+                    accentColor: accentColor,
+                    onChanged: (v) => dawState.setTrackEq(track: track, lowGain: v),
+                    formatValue: (v) => '${v > 0 ? "+" : ""}${v.toStringAsFixed(1)}',
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: SkeuomorphicHardwareKnob(
+                    label: 'High',
+                    value: track.eqHighGain,
+                    min: -18.0,
+                    max: 18.0,
+                    defaultValue: 0.0,
+                    size: 28.0,
+                    accentColor: accentColor,
+                    onChanged: (v) => dawState.setTrackEq(track: track, highGain: v),
+                    formatValue: (v) => '${v > 0 ? "+" : ""}${v.toStringAsFixed(1)}',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Row 2: Mid Freq, Mid Gain, Mid Q
+          Row(
+            children: [
+              Expanded(
+                child: Center(
+                  child: SkeuomorphicHardwareKnob(
+                    label: 'Mid Hz',
+                    value: track.eqMidFreq,
+                    min: 200.0,
+                    max: 8000.0,
+                    defaultValue: 1000.0,
+                    size: 28.0,
+                    accentColor: accentColor,
+                    onChanged: (v) => dawState.setTrackEq(track: track, midFreq: v),
+                    formatValue: (v) => v >= 1000 ? '${(v / 1000).toStringAsFixed(1)}k' : '${v.toInt()}',
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: SkeuomorphicHardwareKnob(
+                    label: 'Mid dB',
+                    value: track.eqMidGain,
+                    min: -18.0,
+                    max: 18.0,
+                    defaultValue: 0.0,
+                    size: 28.0,
+                    accentColor: accentColor,
+                    onChanged: (v) => dawState.setTrackEq(track: track, midGain: v),
+                    formatValue: (v) => '${v > 0 ? "+" : ""}${v.toStringAsFixed(1)}',
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: SkeuomorphicHardwareKnob(
+                    label: 'Mid Q',
+                    value: track.eqMidQ,
+                    min: 0.3,
+                    max: 10.0,
+                    defaultValue: 1.0,
+                    size: 28.0,
+                    accentColor: accentColor,
+                    onChanged: (v) => dawState.setTrackEq(track: track, midQ: v),
+                    formatValue: (v) => v.toStringAsFixed(1),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -821,6 +1281,8 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
   }
 
   Widget _buildTrackActionsCard(BuildContext context, TrackChannel track, bool isSingleTrack, bool isFirstTrack, bool isLastTrack) {
+    final bool isMixer = widget.dawState.activeTabIndex == 3;
+
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -844,7 +1306,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                     onTap: isFirstTrack ? null : () => widget.dawState.moveTrackUp(track),
                     borderRadius: BorderRadius.circular(3),
                     child: Tooltip(
-                      message: 'Move Track Up',
+                      message: isMixer ? 'Move Track Left' : 'Move Track Up',
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                         decoration: BoxDecoration(
@@ -853,7 +1315,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                           border: Border.all(color: const Color(0xFF2B3245), width: 0.8),
                         ),
                         child: Icon(
-                          Icons.keyboard_arrow_up,
+                          isMixer ? Icons.keyboard_arrow_left : Icons.keyboard_arrow_up,
                           size: 13,
                           color: isFirstTrack ? Colors.white12 : EatsTheme.primaryCyan,
                         ),
@@ -865,7 +1327,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                     onTap: isLastTrack ? null : () => widget.dawState.moveTrackDown(track),
                     borderRadius: BorderRadius.circular(3),
                     child: Tooltip(
-                      message: 'Move Track Down',
+                      message: isMixer ? 'Move Track Right' : 'Move Track Down',
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                         decoration: BoxDecoration(
@@ -874,7 +1336,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                           border: Border.all(color: const Color(0xFF2B3245), width: 0.8),
                         ),
                         child: Icon(
-                          Icons.keyboard_arrow_down,
+                          isMixer ? Icons.keyboard_arrow_right : Icons.keyboard_arrow_down,
                           size: 13,
                           color: isLastTrack ? Colors.white12 : EatsTheme.primaryCyan,
                         ),

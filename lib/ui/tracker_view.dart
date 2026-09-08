@@ -70,6 +70,23 @@ class _TrackerViewState extends State<TrackerView> {
       _selectionCurrentStep = null;
       _selectionCurrentCol = null;
     });
+    widget.dawState.clearNoteSelection(widget.dawState.activeTrack);
+  }
+
+  void _syncBlockSelectionToTrackNotes() {
+    final track = widget.dawState.activeTrack;
+    if (_hasBlockSelection) {
+      final minS = _selectionMinStep;
+      final maxS = _selectionMaxStep;
+      final minC = _selectionMinCol;
+      final maxC = _selectionMaxCol;
+      final matchedIds = track.notes.where((n) {
+        final s = n.startStep.toInt();
+        final c = n.column;
+        return s >= minS && s <= maxS && c >= minC && c <= maxC;
+      }).map((n) => n.id).toList();
+      widget.dawState.selectNotes(track, matchedIds);
+    }
   }
 
   int _lastTabIndex = -1;
@@ -90,9 +107,9 @@ class _TrackerViewState extends State<TrackerView> {
   void _onContinuousPlayheadFollow() {
     if (!mounted) return;
     if (_followPlayback && widget.dawState.isPlaying && _verticalScroll.hasClients) {
-      final activeClip = widget.dawState.activeClip;
-      final clipStartStep = ((activeClip?.startBar ?? 0) * 16).toDouble();
-      final totalSteps = ((activeClip?.barLength ?? 4) * 16).toDouble();
+      final activeClip = widget.dawState.activeTrackClip;
+      final clipStartStep = (activeClip.startBar * 16).toDouble();
+      final totalSteps = (activeClip.barLength * 16).toDouble();
       final continuousStep = widget.dawState.continuousArrangerStepNotifier.value;
       if (continuousStep >= clipStartStep && continuousStep <= clipStartStep + totalSteps) {
         final stepInClip = continuousStep - clipStartStep;
@@ -148,9 +165,9 @@ class _TrackerViewState extends State<TrackerView> {
           _focusNode.requestFocus();
         }
         if (_verticalScroll.hasClients) {
-          final activeClip = widget.dawState.activeClip;
-          final clipStartStep = (activeClip?.startBar ?? 0) * 16;
-          final totalSteps = (activeClip?.barLength ?? 4) * 16;
+          final activeClip = widget.dawState.activeTrackClip;
+          final clipStartStep = activeClip.startBar * 16;
+          final totalSteps = activeClip.barLength * 16;
           final stepInClip = (widget.dawState.arrangerStep - clipStartStep).clamp(0, totalSteps - 1);
           widget.dawState.selectTrackerCell(stepInClip, widget.dawState.trackerSelectedColumn);
           final viewportH = _verticalScroll.position.viewportDimension;
@@ -174,22 +191,66 @@ class _TrackerViewState extends State<TrackerView> {
     setState(() {});
   }
 
-  void _scrollToSelectedStep() {
+  void _scrollToSelectedStep({bool animate = false}) {
     if (!_verticalScroll.hasClients) return;
-    final targetOffset = widget.dawState.trackerSelectedStep * 32.0;
-    final double currentMin = _verticalScroll.offset;
-    final double currentMax = currentMin + 250.0;
-    if (targetOffset < currentMin || targetOffset > currentMax) {
-      _verticalScroll.animateTo(
-        targetOffset.clamp(0.0, _verticalScroll.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
-      );
+    final stepTop = widget.dawState.trackerSelectedStep * 32.0;
+    final stepBottom = stepTop + 32.0;
+    final currentScroll = _verticalScroll.offset;
+    final viewportH = _verticalScroll.position.hasViewportDimension
+        ? _verticalScroll.position.viewportDimension
+        : 500.0;
+    final maxScroll = _verticalScroll.position.maxScrollExtent;
+
+    // Margin of 3 steps (~96px) so preceding and succeeding steps stay visible
+    final double margin = 96.0;
+    double? targetOffset;
+
+    if (stepTop < currentScroll + margin) {
+      targetOffset = (stepTop - margin).clamp(0.0, maxScroll);
+    } else if (stepBottom > currentScroll + viewportH - margin) {
+      targetOffset = (stepBottom + margin - viewportH).clamp(0.0, maxScroll);
+    }
+
+    if (targetOffset != null) {
+      if (animate) {
+        _verticalScroll.animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 60),
+          curve: Curves.easeOut,
+        );
+      } else {
+        _verticalScroll.jumpTo(targetOffset);
+      }
+    }
+  }
+
+  void _scrollToSelectedColumn(int colIdx) {
+    if (!_horizontalScroll.hasClients) return;
+    const double columnWidth = 142.0;
+    const double rowHeaderWidth = 44.0;
+    final targetOffset = rowHeaderWidth + (colIdx * (columnWidth + 4.0));
+    final currentOffset = _horizontalScroll.offset;
+    final viewportW = _horizontalScroll.position.viewportDimension;
+
+    if (targetOffset < currentOffset) {
+      _horizontalScroll.jumpTo((targetOffset - rowHeaderWidth).clamp(0.0, _horizontalScroll.position.maxScrollExtent));
+    } else if (targetOffset + columnWidth > currentOffset + viewportW) {
+      _horizontalScroll.jumpTo((targetOffset + columnWidth - viewportW).clamp(0.0, _horizontalScroll.position.maxScrollExtent));
     }
   }
 
   void _handleCellTap(int stepIdx, int colIdx, TrackChannel track, Note noteMatch) {
     _focusNode.requestFocus();
+    final isCtrlOrCmd = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
+
+    if (isCtrlOrCmd) {
+      widget.dawState.selectTrackerCell(stepIdx, colIdx);
+      if (noteMatch.pitch != -1) {
+        widget.dawState.toggleNoteSelection(track, noteMatch.id);
+      }
+      setState(() {});
+      return;
+    }
 
     if (HardwareKeyboard.instance.isShiftPressed) {
       setState(() {
@@ -198,12 +259,18 @@ class _TrackerViewState extends State<TrackerView> {
         _selectionCurrentStep = stepIdx;
         _selectionCurrentCol = colIdx;
         widget.dawState.selectTrackerCell(stepIdx, colIdx);
+        _syncBlockSelectionToTrackNotes();
       });
       return;
     }
 
     _clearBlockSelection();
     widget.dawState.selectTrackerCell(stepIdx, colIdx);
+    if (noteMatch.pitch != -1) {
+      widget.dawState.selectNotes(track, [noteMatch.id]);
+    } else {
+      widget.dawState.clearNoteSelection(track);
+    }
     setState(() {});
 
     final now = DateTime.now();
@@ -310,14 +377,27 @@ class _TrackerViewState extends State<TrackerView> {
     final isShift = HardwareKeyboard.instance.isShiftPressed;
     final isCtrlOrCmd = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
 
-    // Ctrl+A / Cmd+A -> Select All Matrix Cells
+    // Ctrl+A / Cmd+A -> Select All Matrix Cells & Notes
     if (isCtrlOrCmd && key == LogicalKeyboardKey.keyA) {
       setState(() {
         _selectionAnchorStep = 0;
         _selectionAnchorCol = 0;
         _selectionCurrentStep = totalSteps - 1;
         _selectionCurrentCol = totalColumns - 1;
+        _syncBlockSelectionToTrackNotes();
       });
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+Space -> Toggle current cell note selection (Keyboard Accumulator)
+    if (isCtrlOrCmd && key == LogicalKeyboardKey.space) {
+      final currentNote = track.notes.where(
+        (n) => n.startStep.toInt() == widget.dawState.trackerSelectedStep && n.column == widget.dawState.trackerSelectedColumn,
+      ).firstOrNull;
+      if (currentNote != null) {
+        widget.dawState.toggleNoteSelection(track, currentNote.id);
+        setState(() {});
+      }
       return KeyEventResult.handled;
     }
 
@@ -341,7 +421,7 @@ class _TrackerViewState extends State<TrackerView> {
 
     // Escape -> Clear Block Selection, or return to Arranger tab if already cleared
     if (key == LogicalKeyboardKey.escape) {
-      if (_hasBlockSelection) {
+      if (_hasBlockSelection || track.hasSelectedNotes) {
         _clearBlockSelection();
         return KeyEventResult.handled;
       }
@@ -367,12 +447,22 @@ class _TrackerViewState extends State<TrackerView> {
           _selectionCurrentStep = clampedStep;
           _selectionCurrentCol = clampedCol;
           widget.dawState.selectTrackerCell(clampedStep, clampedCol);
+          _syncBlockSelectionToTrackNotes();
         });
       } else {
         _clearBlockSelection();
         widget.dawState.selectTrackerCell(clampedStep, clampedCol);
+        final currentNote = track.notes.where(
+          (n) => n.startStep.toInt() == clampedStep && n.column == clampedCol,
+        ).firstOrNull;
+        if (currentNote != null) {
+          widget.dawState.selectNotes(track, [currentNote.id]);
+        } else {
+          widget.dawState.clearNoteSelection(track);
+        }
       }
       _scrollToSelectedStep();
+      _scrollToSelectedColumn(clampedCol);
     }
 
     // Arrow & Navigation Keys
@@ -715,7 +805,10 @@ class _TrackerViewState extends State<TrackerView> {
               },
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onTap: () => _focusNode.requestFocus(),
+                onTap: () {
+                  _focusNode.requestFocus();
+                  _clearBlockSelection();
+                },
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   controller: _horizontalScroll,
@@ -834,6 +927,7 @@ class _TrackerViewState extends State<TrackerView> {
                                     final hasNote = noteMatch.pitch != -1;
                                     final isSelectedCell = isSelectedLine && widget.dawState.trackerSelectedColumn == colIdx;
                                     final isInBlock = _isCellInBlock(stepIdx, colIdx);
+                                    final isNoteSelected = hasNote && track.isNoteSelected(noteMatch.id);
 
                                     final noteStr = hasNote ? _formatTrackerNote(noteMatch.pitch) : '---';
                                     final volStr = hasNote ? 'V${(noteMatch.velocity * 99).toInt().toString().padLeft(2, '0')}' : '..';
@@ -847,6 +941,7 @@ class _TrackerViewState extends State<TrackerView> {
                                             setState(() {
                                               _selectionCurrentStep = stepIdx;
                                               _selectionCurrentCol = colIdx;
+                                              _syncBlockSelectionToTrackNotes();
                                             });
                                           }
                                         }
@@ -862,6 +957,7 @@ class _TrackerViewState extends State<TrackerView> {
                                                 _selectionAnchorCol ??= widget.dawState.trackerSelectedColumn;
                                                 _selectionCurrentStep = stepIdx;
                                                 _selectionCurrentCol = colIdx;
+                                                _syncBlockSelectionToTrackNotes();
                                               });
                                             } else {
                                               setState(() {
@@ -869,6 +965,7 @@ class _TrackerViewState extends State<TrackerView> {
                                                 _selectionAnchorCol = colIdx;
                                                 _selectionCurrentStep = stepIdx;
                                                 _selectionCurrentCol = colIdx;
+                                                _syncBlockSelectionToTrackNotes();
                                               });
                                             }
                                           }
@@ -876,6 +973,7 @@ class _TrackerViewState extends State<TrackerView> {
                                         onPointerUp: (event) {
                                           if (_isMouseDown) {
                                             _isMouseDown = false;
+                                            _syncBlockSelectionToTrackNotes();
                                           }
                                         },
                                         onPointerCancel: (event) {
@@ -895,6 +993,7 @@ class _TrackerViewState extends State<TrackerView> {
                                               _selectionCurrentStep = stepIdx;
                                               _selectionCurrentCol = colIdx;
                                               widget.dawState.selectTrackerCell(stepIdx, colIdx);
+                                              _syncBlockSelectionToTrackNotes();
                                             });
                                           },
                                           onLongPressMoveUpdate: (details) {
@@ -907,19 +1006,21 @@ class _TrackerViewState extends State<TrackerView> {
                                                 setState(() {
                                                   _selectionCurrentStep = targetStep;
                                                   _selectionCurrentCol = targetCol;
+                                                  _syncBlockSelectionToTrackNotes();
                                                 });
                                               }
                                             }
                                           },
                                           onLongPressEnd: (_) {
                                             _longPressStartGlobalPos = null;
+                                            _syncBlockSelectionToTrackNotes();
                                           },
                                           child: Container(
                                             width: columnWidth,
                                             margin: const EdgeInsets.symmetric(horizontal: 2),
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                                             decoration: BoxDecoration(
-                                              color: isInBlock
+                                              color: (isInBlock || isNoteSelected)
                                                   ? EatsTheme.primaryCyan.withOpacity(0.35)
                                                   : (isSelectedCell
                                                       ? EatsTheme.highlightColor.withOpacity(0.40)
@@ -928,17 +1029,17 @@ class _TrackerViewState extends State<TrackerView> {
                                                           : EatsTheme.controlBackground.withOpacity(0.3))),
                                               borderRadius: BorderRadius.circular(4),
                                               border: Border.all(
-                                                color: isInBlock
+                                                color: (isInBlock || isNoteSelected)
                                                     ? EatsTheme.primaryCyan
                                                     : (isSelectedCell
                                                         ? EatsTheme.highlightColor
                                                         : (hasNote ? (noteMatch.isSlide ? EatsTheme.accentGold.withOpacity(0.8) : track.color.withOpacity(0.6)) : Colors.transparent)),
-                                                width: (isInBlock || isSelectedCell) ? 2.0 : 1.0,
+                                                width: (isInBlock || isSelectedCell || isNoteSelected) ? 2.0 : 1.0,
                                               ),
-                                              boxShadow: (isInBlock || isSelectedCell)
+                                              boxShadow: (isInBlock || isSelectedCell || isNoteSelected)
                                                   ? [
                                                       BoxShadow(
-                                                        color: (isInBlock ? EatsTheme.primaryCyan : EatsTheme.highlightColor).withOpacity(0.4),
+                                                        color: ((isInBlock || isNoteSelected) ? EatsTheme.primaryCyan : EatsTheme.highlightColor).withOpacity(0.4),
                                                         blurRadius: 4,
                                                         spreadRadius: 1,
                                                       )
@@ -949,11 +1050,11 @@ class _TrackerViewState extends State<TrackerView> {
                                               '$noteStr $volStr $sldStr $fxStr${(hasNote && noteMatch.lyric != null && noteMatch.lyric!.isNotEmpty) ? ' "${noteMatch.lyric}"' : ''}',
                                               overflow: TextOverflow.ellipsis,
                                               style: EatsTheme.getDisplayFontStyle(
-                                                color: (isInBlock || isSelectedCell)
+                                                color: (isInBlock || isSelectedCell || isNoteSelected)
                                                     ? Colors.white
                                                     : (hasNote ? (noteMatch.isSlide ? EatsTheme.accentGold : EatsTheme.textPrimary) : EatsTheme.textMuted),
                                                 fontSize: 10.5,
-                                                fontWeight: (hasNote || isSelectedCell || isInBlock) ? FontWeight.bold : FontWeight.normal,
+                                                fontWeight: (hasNote || isSelectedCell || isInBlock || isNoteSelected) ? FontWeight.bold : FontWeight.normal,
                                               ),
                                             ),
                                           ),

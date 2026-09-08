@@ -8,15 +8,17 @@ import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
 
-/// Interactive high-performance Programmable 2D Canvas widget driven by Lua draw scripts.
-class LuaProgrammableCanvasWidget extends StatefulWidget {
+typedef LuaProgrammableCanvasWidget = EatscriptProgrammableCanvasWidget;
+
+/// Interactive high-performance Programmable 2D Canvas widget driven by EatScript draw functions.
+class EatscriptProgrammableCanvasWidget extends StatefulWidget {
   final DawState dawState;
   final TrackChannel track;
   final LuaGuiNode node;
   final Color accentColor;
   final bool isLightChassis;
 
-  const LuaProgrammableCanvasWidget({
+  const EatscriptProgrammableCanvasWidget({
     super.key,
     required this.dawState,
     required this.track,
@@ -26,10 +28,10 @@ class LuaProgrammableCanvasWidget extends StatefulWidget {
   });
 
   @override
-  State<LuaProgrammableCanvasWidget> createState() => _LuaProgrammableCanvasWidgetState();
+  State<EatscriptProgrammableCanvasWidget> createState() => _EatscriptProgrammableCanvasWidgetState();
 }
 
-class _LuaProgrammableCanvasWidgetState extends State<LuaProgrammableCanvasWidget>
+class _EatscriptProgrammableCanvasWidgetState extends State<EatscriptProgrammableCanvasWidget>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ticker;
   double _time = 0.0;

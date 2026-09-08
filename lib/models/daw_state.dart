@@ -221,7 +221,7 @@ class DawState extends ChangeNotifier {
   void notifyState() => notifyListeners();
 
   TimeContext get timeContext {
-    final curStep = (_currentBar * 16 + _currentStep).toDouble();
+    final curStep = _currentStep.toDouble();
 
     Map<String, dynamic>? activeWord;
     Map<String, dynamic>? activeLine;
@@ -290,7 +290,7 @@ class DawState extends ChangeNotifier {
     }
 
     return TimeContext.fromBeat(
-      beat: (_currentBar * 4 + _currentStep / 4).toDouble(),
+      beat: _currentStep / 4.0,
       bpm: _bpm,
       activeChord: getActiveChordAtStep(curStep.toInt()),
       chordTrack: List.unmodifiable(chordTrack),
@@ -308,19 +308,24 @@ class DawState extends ChangeNotifier {
     if (activeClip != null && (activeClip!.trackId == activeTrack.id || activeTrack.clips.any((c) => c.id == activeClip!.id))) {
       return activeClip!;
     }
-    if (activeTrack.clips.isEmpty) {
-      activeTrack.clips.add(TrackClip(
-        id: 'clip_${activeTrack.id}_0',
-        name: '${activeTrack.name} Clip',
-        trackId: activeTrack.id,
-        startBar: 0,
-        barLength: activePattern.barLength > 0 ? activePattern.barLength : 2,
-        notes: activeTrack.notes.map((n) => n.copyWith()).toList(),
-        luaScriptCode: '',
-        luaParams: {},
-      ));
+    if (activeTrack.clips.isNotEmpty) {
+      final currentBar = _arrangerStep ~/ 16;
+      final atBar = getClipAtBar(activeTrack, currentBar);
+      if (atBar != null) return atBar;
+      return activeTrack.clips.first;
     }
-    return activeTrack.clips.first;
+    // Return a transient virtual clip for editor views without mutating activeTrack.clips
+    final patBars = math.max(activePattern.barLength, (activePattern.lengthSteps / 16).ceil());
+    return TrackClip(
+      id: 'transient_clip_${activeTrack.id}',
+      name: '${activeTrack.name} Clip',
+      trackId: activeTrack.id,
+      startBar: 0,
+      barLength: math.max(patBars, 2),
+      notes: activeTrack.notes,
+      luaScriptCode: '',
+      luaParams: {},
+    );
   }
 
   // Navigation & View Mode
@@ -463,80 +468,15 @@ class DawState extends ChangeNotifier {
   }
 
   void openFloatingInstrumentWindow([TrackChannel? track, Size? workspaceSize]) {
-    final target = track ?? activeTrack;
-    _floatingFxTrackId = null;
-    _floatingFxInsertId = null;
-    _floatingMidiFxTrackId = null;
-    _floatingMidiFxInsertId = null;
-    _floatingInstrumentTrackId = target.id;
-    _isFloatingWindowVisible = true;
-    _isFloatingWindowMaximized = false;
-    final trackIdx = activePattern.tracks.indexOf(target);
-    if (trackIdx != -1) {
-      activeTrackIndex = trackIdx;
-    }
-    if (workspaceSize != null) {
-      fitFloatingWindowToWorkspace(workspaceSize, target);
-    } else {
-      final naturalH = getTrackNaturalGuiHeight(target);
-      _floatingWindowSize = Size(540, (naturalH + 38.0).clamp(240.0, 680.0));
-      notifyListeners();
-    }
+    openFullscreenDevice(track);
   }
 
   void openFloatingFxWindow(TrackChannel track, FXInsert fx, {Size? workspaceSize}) {
-    _floatingInstrumentTrackId = null;
-    _floatingMidiFxTrackId = null;
-    _floatingMidiFxInsertId = null;
-    _floatingFxTrackId = track.id;
-    _floatingFxInsertId = fx.id;
-    _isFloatingWindowVisible = true;
-    _isFloatingWindowMaximized = false;
-
-    final fxTrack = TrackChannel(
-      id: fx.id,
-      name: fx.name,
-      type: TrackType.luaScript,
-      color: EatsTheme.secondaryMagenta,
-      luaScriptCode: fx.luaScriptCode ?? '',
-      luaParams: fx.luaParams,
-      sampleName: fx.irSampleName ?? 'Great Hall',
-    );
-
-    if (workspaceSize != null) {
-      fitFloatingWindowToWorkspace(workspaceSize, fxTrack);
-    } else {
-      final naturalH = getTrackNaturalGuiHeight(fxTrack);
-      _floatingWindowSize = Size(540, (naturalH + 38.0).clamp(240.0, 680.0));
-      notifyListeners();
-    }
+    openFullscreenFx(track, fx);
   }
 
   void openFloatingMidiFxWindow(TrackChannel track, MidiFXInsert fx, {Size? workspaceSize}) {
-    _floatingInstrumentTrackId = null;
-    _floatingFxTrackId = null;
-    _floatingFxInsertId = null;
-    _floatingMidiFxTrackId = track.id;
-    _floatingMidiFxInsertId = fx.id;
-    _isFloatingWindowVisible = true;
-    _isFloatingWindowMaximized = false;
-
-    final midiTrack = TrackChannel(
-      id: fx.id,
-      name: fx.name,
-      type: TrackType.luaScript,
-      color: EatsTheme.accentGold,
-      luaScriptCode: fx.luaScriptCode,
-      luaParams: fx.luaParams,
-    );
-
-    if (workspaceSize != null) {
-      fitFloatingWindowToWorkspace(workspaceSize, midiTrack);
-    } else {
-      final naturalH = getTrackNaturalGuiHeight(midiTrack);
-      _floatingWindowSize = Size(540, (naturalH + 38.0).clamp(240.0, 680.0));
-      notifyListeners();
-    }
+    openFullscreenMidiFx(track, fx);
   }
 
   // Fullscreen Device API
@@ -1483,6 +1423,17 @@ class DawState extends ChangeNotifier {
     if (isPlaying) {
       stop();
     }
+    // Always reset playhead position to 0 on song load
+    seekToArrangerStep(0.0);
+    _currentStep = 0;
+    _arrangerStep = 0;
+    _currentBar = 0;
+    _playbackStartStep = 0.0;
+    currentStepNotifier.value = 0;
+    arrangerStepNotifier.value = 0;
+    continuousArrangerStepNotifier.value = 0.0;
+    currentBarNotifier.value = 0;
+
     audioEngine.clearChannelStrips();
     EatScriptEngine.resetVoiceStates();
     history.pauseRecording();
@@ -1656,14 +1607,50 @@ class DawState extends ChangeNotifier {
 
   int _activeTrackIndex = 0;
   int get activeTrackIndex => _activeTrackIndex;
-  TrackChannel get activeTrack => (activePattern.tracks.isNotEmpty)
-      ? activePattern.tracks[_activeTrackIndex.clamp(0, activePattern.tracks.length - 1)]
-      : TrackChannel(id: 'dummy', name: 'Track', color: const Color(0xFF00E5FF), type: TrackType.synth);
+  bool _isMasterSelected = false;
+  bool get isMasterSelected => _isMasterSelected;
+
+  void selectMasterTrack() {
+    _isMasterSelected = true;
+    activeClip = null;
+    notifyListeners();
+  }
+
+  void selectTrack(int index) {
+    activeTrackIndex = index;
+  }
+
+  TrackChannel get activeTrack => _isMasterSelected
+      ? masterTrack
+      : ((activePattern.tracks.isNotEmpty)
+          ? activePattern.tracks[_activeTrackIndex.clamp(0, activePattern.tracks.length - 1)]
+          : masterTrack);
 
   set activeTrackIndex(int index) {
+    _isMasterSelected = false;
     final newIndex = index.clamp(0, activePattern.tracks.length - 1);
+    final bool isSameTrack = _activeTrackIndex == newIndex && !_isMasterSelected;
+    final bool hasValidTrackClip = activeClip != null &&
+        (activeClip!.trackId == activeTrack.id || activeTrack.clips.any((c) => c.id == activeClip!.id));
+    if (isSameTrack && hasValidTrackClip) return;
+
+    // Persist current activeTrack notes back to activeClip before switching
+    if (activeClip != null && activeClip!.trackId == activeTrack.id) {
+      activeClip!.notes = activeTrack.notes.map((n) => n.copyWith()).toList();
+    }
+
     _activeTrackIndex = newIndex;
-    activeClip = null;
+
+    // Synchronize activeClip to current playhead position or track's first clip
+    if (activeTrack.clips.isNotEmpty) {
+      final currentBar = _arrangerStep ~/ 16;
+      final matchingClip = getClipAtBar(activeTrack, currentBar) ?? activeTrack.clips.first;
+      activeClip = matchingClip;
+      activeTrack.notes = matchingClip.notes.map((n) => n.copyWith()).toList();
+    } else {
+      activeClip = null;
+    }
+
     if (activeTrack.luaScriptCode.isNotEmpty) {
       luaCode = activeTrack.luaScriptCode;
       compilationResult = compileScript(luaCode);
@@ -1748,7 +1735,7 @@ class DawState extends ChangeNotifier {
   void _startMeterTimer() {
     _meterTimer?.cancel();
     _meterTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
-      audioEngine.decayMeters();
+      audioEngine.updateMeters();
       leftPeakNotifier.value = audioEngine.leftPeak;
       rightPeakNotifier.value = audioEngine.rightPeak;
       cpuLoadNotifier.value = audioEngine.cpuLoad;
@@ -2299,12 +2286,14 @@ def gui():
       startBar: startBar,
       barLength: 2,
       patternIndex: pIdx,
-      notes: track.notes.map((n) => n.copyWith()).toList(),
+      notes: [],
       luaScriptCode: '',
       luaParams: {},
     );
     track.clips.add(newClip);
     activeClip = newClip;
+    track.notes = [];
+    clearNoteSelection(track);
     recordHistory('Add Clip to ${track.name} (Bar ${startBar + 1})', icon: Icons.view_timeline);
     notifyListeners();
   }
@@ -2472,6 +2461,7 @@ def gui():
       activeTrackIndex = tIdx;
     }
     activeClip = clip;
+    track.notes = clip.notes.map((n) => n.copyWith()).toList();
     activeTabIndex = 1;
     track.activeView = MusicViewType.tracker;
     shouldCenterEditViewOnOpen = true;
@@ -2673,6 +2663,12 @@ def gui():
 
   void selectClip(TrackClip? clip) {
     activeClip = clip;
+    if (clip != null) {
+      final track = activePattern.tracks.where((t) => t.id == clip.trackId || t.clips.any((c) => c.id == clip.id)).firstOrNull;
+      if (track != null) {
+        track.notes = clip.notes.map((n) => n.copyWith()).toList();
+      }
+    }
     notifyListeners();
   }
 
@@ -2687,11 +2683,13 @@ def gui():
       // Step duration changed — re-warm the cache at the new BPM so the
       // restarted scheduler immediately finds correctly-sized buffers.
       final double stepDurationSec = 60.0 / _bpm / 4.0;
+      final int lookahead = math.max(64, _isLooping ? (_loopEndBar - _loopStartBar) * 16 : 64);
       audioEngine.prewarmPatternCache(
         activePattern.tracks,
         stepDurationSec,
         startStep: _currentStep,
-        lookaheadSteps: 16,
+        lookaheadSteps: lookahead,
+        chordLookup: getActiveChordAtStep,
       );
       _restartTimer();
     }
@@ -2803,10 +2801,22 @@ def gui():
     currentBarNotifier.value = _currentBar;
     _playbackStartStep = _arrangerStep.toDouble();
     _playbackStopwatch.reset();
+    _visualElapsedSec = 0.0;
+    _lastTickDuration = null;
+    audioEngine.clearActiveVoices();
     if (_isPlaying) {
       _playbackStopwatch.start();
       _playbackBaseAudioTime = audioEngine.currentTime;
+      _nextNoteTime = _playbackBaseAudioTime + 0.02;
       final double stepDurationSec = 60.0 / _bpm / 4.0;
+      final int lookahead = math.max(64, _isLooping ? (_loopEndBar - _loopStartBar) * 16 : 64);
+      audioEngine.prewarmPatternCache(
+        activePattern.tracks,
+        stepDurationSec,
+        startStep: _currentStep,
+        lookaheadSteps: lookahead,
+        chordLookup: getActiveChordAtStep,
+      );
       final double startOffsetSec = _currentStep * stepDurationSec;
       audioEngine.stopAllFrozenTracks();
       for (final track in activePattern.tracks) {
@@ -2814,7 +2824,7 @@ def gui():
           audioEngine.playFrozenTrack(
             track: track,
             startOffsetSec: startOffsetSec,
-            scheduledTime: audioEngine.currentTime + 0.02,
+            scheduledTime: _nextNoteTime,
           );
         }
       }
@@ -2833,10 +2843,22 @@ def gui():
     currentBarNotifier.value = _currentBar;
     _playbackStartStep = clamped;
     _playbackStopwatch.reset();
+    _visualElapsedSec = 0.0;
+    _lastTickDuration = null;
+    audioEngine.clearActiveVoices();
     if (_isPlaying) {
       _playbackStopwatch.start();
       _playbackBaseAudioTime = audioEngine.currentTime;
+      _nextNoteTime = _playbackBaseAudioTime + 0.02;
       final double stepDurationSec = 60.0 / _bpm / 4.0;
+      final int lookahead = math.max(64, _isLooping ? (_loopEndBar - _loopStartBar) * 16 : 64);
+      audioEngine.prewarmPatternCache(
+        activePattern.tracks,
+        stepDurationSec,
+        startStep: _currentStep,
+        lookaheadSteps: lookahead,
+        chordLookup: getActiveChordAtStep,
+      );
       final double startOffsetSec = _currentStep * stepDurationSec;
       audioEngine.stopAllFrozenTracks();
       for (final track in activePattern.tracks) {
@@ -2844,7 +2866,7 @@ def gui():
           audioEngine.playFrozenTrack(
             track: track,
             startOffsetSec: startOffsetSec,
-            scheduledTime: audioEngine.currentTime + 0.02,
+            scheduledTime: _nextNoteTime,
           );
         }
       }
@@ -2858,7 +2880,16 @@ def gui():
   double _playbackStartStep = 0.0;
   Ticker? _smoothPlayheadTicker;
 
+  // Visual playhead audio-synchronization state
+  double _visualElapsedSec = 0.0;
+  double get visualElapsedSec => _visualElapsedSec;
+  Duration? _lastTickDuration;
+  // Estimated audio output latency (buffer + DAC delay ~25ms)
+  static const double _outputLatencySec = 0.025;
+
   void _startSmoothPlayheadTicker() {
+    _visualElapsedSec = 0.0;
+    _lastTickDuration = null;
     _smoothPlayheadTicker ??= Ticker(_onSmoothPlayheadTick);
     if (!_smoothPlayheadTicker!.isActive) {
       _smoothPlayheadTicker!.start();
@@ -2866,6 +2897,8 @@ def gui():
   }
 
   void _stopSmoothPlayheadTicker() {
+    _lastTickDuration = null;
+    _visualElapsedSec = 0.0;
     if (_smoothPlayheadTicker != null && _smoothPlayheadTicker!.isActive) {
       _smoothPlayheadTicker!.stop();
     }
@@ -2873,7 +2906,33 @@ def gui():
 
   void _onSmoothPlayheadTick(Duration elapsed) {
     if (!_isPlaying) return;
-    final double elapsedSec = _playbackStopwatch.elapsedMicroseconds / 1000000.0;
+
+    // Delta time between visual display frames (smooth 60/120/144Hz inter-frame delta)
+    final double dt;
+    if (_lastTickDuration == null) {
+      dt = 0.016; // nominal first frame
+    } else {
+      dt = ((elapsed - _lastTickDuration!).inMicroseconds / 1000000.0).clamp(0.001, 0.1);
+    }
+    _lastTickDuration = elapsed;
+
+    // Advance visual clock smoothly
+    _visualElapsedSec += dt;
+
+    // Hardware audio elapsed time anchored to the DAC crystal clock (minus output latency)
+    final double hardwareElapsedSec = math.max(0.0, audioEngine.currentTime - _playbackBaseAudioTime);
+    final double targetAudibleSec = math.max(0.0, hardwareElapsedSec - _outputLatencySec);
+
+    // Disciplined phase-locked servo: gently eliminates drift between visual playhead and audio hardware
+    final double error = targetAudibleSec - _visualElapsedSec;
+    if (error.abs() > 0.120) {
+      // Significant desync (e.g. system sleep, seek, or audio device reset): snap immediately
+      _visualElapsedSec = targetAudibleSec;
+    } else {
+      // Gentle exponential correction: eliminates crystal clock drift without micro-stutters
+      _visualElapsedSec += error * 0.15;
+    }
+
     final double stepDurationSec = (60.0 / _bpm) / 4.0;
     final int maxSteps = totalTimelineBars * 16;
     double continuousStep;
@@ -2881,14 +2940,14 @@ def gui():
       final double loopStartStep = _loopStartBar * 16.0;
       final double loopEndStep = _loopEndBar * 16.0;
       final double loopSpan = loopEndStep - loopStartStep;
-      final double rawStep = _playbackStartStep + (elapsedSec / stepDurationSec);
+      final double rawStep = _playbackStartStep + (_visualElapsedSec / stepDurationSec);
       if (rawStep < loopStartStep) {
         continuousStep = rawStep;
       } else {
         continuousStep = loopStartStep + ((rawStep - loopStartStep) % loopSpan);
       }
     } else {
-      continuousStep = (_playbackStartStep + (elapsedSec / stepDurationSec)).clamp(0.0, maxSteps.toDouble());
+      continuousStep = (_playbackStartStep + (_visualElapsedSec / stepDurationSec)).clamp(0.0, maxSteps.toDouble());
     }
     continuousArrangerStepNotifier.value = continuousStep;
   }
@@ -2912,11 +2971,13 @@ def gui():
       // from the current playhead step. This ensures 0ms delay when pressing play
       // even for lengthy 24+ bar clips, while keeping beat 1 timing sub-millisecond.
       final double stepDurationSec = 60.0 / _bpm / 4.0;
+      final int lookahead = math.max(64, _isLooping ? (_loopEndBar - _loopStartBar) * 16 : 64);
       audioEngine.prewarmPatternCache(
         activePattern.tracks,
         stepDurationSec,
         startStep: _currentStep,
-        lookaheadSteps: 32,
+        lookaheadSteps: lookahead,
+        chordLookup: getActiveChordAtStep,
       );
 
       _playbackStopwatch.reset();
@@ -2998,11 +3059,8 @@ def gui():
   void _schedulerLoop() {
     if (!_isPlaying) return;
 
-    final double hardwareTime = audioEngine.currentTime;
-    final double elapsedHardware = hardwareTime - _playbackBaseAudioTime;
-    final double elapsedWall = _playbackStopwatch.elapsedMicroseconds / 1000000.0;
-    // Guaranteed monotonic clock progression anchored to the playback base audio timeline
-    final double currentAudioTime = _playbackBaseAudioTime + math.max(elapsedHardware > 0 ? elapsedHardware : 0.0, elapsedWall);
+    // The audio hardware DAC clock is the single authoritative master clock
+    final double currentAudioTime = audioEngine.currentTime;
     final double stepDurationSec = 60.0 / _bpm / 4.0; // 16th note step length in seconds
     final int maxSteps = totalTimelineBars * 16;
 
@@ -3056,6 +3114,9 @@ def gui():
       currentStepNotifier.value = _currentStep;
       arrangerStepNotifier.value = _arrangerStep;
       currentBarNotifier.value = _currentBar;
+      if (isTestEnvironment || _smoothPlayheadTicker == null || !_smoothPlayheadTicker!.isActive) {
+        continuousArrangerStepNotifier.value = _arrangerStep.toDouble();
+      }
     }
   }
 
@@ -3490,10 +3551,31 @@ def gui():
     }
   }
 
+  TrackClip ensureTrackHasClip(TrackChannel track) {
+    if (track.clips.isNotEmpty) {
+      return track.clips.first;
+    }
+    final newClip = TrackClip(
+      id: 'c_${DateTime.now().millisecondsSinceEpoch}',
+      name: '${track.name} Clip',
+      trackId: track.id,
+      startBar: 0,
+      barLength: activePattern.barLength > 0 ? activePattern.barLength : 2,
+      notes: track.notes,
+      luaScriptCode: '',
+      luaParams: {},
+    );
+    track.clips.add(newClip);
+    activeClip = newClip;
+    return newClip;
+  }
+
   void _syncClipNotes(TrackChannel track) {
     if (track.clips.isNotEmpty) {
-      for (final clip in track.clips) {
-        clip.notes = track.notes;
+      if (activeClip != null && (activeClip!.trackId == track.id || track.clips.any((c) => c.id == activeClip!.id))) {
+        activeClip!.notes = track.notes.map((n) => n.copyWith()).toList();
+      } else if (track.clips.length == 1) {
+        track.clips.first.notes = track.notes.map((n) => n.copyWith()).toList();
       }
     }
   }
@@ -3505,6 +3587,9 @@ def gui():
       step.active = !step.active;
 
       if (step.active) {
+        if (track.clips.isEmpty) {
+          ensureTrackHasClip(track);
+        }
         // Add matching note for Piano Roll
         track.notes.removeWhere((n) => n.startStep.toInt() == stepIndex && n.pitch == step.pitch);
         track.notes.add(Note(
@@ -3555,8 +3640,23 @@ def gui():
     notifyListeners();
   }
 
+  // Ghost Notes (Background Tracks) Opacity in Piano Roll & Score Views (0.0 = Off, 0.05 to 1.0 = Visible)
+  double _ghostNotesOpacity = 0.0;
+  double get ghostNotesOpacity => _ghostNotesOpacity;
+  bool get isGhostNotesEnabled => _ghostNotesOpacity > 0.0;
+  void setGhostNotesOpacity(double val) {
+    final clamped = val.clamp(0.0, 1.0);
+    if ((_ghostNotesOpacity - clamped).abs() > 0.001) {
+      _ghostNotesOpacity = clamped;
+      notifyListeners();
+    }
+  }
+
   // Piano Roll Note Editing
   void addNote(TrackChannel track, Note note) {
+    if (track.clips.isEmpty) {
+      ensureTrackHasClip(track);
+    }
     track.notes.add(note);
     _syncClipNotes(track);
 
@@ -3599,6 +3699,7 @@ def gui():
 
   void removeNote(TrackChannel track, String noteId) {
     track.notes.removeWhere((n) => n.id == noteId);
+    track.selectedNoteIds.remove(noteId);
     _syncClipNotes(track);
     recordHistory('Delete Note (${track.name})', icon: Icons.delete_outline, force: true);
     notifyListeners();
@@ -3608,8 +3709,74 @@ def gui():
     final idSet = noteIds.toSet();
     if (idSet.isEmpty) return;
     track.notes.removeWhere((n) => idSet.contains(n.id));
+    track.selectedNoteIds.removeWhere((id) => idSet.contains(id));
     _syncClipNotes(track);
     recordHistory('Delete ${idSet.length} Notes (${track.name})', icon: Icons.delete_outline, force: true);
+    notifyListeners();
+  }
+
+  void selectNotes(TrackChannel track, Iterable<String> noteIds, {bool clearPrevious = true}) {
+    if (clearPrevious) {
+      track.selectedNoteIds.clear();
+    }
+    track.selectedNoteIds.addAll(noteIds);
+    notifyListeners();
+  }
+
+  void toggleNoteSelection(TrackChannel track, String noteId) {
+    if (track.selectedNoteIds.contains(noteId)) {
+      track.selectedNoteIds.remove(noteId);
+    } else {
+      track.selectedNoteIds.add(noteId);
+    }
+    notifyListeners();
+  }
+
+  void selectAllNotes(TrackChannel track) {
+    track.selectedNoteIds = track.notes.map((n) => n.id).toSet();
+    notifyListeners();
+  }
+
+  void clearNoteSelection(TrackChannel track) {
+    if (track.selectedNoteIds.isNotEmpty) {
+      track.selectedNoteIds.clear();
+      notifyListeners();
+    }
+  }
+
+  void invertNoteSelection(TrackChannel track) {
+    final allIds = track.notes.map((n) => n.id).toSet();
+    track.selectedNoteIds = allIds.difference(track.selectedNoteIds);
+    notifyListeners();
+  }
+
+  void batchQuantizeNotes(TrackChannel track, Iterable<String> noteIds, double snap) {
+    final idSet = noteIds.toSet();
+    if (idSet.isEmpty || snap <= 0) return;
+    beginHistoryTransaction('Quantize Notes', icon: Icons.grid_on);
+    for (final n in track.notes) {
+      if (idSet.contains(n.id)) {
+        n.startStep = (n.startStep / snap).round() * snap;
+      }
+    }
+    _syncClipNotes(track);
+    commitHistoryTransaction();
+    notifyListeners();
+  }
+
+  void batchHumanizeNotes(TrackChannel track, Iterable<String> noteIds) {
+    final idSet = noteIds.toSet();
+    if (idSet.isEmpty) return;
+    final rand = math.Random();
+    beginHistoryTransaction('Humanize Velocities', icon: Icons.auto_fix_high);
+    for (final n in track.notes) {
+      if (idSet.contains(n.id)) {
+        final delta = (rand.nextDouble() * 0.30) - 0.15; // ±15%
+        n.velocity = (n.velocity + delta).clamp(0.10, 1.0);
+      }
+    }
+    _syncClipNotes(track);
+    commitHistoryTransaction();
     notifyListeners();
   }
 

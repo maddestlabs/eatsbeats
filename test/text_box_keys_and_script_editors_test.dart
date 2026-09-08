@@ -5,7 +5,7 @@ import 'package:eatsbeats/main.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/theme/eats_theme.dart';
 import 'package:eatsbeats/ui/script_view.dart';
-import 'package:eatsbeats/ui/lua_workbench_view.dart';
+import 'package:eatsbeats/ui/eatscript_workbench_view.dart';
 import 'package:eatsbeats/ui/widgets/project_browser_drawer.dart';
 import 'package:eatsbeats/ui/widgets/arranger_context_inspector.dart';
 
@@ -178,7 +178,7 @@ void main() {
       dawState.dispose();
     });
 
-    testWidgets('LuaWorkbenchView Editor accepts text editing keys and Ctrl+Enter compilation', (WidgetTester tester) async {
+    testWidgets('EatscriptWorkbenchView Editor accepts text editing keys and Ctrl+Enter compilation', (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -192,7 +192,7 @@ void main() {
         MaterialApp(
           theme: EatsTheme.themeData,
           home: Scaffold(
-            body: LuaWorkbenchView(dawState: dawState),
+            body: EatscriptWorkbenchView(dawState: dawState),
           ),
         ),
       );

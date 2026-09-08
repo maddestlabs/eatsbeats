@@ -138,28 +138,6 @@ class TransportHeader extends StatelessWidget {
 
           const SizedBox(width: 8),
 
-          // Unified Follow Playhead Toggle Button (F)
-          ValueListenableBuilder<bool>(
-            valueListenable: dawState.isFollowPlaybackNotifier,
-            builder: (context, isFollowing, _) {
-              return Tooltip(
-                message: isFollowing ? 'Follow Playhead: ON (F)' : 'Follow Playhead: OFF (F)',
-                child: SkeuomorphicHardwareButton(
-                  icon: Icons.my_location,
-                  label: 'FOLLOW',
-                  isActive: isFollowing,
-                  activeColor: EatsTheme.primaryCyan,
-                  onTap: dawState.toggleFollowPlayback,
-                  height: 34,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  showLed: true,
-                ),
-              );
-            },
-          ),
-
-          const SizedBox(width: 10),
-
           // BPM Glowing Nixie Display with Direct Tap Tempo & LongPress/Right-Click Edit
           Tooltip(
             message: 'Tap tempo | Right-click or long press to edit BPM',

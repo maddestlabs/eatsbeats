@@ -121,15 +121,6 @@ class TrackInspectorView extends StatelessWidget {
                 Row(
                   children: [
                     IconButton(
-                      tooltip: 'Pop Out Floating VSTi GUI Window',
-                      icon: const Icon(Icons.picture_in_picture_alt, size: 18),
-                      color: EatsTheme.accentGold,
-                      onPressed: () {
-                        dawState.openFloatingInstrumentWindow(track);
-                        dawState.activeTabIndex = 0; // Switch to Arranger with floating GUI active
-                      },
-                    ),
-                    IconButton(
                       tooltip: 'Open Track Script in Scripts Editor',
                       icon: const Icon(Icons.code, size: 18),
                       color: EatsTheme.primaryCyan,

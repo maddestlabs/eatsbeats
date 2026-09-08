@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../lua/lua_gui_model.dart';
 import '../../theme/eats_theme.dart';
+import '../vector/built_in_vector_skins.dart';
+import '../vector/vector_skin_model.dart';
 import 'gui_widget_palette.dart';
 
 class GuiInspectorSidebar extends StatefulWidget {
@@ -38,6 +41,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
   late TextEditingController _subtitleController;
   late TextEditingController _labelController;
   late TextEditingController _unitController;
+  late TextEditingController _svgController;
 
   @override
   void initState() {
@@ -48,6 +52,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
   void _initControllers() {
     _titleController = TextEditingController(text: widget.panel.title);
     _subtitleController = TextEditingController(text: widget.panel.subtitle ?? '');
+    _svgController = TextEditingController(text: widget.panel.backgroundSvg ?? '');
 
     final selectedNode = _getSelectedNode();
     _labelController = TextEditingController(text: selectedNode?.label ?? '');
@@ -63,6 +68,9 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     if (oldWidget.panel.subtitle != widget.panel.subtitle) {
       _subtitleController.text = widget.panel.subtitle ?? '';
     }
+    if (oldWidget.panel.backgroundSvg != widget.panel.backgroundSvg) {
+      _svgController.text = widget.panel.backgroundSvg ?? '';
+    }
 
     final selectedNode = _getSelectedNode();
     if (selectedNode != null) {
@@ -77,6 +85,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     _subtitleController.dispose();
     _labelController.dispose();
     _unitController.dispose();
+    _svgController.dispose();
     super.dispose();
   }
 
@@ -89,7 +98,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
       if (c != null && c >= 0 && c < rowNode.children.length) {
         final childNode = rowNode.children[c];
         if (s != null &&
-            (childNode.type == LuaGuiNodeType.column || childNode.type == LuaGuiNodeType.group) &&
+            (childNode.type == LuaGuiNodeType.column || childNode.type == LuaGuiNodeType.group || childNode.type == LuaGuiNodeType.row) &&
             s >= 0 &&
             s < childNode.children.length) {
           return childNode.children[s];
@@ -114,56 +123,21 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
       final childNode = rowNode.children[c];
       final newChildren = List<LuaGuiNode>.from(rowNode.children);
       if (s != null &&
-          (childNode.type == LuaGuiNodeType.column || childNode.type == LuaGuiNodeType.group) &&
+          (childNode.type == LuaGuiNodeType.column || childNode.type == LuaGuiNodeType.group || childNode.type == LuaGuiNodeType.row) &&
           s >= 0 &&
           s < childNode.children.length) {
         final newStackChildren = List<LuaGuiNode>.from(childNode.children);
         newStackChildren[s] = updatedNode;
-        newChildren[c] = LuaGuiNode(
-          type: childNode.type,
-          orientation: childNode.orientation,
-          align: childNode.align,
-          crossAlign: childNode.crossAlign,
-          size: childNode.size,
-          width: childNode.width,
-          height: childNode.height,
-          label: childNode.label,
-          showLabel: childNode.showLabel,
-          showValue: childNode.showValue,
-          knobStyle: childNode.knobStyle,
-          sliderStyle: childNode.sliderStyle,
-          canvasMode: childNode.canvasMode,
-          options: childNode.options,
-          children: newStackChildren,
-        );
+        newChildren[c] = childNode.copyWith(children: newStackChildren);
       } else {
         newChildren[c] = updatedNode;
       }
-      rows[r] = LuaGuiNode(
-        type: rowNode.type,
-        orientation: rowNode.orientation,
-        align: rowNode.align,
-        crossAlign: rowNode.crossAlign,
-        children: newChildren,
-      );
+      rows[r] = rowNode.copyWith(children: newChildren);
     } else {
       rows[r] = updatedNode;
     }
 
-    widget.onPanelUpdated(LuaGuiPanelDef(
-      title: widget.panel.title,
-      subtitle: widget.panel.subtitle,
-      style: widget.panel.style,
-      backgroundStyle: widget.panel.backgroundStyle,
-      backgroundColor: widget.panel.backgroundColor,
-      accentColor: widget.panel.accentColor,
-      defaultKnobStyle: widget.panel.defaultKnobStyle,
-      textureRotation: widget.panel.textureRotation,
-      textureScale: widget.panel.textureScale,
-      sideCheeks: widget.panel.sideCheeks,
-      cornerRadius: widget.panel.cornerRadius,
-      children: rows,
-    ));
+    widget.onPanelUpdated(widget.panel.copyWith(children: rows));
   }
 
   @override
@@ -217,36 +191,14 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                   _buildSectionHeader('PANEL IDENTITY'),
                   const SizedBox(height: 6),
                   _buildTextField('Title', _titleController, (v) {
-                    widget.onPanelUpdated(LuaGuiPanelDef(
+                    widget.onPanelUpdated(widget.panel.copyWith(
                       title: v.isEmpty ? 'CUSTOM INSTRUMENT' : v,
-                      subtitle: widget.panel.subtitle,
-                      style: widget.panel.style,
-                      backgroundStyle: widget.panel.backgroundStyle,
-                      backgroundColor: widget.panel.backgroundColor,
-                      accentColor: widget.panel.accentColor,
-                      defaultKnobStyle: widget.panel.defaultKnobStyle,
-                      textureRotation: widget.panel.textureRotation,
-                      textureScale: widget.panel.textureScale,
-                      sideCheeks: widget.panel.sideCheeks,
-                      cornerRadius: widget.panel.cornerRadius,
-                      children: widget.panel.children,
                     ));
                   }),
                   const SizedBox(height: 8),
                   _buildTextField('Subtitle', _subtitleController, (v) {
-                    widget.onPanelUpdated(LuaGuiPanelDef(
-                      title: widget.panel.title,
+                    widget.onPanelUpdated(widget.panel.copyWith(
                       subtitle: v,
-                      style: widget.panel.style,
-                      backgroundStyle: widget.panel.backgroundStyle,
-                      backgroundColor: widget.panel.backgroundColor,
-                      accentColor: widget.panel.accentColor,
-                      defaultKnobStyle: widget.panel.defaultKnobStyle,
-                      textureRotation: widget.panel.textureRotation,
-                      textureScale: widget.panel.textureScale,
-                      sideCheeks: widget.panel.sideCheeks,
-                      cornerRadius: widget.panel.cornerRadius,
-                      children: widget.panel.children,
                     ));
                   }),
                   const SizedBox(height: 14),
@@ -276,19 +228,8 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     ],
                     onChanged: (v) {
                       if (v != null) {
-                        widget.onPanelUpdated(LuaGuiPanelDef(
-                          title: widget.panel.title,
-                          subtitle: widget.panel.subtitle,
-                          style: widget.panel.style,
+                        widget.onPanelUpdated(widget.panel.copyWith(
                           backgroundStyle: v,
-                          backgroundColor: widget.panel.backgroundColor,
-                          accentColor: widget.panel.accentColor,
-                          defaultKnobStyle: widget.panel.defaultKnobStyle,
-                          textureRotation: widget.panel.textureRotation,
-                          textureScale: widget.panel.textureScale,
-                          sideCheeks: widget.panel.sideCheeks,
-                          cornerRadius: widget.panel.cornerRadius,
-                          children: widget.panel.children,
                         ));
                       }
                     },
@@ -306,18 +247,8 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     ],
                     onChanged: (v) {
                       if (v != null) {
-                        widget.onPanelUpdated(LuaGuiPanelDef(
-                          title: widget.panel.title,
-                          subtitle: widget.panel.subtitle,
-                          style: widget.panel.style,
-                          backgroundStyle: widget.panel.backgroundStyle,
-                          backgroundColor: widget.panel.backgroundColor,
-                          accentColor: widget.panel.accentColor,
-                          defaultKnobStyle: widget.panel.defaultKnobStyle,
+                        widget.onPanelUpdated(widget.panel.copyWith(
                           textureRotation: v,
-                          textureScale: widget.panel.textureScale,
-                          sideCheeks: widget.panel.sideCheeks,
-                          children: widget.panel.children,
                         ));
                       }
                     },
@@ -341,19 +272,8 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     ],
                     onChanged: (v) {
                       if (v != null) {
-                        widget.onPanelUpdated(LuaGuiPanelDef(
-                          title: widget.panel.title,
-                          subtitle: widget.panel.subtitle,
-                          style: widget.panel.style,
-                          backgroundStyle: widget.panel.backgroundStyle,
-                          backgroundColor: widget.panel.backgroundColor,
-                          accentColor: widget.panel.accentColor,
-                          defaultKnobStyle: widget.panel.defaultKnobStyle,
-                          textureRotation: widget.panel.textureRotation,
-                          textureScale: widget.panel.textureScale,
+                        widget.onPanelUpdated(widget.panel.copyWith(
                           sideCheeks: v == 'none' ? null : v,
-                          cornerRadius: widget.panel.cornerRadius,
-                          children: widget.panel.children,
                         ));
                       }
                     },
@@ -372,19 +292,8 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     ],
                     onChanged: (v) {
                       if (v != null) {
-                        widget.onPanelUpdated(LuaGuiPanelDef(
-                          title: widget.panel.title,
-                          subtitle: widget.panel.subtitle,
-                          style: widget.panel.style,
-                          backgroundStyle: widget.panel.backgroundStyle,
-                          backgroundColor: widget.panel.backgroundColor,
-                          accentColor: widget.panel.accentColor,
-                          defaultKnobStyle: widget.panel.defaultKnobStyle,
-                          textureRotation: widget.panel.textureRotation,
-                          textureScale: widget.panel.textureScale,
-                          sideCheeks: widget.panel.sideCheeks,
+                        widget.onPanelUpdated(widget.panel.copyWith(
                           cornerRadius: v,
-                          children: widget.panel.children,
                         ));
                       }
                     },
@@ -404,19 +313,9 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     ),
                     (v) {
                       final col = LuaGuiNode.parseColor(v);
-                      widget.onPanelUpdated(LuaGuiPanelDef(
-                        title: widget.panel.title,
-                        subtitle: widget.panel.subtitle,
-                        style: widget.panel.style,
+                      widget.onPanelUpdated(widget.panel.copyWith(
                         backgroundStyle: col != null ? PanelBackgroundStyle.custom : widget.panel.backgroundStyle,
                         backgroundColor: col,
-                        accentColor: widget.panel.accentColor,
-                        defaultKnobStyle: widget.panel.defaultKnobStyle,
-                        textureRotation: widget.panel.textureRotation,
-                        textureScale: widget.panel.textureScale,
-                        sideCheeks: widget.panel.sideCheeks,
-                        cornerRadius: widget.panel.cornerRadius,
-                        children: widget.panel.children,
                       ));
                     },
                   ),
@@ -431,22 +330,12 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       DropdownMenuItem(value: KnobStyle.chrome, child: Text('Chrome Fluted (303)')),
                       DropdownMenuItem(value: KnobStyle.vintage, child: Text('Vintage Bakelite')),
                       DropdownMenuItem(value: KnobStyle.snes, child: Text('SNES Console Cream')),
+                      DropdownMenuItem(value: KnobStyle.customVector, child: Text('Custom Vector (SVG)')),
                     ],
                     onChanged: (v) {
                       if (v != null) {
-                        widget.onPanelUpdated(LuaGuiPanelDef(
-                          title: widget.panel.title,
-                          subtitle: widget.panel.subtitle,
-                          style: widget.panel.style,
-                          backgroundStyle: widget.panel.backgroundStyle,
-                          backgroundColor: widget.panel.backgroundColor,
-                          accentColor: widget.panel.accentColor,
+                        widget.onPanelUpdated(widget.panel.copyWith(
                           defaultKnobStyle: v,
-                          textureRotation: widget.panel.textureRotation,
-                          textureScale: widget.panel.textureScale,
-                          sideCheeks: widget.panel.sideCheeks,
-                          cornerRadius: widget.panel.cornerRadius,
-                          children: widget.panel.children,
                         ));
                       }
                     },
@@ -457,19 +346,8 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                   const SizedBox(height: 6),
                   InkWell(
                     onTap: () {
-                      widget.onPanelUpdated(LuaGuiPanelDef(
-                        title: widget.panel.title,
-                        subtitle: widget.panel.subtitle,
-                        style: widget.panel.style,
-                        backgroundStyle: widget.panel.backgroundStyle,
-                        backgroundColor: widget.panel.backgroundColor,
+                      widget.onPanelUpdated(widget.panel.copyWith(
                         accentColor: null, // Track Color (auto dynamic)
-                        defaultKnobStyle: widget.panel.defaultKnobStyle,
-                        textureRotation: widget.panel.textureRotation,
-                        textureScale: widget.panel.textureScale,
-                        sideCheeks: widget.panel.sideCheeks,
-                        cornerRadius: widget.panel.cornerRadius,
-                        children: widget.panel.children,
                       ));
                     },
                     borderRadius: BorderRadius.circular(4),
@@ -535,19 +413,8 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       final isSelected = widget.panel.accentColor?.value == col.value;
                       return InkWell(
                         onTap: () {
-                          widget.onPanelUpdated(LuaGuiPanelDef(
-                            title: widget.panel.title,
-                            subtitle: widget.panel.subtitle,
-                            style: widget.panel.style,
-                            backgroundStyle: widget.panel.backgroundStyle,
-                            backgroundColor: widget.panel.backgroundColor,
+                          widget.onPanelUpdated(widget.panel.copyWith(
                             accentColor: col,
-                            defaultKnobStyle: widget.panel.defaultKnobStyle,
-                            textureRotation: widget.panel.textureRotation,
-                            textureScale: widget.panel.textureScale,
-                            sideCheeks: widget.panel.sideCheeks,
-                            cornerRadius: widget.panel.cornerRadius,
-                            children: widget.panel.children,
                           ));
                         },
                         child: Container(
@@ -567,6 +434,93 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                         ),
                       );
                     }).toList(),
+                  ),
+                  const SizedBox(height: 14),
+
+                  _buildSectionHeader('CHASSIS VECTOR / SVG WATERMARK'),
+                  const SizedBox(height: 6),
+                  _buildTextField('SVG Path Data', _svgController, (v) {
+                    widget.onPanelUpdated(widget.panel.copyWith(
+                      backgroundSvg: v.trim().isEmpty ? null : v.trim(),
+                    ));
+                  }),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'WATERMARK OPACITY',
+                          style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.textMuted),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        '${(widget.panel.backgroundSvgOpacity * 100).toInt()}%',
+                        style: EatsTheme.getDisplayFontStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: EatsTheme.accentGold),
+                      ),
+                    ],
+                  ),
+                  Slider(
+                    value: widget.panel.backgroundSvgOpacity.clamp(0.0, 1.0),
+                    min: 0.0,
+                    max: 1.0,
+                    divisions: 20,
+                    activeColor: EatsTheme.accentGold,
+                    onChanged: (v) {
+                      widget.onPanelUpdated(widget.panel.copyWith(
+                        backgroundSvgOpacity: v,
+                      ));
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'STROKE WIDTH',
+                          style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.textMuted),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        '${(widget.panel.backgroundSvgStrokeWidth ?? 0.75).toStringAsFixed(2)}px',
+                        style: EatsTheme.getDisplayFontStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: EatsTheme.accentGold),
+                      ),
+                    ],
+                  ),
+                  Slider(
+                    value: (widget.panel.backgroundSvgStrokeWidth ?? 0.75).clamp(0.1, 4.0),
+                    min: 0.1,
+                    max: 4.0,
+                    divisions: 39,
+                    activeColor: EatsTheme.accentGold,
+                    onChanged: (v) {
+                      widget.onPanelUpdated(widget.panel.copyWith(
+                        backgroundSvgStrokeWidth: v,
+                      ));
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      _buildPresetChip('🔥 Fire', 'M 100 220 C 60 220, 20 180, 20 130 C 20 90, 60 50, 80 10 C 90 40, 100 60, 110 50 C 130 30, 140 10, 150 0 C 170 50, 190 90, 190 140 C 190 190, 150 220, 100 220 Z M 100 195 C 120 195, 135 175, 135 145 C 135 115, 115 95, 105 70 C 95 95, 75 115, 75 145 C 75 175, 85 195, 100 195 Z'),
+                      _buildPresetChip('🌧 Rain', 'M 60 90 C 45 90, 30 75, 30 60 C 30 45, 42 35, 55 35 C 60 20, 80 10, 105 10 C 130 10, 150 25, 155 45 C 165 45, 175 55, 175 65 C 175 80, 160 90, 145 90 Z M 50 115 L 40 145 M 85 115 L 75 145 M 120 115 L 110 145 M 155 115 L 145 145 M 65 155 L 55 185 M 100 155 L 90 185 M 135 155 L 125 185'),
+                      _buildPresetChip('💨 Wind', 'M 10 50 C 70 50, 120 20, 160 20 C 190 20, 210 35, 210 50 C 210 65, 190 80, 170 80 C 145 80, 135 60, 145 45 C 155 35, 175 40, 175 50 M 20 85 C 80 85, 130 65, 165 65 C 195 65, 220 80, 220 95 C 220 110, 200 120, 180 120 C 160 120, 150 105, 160 95 M 5 120 C 65 120, 110 105, 145 105 C 180 105, 200 115, 210 130'),
+                      ActionChip(
+                        label: const Text('✕ Clear', style: TextStyle(fontSize: 10, color: Colors.white70)),
+                        backgroundColor: Colors.white10,
+                        onPressed: () {
+                          _svgController.clear();
+                          widget.onPanelUpdated(widget.panel.copyWith(
+                            backgroundSvg: null,
+                          ));
+                        },
+                      ),
+                    ],
                   ),
                 ] else ...[
                   // --- SELECTED WIDGET / STACK ITEM SETTINGS ---
@@ -1010,6 +964,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                         DropdownMenuItem(value: KnobStyle.vintage, child: Text('Vintage Bakelite')),
                         DropdownMenuItem(value: KnobStyle.snes, child: Text('SNES Console Cream')),
                         DropdownMenuItem(value: KnobStyle.minimalWhite, child: Text('Minimalist Matte Ceramic')),
+                        DropdownMenuItem(value: KnobStyle.customVector, child: Text('Custom Vector (SVG)')),
                       ],
                       onChanged: (v) {
                         if (v != null) {
@@ -1022,6 +977,9 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                             width: selectedNode.width,
                             height: selectedNode.height,
                             knobStyle: v,
+                            customSkin: v == KnobStyle.customVector
+                                ? (selectedNode.customSkin ?? BuiltInVectorSkins.getSkinForKnobStyle(selectedNode.knobStyle))
+                                : selectedNode.customSkin,
                             sliderStyle: selectedNode.sliderStyle,
                             orientation: selectedNode.orientation,
                             options: selectedNode.options,
@@ -1031,6 +989,17 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                           ));
                         }
                       },
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      icon: Icon(Icons.fork_right, size: 14, color: EatsTheme.primaryCyan),
+                      label: const Text('Fork Skin to EatScript / SVG', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: EatsTheme.primaryCyan,
+                        side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.5)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      ),
+                      onPressed: () => _showForkSkinDialog(context, selectedNode),
                     ),
                   ],
 
@@ -1123,6 +1092,10 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
   }
 
   Widget _buildRowAlignmentInspector(LuaGuiNode rowNode, int rowIndex) {
+    final isGroup = rowNode.type == LuaGuiNodeType.group;
+    final double opacityVal = rowNode.opacity ?? 1.0;
+    final double borderVal = rowNode.borderWidth ?? (isGroup ? 1.0 : 0.0);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1138,7 +1111,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                   border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.5)),
                 ),
                 child: Text(
-                  'ROW ${rowIndex + 1} PROPERTIES',
+                  isGroup ? 'GROUP PROPERTIES' : 'ROW ${rowIndex + 1} PROPERTIES',
                   overflow: TextOverflow.ellipsis,
                   style: EatsTheme.getDisplayFontStyle(fontSize: 9.5, color: EatsTheme.primaryCyan, fontWeight: FontWeight.bold),
                 ),
@@ -1157,6 +1130,95 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
         ),
         const SizedBox(height: 12),
 
+        _buildSectionHeader('IDENTITY & CARD STYLING'),
+        const SizedBox(height: 6),
+        _buildTextField(
+          isGroup ? 'Group Header / Label' : 'Row Header (Optional)',
+          TextEditingController(text: rowNode.label ?? ''),
+          (v) {
+            _updateSelectedNode(rowNode.copyWith(label: v.isEmpty ? null : v));
+          },
+        ),
+        const SizedBox(height: 8),
+
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                'BACKGROUND OPACITY',
+                style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.textMuted),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Text(
+              opacityVal <= 0.0 ? '0% (Transparent)' : '${(opacityVal * 100).toInt()}%',
+              style: EatsTheme.getDisplayFontStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.bold,
+                color: opacityVal <= 0.0 ? EatsTheme.primaryCyan : EatsTheme.accentGold,
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          value: opacityVal.clamp(0.0, 1.0),
+          min: 0.0,
+          max: 1.0,
+          divisions: 20,
+          activeColor: EatsTheme.primaryCyan,
+          onChanged: (v) {
+            _updateSelectedNode(rowNode.copyWith(opacity: v));
+          },
+        ),
+        const SizedBox(height: 6),
+
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                'BORDER WIDTH',
+                style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.textMuted),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Text(
+              borderVal <= 0.0 ? '0px (None)' : '${borderVal.toStringAsFixed(1)}px',
+              style: EatsTheme.getDisplayFontStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.bold,
+                color: borderVal <= 0.0 ? EatsTheme.primaryCyan : EatsTheme.accentGold,
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          value: borderVal.clamp(0.0, 4.0),
+          min: 0.0,
+          max: 4.0,
+          divisions: 16,
+          activeColor: EatsTheme.primaryCyan,
+          onChanged: (v) {
+            _updateSelectedNode(rowNode.copyWith(borderWidth: v));
+          },
+        ),
+        const SizedBox(height: 6),
+
+        _buildTextField(
+          'Border Hex Color (e.g. #DCDFE6 or empty)',
+          TextEditingController(
+            text: rowNode.borderColor != null
+                ? '#${rowNode.borderColor!.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}'
+                : '',
+          ),
+          (v) {
+            final col = LuaGuiNode.parseColor(v);
+            _updateSelectedNode(rowNode.copyWith(borderColor: col));
+          },
+        ),
+        const SizedBox(height: 12),
+
         _buildSectionHeader('HORIZONTAL DISTRIBUTION'),
         const SizedBox(height: 6),
         _buildDropdown<String>(
@@ -1172,13 +1234,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
           ],
           onChanged: (v) {
             if (v != null) {
-              _updateSelectedNode(LuaGuiNode(
-                type: rowNode.type,
-                orientation: rowNode.orientation,
-                align: v,
-                crossAlign: rowNode.crossAlign,
-                children: rowNode.children,
-              ));
+              _updateSelectedNode(rowNode.copyWith(align: v));
             }
           },
         ),
@@ -1196,13 +1252,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
           ],
           onChanged: (v) {
             if (v != null) {
-              _updateSelectedNode(LuaGuiNode(
-                type: rowNode.type,
-                orientation: rowNode.orientation,
-                align: rowNode.align,
-                crossAlign: v,
-                children: rowNode.children,
-              ));
+              _updateSelectedNode(rowNode.copyWith(crossAlign: v));
             }
           },
         ),
@@ -1278,6 +1328,130 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showForkSkinDialog(BuildContext context, LuaGuiNode node) {
+    final skin = node.customSkin ?? BuiltInVectorSkins.getSkinForKnobStyle(node.knobStyle);
+    final scriptCode = BuiltInVectorSkins.exportToEatScript(skin, node.param ?? 'custom_knob');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141820),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(color: EatsTheme.primaryCyan, width: 1.2),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.fork_right, color: EatsTheme.primaryCyan, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Fork Vector Skin: ${skin.name ?? skin.id}',
+              style: EatsTheme.getDisplayFontStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'This EatScript definition contains the full 2-pass vector and SVG path commands. Copy it into your script or apply it directly to this knob as a custom vector skin.',
+                style: TextStyle(fontSize: 11, color: EatsTheme.textMuted),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                height: 220,
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF090D14),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    scriptCode,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      color: Color(0xFF00FFCC),
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.copy, size: 14),
+            label: const Text('Copy to Clipboard', style: TextStyle(fontSize: 11)),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: scriptCode));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Vector skin EatScript copied to clipboard!'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.check, size: 14),
+            label: const Text('Apply as Custom Vector', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: EatsTheme.primaryCyan,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () {
+              _updateSelectedNode(LuaGuiNode(
+                type: node.type,
+                param: node.param,
+                label: node.label,
+                unit: node.unit,
+                size: node.size,
+                width: node.width,
+                height: node.height,
+                knobStyle: KnobStyle.customVector,
+                customSkin: skin,
+                sliderStyle: node.sliderStyle,
+                orientation: node.orientation,
+                options: node.options,
+                align: node.align,
+                crossAlign: node.crossAlign,
+                children: node.children,
+              ));
+              Navigator.of(ctx).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Knob converted to Custom 2-Pass Vector Skin!'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPresetChip(String label, String svg) {
+    return ActionChip(
+      label: Text(label, style: const TextStyle(fontSize: 10, color: Colors.white)),
+      backgroundColor: Colors.white12,
+      onPressed: () {
+        _svgController.text = svg;
+        widget.onPanelUpdated(widget.panel.copyWith(
+          backgroundSvg: svg,
+          backgroundSvgOpacity: 0.22,
+        ));
+      },
     );
   }
 }

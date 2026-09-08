@@ -9,6 +9,7 @@ import '../models/track_model.dart';
 import '../models/chord_model.dart';
 import '../theme/eats_theme.dart';
 import 'widgets/arranger_context_inspector.dart';
+import 'widgets/track_properties_pullout.dart';
 import 'widgets/circle_of_fifths_dialog.dart';
 import 'widgets/eatsbeats_slider.dart';
 import 'widgets/fx_rack_dialog.dart';
@@ -850,13 +851,26 @@ class _ArrangerViewState extends State<ArrangerView> {
                         child: Column(
                           children: [
                         // Top Timeline Bar Ruler (Bar 1, Bar 2 ... Bar 32 with Tap to Jump & Loop Region)
-                        GestureDetector(
-                          onTapUp: (details) {
-                            final double localX = details.localPosition.dx;
-                            final double step = (localX / barWidth) * 16.0;
-                            widget.dawState.seekToArrangerStep(step);
-                          },
-                          onLongPressStart: (details) {
+                        MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTapUp: (details) {
+                              final double localX = details.localPosition.dx;
+                              final double step = (localX / barWidth) * 16.0;
+                              widget.dawState.seekToArrangerStep(step);
+                            },
+                            onPanDown: (details) {
+                              final double localX = details.localPosition.dx;
+                              final double step = (localX / barWidth) * 16.0;
+                              widget.dawState.seekToArrangerStep(step);
+                            },
+                            onPanUpdate: (details) {
+                              final double localX = details.localPosition.dx;
+                              final double step = ((localX / barWidth) * 16.0).clamp(0.0, (totalBars * 16.0) - 1.0);
+                              widget.dawState.seekToArrangerStep(step);
+                            },
+                            onLongPressStart: (details) {
                             final double localX = details.localPosition.dx;
                             final int tappedBar = (localX / barWidth).floor().clamp(0, totalBars - 1);
                             _dragLoopStartBar = tappedBar;
@@ -876,10 +890,10 @@ class _ArrangerViewState extends State<ArrangerView> {
                           onLongPressEnd: (_) {
                             _dragLoopStartBar = null;
                           },
-                          child: Container(
-                            height: 24,
-                            color: EatsTheme.panelHeader,
-                            child: Stack(
+                              child: Container(
+                                height: 24,
+                                color: EatsTheme.panelHeader,
+                                child: Stack(
                               children: [
                                 Row(
                                   children: List.generate(totalBars, (barIdx) {
@@ -952,6 +966,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                             ),
                           ),
                         ),
+                      ),
 
                         // Chord Track Timeline Lane (Height 28)
                         Container(
@@ -964,26 +979,20 @@ class _ArrangerViewState extends State<ArrangerView> {
                           ),
                           child: Stack(
                             children: [
-                              // Bar Grid Lines and tap-to-add chord triggers
-                              Row(
-                                children: List.generate(totalBars, (barIdx) {
-                                  return GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTapUp: (details) {
-                                      final double localX = (barIdx * barWidth) + details.localPosition.dx;
-                                      final double step = (localX / barWidth) * 16.0;
-                                      widget.dawState.seekToArrangerStep(step);
-                                    },
-                                    onDoubleTap: () {
-                                      final existing = widget.dawState.getActiveChordAtBar(barIdx);
-                                      CircleOfFifthsDialog.show(
-                                        context,
-                                        dawState: widget.dawState,
-                                        targetBar: barIdx,
-                                        initialChord: existing,
-                                      );
-                                    },
-                                    child: Container(
+                                  Row(
+                                    children: List.generate(totalBars, (barIdx) {
+                                      return GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onDoubleTap: () {
+                                          final existing = widget.dawState.getActiveChordAtBar(barIdx);
+                                          CircleOfFifthsDialog.show(
+                                            context,
+                                            dawState: widget.dawState,
+                                            targetBar: barIdx,
+                                            initialChord: existing,
+                                          );
+                                        },
+                                        child: Container(
                                       width: barWidth,
                                       height: 28,
                                       decoration: BoxDecoration(
@@ -1014,11 +1023,6 @@ class _ArrangerViewState extends State<ArrangerView> {
                                   bottom: 2,
                                   child: GestureDetector(
                                     behavior: HitTestBehavior.opaque,
-                                    onTapUp: (details) {
-                                      final double localX = chordX + details.localPosition.dx;
-                                      final double step = (localX / barWidth) * 16.0;
-                                      widget.dawState.seekToArrangerStep(step);
-                                    },
                                     onDoubleTap: () {
                                       CircleOfFifthsDialog.show(
                                         context,
@@ -1276,9 +1280,6 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                  behavior: HitTestBehavior.opaque,
                                                  onTapUp: (details) {
                                                    widget.dawState.activeTrackIndex = trackIdx;
-                                                   final double stepWithinBar = (details.localPosition.dx / barWidth) * 16.0;
-                                                   final double step = (barIdx * 16.0 + stepWithinBar).clamp(0.0, (totalBars * 16.0) - 1.0);
-                                                   widget.dawState.seekToArrangerStep(step);
                                                  },
                                                  onDoubleTap: () {
                                                    widget.dawState.activeTrackIndex = trackIdx;
@@ -1502,11 +1503,6 @@ class _ArrangerViewState extends State<ArrangerView> {
 
                                                              widget.dawState.activeTrackIndex = trackIdx;
                                                              widget.dawState.selectClip(clip);
-
-                                                             // Move playhead to tapped position
-                                                             final double clipGlobalX = (clip.startBar * barWidth) + details.localPosition.dx;
-                                                             final double step = (clipGlobalX / barWidth) * 16.0;
-                                                             widget.dawState.seekToArrangerStep(step);
 
                                                              if (isDoubleTap) {
                                                                // DOUBLE-TAP CLIP: Open MIDI clip in Piano Roll / Tracker; for Audio clips, focus clip properties inspector
@@ -2154,111 +2150,26 @@ class _ArrangerViewState extends State<ArrangerView> {
   }
 
   Widget _buildVerticalTrackPropertiesPullout(BuildContext context) {
-    final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
-    final activeTrack = widget.dawState.activeTrack;
-    final activeClip = widget.dawState.activeClip;
-    final trackColor = activeTrack.color;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: isGrungy ? const Color(0xFF1B1815) : EatsTheme.panelBackground,
-        border: Border(
-          left: BorderSide(
-            color: isGrungy ? const Color(0xFF4A423A) : EatsTheme.panelHeader,
-            width: 1.5,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Vertical Pull Tab Strip (24px wide, full height)
-          Tooltip(
-            message: _isPropertiesExpanded ? 'Collapse Track Properties' : 'Open Properties Panel',
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                setState(() {
-                  _isPropertiesExpanded = !_isPropertiesExpanded;
-                });
-              },
-              onHorizontalDragUpdate: (details) {
-                setState(() {
-                  if (!_isPropertiesExpanded && details.delta.dx < -2) {
-                    _isPropertiesExpanded = true;
-                  } else if (_isPropertiesExpanded) {
-                    _propertiesWidth = (_propertiesWidth - details.delta.dx)
-                        .clamp(_kMinPropertiesWidth, _kMaxPropertiesWidth);
-                    if (_propertiesWidth <= _kMinPropertiesWidth + 10 && details.delta.dx > 5) {
-                      _isPropertiesExpanded = false;
-                      _propertiesWidth = _kDefaultPropertiesWidth;
-                    }
-                  }
-                });
-              },
-              child: Container(
-                width: _kPropertiesPullTabWidth - 1.5,
-                height: double.infinity,
-                color: isGrungy ? const Color(0xFF28231E) : EatsTheme.panelHeader,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Centered vertical visual pill drag handle
-                    Container(
-                      width: 5,
-                      height: 70,
-                      decoration: BoxDecoration(
-                        color: isGrungy ? const Color(0xFF8C7A6B) : EatsTheme.textMuted,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-
-                    // Top: Active track color circle
-                    Positioned(
-                      top: 14,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: trackColor,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(color: trackColor.withOpacity(0.7), blurRadius: 4),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Bottom: Arrow indicator
-                    Positioned(
-                      bottom: 12,
-                      child: Icon(
-                        _isPropertiesExpanded ? Icons.chevron_right : Icons.chevron_left,
-                        size: 16,
-                        color: EatsTheme.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Expanded Vertical Properties Inspector Body
-          if (_isPropertiesExpanded)
-            Expanded(
-              child: ArrangerContextInspector(
-                dawState: widget.dawState,
-                onClose: () => setState(() => _isPropertiesExpanded = false),
-                onResize: (deltaX) {
-                  setState(() {
-                    _propertiesWidth = (_propertiesWidth - deltaX)
-                        .clamp(_kMinPropertiesWidth, _kMaxPropertiesWidth);
-                  });
-                },
-              ),
-            ),
-        ],
-      ),
+    return TrackPropertiesPullout(
+      dawState: widget.dawState,
+      isExpanded: _isPropertiesExpanded,
+      propertiesWidth: _propertiesWidth,
+      onToggleExpand: () {
+        setState(() {
+          _isPropertiesExpanded = !_isPropertiesExpanded;
+        });
+      },
+      onExpansionChanged: (expanded) {
+        setState(() {
+          _isPropertiesExpanded = expanded;
+        });
+      },
+      onWidthChanged: (width) {
+        setState(() {
+          _propertiesWidth = width;
+        });
+      },
+      onClose: () => setState(() => _isPropertiesExpanded = false),
     );
   }
 

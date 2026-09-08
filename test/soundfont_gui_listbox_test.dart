@@ -11,7 +11,7 @@ import 'package:eatsbeats/theme/eats_theme.dart';
 import 'package:eatsbeats/ui/widgets/dynamic_instrument_gui_widget.dart';
 import 'package:eatsbeats/ui/widgets/hardware_listbox_widget.dart';
 import 'package:eatsbeats/ui/widgets/skeuomorphic_hardware_knob.dart';
-import 'package:eatsbeats/ui/lua_workbench_view.dart';
+import 'package:eatsbeats/ui/eatscript_workbench_view.dart';
 import 'package:eatsbeats/ui/script_view.dart';
 
 void main() {
@@ -245,7 +245,7 @@ void main() {
   });
 
   group('Script Editor Theme Consistency Tests', () {
-    testWidgets('LuaWorkbenchView and ScriptView use readable theme-consistent colors in light theme', (tester) async {
+    testWidgets('EatscriptWorkbenchView and ScriptView use readable theme-consistent colors in light theme', (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -270,14 +270,14 @@ void main() {
       // In light theme, text color is high-contrast slate-900 (Color(0xFF0F172A))
       expect(scriptWidget.style?.color, equals(const Color(0xFF0F172A)));
 
-      // Also verify LuaWorkbenchView text styling
+      // Also verify EatscriptWorkbenchView text styling
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: SizedBox(
               width: 1200,
               height: 800,
-              child: LuaWorkbenchView(dawState: dawState),
+              child: EatscriptWorkbenchView(dawState: dawState),
             ),
           ),
         ),

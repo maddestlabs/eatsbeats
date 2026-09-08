@@ -146,10 +146,13 @@ class SNESVoice {
     }
   }
 
+  static const double _twoPi = 2.0 * math.pi;
+  static const double _invTwoPi = 1.0 / (2.0 * math.pi);
+
   /// Evaluates S-DSP BRR wavetable sample with authentic Gaussian low-pass curve.
   double evaluateWaveform(double ph) {
-    final normPhase = (ph % (2.0 * math.pi) + 2.0 * math.pi) % (2.0 * math.pi);
-    final normPos = normPhase / (2.0 * math.pi); // 0.0 to 1.0
+    final double normPhase = ph < 0 ? ((ph % _twoPi) + _twoPi) : (ph >= _twoPi ? (ph % _twoPi) : ph);
+    final double normPos = normPhase * _invTwoPi; // 0.0 to 1.0
 
     switch (waveform) {
       case SNESWaveform.sine:
@@ -228,7 +231,8 @@ class SNESVoice {
 
 /// 8-Tap FIR Echo & Reverb DSP Unit (Emulates hardware S-DSP Echo).
 class SNESEchoUnit {
-  static const int maxEchoDelaySamples = 44100 * 2; // Up to 2 seconds stereo ring buffer
+  static const int maxEchoDelaySamples = 131072; // Power of 2 (2^17) covering ~2.97s stereo ring buffer
+  static const int maxEchoDelayMask = 131071;
   final Float32List _echoBufferLeft = Float32List(maxEchoDelaySamples);
   final Float32List _echoBufferRight = Float32List(maxEchoDelaySamples);
   int _writeIndex = 0;
@@ -237,7 +241,13 @@ class SNESEchoUnit {
   bool enabled = true;
   double feedback = 0.45; // -1.0 to 1.0
   double volume = 0.4; // 0.0 to 1.0
-  int delayMs = 120; // 0 to 480 ms (Hardware EDL register: 0..15 * 16ms)
+  int _delayMs = 120; // 0 to 480 ms (Hardware EDL register: 0..15 * 16ms)
+  int get delayMs => _delayMs;
+  set delayMs(int val) {
+    _delayMs = val.clamp(16, 480);
+    _cachedDelaySamples = ((_delayMs / 1000.0) * 44100.0).toInt().clamp(64, maxEchoDelaySamples - 64);
+  }
+  int _cachedDelaySamples = (120 * 44.1).toInt();
 
   // 8-Tap Programmable FIR Filter Coefficients (C0..C7)
   List<double> firCoefficients = [0.34, 0.45, -0.12, 0.10, -0.05, 0.08, -0.04, 0.02];
@@ -281,15 +291,13 @@ class SNESEchoUnit {
       return _echoResult;
     }
 
-    final delaySamples = ((delayMs / 1000.0) * 44100.0).toInt().clamp(64, maxEchoDelaySamples - 16);
-
-    // Read 8 FIR taps from ring buffer
+    final int baseReadIdx = _writeIndex - _cachedDelaySamples;
     double leftFir = 0.0;
     double rightFir = 0.0;
 
     for (int tap = 0; tap < 8; tap++) {
-      final tapIndex = (_writeIndex - delaySamples - (tap * 4) + maxEchoDelaySamples) % maxEchoDelaySamples;
-      final coeff = firCoefficients[tap];
+      final int tapIndex = (baseReadIdx - (tap << 2)) & maxEchoDelayMask;
+      final double coeff = firCoefficients[tap];
       leftFir += _echoBufferLeft[tapIndex] * coeff;
       rightFir += _echoBufferRight[tapIndex] * coeff;
     }
@@ -297,7 +305,7 @@ class SNESEchoUnit {
     // Write dry + feedback into ring buffer
     _echoBufferLeft[_writeIndex] = (leftDry + (leftFir * feedback)).clamp(-1.5, 1.5);
     _echoBufferRight[_writeIndex] = (rightDry + (rightFir * feedback)).clamp(-1.5, 1.5);
-    _writeIndex = (_writeIndex + 1) % maxEchoDelaySamples;
+    _writeIndex = (_writeIndex + 1) & maxEchoDelayMask;
 
     final outL = (leftDry * (1.0 - volume * 0.5)) + (leftFir * volume);
     final outR = (rightDry * (1.0 - volume * 0.5)) + (rightFir * volume);
@@ -461,18 +469,25 @@ class SNESDSPEngine {
 
     double prevVoiceOut = 0.0;
 
-    for (int i = 0; i < 8; i++) {
-      final voice = voices[i];
-      if (!voice.enabled) continue;
+    // Fast path for single voice mode (e.g. standard synth patches where only voice 0 is enabled)
+    final bool isSingleVoice0 = voices[0].enabled &&
+        !voices[1].enabled &&
+        !voices[2].enabled &&
+        !voices[3].enabled &&
+        !voices[4].enabled &&
+        !voices[5].enabled &&
+        !voices[6].enabled &&
+        !voices[7].enabled;
 
-      // 1. Pitch Trajectory (Pitch Sweeps, Arpeggios, Vibrato)
+    if (isSingleVoice0) {
+      final voice = voices[0];
       double curFreq = (baseFreq > 0 ? baseFreq : voice.basePitchHz) * voice.pitch;
 
       if (voice.sweepDuration > 0.001 && time < voice.sweepDuration) {
         final prog = (time / voice.sweepDuration).clamp(0.0, 1.0);
         final curve = voice.startFreqMult > voice.endFreqMult
-            ? math.pow(1.0 - prog, 2.2).toDouble() // Fast downward snappy zap
-            : math.pow(prog, 1.4).toDouble(); // Smooth upward scoop
+            ? math.pow(1.0 - prog, 2.2).toDouble()
+            : math.pow(prog, 1.4).toDouble();
         final mult = voice.endFreqMult + (voice.startFreqMult - voice.endFreqMult) * curve;
         curFreq *= mult;
       }
@@ -485,22 +500,17 @@ class SNESDSPEngine {
 
       if (voice.vibratoDepth > 0.001 && voice.vibratoRate > 0.1) {
         final vib = math.sin(2.0 * math.pi * voice.vibratoRate * time) * (voice.vibratoDepth / 12.0);
-        curFreq *= math.pow(2.0, vib);
+        // Fast vibrato approximation: 2^x ≈ 1.0 + 0.693147 * x for small vibrato depths
+        curFreq *= (1.0 + 0.693147 * vib);
       }
 
-      // 2. Cross-Channel Pitch Modulation (PMOD from Voice n-1)
-      if (voice.pmodEnabled && i > 0) {
-        final pmodFactor = 1.0 + (prevVoiceOut * 1.5);
-        curFreq *= math.max(0.05, pmodFactor);
-      }
-
-      // 3. Phase Accumulator
       voice.phase += (2.0 * math.pi * curFreq) / 44100.0;
+      if (voice.phase >= 2.0 * math.pi) {
+        voice.phase -= 2.0 * math.pi;
+      }
 
-      // 4. Envelope Generator
       final env = voice.evaluateEnvelope(time, duration);
 
-      // 5. Wavetable or Noise Signal
       double rawSample = 0.0;
       if (voice.noiseEnabled || voice.waveform == SNESWaveform.noise) {
         rawSample = _stepNoise(voice.noiseRate);
@@ -508,7 +518,6 @@ class SNESDSPEngine {
         rawSample = voice.evaluateWaveform(voice.phase);
       }
 
-      // Blend optional noise mix
       if (voice.noiseMix > 0.001 && !voice.noiseEnabled) {
         final noise = _stepNoise(voice.noiseRate);
         rawSample = (rawSample * (1.0 - voice.noiseMix)) + (noise * voice.noiseMix);
@@ -516,18 +525,86 @@ class SNESDSPEngine {
 
       final voiceOut = rawSample * env;
       voice.lastOutput = voiceOut;
-      prevVoiceOut = voiceOut;
 
-      // Stereo Distribution
-      final vl = voiceOut * voice.volumeLeft;
-      final vr = voiceOut * voice.volumeRight;
-
-      dryLeft += vl;
-      dryRight += vr;
+      dryLeft = voiceOut * voice.volumeLeft;
+      dryRight = voiceOut * voice.volumeRight;
 
       if (voice.echoEnabled) {
-        echoLeft += vl;
-        echoRight += vr;
+        echoLeft = dryLeft;
+        echoRight = dryRight;
+      }
+    } else {
+      for (int i = 0; i < 8; i++) {
+        final voice = voices[i];
+        if (!voice.enabled) continue;
+
+        // 1. Pitch Trajectory (Pitch Sweeps, Arpeggios, Vibrato)
+        double curFreq = (baseFreq > 0 ? baseFreq : voice.basePitchHz) * voice.pitch;
+
+        if (voice.sweepDuration > 0.001 && time < voice.sweepDuration) {
+          final prog = (time / voice.sweepDuration).clamp(0.0, 1.0);
+          final curve = voice.startFreqMult > voice.endFreqMult
+              ? math.pow(1.0 - prog, 2.2).toDouble() // Fast downward snappy zap
+              : math.pow(prog, 1.4).toDouble(); // Smooth upward scoop
+          final mult = voice.endFreqMult + (voice.startFreqMult - voice.endFreqMult) * curve;
+          curFreq *= mult;
+        }
+
+        if (voice.arpeggioNotes.isNotEmpty) {
+          final arpIdx = (time / math.max(0.01, voice.arpeggioSpeed)).floor() % voice.arpeggioNotes.length;
+          final semi = voice.arpeggioNotes[arpIdx];
+          curFreq *= math.pow(2.0, semi / 12.0);
+        }
+
+        if (voice.vibratoDepth > 0.001 && voice.vibratoRate > 0.1) {
+          final vib = math.sin(2.0 * math.pi * voice.vibratoRate * time) * (voice.vibratoDepth / 12.0);
+          curFreq *= (1.0 + 0.693147 * vib);
+        }
+
+        // 2. Cross-Channel Pitch Modulation (PMOD from Voice n-1)
+        if (voice.pmodEnabled && i > 0) {
+          final pmodFactor = 1.0 + (prevVoiceOut * 1.5);
+          curFreq *= math.max(0.05, pmodFactor);
+        }
+
+        // 3. Phase Accumulator
+        voice.phase += (2.0 * math.pi * curFreq) / 44100.0;
+        if (voice.phase >= 2.0 * math.pi) {
+          voice.phase -= 2.0 * math.pi;
+        }
+
+        // 4. Envelope Generator
+        final env = voice.evaluateEnvelope(time, duration);
+
+        // 5. Wavetable or Noise Signal
+        double rawSample = 0.0;
+        if (voice.noiseEnabled || voice.waveform == SNESWaveform.noise) {
+          rawSample = _stepNoise(voice.noiseRate);
+        } else {
+          rawSample = voice.evaluateWaveform(voice.phase);
+        }
+
+        // Blend optional noise mix
+        if (voice.noiseMix > 0.001 && !voice.noiseEnabled) {
+          final noise = _stepNoise(voice.noiseRate);
+          rawSample = (rawSample * (1.0 - voice.noiseMix)) + (noise * voice.noiseMix);
+        }
+
+        final voiceOut = rawSample * env;
+        voice.lastOutput = voiceOut;
+        prevVoiceOut = voiceOut;
+
+        // Stereo Distribution
+        final vl = voiceOut * voice.volumeLeft;
+        final vr = voiceOut * voice.volumeRight;
+
+        dryLeft += vl;
+        dryRight += vr;
+
+        if (voice.echoEnabled) {
+          echoLeft += vl;
+          echoRight += vr;
+        }
       }
     }
 

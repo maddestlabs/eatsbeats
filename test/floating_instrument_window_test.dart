@@ -62,35 +62,31 @@ void main() {
       expect(winH, lessThan(600));
     });
 
-    test('Auto-fit and fullscreen maximization state logic', () {
+    test('Fullscreen device state logic', () {
       final state = DawState();
       final track = state.activeTrack;
-      state.openFloatingInstrumentWindow(track);
+      state.openFullscreenDevice(track);
 
-      // Mobile screen fit: 380x720
-      state.fitFloatingWindowToWorkspace(const Size(380, 720));
-      expect(state.isFloatingWindowMaximized, isFalse);
-      expect(state.floatingWindowSize.width, lessThanOrEqualTo(380));
-      expect(state.floatingWindowSize.height, lessThanOrEqualTo(720));
-      expect(state.floatingWindowPosition.dx, greaterThanOrEqualTo(0));
-
-      // Toggle Fullscreen / Maximize
-      state.toggleMaximizeFloatingWindow(const Size(800, 600));
+      expect(state.isFullscreenDeviceOpen, isTrue);
+      expect(state.isFloatingWindowVisible, isTrue);
       expect(state.isFloatingWindowMaximized, isTrue);
-      expect(state.floatingWindowSize.width, equals(792)); // 800 - (4*2)
-      expect(state.floatingWindowSize.height, equals(592)); // 600 - (4*2)
-      expect(state.floatingWindowPosition, equals(const Offset(4, 4)));
 
-      // Toggle back / Restore
-      state.toggleMaximizeFloatingWindow(const Size(800, 600));
-      expect(state.isFloatingWindowMaximized, isFalse);
+      state.closeFullscreenDevice();
+      expect(state.isFullscreenDeviceOpen, isFalse);
+      expect(state.isFloatingWindowVisible, isFalse);
     });
 
     testWidgets('Renders FloatingInstrumentWindow when visible and handles user interactions', (tester) async {
       final state = DawState();
       final track = state.activeTrack;
       track.name = 'Acid Synth 303';
-      state.openFloatingInstrumentWindow(track);
+      track.luaScriptCode = '''
+-- @name: Acid Synth 303
+AcidSynth = {}
+function AcidSynth.init() return {} end
+function AcidSynth.gui() return { panel = { title = "ACID SYNTH 303", layout = {} } } end
+''';
+      state.openFullscreenDevice(track);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -101,11 +97,7 @@ void main() {
                 children: [
                   Positioned.fill(child: Container(color: Colors.black)),
                   if (state.isFloatingWindowVisible)
-                    Positioned(
-                      left: state.floatingWindowPosition.dx,
-                      top: state.floatingWindowPosition.dy,
-                      width: state.floatingWindowSize.width,
-                      height: state.floatingWindowSize.height,
+                    Positioned.fill(
                       child: FloatingInstrumentWindow(
                         dawState: state,
                         workspaceBounds: const Size(800, 600),
@@ -122,26 +114,19 @@ void main() {
       // Verify script-driven title bar and actions
       expect(find.text('ACID SYNTH 303'), findsOneWidget);
       expect(find.byIcon(Icons.developer_board), findsOneWidget);
-      expect(find.byIcon(Icons.fit_screen), findsOneWidget);
-      expect(find.byIcon(Icons.fullscreen), findsOneWidget);
-      expect(find.byTooltip('Close'), findsOneWidget);
+
+      // Verify X button and Restore Window button are removed
+      expect(find.byIcon(Icons.close), findsNothing);
+      expect(find.byIcon(Icons.fullscreen), findsNothing);
+      expect(find.byIcon(Icons.fullscreen_exit), findsNothing);
 
       // Verify 1:1 FittedBox scaling container is rendered
       expect(find.byType(FittedBox), findsWidgets);
 
-      // Tap Fit to Screen button
-      await tester.tap(find.byIcon(Icons.fit_screen));
-      await tester.pumpAndSettle();
-      expect(state.isFloatingWindowMaximized, isFalse);
-
-      // Tap Fullscreen / Maximize button
-      await tester.tap(find.byIcon(Icons.fullscreen));
-      await tester.pumpAndSettle();
-      expect(state.isFloatingWindowMaximized, isTrue);
-      expect(find.byIcon(Icons.fullscreen_exit), findsOneWidget);
-
       // Tap Close Screw to Close Panel
-      await tester.tap(find.byTooltip('Close'));
+      final screwFinder = find.byTooltip('Close (ESC)');
+      expect(screwFinder, findsOneWidget);
+      await tester.tap(screwFinder);
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
       expect(state.isFloatingWindowVisible, isFalse);

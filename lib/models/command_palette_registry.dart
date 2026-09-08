@@ -115,8 +115,8 @@ class CommandPaletteRegistry {
       ),
       QuickCommand(
         id: 'nav_scripts',
-        title: 'Switch View: Lua Scripting Workbench',
-        subtitle: 'Live Lua script editor, compiler, and DSP code workbench',
+        title: 'Switch View: EatScript Workbench',
+        subtitle: 'Live EatScript editor, compiler, and DSP code workbench',
         category: CommandCategory.view,
         icon: Icons.code,
         shortcutHint: 'Nav Tab 5',
@@ -330,13 +330,17 @@ class CommandPaletteRegistry {
         onExecute: (state, ctx) => state.tapTempo(),
       ),
       QuickCommand(
-        id: 'action_toggle_floating_vsti_window',
-        title: 'Toggle Floating Instrument Window (VSTi)',
-        subtitle: 'Show/hide resizable floating instrument GUI over the active workspace',
+        id: 'action_toggle_fullscreen_instrument_gui',
+        title: 'Toggle Fullscreen Instrument GUI',
+        subtitle: 'Show/hide fullscreen instrument device modal for the active track',
         category: CommandCategory.action,
-        icon: Icons.picture_in_picture_alt,
+        icon: Icons.fullscreen,
         onExecute: (state, ctx) {
-          state.toggleFloatingInstrumentWindow();
+          if (state.isFullscreenDeviceOpen) {
+            state.closeFullscreenDevice();
+          } else {
+            state.openFullscreenDevice();
+          }
         },
       ),
       QuickCommand(

@@ -209,7 +209,11 @@ class LuaCanvasDrawingContext {
   }
 }
 
-/// Evaluates programmable Lua 2D drawing routines with high performance.
+typedef EatScriptCanvasDrawingEngine = LuaCanvasDrawingEngine;
+typedef EatScriptCanvasOp = LuaCanvasOp;
+typedef EatScriptCanvasDrawingContext = LuaCanvasDrawingContext;
+
+/// Evaluates programmable EatScript and Lua 2D drawing routines with high performance.
 class LuaCanvasDrawingEngine {
   /// Evaluates the script's `draw` / `on_draw` routine into a list of [LuaCanvasOp].
   static List<LuaCanvasOp> evaluate({

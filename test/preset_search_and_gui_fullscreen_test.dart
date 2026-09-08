@@ -118,9 +118,9 @@ void main() {
       dawState.dispose();
     });
 
-    testWidgets('Double-tapping floating GUI header toggles Fill Workspace and Fit to Screen', (tester) async {
+    testWidgets('Fullscreen GUI modal opens and closes via custom screw button', (tester) async {
       final track = dawState.activeTrack;
-      dawState.openFloatingInstrumentWindow(track);
+      dawState.openFullscreenDevice(track);
 
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
@@ -136,26 +136,19 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(dawState.isFloatingWindowMaximized, isFalse);
+      expect(dawState.isFullscreenDeviceOpen, isTrue);
 
-      // Find the header GestureDetector
-      final headerGesture = find.byType(GestureDetector).first;
+      // Verify no 'X' button or restore icon
+      expect(find.byIcon(Icons.close), findsNothing);
+      expect(find.byIcon(Icons.fullscreen_exit), findsNothing);
 
-      // Double tap to Fill Workspace (Fullscreen)
-      await tester.tap(headerGesture);
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.tap(headerGesture);
+      // Tap custom chassis screw button to close
+      final screwFinder = find.byTooltip('Close (ESC)');
+      expect(screwFinder, findsOneWidget);
+      await tester.tap(screwFinder);
       await tester.pumpAndSettle();
 
-      expect(dawState.isFloatingWindowMaximized, isTrue);
-
-      // Double tap again to Fit to Screen
-      await tester.tap(headerGesture);
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.tap(headerGesture);
-      await tester.pumpAndSettle();
-
-      expect(dawState.isFloatingWindowMaximized, isFalse);
+      expect(dawState.isFullscreenDeviceOpen, isFalse);
     });
   });
 }

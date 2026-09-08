@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/daw_state.dart';
@@ -31,11 +32,9 @@ class _ScoreViewState extends State<ScoreView> {
   /// Dynamically computes total steps in the score view to allow arbitrary-length panning.
   int get _totalSteps {
     int maxSteps = 64;
-    final clip = widget.dawState.activeClip;
-    if (clip != null) {
-      final clipEnd = (clip.startBar + clip.barLength) * 16;
-      if (clipEnd > maxSteps) maxSteps = clipEnd;
-    }
+    final clip = widget.dawState.activeTrackClip;
+    final clipEnd = (clip.startBar + clip.barLength) * 16;
+    if (clipEnd > maxSteps) maxSteps = clipEnd;
     final timelineSteps = widget.dawState.totalTimelineBars * 16;
     if (timelineSteps > maxSteps) maxSteps = timelineSteps;
     for (final note in widget.dawState.activeTrack.notes) {
@@ -48,7 +47,10 @@ class _ScoreViewState extends State<ScoreView> {
   // Scroll & Selection
   final ScrollController _horizontalScroll = ScrollController();
   final FocusNode _focusNode = FocusNode();
-  Set<String> _selectedNoteIds = {};
+  Set<String> get _selectedNoteIds => widget.dawState.activeTrack.selectedNoteIds;
+  set _selectedNoteIds(Set<String> s) {
+    widget.dawState.selectNotes(widget.dawState.activeTrack, s);
+  }
 
   // Tap & Double-Tap Tracking (for instant delete or insert)
   DateTime? _lastNoteTapTime;
@@ -83,10 +85,21 @@ class _ScoreViewState extends State<ScoreView> {
     if (!mounted) return;
     if (widget.dawState.isFollowPlayback && widget.dawState.isPlaying) {
       if (_horizontalScroll.hasClients && !_isCanvasPanning && !_isMarqueeSelecting && _draggedNoteId == null) {
-        final clip = widget.dawState.activeClip;
-        final clipStartStep = ((clip?.startBar ?? 0) * 16).toDouble();
-        final clipEndStep = clipStartStep + _totalSteps.toDouble();
         final continuousStep = widget.dawState.continuousArrangerStepNotifier.value;
+        final currentBar = (continuousStep / 16.0).floor();
+
+        // Auto-advance across arranger clips on the active track during continuous playback
+        if (widget.dawState.activeTrack.clips.isNotEmpty) {
+          final clipAtPlayhead = widget.dawState.getClipAtBar(widget.dawState.activeTrack, currentBar);
+          if (clipAtPlayhead != null && widget.dawState.activeClip?.id != clipAtPlayhead.id) {
+            widget.dawState.selectClip(clipAtPlayhead);
+            return;
+          }
+        }
+
+        final clip = widget.dawState.activeTrackClip;
+        final clipStartStep = (clip.startBar * 16).toDouble();
+        final clipEndStep = clipStartStep + _totalSteps.toDouble();
         if (continuousStep >= clipStartStep && continuousStep <= clipEndStep) {
           final activeStepInClip = continuousStep - clipStartStep;
           final contentPlayheadX = _gutterWidth + (activeStepInClip * _stepWidth);
@@ -283,7 +296,8 @@ class _ScoreViewState extends State<ScoreView> {
         _deleteSelectedNotes();
         return KeyEventResult.handled;
       } else if (event.logicalKey == LogicalKeyboardKey.escape) {
-        setState(() => _selectedNoteIds.clear());
+        widget.dawState.clearNoteSelection(widget.dawState.activeTrack);
+        setState(() {});
         return KeyEventResult.handled;
       }
     }
@@ -392,6 +406,14 @@ class _ScoreViewState extends State<ScoreView> {
                       // Raw pointer listener to distinguish Pan vs Click+Hold Marquee
                       Listener(
                         behavior: HitTestBehavior.opaque,
+                        onPointerSignal: (event) {
+                          if (event is PointerScrollEvent && _horizontalScroll.hasClients) {
+                            final delta = event.scrollDelta.dx != 0 ? event.scrollDelta.dx : event.scrollDelta.dy;
+                            final maxScroll = _horizontalScroll.position.maxScrollExtent;
+                            final target = (_horizontalScroll.offset + delta).clamp(0.0, maxScroll);
+                            _horizontalScroll.jumpTo(target);
+                          }
+                        },
                         onPointerDown: (event) {
                           _focusNode.requestFocus();
                           final viewportPos = event.localPosition;
@@ -423,17 +445,11 @@ class _ScoreViewState extends State<ScoreView> {
                             _lastNoteTapId = hitNote.id;
 
                             if (HardwareKeyboard.instance.isShiftPressed) {
-                              setState(() {
-                                if (_selectedNoteIds.contains(hitNote.id)) {
-                                  _selectedNoteIds.remove(hitNote.id);
-                                } else {
-                                  _selectedNoteIds.add(hitNote.id);
-                                }
-                              });
+                              widget.dawState.toggleNoteSelection(track, hitNote.id);
+                              setState(() {});
                             } else if (!_selectedNoteIds.contains(hitNote.id)) {
-                              setState(() {
-                                _selectedNoteIds = {hitNote.id};
-                              });
+                              widget.dawState.selectNotes(track, [hitNote.id]);
+                              setState(() {});
                             }
                             _auditionNote(hitNote.pitch, velocity: hitNote.velocity);
 
@@ -538,7 +554,7 @@ class _ScoreViewState extends State<ScoreView> {
                               _horizontalScroll.position.maxScrollExtent,
                             );
                             _horizontalScroll.jumpTo(targetOffset);
-                            setState(() {});
+                            // Pure scroll update: do not call setState during pan to prevent rebuild thrashing and ghosting
                           }
                         },
                         onPointerUp: (event) {
@@ -547,6 +563,7 @@ class _ScoreViewState extends State<ScoreView> {
                           final moveDist = _pointerDownPos != null ? (viewportPos - _pointerDownPos!).distance : 0.0;
                           final double scrollOffset = _horizontalScroll.hasClients ? _horizontalScroll.offset : 0.0;
                           final contentPos = Offset(viewportPos.dx + scrollOffset, viewportPos.dy);
+                          final bool wasInteractingWithNote = _draggedNoteId != null;
 
                           // Finish Note Drag
                           if (_draggedNoteId != null) {
@@ -566,8 +583,8 @@ class _ScoreViewState extends State<ScoreView> {
                             });
                           }
 
-                          // Tap on empty background (no significant move)
-                          if (!_isCanvasPanning && !_isMarqueeSelecting && moveDist < 6.0 && _draggedNoteId == null && contentPos.dx >= _gutterWidth) {
+                          // Tap on empty background (no significant move and did not tap/drag a note)
+                          if (!_isCanvasPanning && !_isMarqueeSelecting && !wasInteractingWithNote && moveDist < 6.0 && contentPos.dx >= _gutterWidth) {
                             final now = DateTime.now();
 
                             if (_lastGridTapPos != null &&
@@ -597,11 +614,8 @@ class _ScoreViewState extends State<ScoreView> {
                               // Single tap on empty grid -> Deselect active notes
                               _lastGridTapTime = now;
                               _lastGridTapPos = contentPos;
-                              if (_selectedNoteIds.isNotEmpty) {
-                                setState(() {
-                                  _selectedNoteIds.clear();
-                                });
-                              }
+                              widget.dawState.clearNoteSelection(track);
+                              setState(() {});
                             }
                           }
 
@@ -609,29 +623,99 @@ class _ScoreViewState extends State<ScoreView> {
                           _pointerDownPos = null;
                           _canvasPanStartScrollOffset = null;
                         },
-                        child: SingleChildScrollView(
-                          controller: _horizontalScroll,
-                          scrollDirection: Axis.horizontal,
-                          physics: const NeverScrollableScrollPhysics(),
-                          child: SizedBox(
-                            width: math.max(
-                              constraints.maxWidth,
-                              _gutterWidth + (_totalSteps * _stepWidth) + 96.0,
-                            ),
-                            height: constraints.maxHeight,
-                            child: CustomPaint(
-                              painter: ScoreCanvasPainter(
-                                track: track,
-                                isTrebleStaff: isTrebleStaff,
-                                isGrandStaff: isGrandStaff,
-                                stepWidth: _stepWidth,
-                                staffSpace: _staffSpace,
-                                gutterWidth: _gutterWidth,
-                                totalSteps: _totalSteps,
-                                selectedNoteIds: _selectedNoteIds,
-                                isLight: isLight,
-                                marqueeStart: _marqueeStart,
-                                marqueeCurrent: _marqueeCurrent,
+                        onPointerCancel: (event) {
+                          _holdTimer?.cancel();
+                          if (_draggedNoteId != null) {
+                            widget.dawState.commitHistoryTransaction();
+                            _draggedNoteId = null;
+                            _noteDragStartPos = null;
+                            _batchStartSteps.clear();
+                            _batchStartPitches.clear();
+                          }
+                          if (_isMarqueeSelecting) {
+                            setState(() {
+                              _isMarqueeSelecting = false;
+                              _marqueeStart = null;
+                              _marqueeCurrent = null;
+                            });
+                          }
+                          _isCanvasPanning = false;
+                          _pointerDownPos = null;
+                          _canvasPanStartScrollOffset = null;
+                        },
+                        child: MouseRegion(
+                          cursor: _isCanvasPanning ? SystemMouseCursors.grabbing : MouseCursor.defer,
+                          child: SingleChildScrollView(
+                            controller: _horizontalScroll,
+                            scrollDirection: Axis.horizontal,
+                            physics: const NeverScrollableScrollPhysics(),
+                            child: SizedBox(
+                              width: math.max(
+                                constraints.maxWidth,
+                                _gutterWidth + (_totalSteps * _stepWidth) + 96.0,
+                              ),
+                              height: constraints.maxHeight,
+                              child: Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: CustomPaint(
+                                      painter: ScoreCanvasPainter(
+                                        track: track,
+                                        isTrebleStaff: isTrebleStaff,
+                                        isGrandStaff: isGrandStaff,
+                                        stepWidth: _stepWidth,
+                                        staffSpace: _staffSpace,
+                                        gutterWidth: _gutterWidth,
+                                        totalSteps: _totalSteps,
+                                        selectedNoteIds: _selectedNoteIds,
+                                        isLight: isLight,
+                                        marqueeStart: _marqueeStart,
+                                        marqueeCurrent: _marqueeCurrent,
+                                        backgroundTracks: widget.dawState.visibleTracks
+                                            .where((t) => t.id != track.id && !t.isMuted)
+                                            .toList(),
+                                        ghostNotesOpacity: widget.dawState.ghostNotesOpacity,
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Real-time Playhead (Continuous Sub-Pixel Motion in scrollable space)
+                                  ValueListenableBuilder<double>(
+                                    valueListenable: widget.dawState.continuousArrangerStepNotifier,
+                                    builder: (context, continuousStep, _) {
+                                      final clip = widget.dawState.activeTrackClip;
+                                      final clipStartStep = (clip.startBar * 16).toDouble();
+                                      final clipEndStep = clipStartStep + _totalSteps.toDouble();
+                                      if (continuousStep < clipStartStep || continuousStep > clipEndStep) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      final activeStepInClip = continuousStep - clipStartStep;
+                                      final double playheadX = _gutterWidth + (activeStepInClip * _stepWidth);
+
+                                      return Positioned(
+                                        left: playheadX - 1.5,
+                                        top: 0,
+                                        bottom: 0,
+                                        child: RepaintBoundary(
+                                          child: IgnorePointer(
+                                            child: Container(
+                                              width: 3.0,
+                                              decoration: BoxDecoration(
+                                                color: EatsTheme.primaryCyan,
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: EatsTheme.primaryCyan.withValues(alpha: 0.8),
+                                                    blurRadius: 4,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -644,86 +728,23 @@ class _ScoreViewState extends State<ScoreView> {
                         top: 0,
                         bottom: 0,
                         width: _gutterWidth,
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: ScoreGutterPainter(
-                              isTrebleStaff: isTrebleStaff,
-                              isGrandStaff: isGrandStaff,
-                              staffSpace: _staffSpace,
-                              gutterWidth: _gutterWidth,
-                              isLight: isLight,
+                        child: RepaintBoundary(
+                          child: IgnorePointer(
+                            child: CustomPaint(
+                              painter: ScoreGutterPainter(
+                                isTrebleStaff: isTrebleStaff,
+                                isGrandStaff: isGrandStaff,
+                                staffSpace: _staffSpace,
+                                gutterWidth: _gutterWidth,
+                                isLight: isLight,
+                              ),
                             ),
                           ),
                         ),
                       ),
 
-                      // Real-time Playhead (Continuous Sub-Pixel Motion)
-                      ValueListenableBuilder<double>(
-                        valueListenable: widget.dawState.continuousArrangerStepNotifier,
-                        builder: (context, continuousStep, _) {
-                          final clip = widget.dawState.activeClip;
-                          final clipStartStep = ((clip?.startBar ?? 0) * 16).toDouble();
-                          final clipEndStep = clipStartStep + _totalSteps.toDouble();
-                          if (continuousStep < clipStartStep || continuousStep > clipEndStep) {
-                            return const SizedBox.shrink();
-                          }
-                          final activeStepInClip = continuousStep - clipStartStep;
-                          final double scrollOffset = _horizontalScroll.hasClients ? _horizontalScroll.offset : 0.0;
-                          final double playheadX = _gutterWidth + (activeStepInClip * _stepWidth) - scrollOffset;
-
-                          if (playheadX < _gutterWidth || playheadX > constraints.maxWidth) {
-                            return const SizedBox.shrink();
-                          }
-
-                          // Auto-follow scrolling if enabled
-                          if (widget.dawState.isFollowPlaybackNotifier.value && _horizontalScroll.hasClients) {
-                             WidgetsBinding.instance.addPostFrameCallback((_) {
-                               final center = constraints.maxWidth / 2;
-                               if (playheadX < center - 100 || playheadX > center + 100) {
-                                 final targetOffset = (_horizontalScroll.offset + (playheadX - center)).clamp(
-                                   0.0, _horizontalScroll.position.maxScrollExtent,
-                                 );
-                                 _horizontalScroll.jumpTo(targetOffset);
-                               }
-                             });
-                          }
-
-                          return Positioned(
-                            left: playheadX - 1.5,
-                            top: 0,
-                            bottom: 0,
-                            child: IgnorePointer(
-                              child: Container(
-                                width: 3.0,
-                                decoration: BoxDecoration(
-                                  color: EatsTheme.primaryCyan,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: EatsTheme.primaryCyan.withValues(alpha: 0.8),
-                                      blurRadius: 4,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-
-                      // Right-Hand Note Inspector Sidebar
-                      AnimatedPositioned(
-                        duration: const Duration(milliseconds: 180),
-                        curve: Curves.fastOutSlowIn,
-                        top: 0,
-                        bottom: 0,
-                        right: selectedNotes.isNotEmpty ? 0.0 : -300.0,
-                        width: 280,
-                        child: RepaintBoundary(
-                          child: selectedNotes.isEmpty
-                              ? const SizedBox()
-                              : _buildNoteInspectorSidebar(track, selectedNotes),
-                        ),
-                      ),
+                      // Note Inspector is rendered persistently by parent EditView
+                      const SizedBox.shrink(),
                     ],
                   );
                 },
@@ -740,144 +761,163 @@ class _ScoreViewState extends State<ScoreView> {
   // ---------------------------------------------------------------------------
 
   Widget _buildToolbar(bool isTrebleStaff, bool isGrandStaff, int selectedCount) {
-    return Container(
-      height: 46,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: EatsTheme.panelHeader,
-        border: Border(
-          bottom: BorderSide(
-            color: EatsTheme.isLight
-                ? Colors.black.withValues(alpha: 0.1)
-                : Colors.white.withValues(alpha: 0.08),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool isCompact = constraints.maxWidth < 960;
+        final bool isVeryCompact = constraints.maxWidth < 700;
+
+        return Container(
+          height: 46,
+          padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12),
+          decoration: BoxDecoration(
+            color: EatsTheme.panelHeader,
+            border: Border(
+              bottom: BorderSide(
+                color: EatsTheme.isLight
+                    ? Colors.black.withValues(alpha: 0.1)
+                    : Colors.white.withValues(alpha: 0.08),
+              ),
+            ),
           ),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Clef Selector
-          _buildClefButton(isTrebleStaff, isGrandStaff),
+          child: Row(
+            children: [
+              // Clef Selector
+              _buildClefButton(isTrebleStaff, isGrandStaff, isCompact: isCompact),
 
-          const SizedBox(width: 8),
-          _buildDivider(),
-          const SizedBox(width: 8),
+              SizedBox(width: isCompact ? 5 : 8),
+              _buildDivider(),
+              SizedBox(width: isCompact ? 5 : 8),
 
-          // Duration Palette for Note Entry
-          _buildDurationSelector(),
+              // Duration Palette for Note Entry
+              _buildDurationSelector(isCompact: isCompact),
 
-          const SizedBox(width: 8),
-          _buildDivider(),
-          const SizedBox(width: 8),
+              SizedBox(width: isCompact ? 5 : 8),
+              _buildDivider(),
+              SizedBox(width: isCompact ? 5 : 8),
 
-          // Accidental Selector
-          _buildAccidentalSelector(),
+              // Accidental Selector
+              _buildAccidentalSelector(isCompact: isCompact),
 
-          const SizedBox(width: 8),
-          _buildDivider(),
-          const SizedBox(width: 8),
+              SizedBox(width: isCompact ? 5 : 8),
+              _buildDivider(),
+              SizedBox(width: isCompact ? 5 : 8),
 
-          // Follow Playback Toggle Button
-          ValueListenableBuilder<bool>(
-            valueListenable: widget.dawState.isFollowPlaybackNotifier,
-            builder: (context, isFollowing, _) {
-              return InkWell(
-                onTap: widget.dawState.toggleFollowPlayback,
-                borderRadius: BorderRadius.circular(4),
-                child: Tooltip(
-                  message: isFollowing ? 'Follow Playhead: ON (F)' : 'Follow Playhead: OFF (F)',
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isFollowing
-                          ? EatsTheme.primaryCyan.withValues(alpha: 0.2)
-                          : EatsTheme.controlBackground,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: isFollowing
-                            ? EatsTheme.primaryCyan
-                            : (EatsTheme.isLight ? Colors.black12 : Colors.white12),
-                        width: 0.8,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.my_location,
-                          size: 13,
-                          color: isFollowing ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+              // Follow Playback Toggle Button
+              ValueListenableBuilder<bool>(
+                valueListenable: widget.dawState.isFollowPlaybackNotifier,
+                builder: (context, isFollowing, _) {
+                  return InkWell(
+                    onTap: widget.dawState.toggleFollowPlayback,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Tooltip(
+                      message: isFollowing ? 'Follow Playhead: ON (F)' : 'Follow Playhead: OFF (F)',
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isCompact ? 6 : 8,
+                          vertical: 4,
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'FOLLOW',
-                          style: TextStyle(
-                            color: isFollowing ? EatsTheme.primaryCyan : EatsTheme.textMuted,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+                        decoration: BoxDecoration(
+                          color: isFollowing
+                              ? EatsTheme.primaryCyan.withValues(alpha: 0.2)
+                              : EatsTheme.controlBackground,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: isFollowing
+                                ? EatsTheme.primaryCyan
+                                : (EatsTheme.isLight ? Colors.black12 : Colors.white12),
+                            width: 0.8,
                           ),
                         ),
-                      ],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.my_location,
+                              size: 13,
+                              color: isFollowing ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                            ),
+                            if (!isVeryCompact) ...[
+                              const SizedBox(width: 4),
+                              Text(
+                                'FOLLOW',
+                                style: TextStyle(
+                                  color: isFollowing ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
+                  );
+                },
+              ),
+
+              const Spacer(),
+
+              // Selection Count & Deselect Button
+              if (selectedCount > 0) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: EatsTheme.primaryCyan.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: EatsTheme.primaryCyan.withValues(alpha: 0.5)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check_circle_outline, size: 14, color: EatsTheme.primaryCyan),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$selectedCount Selected',
+                        style: TextStyle(
+                          color: EatsTheme.primaryCyan,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            },
-          ),
-
-          const Spacer(),
-
-          // Selection Count & Deselect Button
-          if (selectedCount > 0) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: EatsTheme.primaryCyan.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: EatsTheme.primaryCyan.withValues(alpha: 0.5)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.check_circle_outline, size: 14, color: EatsTheme.primaryCyan),
-                  const SizedBox(width: 5),
-                  Text(
-                    '$selectedCount Selected',
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: Icon(Icons.close, size: 16, color: EatsTheme.textMuted),
+                  tooltip: 'Deselect All (Esc)',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                  onPressed: () {
+                    widget.dawState.clearNoteSelection(widget.dawState.activeTrack);
+                    setState(() {});
+                  },
+                ),
+              ] else if (!isCompact) ...[
+                Flexible(
+                  child: Text(
+                    'Drag background to pan  •  Hold & drag to multi-select  •  Double-click to add/delete',
                     style: TextStyle(
-                      color: EatsTheme.primaryCyan,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
+                      color: EatsTheme.textMuted,
+                      fontSize: 10.5,
+                      fontStyle: FontStyle.italic,
                     ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 6),
-            IconButton(
-              icon: Icon(Icons.close, size: 16, color: EatsTheme.textMuted),
-              tooltip: 'Deselect All (Esc)',
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-              onPressed: () => setState(() => _selectedNoteIds.clear()),
-            ),
-          ] else ...[
-            Text(
-              'Drag background to pan  •  Hold & drag to multi-select  •  Double-click to add/delete',
-              style: TextStyle(
-                color: EatsTheme.textMuted,
-                fontSize: 10.5,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
-        ],
-      ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildClefButton(bool isTrebleStaff, bool isGrandStaff) {
+  Widget _buildClefButton(bool isTrebleStaff, bool isGrandStaff, {bool isCompact = false}) {
     String label;
     if (_selectedClef == ScoreClef.auto) {
-      label = isTrebleStaff ? 'AUTO (TREBLE)' : 'AUTO (BASS)';
+      label = isCompact ? 'AUTO' : (isTrebleStaff ? 'AUTO (TREBLE)' : 'AUTO (BASS)');
     } else if (_selectedClef == ScoreClef.treble) {
       label = 'TREBLE';
     } else if (_selectedClef == ScoreClef.bass) {
@@ -901,7 +941,7 @@ class _ScoreViewState extends State<ScoreView> {
         PopupMenuItem(value: ScoreClef.grandStaff, child: Text('Grand Staff (Both)')),
       ],
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: EdgeInsets.symmetric(horizontal: isCompact ? 6 : 10, vertical: 5),
         decoration: BoxDecoration(
           color: EatsTheme.controlBackground,
           borderRadius: BorderRadius.circular(4),
@@ -916,10 +956,10 @@ class _ScoreViewState extends State<ScoreView> {
           children: [
             Icon(
               isTrebleStaff ? Icons.graphic_eq : Icons.straighten,
-              size: 15,
+              size: 14,
               color: EatsTheme.primaryCyan,
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 4),
             Text(
               label,
               style: TextStyle(
@@ -935,7 +975,7 @@ class _ScoreViewState extends State<ScoreView> {
     );
   }
 
-  Widget _buildDurationSelector() {
+  Widget _buildDurationSelector({bool isCompact = false}) {
     final durations = [
       (ScoreNoteType.whole, '1/1', 'Whole Note'),
       (ScoreNoteType.half, '1/2', 'Half Note'),
@@ -949,7 +989,7 @@ class _ScoreViewState extends State<ScoreView> {
       children: durations.map((d) {
         final isSelected = _selectedDuration == d.$1;
         return Padding(
-          padding: const EdgeInsets.only(right: 3),
+          padding: EdgeInsets.only(right: isCompact ? 2 : 3),
           child: InkWell(
             onTap: () {
               setState(() {
@@ -958,7 +998,7 @@ class _ScoreViewState extends State<ScoreView> {
             },
             borderRadius: BorderRadius.circular(3),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              padding: EdgeInsets.symmetric(horizontal: isCompact ? 5 : 8, vertical: 4),
               decoration: BoxDecoration(
                 color: isSelected ? EatsTheme.primaryCyan.withValues(alpha: 0.22) : Colors.transparent,
                 borderRadius: BorderRadius.circular(3),
@@ -974,7 +1014,7 @@ class _ScoreViewState extends State<ScoreView> {
                   color: isSelected
                       ? EatsTheme.primaryCyan
                       : (EatsTheme.isLight ? Colors.black87 : Colors.white70),
-                  fontSize: 11,
+                  fontSize: 10.5,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
@@ -985,7 +1025,7 @@ class _ScoreViewState extends State<ScoreView> {
     );
   }
 
-  Widget _buildAccidentalSelector() {
+  Widget _buildAccidentalSelector({bool isCompact = false}) {
     final accidentals = [
       (ScoreAccidental.none, '♮', 'Natural'),
       (ScoreAccidental.sharp, '♯', 'Sharp'),
@@ -997,7 +1037,7 @@ class _ScoreViewState extends State<ScoreView> {
       children: accidentals.map((a) {
         final isSelected = _selectedAccidental == a.$1;
         return Padding(
-          padding: const EdgeInsets.only(right: 3),
+          padding: EdgeInsets.only(right: isCompact ? 2 : 3),
           child: InkWell(
             onTap: () {
               setState(() {
@@ -1040,348 +1080,6 @@ class _ScoreViewState extends State<ScoreView> {
       color: EatsTheme.isLight ? Colors.black.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.1),
     );
   }
-
-  // ---------------------------------------------------------------------------
-  // Right-Hand Note Inspector Sidebar
-  // ---------------------------------------------------------------------------
-
-  Widget _buildNoteInspectorSidebar(TrackChannel track, List<Note> selectedNotes) {
-    final isMulti = selectedNotes.length > 1;
-    final primaryNote = selectedNotes.first;
-    final noteLayout = ScoreLayoutEngine.pitchToLayout(primaryNote.pitch);
-    final velPercent = (primaryNote.velocity * 100).round();
-
-    return Material(
-      elevation: 8,
-      color: Colors.transparent,
-      child: Container(
-        width: 280,
-        decoration: BoxDecoration(
-          color: EatsTheme.panelBackground,
-          border: Border(
-            left: BorderSide(color: EatsTheme.panelHeader, width: 1.5),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 10,
-              offset: const Offset(-3, 0),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            // Sidebar Header
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: EatsTheme.panelHeader,
-                border: Border(bottom: BorderSide(color: EatsTheme.panelHeader, width: 1.5)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(color: track.color, shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      isMulti ? 'NOTE INSPECTOR (${selectedNotes.length})' : 'NOTE INSPECTOR',
-                      overflow: TextOverflow.ellipsis,
-                      style: EatsTheme.getDisplayFontStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.bold,
-                        color: EatsTheme.isLight ? Colors.black87 : EatsTheme.textLight,
-                      ),
-                    ),
-                  ),
-                  // Delete Button
-                  IconButton(
-                    icon: const Icon(Icons.delete_forever, size: 16, color: Colors.redAccent),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                    tooltip: 'Delete Selected Note(s) (Del)',
-                    onPressed: _deleteSelectedNotes,
-                  ),
-                  const SizedBox(width: 4),
-                  // Close Button
-                  IconButton(
-                    icon: Icon(Icons.close, size: 16, color: EatsTheme.textMuted),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                    tooltip: 'Close Inspector',
-                    onPressed: () => setState(() => _selectedNoteIds.clear()),
-                  ),
-                ],
-              ),
-            ),
-
-            // Note Summary Badge
-            Container(
-              margin: const EdgeInsets.all(8),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: EatsTheme.primaryCyan.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: EatsTheme.primaryCyan.withValues(alpha: 0.4), width: 1),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    isMulti ? '${selectedNotes.length} Notes Selected' : noteLayout.noteName,
-                    style: TextStyle(
-                      color: EatsTheme.primaryCyan,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    isMulti
-                        ? 'Multiple'
-                        : 'Step ${primaryNote.startStep.toInt() + 1} (${primaryNote.durationSteps.toStringAsFixed(1)} st)',
-                    style: TextStyle(
-                      color: EatsTheme.isLight ? Colors.black87 : EatsTheme.textLight,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                children: [
-                  // Section 1: Pitch Transposition
-                  _buildSidebarSectionHeader('PITCH TRANSPOSE'),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildCompactButton('-12', () => _transposeSelectedNotes(-12), tooltip: '-1 Octave'),
-                      _buildCompactButton('-1', () => _transposeSelectedNotes(-1), tooltip: '-1 Semitone'),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: EatsTheme.controlBackground,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          isMulti ? '...' : noteLayout.noteName,
-                          style: TextStyle(
-                            color: EatsTheme.primaryCyan,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      _buildCompactButton('+1', () => _transposeSelectedNotes(1), tooltip: '+1 Semitone'),
-                      _buildCompactButton('+12', () => _transposeSelectedNotes(12), tooltip: '+1 Octave'),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Section 2: Position (Start Step)
-                  _buildSidebarSectionHeader('POSITION (START STEP)'),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        isMulti ? 'Multiple' : 'Step ${primaryNote.startStep.toInt() + 1}',
-                        style: const TextStyle(
-                          color: EatsTheme.accentGold,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildCompactButton('-STEP', () => _nudgeSelectedNotesPosition(-1.0), tooltip: 'Nudge Left'),
-                          const SizedBox(width: 4),
-                          _buildCompactButton('+STEP', () => _nudgeSelectedNotesPosition(1.0), tooltip: 'Nudge Right'),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Section 3: Length / Duration
-                  _buildSidebarSectionHeader('LENGTH / DURATION'),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        isMulti ? 'Multiple' : '${primaryNote.durationSteps.toStringAsFixed(1)} steps',
-                        style: TextStyle(
-                          color: EatsTheme.primaryCyan,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildCompactButton('-LEN', () => _changeSelectedNotesDuration(-1.0), tooltip: 'Shorten'),
-                          const SizedBox(width: 4),
-                          _buildCompactButton('+LEN', () => _changeSelectedNotesDuration(1.0), tooltip: 'Lengthen'),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Section 4: Velocity
-                  _buildSidebarSectionHeader('VELOCITY'),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        isMulti ? 'Multiple' : '$velPercent%',
-                        style: TextStyle(
-                          color: EatsTheme.primaryCyan,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.volume_up, size: 16),
-                        color: EatsTheme.primaryCyan,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                        tooltip: 'Preview Note Sound',
-                        onPressed: () => _auditionNote(primaryNote.pitch, velocity: primaryNote.velocity),
-                      ),
-                    ],
-                  ),
-                  SliderTheme(
-                    data: SliderThemeData(
-                      trackHeight: 3,
-                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                      activeTrackColor: EatsTheme.primaryCyan,
-                      inactiveTrackColor: EatsTheme.controlBackground,
-                      thumbColor: EatsTheme.primaryCyan,
-                    ),
-                    child: Slider(
-                      value: primaryNote.velocity.clamp(0.05, 1.0),
-                      min: 0.05,
-                      max: 1.0,
-                      onChanged: (val) => _changeSelectedNotesVelocity(val),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Section 5: Lyric Syllable
-                  _buildSidebarSectionHeader('LYRIC / SYLLABLE'),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 30,
-                          decoration: BoxDecoration(
-                            color: EatsTheme.controlBackground,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: EatsTheme.isLight
-                                  ? Colors.black.withValues(alpha: 0.15)
-                                  : Colors.white.withValues(alpha: 0.12),
-                            ),
-                          ),
-                          child: TextField(
-                            controller: TextEditingController(text: primaryNote.lyric ?? ''),
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: EatsTheme.isLight ? Colors.black87 : Colors.white,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'e.g. "Ah", "La", "You"',
-                              hintStyle: TextStyle(fontSize: 10, color: EatsTheme.textMuted),
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                              border: InputBorder.none,
-                            ),
-                            onSubmitted: (text) {
-                              widget.dawState.setNoteLyric(track, primaryNote, text.trim().isEmpty ? null : text);
-                              setState(() {});
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Delete Note Action Button
-                  ElevatedButton.icon(
-                    onPressed: _deleteSelectedNotes,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent.withValues(alpha: 0.2),
-                      foregroundColor: Colors.redAccent,
-                      side: const BorderSide(color: Colors.redAccent, width: 1),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    icon: const Icon(Icons.delete_outline, size: 16),
-                    label: Text(
-                      isMulti ? 'DELETE ${selectedNotes.length} NOTES' : 'DELETE NOTE',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSidebarSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Text(
-        title,
-        style: TextStyle(
-          color: EatsTheme.textMuted,
-          fontSize: 9.5,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCompactButton(String label, VoidCallback onTap, {String? tooltip}) {
-    return Tooltip(
-      message: tooltip ?? label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: EatsTheme.controlBackground,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: EatsTheme.isLight
-                  ? Colors.black.withValues(alpha: 0.15)
-                  : Colors.white.withValues(alpha: 0.12),
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: EatsTheme.isLight ? Colors.black87 : Colors.white,
-              fontSize: 10.5,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // -----------------------------------------------------------------------------
@@ -1400,6 +1098,8 @@ class ScoreCanvasPainter extends CustomPainter {
   final bool isLight;
   final Offset? marqueeStart;
   final Offset? marqueeCurrent;
+  final List<TrackChannel> backgroundTracks;
+  final double ghostNotesOpacity;
 
   ScoreCanvasPainter({
     required this.track,
@@ -1413,6 +1113,8 @@ class ScoreCanvasPainter extends CustomPainter {
     required this.isLight,
     this.marqueeStart,
     this.marqueeCurrent,
+    this.backgroundTracks = const [],
+    this.ghostNotesOpacity = 0.0,
   });
 
   @override
@@ -1493,6 +1195,14 @@ class ScoreCanvasPainter extends CustomPainter {
         }
       }
 
+      // Render Ghost Notes from Background Tracks
+      if (ghostNotesOpacity > 0.0 && backgroundTracks.isNotEmpty) {
+        for (final bgTrack in backgroundTracks) {
+          if (bgTrack.notes.isEmpty) continue;
+          _renderGhostNotes(canvas, bgTrack.notes, staffLine1Y, isTrebleStaff, visibleLeft, visibleRight, bgTrack.color, ghostNotesOpacity);
+        }
+      }
+
       // Render Notes with viewport culling
       _renderNotes(canvas, track.notes, staffLine1Y, isTrebleStaff, visibleLeft, visibleRight);
     } else {
@@ -1545,6 +1255,17 @@ class ScoreCanvasPainter extends CustomPainter {
       // Partition notes by register: C4 (60) and above on Treble, below on Bass
       final trebleNotes = track.notes.where((n) => n.pitch >= 60).toList();
       final bassNotes = track.notes.where((n) => n.pitch < 60).toList();
+
+      // Render Ghost Notes from Background Tracks
+      if (ghostNotesOpacity > 0.0 && backgroundTracks.isNotEmpty) {
+        for (final bgTrack in backgroundTracks) {
+          if (bgTrack.notes.isEmpty) continue;
+          final bgTreble = bgTrack.notes.where((n) => n.pitch >= 60).toList();
+          final bgBass = bgTrack.notes.where((n) => n.pitch < 60).toList();
+          _renderGhostNotes(canvas, bgTreble, trebleLine1Y, true, visibleLeft, visibleRight, bgTrack.color, ghostNotesOpacity);
+          _renderGhostNotes(canvas, bgBass, bassLine1Y, false, visibleLeft, visibleRight, bgTrack.color, ghostNotesOpacity);
+        }
+      }
 
       _renderNotes(canvas, trebleNotes, trebleLine1Y, true, visibleLeft, visibleRight);
       _renderNotes(canvas, bassNotes, bassLine1Y, false, visibleLeft, visibleRight);
@@ -1714,6 +1435,124 @@ class ScoreCanvasPainter extends CustomPainter {
         );
         final lyricTp = TextPainter(text: lyricSpan, textDirection: TextDirection.ltr)..layout();
         lyricTp.paint(canvas, Offset(noteCenter.dx - lyricTp.width / 2, staffLine1Y + staffSpace * 2.0));
+      }
+    }
+  }
+
+  void _renderGhostNotes(
+    Canvas canvas,
+    List<Note> notes,
+    double staffLine1Y,
+    bool isTrebleStaff,
+    double visibleLeft,
+    double visibleRight,
+    Color trackColor,
+    double opacity,
+  ) {
+    if (opacity <= 0.0 || notes.isEmpty) return;
+
+    final ghostColor = isLight
+        ? Color.lerp(const Color(0xFF181512), trackColor, 0.45)!.withValues(alpha: (opacity * 0.55).clamp(0.0, 1.0))
+        : trackColor.withValues(alpha: (opacity * 0.55).clamp(0.0, 1.0));
+
+    final ghostPaint = Paint()
+      ..color = ghostColor
+      ..style = PaintingStyle.fill;
+
+    final ghostLedgerPaint = Paint()
+      ..color = isLight
+          ? const Color(0xFF1E1A16).withValues(alpha: (opacity * 0.40).clamp(0.0, 1.0))
+          : Colors.white.withValues(alpha: (opacity * 0.35).clamp(0.0, 1.0))
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    for (final note in notes) {
+      final double noteX = gutterWidth + (note.startStep * stepWidth);
+
+      // Viewport Culling: Skip offscreen notes
+      if (noteX + 60.0 < visibleLeft || noteX - 60.0 > visibleRight) {
+        continue;
+      }
+
+      final visual = ScoreLayoutEngine.computeVisual(
+        pitchLayout: ScoreLayoutEngine.pitchToLayout(note.pitch),
+        durationSteps: note.durationSteps,
+        staffLine1Y: staffLine1Y,
+        sp: staffSpace,
+        isTrebleStaff: isTrebleStaff,
+      );
+
+      final double noteY = visual.yPos;
+      final noteCenter = Offset(noteX, noteY);
+
+      // Ledger lines
+      for (final ledgerY in visual.ledgerLineYPositions) {
+        ScoreVectorGlyphs.drawLedgerLine(canvas, Offset(noteX, ledgerY), staffSpace, ghostLedgerPaint);
+      }
+
+      // Accidental
+      if (visual.pitchLayout.accidental == ScoreAccidental.sharp) {
+        ScoreVectorGlyphs.drawSharp(canvas, Offset(noteX - staffSpace * 0.95, noteY), staffSpace, ghostPaint);
+      } else if (visual.pitchLayout.accidental == ScoreAccidental.flat) {
+        ScoreVectorGlyphs.drawFlat(canvas, Offset(noteX - staffSpace * 0.85, noteY), staffSpace, ghostPaint);
+      } else if (visual.pitchLayout.accidental == ScoreAccidental.natural) {
+        ScoreVectorGlyphs.drawNatural(canvas, Offset(noteX - staffSpace * 0.85, noteY), staffSpace, ghostPaint);
+      }
+
+      // Notehead
+      switch (visual.noteType) {
+        case ScoreNoteType.whole:
+          ScoreVectorGlyphs.drawWholeNotehead(canvas, noteCenter, staffSpace, ghostPaint, null);
+          break;
+        case ScoreNoteType.half:
+          ScoreVectorGlyphs.drawHalfNotehead(canvas, noteCenter, staffSpace, ghostPaint, null);
+          break;
+        case ScoreNoteType.quarter:
+        case ScoreNoteType.eighth:
+        case ScoreNoteType.sixteenth:
+          ScoreVectorGlyphs.drawBlackNotehead(canvas, noteCenter, staffSpace, ghostPaint);
+          break;
+      }
+
+      // Stem & Flags
+      if (visual.noteType != ScoreNoteType.whole) {
+        final stemTip = ScoreVectorGlyphs.drawStem(
+          canvas: canvas,
+          noteCenter: noteCenter,
+          sp: staffSpace,
+          isUp: visual.isStemUp,
+          paint: ghostPaint,
+        );
+
+        if (visual.noteType == ScoreNoteType.eighth) {
+          ScoreVectorGlyphs.drawFlag(
+            canvas: canvas,
+            stemTip: stemTip,
+            sp: staffSpace,
+            isUp: visual.isStemUp,
+            flagCount: 1,
+            paint: ghostPaint,
+          );
+        } else if (visual.noteType == ScoreNoteType.sixteenth) {
+          ScoreVectorGlyphs.drawFlag(
+            canvas: canvas,
+            stemTip: stemTip,
+            sp: staffSpace,
+            isUp: visual.isStemUp,
+            flagCount: 2,
+            paint: ghostPaint,
+          );
+        }
+      }
+
+      // Dot
+      if (visual.isDotted) {
+        canvas.drawCircle(
+          Offset(noteCenter.dx + staffSpace * 0.85, noteCenter.dy),
+          staffSpace * 0.16,
+          ghostPaint,
+        );
       }
     }
   }

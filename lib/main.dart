@@ -8,7 +8,7 @@ import 'theme/eats_theme.dart';
 import 'ui/arranger_view.dart';
 import 'ui/eatsbeats_loading_screen.dart';
 import 'ui/edit_view.dart';
-import 'ui/lua_workbench_view.dart';
+import 'ui/eatscript_workbench_view.dart';
 import 'ui/mixer_view.dart';
 import 'ui/track_inspector_view.dart';
 import 'ui/transport_header.dart';
@@ -184,10 +184,13 @@ class _DawMainShellState extends State<DawMainShell> {
     final label = (primaryFocus.debugLabel ?? '').toLowerCase();
     if (label.contains('editabletext') ||
         label.contains('scriptviewcodeeditor') ||
+        label.contains('eatscriptworkbencheditor') ||
         label.contains('luaworkbencheditor') ||
+        label.contains('scriptnotepadfocus') ||
         label.contains('textfield') ||
-        label.contains('text') ||
-        label.contains('input')) {
+        label.contains('textinput') ||
+        label.contains('texteditor') ||
+        label.contains('editinput')) {
       return true;
     }
 
@@ -216,6 +219,8 @@ class _DawMainShellState extends State<DawMainShell> {
         orElse: () => widget.dawState.activeTrack,
       );
       widget.dawState.deleteClip(track, activeClip);
+    } else if (widget.dawState.activeTrack.clips.length == 1) {
+      widget.dawState.deleteClip(widget.dawState.activeTrack, widget.dawState.activeTrack.clips.first);
     } else {
       if (widget.dawState.activePattern.tracks.length > 1) {
         widget.dawState.deleteTrack(widget.dawState.activeTrack);
@@ -248,11 +253,11 @@ class _DawMainShellState extends State<DawMainShell> {
       return true;
     }
 
-    // Escape -> Close floating instrument window or return from EDIT view to ARRANGER view
+    // Escape -> Close fullscreen device modal or return from EDIT view to ARRANGER view
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       if (!_isEditingText()) {
-        if (widget.dawState.isFloatingWindowVisible) {
-          widget.dawState.closeFloatingInstrumentWindow();
+        if (widget.dawState.isFullscreenDeviceOpen) {
+          widget.dawState.closeFullscreenDevice();
           return true;
         } else if (widget.dawState.activeTabIndex == 1) {
           setState(() => widget.dawState.activeTabIndex = 0);
@@ -345,6 +350,11 @@ class _DawMainShellState extends State<DawMainShell> {
           if (widget.dawState.activeTabIndex != 0) return;
           _handleDelete();
         },
+        const SingleActivator(LogicalKeyboardKey.backspace): () {
+          if (_isEditingText()) return;
+          if (widget.dawState.activeTabIndex != 0) return;
+          _handleDelete();
+        },
         const SingleActivator(LogicalKeyboardKey.keyD, control: true): () {
           if (_isEditingText()) return;
           final activeClip = widget.dawState.activeClip;
@@ -357,8 +367,8 @@ class _DawMainShellState extends State<DawMainShell> {
           }
         },
         const SingleActivator(LogicalKeyboardKey.escape): () {
-          if (widget.dawState.isFloatingWindowVisible) {
-            widget.dawState.closeFloatingInstrumentWindow();
+          if (widget.dawState.isFullscreenDeviceOpen) {
+            widget.dawState.closeFullscreenDevice();
           } else if (!_isEditingText() && widget.dawState.activeTabIndex == 1) {
             setState(() => widget.dawState.activeTabIndex = 0);
           }
@@ -391,9 +401,9 @@ class _DawMainShellState extends State<DawMainShell> {
             children: [
               TickerMode(
                 enabled: widget.dawState.guiAnimationsEnabled &&
-                    !(widget.dawState.isFloatingWindowVisible && widget.dawState.isFloatingWindowMaximized),
+                    !widget.dawState.isFullscreenDeviceOpen,
                 child: Offstage(
-                  offstage: widget.dawState.isFloatingWindowVisible && widget.dawState.isFloatingWindowMaximized,
+                  offstage: widget.dawState.isFullscreenDeviceOpen,
                   child: Scaffold(
                     backgroundColor: EatsTheme.backgroundDark,
                   body: SafeArea(
@@ -438,19 +448,6 @@ class _DawMainShellState extends State<DawMainShell> {
                                         ],
                                       ),
                                     ),
-
-                                    // Scalable, Movable, Resizable Floating In-App VSTi Window (Normal Floating Mode)
-                                    if (widget.dawState.isFloatingWindowVisible && !widget.dawState.isFloatingWindowMaximized)
-                                      Positioned(
-                                        left: widget.dawState.floatingWindowPosition.dx,
-                                        top: widget.dawState.floatingWindowPosition.dy,
-                                        width: widget.dawState.floatingWindowSize.width,
-                                        height: widget.dawState.floatingWindowSize.height,
-                                        child: FloatingInstrumentWindow(
-                                          dawState: widget.dawState,
-                                          workspaceBounds: wsBounds,
-                                        ),
-                                      ),
 
                                     // Fast 150ms Animated Slide-In / Slide-Out Project Browser Drawer
                                     AnimatedPositioned(
@@ -516,7 +513,7 @@ class _DawMainShellState extends State<DawMainShell> {
             ),
 
               // Dedicated High-Performance Fullscreen Device Modal (Instrument, MIDI FX, Audio FX)
-              if (widget.dawState.isFloatingWindowVisible && widget.dawState.isFloatingWindowMaximized)
+              if (widget.dawState.isFullscreenDeviceOpen)
                 Positioned.fill(
                   child: SafeArea(
                     child: Material(

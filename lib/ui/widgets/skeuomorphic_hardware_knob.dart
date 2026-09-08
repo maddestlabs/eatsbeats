@@ -2,6 +2,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../lua/lua_gui_model.dart';
 import '../../theme/eats_theme.dart';
+import '../vector/built_in_vector_skins.dart';
+import '../vector/two_pass_vector_painter.dart';
+import '../vector/vector_skin_model.dart';
 import 'compact_value_dialog.dart';
 
 /// A realistic skeuomorphic metallic hardware knob control.
@@ -20,6 +23,7 @@ class SkeuomorphicHardwareKnob extends StatefulWidget {
   final double size;
   final Color? accentColor;
   final KnobStyle knobStyle;
+  final CustomControlSkin? customSkin;
   final bool isLightChassis;
   final String Function(double)? formatValue;
   final double step;
@@ -39,6 +43,7 @@ class SkeuomorphicHardwareKnob extends StatefulWidget {
     this.size = 56.0,
     this.accentColor,
     this.knobStyle = KnobStyle.standard,
+    this.customSkin,
     this.isLightChassis = false,
     this.formatValue,
     this.step = 0.0,
@@ -126,13 +131,19 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
               width: widget.size,
               height: widget.size,
               child: CustomPaint(
-                painter: _KnobPainter(
-                  normalizedValue: normalized,
-                  accentColor: activeColor,
-                  knobStyle: widget.knobStyle,
-                  isLightChassis: isLight,
-                  isGrungyTheme: EatsTheme.currentPreset == EatsThemePreset.ateTrack,
-                ),
+                painter: widget.customSkin != null || widget.knobStyle == KnobStyle.customVector
+                    ? TwoPassVectorKnobPainter(
+                        normalizedValue: normalized,
+                        skin: widget.customSkin ?? BuiltInVectorSkins.getSkinForKnobStyle(widget.knobStyle),
+                        accentColor: activeColor,
+                      )
+                    : _KnobPainter(
+                        normalizedValue: normalized,
+                        accentColor: activeColor,
+                        knobStyle: widget.knobStyle,
+                        isLightChassis: isLight,
+                        isGrungyTheme: EatsTheme.currentPreset == EatsThemePreset.ateTrack,
+                      ),
               ),
             ),
           ),
@@ -174,6 +185,8 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
       context: context,
       title: widget.label != null ? 'Set ${widget.label}' : 'Set Knob Value',
       initialValue: displayVal,
+      minValue: widget.min,
+      maxValue: widget.max,
       minMaxHint: 'Range: ${widget.min} - ${widget.max}',
       accentColor: accent,
       onResetDefault: () => widget.onChanged(widget.defaultValue),

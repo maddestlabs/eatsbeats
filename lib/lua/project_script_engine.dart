@@ -4,6 +4,7 @@ import '../models/chord_model.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import 'lua_script_library.dart';
+import '../audio/procgen/procedural_piano_engine.dart';
 
 /// Result of executing a project script.
 class ProjectScriptResult {
@@ -213,7 +214,12 @@ class ProjectScriptEngine {
     final scriptId = script.id.toLowerCase();
     final p = Map<String, dynamic>.from(params);
 
-    // 1. Global Chord-Aware Transposition Script
+    // 1. STMN Procedural Piano Generator Script
+    if (scriptId.contains('stmn') || scriptId.contains('procedural_piano') || code.contains('stmn procedural piano')) {
+      return _runStmnProceduralPiano(dawState, p);
+    }
+
+    // 2. Global Chord-Aware Transposition Script
     if (scriptId.contains('transpose') || code.contains('transpose_song') || (code.contains('transpose') && code.contains('chord'))) {
       return _runGlobalTranspose(dawState, p);
     }
@@ -612,5 +618,45 @@ class ProjectScriptEngine {
       affectedTracksCount: affectedTracks,
       affectedNotesCount: affectedNotes,
     );
+  }
+
+  /// Runs the STMN Procedural Piano Generator, translating parameters into ProceduralPianoEngine inputs.
+  static ProjectScriptResult _runStmnProceduralPiano(DawState dawState, Map<String, dynamic> params) {
+    const styleOptions = [
+      "Nocturne", "Prelude", "Ballade", "Sonatina", "March", "Chorale", "Elegy", "Etude",
+      "Waltz", "Minuet", "Mazurka", "Polonaise", "Barcarolle", "Lullaby", "Blues", "Tarantella"
+    ];
+    const rootOptions = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const layoutOptions = ["Two Tracks (Right/Left Hand)", "Single Unified Track"];
+
+    final rawStyle = params['Style'] ?? params['style'];
+    final String styleStr = rawStyle is num
+        ? (rawStyle.toInt() >= 0 && rawStyle.toInt() < styleOptions.length ? styleOptions[rawStyle.toInt()] : 'Nocturne')
+        : (rawStyle?.toString() ?? 'Nocturne');
+
+    final rawRoot = params['Root'] ?? params['root'];
+    final String rootStr = rawRoot is num
+        ? (rawRoot.toInt() >= 0 && rawRoot.toInt() < rootOptions.length ? rootOptions[rawRoot.toInt()] : 'C')
+        : (rawRoot?.toString() ?? 'C');
+
+    final rawMode = params['Mode'] ?? params['mode'];
+    final String modeStr = rawMode is num
+        ? (rawMode.toInt() == 1 ? 'Minor' : 'Major')
+        : (rawMode?.toString() ?? 'Major');
+
+    final rawLayout = params['TrackLayout'] ?? params['track_layout'];
+    final String layoutStr = rawLayout is num
+        ? (rawLayout.toInt() == 1 ? layoutOptions[1] : layoutOptions[0])
+        : (rawLayout?.toString() ?? layoutOptions[0]);
+
+    final Map<String, dynamic> mapped = {
+      ...params,
+      'Style': styleStr,
+      'Root': rootStr,
+      'Mode': modeStr,
+      'TrackLayout': layoutStr,
+    };
+
+    return ProceduralPianoEngine.generateToDawState(dawState, mapped);
   }
 }

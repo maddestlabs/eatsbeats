@@ -36,6 +36,7 @@ class _SequenceEditorViewState extends State<SequenceEditorView> {
 
   bool get _followPlayback => widget.dawState.isFollowPlayback;
   int _lastFollowBar = -1;
+  int _lastPlayingBar = -1;
 
   // 2-digit Hex input buffer for rapid keyboard entry
   String _hexBuffer = '';
@@ -70,36 +71,58 @@ class _SequenceEditorViewState extends State<SequenceEditorView> {
 
   void _onDawStateChanged() {
     if (!mounted) return;
+    if (!widget.dawState.isPlaying && _lastPlayingBar != -1) {
+      _lastPlayingBar = -1;
+    }
     setState(() {});
   }
 
   void _onContinuousPlayhead() {
     if (!mounted) return;
-    if (_followPlayback && widget.dawState.isPlaying && _verticalScroll.hasClients) {
-      final currentBar = (widget.dawState.continuousArrangerStepNotifier.value / 16.0).floor();
-      if (currentBar != _lastFollowBar) {
-        _lastFollowBar = currentBar;
+    final isPlaying = widget.dawState.isPlaying;
+    final currentBar = isPlaying ? (widget.dawState.continuousArrangerStepNotifier.value / 16.0).floor() : -1;
+
+    if (currentBar != _lastPlayingBar) {
+      _lastPlayingBar = currentBar;
+      if (_followPlayback && isPlaying && _verticalScroll.hasClients && currentBar >= 0) {
         final viewportH = _verticalScroll.position.viewportDimension;
         final targetOffset = (currentBar * rowHeight) - (viewportH / 2.0) + (rowHeight / 2.0);
         _verticalScroll.jumpTo(targetOffset.clamp(0.0, _verticalScroll.position.maxScrollExtent));
       }
+      setState(() {});
     }
   }
 
-  void _scrollToSelectedBar({bool animate = true}) {
+  void _scrollToSelectedBar({bool animate = false}) {
     if (!_verticalScroll.hasClients) return;
-    final targetOffset = (widget.dawState.sequenceSelectedBar * rowHeight) - 100.0;
+    final barTop = widget.dawState.sequenceSelectedBar * rowHeight;
+    final barBottom = barTop + rowHeight;
+    final currentScroll = _verticalScroll.offset;
+    final viewportH = _verticalScroll.position.hasViewportDimension
+        ? _verticalScroll.position.viewportDimension
+        : 400.0;
     final maxScroll = _verticalScroll.position.maxScrollExtent;
-    final clamped = targetOffset.clamp(0.0, maxScroll);
 
-    if (animate) {
-      _verticalScroll.animateTo(
-        clamped,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-      );
-    } else {
-      _verticalScroll.jumpTo(clamped);
+    // Margin of 2.5 rows (~70px) so preceding and succeeding rows stay visible
+    final double margin = rowHeight * 2.5;
+    double? targetOffset;
+
+    if (barTop < currentScroll + margin) {
+      targetOffset = (barTop - margin).clamp(0.0, maxScroll);
+    } else if (barBottom > currentScroll + viewportH - margin) {
+      targetOffset = (barBottom + margin - viewportH).clamp(0.0, maxScroll);
+    }
+
+    if (targetOffset != null) {
+      if (animate) {
+        _verticalScroll.animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 60),
+          curve: Curves.easeOut,
+        );
+      } else {
+        _verticalScroll.jumpTo(targetOffset);
+      }
     }
   }
 
@@ -110,11 +133,7 @@ class _SequenceEditorViewState extends State<SequenceEditorView> {
     final viewportW = _horizontalScroll.position.viewportDimension - posColumnWidth;
 
     if (targetOffset < currentOffset || targetOffset > (currentOffset + viewportW - trackColWidth)) {
-      _horizontalScroll.animateTo(
-        targetOffset.clamp(0.0, _horizontalScroll.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-      );
+      _horizontalScroll.jumpTo(targetOffset.clamp(0.0, _horizontalScroll.position.maxScrollExtent));
     }
   }
 
@@ -219,7 +238,7 @@ class _SequenceEditorViewState extends State<SequenceEditorView> {
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
 
     final key = event.logicalKey;
     final isCtrl = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
@@ -400,8 +419,12 @@ class _SequenceEditorViewState extends State<SequenceEditorView> {
     final totalBars = widget.dawState.totalTimelineBars;
     final visibleTracks = widget.dawState.visibleTracks;
     final totalTracks = visibleTracks.length;
-    final currentPlayheadBar = (widget.dawState.arrangerStep / 16.0).floor();
     final isPlaying = widget.dawState.isPlaying;
+    final currentPlayheadBar = isPlaying
+        ? (_lastPlayingBar >= 0
+            ? _lastPlayingBar
+            : (widget.dawState.continuousArrangerStepNotifier.value / 16.0).floor())
+        : -1;
 
     final selBar = widget.dawState.sequenceSelectedBar;
     final selTrack = widget.dawState.sequenceSelectedTrackIndex;
@@ -612,7 +635,7 @@ class _SequenceEditorViewState extends State<SequenceEditorView> {
 
                           Color rowBg = Colors.transparent;
                           if (isPlayheadRow) {
-                            rowBg = EatsTheme.primaryCyan.withOpacity(0.18);
+                            rowBg = EatsTheme.primaryCyan.withOpacity(0.20);
                           } else if (isSectionAccent) {
                             rowBg = Colors.white.withOpacity(0.04);
                           } else if (isBeatAccent) {
@@ -621,7 +644,15 @@ class _SequenceEditorViewState extends State<SequenceEditorView> {
 
                           return Container(
                             height: rowHeight,
-                            color: rowBg,
+                            decoration: BoxDecoration(
+                              color: rowBg,
+                              border: isPlayheadRow
+                                  ? Border(
+                                      top: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.45), width: 1.0),
+                                      bottom: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.45), width: 1.0),
+                                    )
+                                  : null,
+                            ),
                             child: Row(
                               children: [
                                 // Left POS / Chord Indicator
@@ -636,20 +667,33 @@ class _SequenceEditorViewState extends State<SequenceEditorView> {
                                     padding: const EdgeInsets.symmetric(horizontal: 6),
                                     decoration: BoxDecoration(
                                       color: isPlayheadRow
-                                          ? EatsTheme.primaryCyan.withOpacity(0.25)
+                                          ? EatsTheme.primaryCyan.withOpacity(0.32)
                                           : (isBeatAccent ? EatsTheme.panelHeader.withOpacity(0.6) : Colors.black12),
                                       border: Border(
-                                        right: const BorderSide(color: Colors.white12, width: 1),
-                                        bottom: BorderSide(color: Colors.white.withOpacity(0.03), width: 0.5),
+                                        right: BorderSide(
+                                          color: isPlayheadRow ? EatsTheme.primaryCyan : Colors.white12,
+                                          width: isPlayheadRow ? 1.5 : 1.0,
+                                        ),
+                                        bottom: BorderSide(
+                                          color: isPlayheadRow ? EatsTheme.primaryCyan.withOpacity(0.6) : Colors.white.withOpacity(0.03),
+                                          width: 0.5,
+                                        ),
+                                        top: isPlayheadRow
+                                            ? BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6), width: 0.5)
+                                            : BorderSide.none,
                                       ),
                                     ),
                                     child: Row(
                                       children: [
+                                        if (isPlayheadRow) ...[
+                                          Icon(Icons.play_arrow, size: 10, color: EatsTheme.primaryCyan),
+                                          const SizedBox(width: 2),
+                                        ],
                                         Text(
                                           barIdx.toRadixString(16).padLeft(2, '0').toUpperCase(),
                                           style: TextStyle(
                                             color: isPlayheadRow
-                                                ? EatsTheme.primaryCyan
+                                                ? (EatsTheme.isLight ? EatsTheme.primaryCyan : Colors.white)
                                                 : (isBeatAccent ? EatsTheme.accentGold : EatsTheme.textSecondary),
                                             fontSize: 10,
                                             fontWeight: FontWeight.bold,

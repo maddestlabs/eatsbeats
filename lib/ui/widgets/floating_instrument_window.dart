@@ -143,46 +143,37 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
               ),
               child: Row(
                 children: [
-                  // Track Color Dot & Title Area (Draggable Window Header)
+                  // Track Color Dot & Title Area
                   Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onPanUpdate: (details) {
-                        widget.dawState.updateFloatingWindowPosition(details.delta, parentBounds: wsBounds);
-                      },
-                      onDoubleTap: () {
-                        widget.dawState.toggleMaximizeFloatingWindow(wsBounds);
-                      },
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: accentColor,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(color: accentColor.withOpacity(0.8), blurRadius: 5),
-                              ],
-                            ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: accentColor,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(color: accentColor.withOpacity(0.8), blurRadius: 5),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Tooltip(
-                              message: subtitleText,
-                              child: Text(
-                                titleText,
-                                style: EatsTheme.getPrimaryFontStyle(
-                                  color: EatsTheme.textPrimary,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Tooltip(
+                            message: subtitleText,
+                            child: Text(
+                              titleText,
+                              style: EatsTheme.getPrimaryFontStyle(
+                                color: EatsTheme.textPrimary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
 
@@ -275,47 +266,6 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                     _buildTitleBarPresetStrip(context, effectiveTrack, accentColor, isFxMode, fxInsert, fxParentTrack),
                     const SizedBox(width: 4),
 
-                    // Maximize / Restore Button
-                    Tooltip(
-                      message: widget.dawState.isFloatingWindowMaximized ? 'Restore Window' : 'Maximize Fullscreen',
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => widget.dawState.toggleMaximizeFloatingWindow(wsBounds),
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          margin: const EdgeInsets.only(right: 4),
-                          decoration: BoxDecoration(
-                            color: EatsTheme.controlBackground.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Icon(
-                            widget.dawState.isFloatingWindowMaximized ? Icons.fullscreen_exit : Icons.fullscreen,
-                            size: 14,
-                            color: accentColor,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Explicit Close Button
-                    Tooltip(
-                      message: 'Close (ESC)',
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: widget.dawState.closeFloatingInstrumentWindow,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          margin: const EdgeInsets.only(right: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: Colors.red.withOpacity(0.45), width: 0.9),
-                          ),
-                          child: const Icon(Icons.close, size: 14, color: Colors.white),
-                        ),
-                      ),
-                    ),
-
                     // 3. Chassis Screw Accent Icon
                     _InteractiveScrewButton(
                       accentColor: accentColor,
@@ -349,33 +299,6 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                       ),
                     ),
                   ),
-
-                  // --- CORNER RESIZE HANDLE (DYNAMIC RESIZE & AUTO 1:1 SCALING) ---
-                  if (!widget.dawState.isFloatingWindowMaximized)
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onPanUpdate: (details) {
-                          widget.dawState.updateFloatingWindowSize(details.delta);
-                        },
-                        child: Container(
-                          width: 24,
-                          height: 24,
-                          padding: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            color: accentColor.withOpacity(0.25),
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(8),
-                            ),
-                          ),
-                          child: CustomPaint(
-                            painter: _ResizeGripPainter(color: accentColor),
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -613,25 +536,4 @@ class _ScrewSlotPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ScrewSlotPainter oldDelegate) => oldDelegate.color != color;
-}
-
-class _ResizeGripPainter extends CustomPainter {
-  final Color color;
-
-  const _ResizeGripPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withOpacity(0.8)
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawLine(Offset(size.width - 4, size.height - 14), Offset(size.width - 14, size.height - 4), paint);
-    canvas.drawLine(Offset(size.width - 4, size.height - 9), Offset(size.width - 9, size.height - 4), paint);
-    canvas.drawLine(Offset(size.width - 4, size.height - 4), Offset(size.width - 4, size.height - 4), paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _ResizeGripPainter oldDelegate) => oldDelegate.color != color;
 }

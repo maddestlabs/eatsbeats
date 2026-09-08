@@ -4355,8 +4355,9 @@ class ToyPianoMetalRodNode extends GraphNode {
         releaseTransient = (woodDrop + feltTap) * (0.28 * relDrop * relVel);
       }
 
-      final double raw = (y1 * 0.85 + y2 + y3 + y4 + clackTransient + bounceTransient + boxTransient + releaseTransient) * vel;
-      outBuffer[i] = DistortionNode._tanh(raw * 1.15) * 0.95;
+      final double raw = (y1 * 0.85 + y2 * 0.70 + y3 * 0.45 + y4 * 0.25 + clackTransient + bounceTransient + boxTransient + releaseTransient) * vel;
+      // Gentle soft-saturation prevents harsh DAC clipping while preserving bell chime purity
+      outBuffer[i] = DistortionNode._tanh(raw * 0.45);
     }
   }
 }
@@ -5472,14 +5473,14 @@ class CommutedHammerFilterCascadeNode extends GraphNode {
     final double hammerPole = (softP + (loudP - softP) * normVel).clamp(0.40, 0.985);
     final double hammerGain = (softG + (loudG - softG) * normVel).clamp(0.40, 5.0);
 
-    // 4-pole cascade with 6x input scaling matching Faust STK
-    final double b0 = (1.0 - hammerPole) * hammerGain;
+    // 4-pole cascade: normalized 1-pole stages (unity DC gain) with total cascade hammerGain applied once
+    final double b0 = 1.0 - hammerPole;
     final double a1 = -hammerPole;
 
     final s = Float64List(4);
 
     for (int i = 0; i < outBuffer.length; i++) {
-      double x = outBuffer[i] * 6.0;
+      double x = outBuffer[i] * hammerGain * 1.5;
       for (int stage = 0; stage < 4; stage++) {
         final double y = b0 * x - a1 * s[stage];
         s[stage] = y;

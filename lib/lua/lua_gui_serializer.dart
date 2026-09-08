@@ -1,14 +1,189 @@
 import 'dart:ui';
 import '../eatscript/eat_param_model.dart';
+import '../ui/vector/vector_skin_model.dart';
 import 'lua_gui_model.dart';
 import 'lua_gui_parser.dart';
 import '../eatscript/eat_script_engine.dart';
 
-/// Serializes [LuaGuiPanelDef] and its component tree back into clean, readable Lua code.
+typedef EatScriptGuiSerializer = LuaGuiSerializer;
+
+/// Serializes [LuaGuiPanelDef] and its component tree into clean Eatscript or legacy Lua code.
 class LuaGuiSerializer {
-  /// Serializes a [LuaGuiPanelDef] into a `function <TableName>.gui()` code block.
-  /// If [existingScriptCode] is provided, replaces or injects into the existing code.
+  /// Serializes a [LuaGuiPanelDef] into an EatScript `def gui():` or Lua `function <TableName>.gui()` code block.
+  /// Defaults to pure Pythonic EatScript unless existing code is legacy Lua.
   static String serialize({
+    required LuaGuiPanelDef panel,
+    String? existingScriptCode,
+    String instrumentName = 'Instrument',
+  }) {
+    final isLua = existingScriptCode != null && !EatScriptEngine.isEatScript(existingScriptCode);
+    if (isLua) {
+      return serializeToLua(
+        panel: panel,
+        existingScriptCode: existingScriptCode,
+        instrumentName: instrumentName,
+      );
+    }
+    return serializeToEatScript(
+      panel: panel,
+      existingScriptCode: existingScriptCode,
+      instrumentName: instrumentName,
+    );
+  }
+
+  /// Serializes [LuaGuiPanelDef] into a pure, Pythonic EatScript `def gui():` block.
+  static String serializeToEatScript({
+    required LuaGuiPanelDef panel,
+    String? existingScriptCode,
+    String instrumentName = 'Instrument',
+  }) {
+    final buffer = StringBuffer();
+    buffer.writeln('# --- Hardware GUI Layout ---');
+    buffer.writeln('def gui():');
+    buffer.writeln('    return {');
+    buffer.writeln('        "panel": {');
+    buffer.writeln('            "title": "${_escape(panel.title)}",');
+    if (panel.subtitle != null && panel.subtitle!.isNotEmpty) {
+      buffer.writeln('            "subtitle": "${_escape(panel.subtitle!)}",');
+    }
+    if (panel.backgroundStyle == PanelBackgroundStyle.custom && panel.backgroundColor != null) {
+      buffer.writeln('            "background": "#${panel.backgroundColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}",');
+    } else {
+      buffer.writeln('            "background": "${_backgroundStyleToString(panel.backgroundStyle)}",');
+    }
+    if (panel.textureRotation != 0.0) {
+      buffer.writeln('            "textureRotation": ${panel.textureRotation.toInt()},');
+    }
+    if (panel.textureScale != 1.0) {
+      buffer.writeln('            "textureScale": ${panel.textureScale},');
+    }
+    if (panel.sideCheeks != null && panel.sideCheeks!.isNotEmpty && panel.sideCheeks != 'none') {
+      buffer.writeln('            "rackSides": "${_escape(panel.sideCheeks!)}",');
+    }
+    if (panel.cornerRadius != null) {
+      buffer.writeln('            "cornerRadius": ${panel.cornerRadius!.toInt()},');
+    }
+    if (panel.backgroundSvg != null && panel.backgroundSvg!.isNotEmpty) {
+      buffer.writeln('            "backgroundSvg": "${_escape(panel.backgroundSvg!)}",');
+      buffer.writeln('            "backgroundSvgOpacity": ${panel.backgroundSvgOpacity},');
+      if (panel.backgroundSvgStrokeWidth != null) {
+        buffer.writeln('            "backgroundSvgStrokeWidth": ${panel.backgroundSvgStrokeWidth},');
+      }
+    }
+    if (panel.backgroundSvgTile != SvgTileMode.none) {
+      buffer.writeln('            "backgroundSvgTile": "${_tileModeToString(panel.backgroundSvgTile)}",');
+    }
+    if (panel.backgroundGradient != null) {
+      final grad = panel.backgroundGradient!;
+      final typeStr = grad.type == PanelGradientType.linear ? 'linear' : 'radial';
+      final colorsStr = grad.colors.map((c) => '"${_hex(c)}"').join(', ');
+      buffer.writeln('            "backgroundGradient": {');
+      buffer.writeln('                "type": "$typeStr",');
+      buffer.writeln('                "colors": [$colorsStr],');
+      if (grad.radius != 1.0) {
+        buffer.writeln('                "radius": ${grad.radius},');
+      }
+      if (grad.stops != null) {
+        buffer.writeln('                "stops": [${grad.stops!.join(', ')}],');
+      }
+      buffer.writeln('            },');
+    }
+    if (panel.backgroundSvgLayers != null && panel.backgroundSvgLayers!.isNotEmpty) {
+      buffer.writeln('            "backgroundSvgLayers": [');
+      for (final layer in panel.backgroundSvgLayers!) {
+        buffer.writeln('                {');
+        buffer.writeln('                    "path": "${_escape(layer.path)}",');
+        if (layer.color != null) {
+          buffer.writeln('                    "color": "${_hex(layer.color!)}",');
+        }
+        if (layer.strokeWidth != null) {
+          buffer.writeln('                    "strokeWidth": ${layer.strokeWidth},');
+        }
+        buffer.writeln('                    "style": "${layer.style == SvgLayerStyle.fill ? 'fill' : 'stroke'}",');
+        if (layer.opacity != 1.0) {
+          buffer.writeln('                    "opacity": ${layer.opacity},');
+        }
+        if (layer.tileMode != SvgTileMode.none) {
+          buffer.writeln('                    "tile": "${_tileModeToString(layer.tileMode)}",');
+        }
+        buffer.writeln('                },');
+      }
+      buffer.writeln('            ],');
+    }
+
+    if (panel.accentColor != null) {
+      buffer.writeln('            "accent": "#${panel.accentColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}",');
+    } else {
+      buffer.writeln('            "accent": "track",');
+    }
+    if (panel.defaultKnobStyle != KnobStyle.standard) {
+      buffer.writeln('            "knobStyle": "${_knobStyleToString(panel.defaultKnobStyle)}",');
+    }
+    buffer.writeln('            "layout": [');
+
+
+    for (final child in panel.children) {
+      _serializeNodeEat(buffer, child, indent: '                ');
+    }
+
+    buffer.writeln('            ],');
+    buffer.writeln('        },');
+    buffer.writeln('    }');
+
+    final guiBlock = buffer.toString().trimRight();
+
+    if (existingScriptCode == null || existingScriptCode.trim().isEmpty) {
+      return '# @name: $instrumentName\n# @category: instrument\n\n$guiBlock\n';
+    }
+
+    // 1. Replace existing `def gui():` block if found
+    final defGuiRegex = RegExp(r'(?:#\s*---\s*Hardware GUI Layout\s*---[\s\n]*)?def\s+gui\s*\([^)]*\):', multiLine: true);
+    final defMatch = defGuiRegex.firstMatch(existingScriptCode);
+    if (defMatch != null) {
+      final startIdx = defMatch.start;
+      final returnIdx = existingScriptCode.indexOf('return', defMatch.end);
+      if (returnIdx != -1) {
+        final braceIdx = existingScriptCode.indexOf('{', returnIdx);
+        if (braceIdx != -1) {
+          final endBraceIdx = _findMatchingClosingBrace(existingScriptCode, braceIdx);
+          if (endBraceIdx != -1) {
+            final before = existingScriptCode.substring(0, startIdx).trimRight();
+            final after = existingScriptCode.substring(endBraceIdx + 1).trimLeft();
+            return '$before\n\n$guiBlock\n\n$after';
+          }
+        }
+      }
+    }
+
+    // 2. Replace existing legacy Lua `function ...gui()...end` block if found
+    final guiFuncMatch = RegExp(r'function\s+[\w\.:]*gui\s*\([^)]*\)[\s\S]*?end', caseSensitive: false).firstMatch(existingScriptCode);
+    if (guiFuncMatch != null) {
+      final before = existingScriptCode.substring(0, guiFuncMatch.start).trimRight();
+      final after = existingScriptCode.substring(guiFuncMatch.end).trimLeft();
+      return '$before\n\n$guiBlock\n\n$after';
+    }
+
+    // 3. Inject before `def process` or `# --- Synthesizer Voice DSP Process Hook ---`
+    final procMatch = RegExp(r'(?:#\s*---\s*Synthesizer Voice DSP Process Hook\s*---[\s\n]*)?def\s+process\s*\(', multiLine: true).firstMatch(existingScriptCode);
+    if (procMatch != null) {
+      final before = existingScriptCode.substring(0, procMatch.start).trimRight();
+      final after = existingScriptCode.substring(procMatch.start);
+      return '$before\n\n$guiBlock\n\n$after';
+    }
+
+    // 4. Inject before `def transform_notes`
+    final transMatch = RegExp(r'(?:#\s*---\s*MIDI Transformation Hook\s*---[\s\n]*)?def\s+transform_notes\s*\(', multiLine: true).firstMatch(existingScriptCode);
+    if (transMatch != null) {
+      final before = existingScriptCode.substring(0, transMatch.start).trimRight();
+      final after = existingScriptCode.substring(transMatch.start);
+      return '$before\n\n$guiBlock\n\n$after';
+    }
+
+    return '${existingScriptCode.trimRight()}\n\n$guiBlock\n';
+  }
+
+  /// Serializes a [LuaGuiPanelDef] into legacy Lua code (`function <TableName>.gui()`).
+  static String serializeToLua({
     required LuaGuiPanelDef panel,
     String? existingScriptCode,
     String instrumentName = 'Instrument',
@@ -48,6 +223,13 @@ class LuaGuiSerializer {
     if (panel.cornerRadius != null) {
       buffer.writeln('      cornerRadius = ${panel.cornerRadius!.toInt()},');
     }
+    if (panel.backgroundSvg != null && panel.backgroundSvg!.isNotEmpty) {
+      buffer.writeln('      backgroundSvg = "${_escape(panel.backgroundSvg!)}",');
+      buffer.writeln('      backgroundSvgOpacity = ${panel.backgroundSvgOpacity},');
+      if (panel.backgroundSvgStrokeWidth != null) {
+        buffer.writeln('      backgroundSvgStrokeWidth = ${panel.backgroundSvgStrokeWidth},');
+      }
+    }
     if (panel.accentColor != null) {
       buffer.writeln('      accent = "#${panel.accentColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}",');
     } else {
@@ -81,8 +263,8 @@ class LuaGuiSerializer {
       return '$before\n\n$guiBlock\n\n$after';
     }
 
-    // Otherwise, inject before `return <TableName>` or at the end
-    final returnMatch = RegExp(r'return\s+([A-Za-z0-9_]+)', caseSensitive: false).firstMatch(existingScriptCode);
+    // Otherwise, inject before top-level `return <TableName>` or at the end
+    final returnMatch = RegExp(r'^\s*return\s+([A-Za-z0-9_]+)\s*$', multiLine: true).firstMatch(existingScriptCode);
     if (returnMatch != null) {
       final before = existingScriptCode.substring(0, returnMatch.start).trimRight();
       final after = existingScriptCode.substring(returnMatch.start);
@@ -90,6 +272,31 @@ class LuaGuiSerializer {
     }
 
     return '${existingScriptCode.trimRight()}\n\n$guiBlock\n';
+  }
+
+  static int _findMatchingClosingBrace(String text, int startBrace) {
+    int depth = 0;
+    bool inQuote = false;
+    String quoteChar = '';
+    for (int i = startBrace; i < text.length; i++) {
+      final c = text[i];
+      if (inQuote) {
+        if (c == quoteChar && (i == 0 || text[i - 1] != '\\')) {
+          inQuote = false;
+        }
+      } else {
+        if (c == '"' || c == "'") {
+          inQuote = true;
+          quoteChar = c;
+        } else if (c == '{') {
+          depth++;
+        } else if (c == '}') {
+          depth--;
+          if (depth == 0) return i;
+        }
+      }
+    }
+    return -1;
   }
 
   /// Synthesizes a default [LuaGuiPanelDef] from a list of parameter definitions.
@@ -190,8 +397,13 @@ class LuaGuiSerializer {
                 ? ', background = "#${node.backgroundColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}"'
                 : '');
         final rowRotStr = (node.textureRotation != null && node.textureRotation != 0.0) ? ', textureRotation = ${node.textureRotation!.toInt()}' : '';
+        final rowOpacityStr = node.opacity != null ? ', opacity = ${node.opacity}' : '';
+        final rowBorderWidthStr = node.borderWidth != null ? ', borderWidth = ${node.borderWidth}' : '';
+        final rowBorderColorStr = node.borderColor != null
+            ? ', borderColor = "#${node.borderColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}"'
+            : '';
         buffer.writeln('$indent{');
-        buffer.writeln('$indent  type = "row"$rowAlignStr$rowCrossStr$rowBgStr$rowRotStr,');
+        buffer.writeln('$indent  type = "row"$rowAlignStr$rowCrossStr$rowBgStr$rowRotStr$rowOpacityStr$rowBorderWidthStr$rowBorderColorStr,');
         buffer.writeln('$indent  children = {');
         for (final child in node.children) {
           _serializeNode(buffer, child, indent: '$indent    ');
@@ -212,8 +424,13 @@ class LuaGuiSerializer {
                 ? ', background = "#${node.backgroundColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}"'
                 : '');
         final groupRotStr = (node.textureRotation != null && node.textureRotation != 0.0) ? ', textureRotation = ${node.textureRotation!.toInt()}' : '';
+        final groupOpacityStr = node.opacity != null ? ', opacity = ${node.opacity}' : '';
+        final groupBorderWidthStr = node.borderWidth != null ? ', borderWidth = ${node.borderWidth}' : '';
+        final groupBorderColorStr = node.borderColor != null
+            ? ', borderColor = "#${node.borderColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}"'
+            : '';
         buffer.writeln('$indent{');
-        buffer.writeln('$indent  type = "$typeStr"$labelStr$colAlignStr$colCrossStr$groupBgStr$groupRotStr,');
+        buffer.writeln('$indent  type = "$typeStr"$labelStr$colAlignStr$colCrossStr$groupBgStr$groupRotStr$groupOpacityStr$groupBorderWidthStr$groupBorderColorStr,');
         buffer.writeln('$indent  children = {');
         for (final child in node.children) {
           _serializeNode(buffer, child, indent: '$indent    ');
@@ -227,10 +444,39 @@ class LuaGuiSerializer {
         final label = node.label ?? param;
         final unitStr = node.unit != null && node.unit!.isNotEmpty ? ', unit = "${_escape(node.unit!)}"' : '';
         final sizeStr = node.size != null ? ', size = ${node.size!.toInt()}' : '';
-        final styleStr = node.knobStyle != KnobStyle.standard ? ', knobStyle = "${_knobStyleToString(node.knobStyle)}"' : '';
         final showLabelStr = !node.showLabel ? ', showLabel = false' : '';
         final showValueStr = !node.showValue ? ', showValue = false' : '';
-        buffer.writeln('$indent{ type = "knob", param = "$param", label = "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr },');
+
+        if (node.customSkin != null) {
+          final skin = node.customSkin!;
+          buffer.writeln('$indent{');
+          buffer.writeln('$indent  type = "knob", param = "$param", label = "${_escape(label)}"$unitStr$sizeStr, style = "custom"$showLabelStr$showValueStr,');
+          buffer.writeln('$indent  chassis = {');
+          for (final l in skin.chassisLayers) {
+            if (l.type == VectorShapeType.circle) {
+              final fill = l.fillColor != null ? ', fill = "${_hex(l.fillColor!)}"' : '';
+              final stroke = l.strokeColor != null ? ', stroke = "${_hex(l.strokeColor!)}"' : '';
+              buffer.writeln('$indent    { type = "circle", radius = ${l.radius ?? 22.0}$fill$stroke },');
+            } else if (l.type == VectorShapeType.radialTicks) {
+              final col = l.strokeColor != null ? ', color = "${_hex(l.strokeColor!)}"' : '';
+              buffer.writeln('$indent    { type = "ticks", count = ${l.tickCount}, radius = ${l.radius ?? 22.0}, length = ${l.tickLength}$col },');
+            } else if (l.type == VectorShapeType.svgPath) {
+              buffer.writeln('$indent    { type = "svg_path", data = "${l.svgData ?? ""}" },');
+            }
+          }
+          buffer.writeln('$indent  },');
+          buffer.writeln('$indent  indicator = {');
+          buffer.writeln('$indent    type = "svg_path",');
+          buffer.writeln('$indent    data = "${skin.indicatorLayer.svgData ?? "M -1.5 0 L 0 -19 L 1.5 0 Z"}",');
+          if (skin.indicatorLayer.fillColor != null) {
+            buffer.writeln('$indent    fill = "${_hex(skin.indicatorLayer.fillColor!)}",');
+          }
+          buffer.writeln('$indent  }');
+          buffer.writeln('$indent},');
+        } else {
+          final styleStr = node.knobStyle != KnobStyle.standard ? ', knobStyle = "${_knobStyleToString(node.knobStyle)}"' : '';
+          buffer.writeln('$indent{ type = "knob", param = "$param", label = "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr },');
+        }
         break;
 
       case LuaGuiNodeType.slider:
@@ -347,6 +593,221 @@ class LuaGuiSerializer {
     }
   }
 
+  static void _serializeNodeEat(StringBuffer buffer, LuaGuiNode node, {required String indent}) {
+    switch (node.type) {
+      case LuaGuiNodeType.row:
+      case LuaGuiNodeType.column:
+      case LuaGuiNodeType.group:
+        final typeStr = node.type == LuaGuiNodeType.row
+            ? 'row'
+            : (node.type == LuaGuiNodeType.column ? 'column' : 'group');
+        buffer.writeln('$indent{');
+        buffer.writeln('$indent    "type": "$typeStr",');
+        if (node.label != null && node.label!.isNotEmpty) {
+          buffer.writeln('$indent    "label": "${_escape(node.label!)}",');
+        }
+        if (node.accentColor != null) {
+          buffer.writeln('$indent    "accent": "${_hex(node.accentColor!)}",');
+        }
+        if (node.backgroundColor != null) {
+          buffer.writeln('$indent    "background": "${_hex(node.backgroundColor!)}",');
+        } else if (node.backgroundStyle != null) {
+          buffer.writeln('$indent    "background": "${_backgroundStyleToString(node.backgroundStyle!)}",');
+        }
+        if (node.opacity != null) {
+          buffer.writeln('$indent    "opacity": ${node.opacity},');
+        }
+        if (node.borderWidth != null) {
+          buffer.writeln('$indent    "borderWidth": ${node.borderWidth},');
+        }
+        if (node.borderColor != null) {
+          buffer.writeln('$indent    "borderColor": "${_hex(node.borderColor!)}",');
+        }
+        if (node.width != null) {
+          buffer.writeln('$indent    "width": ${node.width!.toInt()},');
+        }
+        if (node.height != null) {
+          buffer.writeln('$indent    "height": ${node.height!.toInt()},');
+        }
+        if (node.orientation != null) {
+          buffer.writeln('$indent    "orientation": "${node.orientation}",');
+        }
+        if (node.align != null) {
+          buffer.writeln('$indent    "align": "${node.align}",');
+        }
+        if (node.crossAlign != null) {
+          buffer.writeln('$indent    "crossAlign": "${node.crossAlign}",');
+        }
+        if (node.cornerRadius != null) {
+          buffer.writeln('$indent    "cornerRadius": ${node.cornerRadius!.toInt()},');
+        }
+        buffer.writeln('$indent    "children": [');
+        for (final c in node.children) {
+          _serializeNodeEat(buffer, c, indent: '$indent        ');
+        }
+        buffer.writeln('$indent    ],');
+        buffer.writeln('$indent},');
+        break;
+
+      case LuaGuiNodeType.knob:
+        final param = node.param ?? 'Param';
+        final label = node.label ?? param;
+        final unitStr = node.unit != null && node.unit!.isNotEmpty ? ', "unit": "${_escape(node.unit!)}"' : '';
+        final sizeStr = node.size != null ? ', "size": ${node.size!.toInt()}' : '';
+        final showLabelStr = !node.showLabel ? ', "showLabel": False' : '';
+        final showValueStr = !node.showValue ? ', "showValue": False' : '';
+        final accentStr = node.accentColor != null ? ', "accent": "${_hex(node.accentColor!)}"' : '';
+
+        if (node.customSkin != null) {
+          final skin = node.customSkin!;
+          buffer.writeln('$indent{');
+          buffer.writeln('$indent    "type": "knob", "param": "$param", "label": "${_escape(label)}"$unitStr$sizeStr, "style": "custom"$showLabelStr$showValueStr$accentStr,');
+          buffer.writeln('$indent    "skin": {');
+          buffer.writeln('$indent        "chassis": [');
+          for (final l in skin.chassisLayers) {
+            if (l.type == VectorShapeType.circle) {
+              final fill = l.fillColor != null ? ', "fill": "${_hex(l.fillColor!)}"' : '';
+              final stroke = l.strokeColor != null ? ', "stroke": "${_hex(l.strokeColor!)}"' : '';
+              buffer.writeln('$indent            {"type": "circle", "radius": ${l.radius ?? 22.0}$fill$stroke},');
+            } else if (l.type == VectorShapeType.radialTicks) {
+              final col = l.strokeColor != null ? ', "color": "${_hex(l.strokeColor!)}"' : '';
+              buffer.writeln('$indent            {"type": "ticks", "count": ${l.tickCount}, "radius": ${l.radius ?? 22.0}, "length": ${l.tickLength}$col},');
+            } else if (l.type == VectorShapeType.svgPath) {
+              buffer.writeln('$indent            {"type": "svg_path", "data": "${l.svgData ?? ""}"},');
+            }
+          }
+          buffer.writeln('$indent        ],');
+          buffer.writeln('$indent        "indicator": {');
+          buffer.writeln('$indent            "type": "svg_path",');
+          buffer.writeln('$indent            "data": "${skin.indicatorLayer.svgData ?? "M -1.5 0 L 0 -19 L 1.5 0 Z"}",');
+          if (skin.indicatorLayer.fillColor != null) {
+            buffer.writeln('$indent            "fill": "${_hex(skin.indicatorLayer.fillColor!)}",');
+          }
+          buffer.writeln('$indent        },');
+          buffer.writeln('$indent    },');
+          buffer.writeln('$indent},');
+        } else {
+          final styleStr = node.knobStyle != KnobStyle.standard ? ', "knobStyle": "${_knobStyleToString(node.knobStyle)}"' : '';
+          buffer.writeln('$indent{"type": "knob", "param": "$param", "label": "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr$accentStr},');
+        }
+        break;
+
+      case LuaGuiNodeType.slider:
+      case LuaGuiNodeType.fader:
+        final param = node.param ?? 'Param';
+        final label = node.label ?? param;
+        final isH = node.orientation == 'horizontal';
+        final typeStr = isH ? 'hslider' : 'vslider';
+        final widthStr = node.width != null ? ', "width": ${node.width!.toInt()}' : (isH ? ', "width": 460' : '');
+        final heightStr = !isH && node.height != null ? ', "height": ${node.height!.toInt()}' : '';
+        final styleStr = node.sliderStyle == SliderStyle.console
+            ? ', "style": "console"'
+            : (node.sliderStyle == SliderStyle.minimalPill ? ', "style": "minimal_pill"' : ', "style": "capsule"');
+        final showLabelStr = !node.showLabel ? ', "showLabel": False' : '';
+        final accentStr = node.accentColor != null ? ', "accent": "${_hex(node.accentColor!)}"' : '';
+        buffer.writeln('$indent{"type": "$typeStr", "param": "$param", "label": "${_escape(label)}"$widthStr$heightStr$styleStr$showLabelStr$accentStr},');
+        break;
+
+      case LuaGuiNodeType.switchToggle:
+        final param = node.param ?? 'Switch';
+        final label = node.label ?? param;
+        final leftStr = node.leftText != null ? ', "leftText": "${_escape(node.leftText!)}"' : '';
+        final rightStr = node.rightText != null ? ', "rightText": "${_escape(node.rightText!)}"' : '';
+        final orientStr = node.orientation == 'vertical' ? ', "orientation": "vertical"' : '';
+        final showLabelStr = !node.showLabel ? ', "showLabel": False' : '';
+        buffer.writeln('$indent{"type": "switch", "param": "$param", "label": "${_escape(label)}"$leftStr$rightStr$orientStr$showLabelStr},');
+        break;
+
+      case LuaGuiNodeType.segmentedPill:
+        final param = node.param ?? 'Mode';
+        final label = node.label ?? param;
+        final optsStr = node.options.isNotEmpty ? ', "options": [${node.options.map((o) => '"${_escape(o)}"').join(', ')}]' : '';
+        final showLabelStr = !node.showLabel ? ', "showLabel": False' : '';
+        buffer.writeln('$indent{"type": "segmented_pill", "param": "$param", "label": "${_escape(label)}"$optsStr$showLabelStr},');
+        break;
+
+      case LuaGuiNodeType.button:
+        final action = node.action ?? (node.param ?? 'action');
+        final label = node.label ?? 'TRIGGER';
+        final widthStr = node.width != null ? ', "width": ${node.width!.toInt()}' : ', "width": 100';
+        final heightStr = node.height != null ? ', "height": ${node.height!.toInt()}' : ', "height": 36';
+        buffer.writeln('$indent{"type": "button", "action": "$action", "label": "${_escape(label)}"$widthStr$heightStr},');
+        break;
+
+      case LuaGuiNodeType.listBox:
+        final param = node.param ?? 'Choice';
+        final label = node.label ?? param;
+        final widthStr = node.width != null ? ', "width": ${node.width!.toInt()}' : ', "width": 140';
+        final heightStr = node.height != null ? ', "height": ${node.height!.toInt()}' : ', "height": 80';
+        final optsStr = node.options.isNotEmpty ? ', "options": [${node.options.map((o) => '"${_escape(o)}"').join(', ')}]' : '';
+        final showLabelStr = !node.showLabel ? ', "showLabel": False' : '';
+        buffer.writeln('$indent{"type": "listbox", "param": "$param", "label": "${_escape(label)}"$widthStr$heightStr$optsStr$showLabelStr},');
+        break;
+
+      case LuaGuiNodeType.nixie:
+        final param = node.param ?? 'Nixie';
+        final label = node.label ?? param;
+        final unitStr = node.unit != null && node.unit!.isNotEmpty ? ', "unit": "${_escape(node.unit!)}"' : '';
+        final widthStr = node.width != null ? ', "width": ${node.width!.toInt()}' : '';
+        final showLabelStr = !node.showLabel ? ', "showLabel": False' : '';
+        buffer.writeln('$indent{"type": "nixie", "param": "$param", "label": "${_escape(label)}"$unitStr$widthStr$showLabelStr},');
+        break;
+
+      case LuaGuiNodeType.lcd:
+        final param = node.param ?? 'LCD';
+        final label = node.label ?? param;
+        buffer.writeln('$indent{"type": "lcd", "param": "$param", "label": "${_escape(label)}"},');
+        break;
+
+      case LuaGuiNodeType.spaceVisualizer:
+        final heightStr = node.height != null ? ', "height": ${node.height!.toInt()}' : ', "height": 140';
+        buffer.writeln('$indent{"type": "space_visualizer"$heightStr},');
+        break;
+
+      case LuaGuiNodeType.waveshaperCanvas:
+        final heightStr = node.height != null ? ', "height": ${node.height!.toInt()}' : ', "height": 150';
+        buffer.writeln('$indent{"type": "waveshaper_canvas"$heightStr},');
+        break;
+
+      case LuaGuiNodeType.oscilloscope:
+        final widthStr = node.width != null ? ', "width": ${node.width!.toInt()}' : ', "width": 320';
+        final heightStr = node.height != null ? ', "height": ${node.height!.toInt()}' : ', "height": 140';
+        buffer.writeln('$indent{"type": "oscilloscope"$widthStr$heightStr},');
+        break;
+
+      case LuaGuiNodeType.spectrum:
+        final widthStr = node.width != null ? ', "width": ${node.width!.toInt()}' : ', "width": 320';
+        final heightStr = node.height != null ? ', "height": ${node.height!.toInt()}' : ', "height": 140';
+        buffer.writeln('$indent{"type": "spectrum"$widthStr$heightStr},');
+        break;
+
+      case LuaGuiNodeType.canvas:
+        final mode = node.canvasMode;
+        final widthStr = node.width != null ? ', "width": ${node.width!.toInt()}' : ', "width": 340';
+        final heightStr = node.height != null ? ', "height": ${node.height!.toInt()}' : ', "height": 180';
+        final dpadStr = node.showDpad ? ', "showDpad": True' : '';
+        final actionStr = node.showActionButtons ? ', "showActionButtons": True' : '';
+        buffer.writeln('$indent{"type": "canvas", "mode": "$mode"$widthStr$heightStr$dpadStr$actionStr},');
+        break;
+
+      case LuaGuiNodeType.divider:
+        buffer.writeln('$indent{"type": "divider"},');
+        break;
+
+      case LuaGuiNodeType.label:
+        final text = node.text ?? (node.label ?? '');
+        buffer.writeln('$indent{"type": "label", "text": "${_escape(text)}"},');
+        break;
+
+      case LuaGuiNodeType.spacer:
+        buffer.writeln('$indent{"type": "spacer"},');
+        break;
+
+      default:
+        break;
+    }
+  }
+
   static String _escape(String s) => s.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', '\\n');
 
   static String _backgroundStyleToString(PanelBackgroundStyle style) {
@@ -379,6 +840,8 @@ class LuaGuiSerializer {
         return 'mesh';
       case PanelBackgroundStyle.minimalWhite:
         return 'minimal_white';
+      case PanelBackgroundStyle.pcbGreen:
+        return 'pcb_green';
       case PanelBackgroundStyle.custom:
         return 'custom';
       case PanelBackgroundStyle.dark:
@@ -397,9 +860,28 @@ class LuaGuiSerializer {
         return 'snes';
       case KnobStyle.minimalWhite:
         return 'minimal_white';
+      case KnobStyle.customVector:
+        return 'custom';
       case KnobStyle.standard:
       default:
         return 'standard';
     }
   }
+
+  static String _tileModeToString(SvgTileMode mode) {
+    switch (mode) {
+      case SvgTileMode.x:
+        return 'x';
+      case SvgTileMode.y:
+        return 'y';
+      case SvgTileMode.xy:
+        return 'xy';
+      case SvgTileMode.none:
+      default:
+        return 'none';
+    }
+  }
+
+  static String _hex(Color c) => '#${c.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
 }
+

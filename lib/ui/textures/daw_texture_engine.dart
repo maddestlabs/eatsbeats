@@ -726,6 +726,7 @@ class DawTexturedContainer extends StatelessWidget {
   final double textureRotation; // in degrees (0, 90, 180, etc.)
   final double textureScale;
   final Color? color;
+  final Gradient? gradient;
   final BorderRadius? borderRadius;
   final Border? border;
   final EdgeInsetsGeometry padding;
@@ -742,6 +743,7 @@ class DawTexturedContainer extends StatelessWidget {
     this.textureRotation = 0.0,
     this.textureScale = 1.0,
     this.color,
+    this.gradient,
     this.borderRadius,
     this.border,
     this.padding = EdgeInsets.zero,
@@ -770,27 +772,36 @@ class DawTexturedContainer extends StatelessWidget {
     );
 
     if (effectiveTexture != null) {
-      content = CustomPaint(
-        painter: _DawTexturePainter(
-          texture: effectiveTexture,
-          rotationDegrees: textureRotation,
-          scale: textureScale,
-          tintColor: color,
-          borderRadius: effectiveBorderRadius,
-          border: border,
-        ),
-        child: content,
-      );
-    } else if (color != null || borderRadius != null || border != null) {
       content = Container(
         decoration: BoxDecoration(
-          color: color,
+          gradient: gradient,
+          color: gradient == null ? color : null,
+          borderRadius: effectiveBorderRadius,
+        ),
+        child: CustomPaint(
+          painter: _DawTexturePainter(
+            texture: effectiveTexture,
+            rotationDegrees: textureRotation,
+            scale: textureScale,
+            tintColor: gradient == null ? color : null,
+            borderRadius: effectiveBorderRadius,
+            border: border,
+          ),
+          child: content,
+        ),
+      );
+    } else if (gradient != null || color != null || borderRadius != null || border != null) {
+      content = Container(
+        decoration: BoxDecoration(
+          gradient: gradient,
+          color: gradient == null ? color : null,
           borderRadius: effectiveBorderRadius,
           border: border,
         ),
         child: content,
       );
     }
+
 
     if (hasSideCheeks) {
       final cheekType = _parseSideCheekType(sideCheeks!);

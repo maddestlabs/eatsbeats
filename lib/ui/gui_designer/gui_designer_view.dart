@@ -19,6 +19,7 @@ import '../widgets/skeuomorphic_hardware_button.dart';
 import '../widgets/space_visualizer_widget.dart';
 import '../widgets/waveshaper_canvas_widget.dart';
 import '../textures/daw_texture_engine.dart';
+import '../vector/panel_svg_background.dart';
 import 'gui_inspector_sidebar.dart';
 import 'gui_widget_palette.dart';
 
@@ -79,15 +80,19 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
   }
 
   void _initPanelFromCode() {
-    final parsed = LuaGuiParser.parseFromCode(widget.scriptCode);
-    if (parsed != null) {
-      _panel = parsed;
+    final compilation = _compileCode(widget.scriptCode);
+    if (compilation.guiLayout != null) {
+      _panel = compilation.guiLayout!;
     } else {
-      final compilation = _compileCode(widget.scriptCode);
-      _panel = LuaGuiSerializer.generateDefaultPanel(
-        title: widget.target.title.toUpperCase(),
-        params: compilation.params,
-      );
+      final parsed = LuaGuiParser.parseFromCode(widget.scriptCode);
+      if (parsed != null) {
+        _panel = parsed;
+      } else {
+        _panel = LuaGuiSerializer.generateDefaultPanel(
+          title: widget.target.title.toUpperCase(),
+          params: compilation.params,
+        );
+      }
     }
   }
 
@@ -112,16 +117,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
       children: [],
     ));
 
-    _applyPanelChanges(LuaGuiPanelDef(
-      title: _panel.title,
-      subtitle: _panel.subtitle,
-      style: _panel.style,
-      backgroundStyle: _panel.backgroundStyle,
-      backgroundColor: _panel.backgroundColor,
-      accentColor: _panel.accentColor,
-      defaultKnobStyle: _panel.defaultKnobStyle,
-      children: rows,
-    ));
+    _applyPanelChanges(_panel.copyWith(children: rows));
 
     setState(() {
       _selectedRowIndex = rows.length - 1;
@@ -135,16 +131,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     final rows = List<LuaGuiNode>.from(_panel.children);
     rows.removeAt(rowIndex);
 
-    _applyPanelChanges(LuaGuiPanelDef(
-      title: _panel.title,
-      subtitle: _panel.subtitle,
-      style: _panel.style,
-      backgroundStyle: _panel.backgroundStyle,
-      backgroundColor: _panel.backgroundColor,
-      accentColor: _panel.accentColor,
-      defaultKnobStyle: _panel.defaultKnobStyle,
-      children: rows,
-    ));
+    _applyPanelChanges(_panel.copyWith(children: rows));
 
     setState(() {
       _selectedRowIndex = null;
@@ -161,16 +148,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     final item = rows.removeAt(oldIndex);
     rows.insert(newIndex, item);
 
-    _applyPanelChanges(LuaGuiPanelDef(
-      title: _panel.title,
-      subtitle: _panel.subtitle,
-      style: _panel.style,
-      backgroundStyle: _panel.backgroundStyle,
-      backgroundColor: _panel.backgroundColor,
-      accentColor: _panel.accentColor,
-      defaultKnobStyle: _panel.defaultKnobStyle,
-      children: rows,
-    ));
+    _applyPanelChanges(_panel.copyWith(children: rows));
 
     setState(() {
       _selectedRowIndex = newIndex;
@@ -199,23 +177,9 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
       newChildren.add(newNode);
     }
 
-    rows[rowIndex] = LuaGuiNode(
-      type: row.type,
-      orientation: row.orientation,
-      align: row.align,
-      children: newChildren,
-    );
+    rows[rowIndex] = row.copyWith(children: newChildren);
 
-    _applyPanelChanges(LuaGuiPanelDef(
-      title: _panel.title,
-      subtitle: _panel.subtitle,
-      style: _panel.style,
-      backgroundStyle: _panel.backgroundStyle,
-      backgroundColor: _panel.backgroundColor,
-      accentColor: _panel.accentColor,
-      defaultKnobStyle: _panel.defaultKnobStyle,
-      children: rows,
-    ));
+    _applyPanelChanges(_panel.copyWith(children: rows));
 
     setState(() {
       _selectedRowIndex = rowIndex;
@@ -247,30 +211,10 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     }
 
     final newRowChildren = List<LuaGuiNode>.from(row.children);
-    newRowChildren[childIndex] = LuaGuiNode(
-      type: stackNode.type,
-      orientation: stackNode.orientation,
-      align: stackNode.align,
-      children: newStackChildren,
-    );
+    newRowChildren[childIndex] = stackNode.copyWith(children: newStackChildren);
+    rows[rowIndex] = row.copyWith(children: newRowChildren);
 
-    rows[rowIndex] = LuaGuiNode(
-      type: row.type,
-      orientation: row.orientation,
-      align: row.align,
-      children: newRowChildren,
-    );
-
-    _applyPanelChanges(LuaGuiPanelDef(
-      title: _panel.title,
-      subtitle: _panel.subtitle,
-      style: _panel.style,
-      backgroundStyle: _panel.backgroundStyle,
-      backgroundColor: _panel.backgroundColor,
-      accentColor: _panel.accentColor,
-      defaultKnobStyle: _panel.defaultKnobStyle,
-      children: rows,
-    ));
+    _applyPanelChanges(_panel.copyWith(children: rows));
 
     setState(() {
       _selectedRowIndex = rowIndex;
@@ -370,16 +314,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
       );
     }
 
-    _applyPanelChanges(LuaGuiPanelDef(
-      title: _panel.title,
-      subtitle: _panel.subtitle,
-      style: _panel.style,
-      backgroundStyle: _panel.backgroundStyle,
-      backgroundColor: _panel.backgroundColor,
-      accentColor: _panel.accentColor,
-      defaultKnobStyle: _panel.defaultKnobStyle,
-      children: rows,
-    ));
+    _applyPanelChanges(_panel.copyWith(children: rows));
 
     setState(() {
       _selectedRowIndex = toRow;
@@ -464,16 +399,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
       });
     }
 
-    _applyPanelChanges(LuaGuiPanelDef(
-      title: _panel.title,
-      subtitle: _panel.subtitle,
-      style: _panel.style,
-      backgroundStyle: _panel.backgroundStyle,
-      backgroundColor: _panel.backgroundColor,
-      accentColor: _panel.accentColor,
-      defaultKnobStyle: _panel.defaultKnobStyle,
-      children: rows,
-    ));
+    _applyPanelChanges(_panel.copyWith(children: rows));
   }
 
   void _duplicateSelected() {
@@ -494,43 +420,15 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
         final stackItem = childNode.children[s];
         final newStackChildren = List<LuaGuiNode>.from(childNode.children)..insert(s + 1, stackItem);
         final newRowChildren = List<LuaGuiNode>.from(row.children);
-        newRowChildren[c] = LuaGuiNode(
-          type: childNode.type,
-          orientation: childNode.orientation,
-          align: childNode.align,
-          crossAlign: childNode.crossAlign,
-          size: childNode.size,
-          width: childNode.width,
-          height: childNode.height,
-          label: childNode.label,
-          showLabel: childNode.showLabel,
-          showValue: childNode.showValue,
-          knobStyle: childNode.knobStyle,
-          sliderStyle: childNode.sliderStyle,
-          canvasMode: childNode.canvasMode,
-          options: childNode.options,
-          children: newStackChildren,
-        );
-        rows[r] = LuaGuiNode(
-          type: row.type,
-          orientation: row.orientation,
-          align: row.align,
-          crossAlign: row.crossAlign,
-          children: newRowChildren,
-        );
+        newRowChildren[c] = childNode.copyWith(children: newStackChildren);
+        rows[r] = row.copyWith(children: newRowChildren);
         setState(() {
           _selectedStackChildIndex = s + 1;
         });
       } else {
         final node = row.children[c];
         final newChildren = List<LuaGuiNode>.from(row.children)..insert(c + 1, node);
-        rows[r] = LuaGuiNode(
-          type: row.type,
-          orientation: row.orientation,
-          align: row.align,
-          crossAlign: row.crossAlign,
-          children: newChildren,
-        );
+        rows[r] = row.copyWith(children: newChildren);
         setState(() {
           _selectedChildIndex = c + 1;
           _selectedStackChildIndex = null;
@@ -545,16 +443,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
       });
     }
 
-    _applyPanelChanges(LuaGuiPanelDef(
-      title: _panel.title,
-      subtitle: _panel.subtitle,
-      style: _panel.style,
-      backgroundStyle: _panel.backgroundStyle,
-      backgroundColor: _panel.backgroundColor,
-      accentColor: _panel.accentColor,
-      defaultKnobStyle: _panel.defaultKnobStyle,
-      children: rows,
-    ));
+    _applyPanelChanges(_panel.copyWith(children: rows));
   }
 
   @override
@@ -689,6 +578,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
 
   Widget _buildDesignerFaceplate() {
     final bgStyle = _panel.backgroundStyle;
+    final isPcbGreen = bgStyle == PanelBackgroundStyle.pcbGreen;
     final isMinimal = bgStyle == PanelBackgroundStyle.minimalWhite;
     final isSilver = bgStyle == PanelBackgroundStyle.silver;
     final isSnes = bgStyle == PanelBackgroundStyle.snes;
@@ -698,8 +588,10 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     Color chassisBg = const Color(0xFF14171E);
     if (_panel.backgroundColor != null) {
       chassisBg = _panel.backgroundColor!;
+    } else if (isPcbGreen) {
+      chassisBg = const Color(0xFF133B1E);
     } else if (isMinimal) {
-      chassisBg = const Color(0xFFECEEF2);
+      chassisBg = const Color(0xFFF0F1F4);
     } else if (isSilver) {
       chassisBg = const Color(0xFFD4D0C5);
     } else if (isSnes) {
@@ -716,6 +608,8 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
       chassisBg = const Color(0xFF211310);
     } else if (bgStyle == PanelBackgroundStyle.brushedSteel || bgStyle == PanelBackgroundStyle.brushedSteelVert) {
       chassisBg = const Color(0xFF383D47);
+    } else if (bgStyle == PanelBackgroundStyle.matteMetal) {
+      chassisBg = const Color(0xFF1B1E26);
     } else if (bgStyle == PanelBackgroundStyle.tolex) {
       chassisBg = const Color(0xFF161618);
     } else if (bgStyle == PanelBackgroundStyle.carbon) {
@@ -727,23 +621,65 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     final accent = _panel.accentColor ??
         (isMinimal
             ? const Color(0xFF1E1E24)
-            : (isSnes ? const Color(0xFFE52521) : effectiveTrackColor));
+            : (isPcbGreen
+                ? const Color(0xFF39FF14)
+                : (isSnes ? const Color(0xFFE52521) : effectiveTrackColor)));
+
+    Gradient? effectiveGradient = _panel.backgroundGradient?.toFlutterGradient();
+    if (effectiveGradient == null && isPcbGreen) {
+      effectiveGradient = const RadialGradient(
+        center: Alignment.center,
+        radius: 1.15,
+        colors: [
+          Color(0xFF245D35),
+          Color(0xFF143C1E),
+          Color(0xFF0A2211),
+        ],
+        stops: [0.0, 0.65, 1.0],
+      );
+    }
+
+    final headerBg = isMinimal
+        ? const Color(0xFFE8EAEF)
+        : (isPcbGreen
+            ? const Color(0xFF0E2C16)
+            : (isSnes
+                ? const Color(0xFFE5E2D9)
+                : (isSilver
+                    ? const Color(0xFFE2DFD6)
+                    : (isGrunge ? const Color(0xFF1E1A16) : (textureType != null ? chassisBg.withOpacity(0.92) : EatsTheme.panelHeader)))));
+
+    final titleColor = (isSnes || isSilver || isMinimal || bgStyle == PanelBackgroundStyle.blondePine)
+        ? const Color(0xFF1E1E24)
+        : (isPcbGreen
+            ? const Color(0xFFE8F5E9)
+            : (isGrunge ? const Color(0xFFDCD2C5) : EatsTheme.textPrimary));
+
+    final subtitleColor = (isSnes || isSilver || isMinimal || bgStyle == PanelBackgroundStyle.blondePine)
+        ? const Color(0xFF5E626E)
+        : (isPcbGreen
+            ? const Color(0xFF81C784)
+            : (isGrunge ? const Color(0xFF8C8275) : EatsTheme.textMuted));
 
     Widget faceplate = DawTexturedContainer(
       texture: textureType,
       textureRotation: _panel.textureRotation,
       textureScale: _panel.textureScale,
       color: chassisBg,
+      gradient: effectiveGradient,
       sideCheeks: _panel.sideCheeks,
       borderRadius: BorderRadius.circular(_panel.cornerRadius ?? (isMinimal ? 16.0 : 10.0)),
       border: Border.all(
-        color: isMinimal
-            ? const Color(0xFFD8DBE2)
-            : (isSilver
-                ? const Color(0xFF9E9A8A)
-                : (isSnes ? const Color(0xFFE52521) : accent.withOpacity(0.5))),
+        color: isPcbGreen
+            ? const Color(0xFF2E7D32)
+            : (isMinimal
+                ? const Color(0xFFD8DBE2)
+                : (isSilver
+                    ? const Color(0xFF9E9A8A)
+                    : (isSnes ? const Color(0xFFE52521) : accent.withOpacity(0.5)))),
         width: 2.0,
       ),
+
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -758,7 +694,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: isLight ? Colors.black.withOpacity(0.04) : Colors.black26,
+                color: headerBg,
                 border: Border(
                   bottom: BorderSide(
                     color: isLight ? Colors.black12 : Colors.white10,
@@ -786,22 +722,24 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
                       children: [
                         Text(
                           _panel.title.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 13,
+                          style: EatsTheme.getDisplayFontStyle(
+                            fontSize: 11,
                             fontWeight: FontWeight.w900,
-                            letterSpacing: 1.2,
-                            color: isLight ? const Color(0xFF1B1A17) : Colors.white,
+                            letterSpacing: 1.0,
+                            color: titleColor,
                           ),
                         ),
-                        if (_panel.subtitle != null && _panel.subtitle!.isNotEmpty)
+                        if (_panel.subtitle != null && _panel.subtitle!.isNotEmpty) ...[
+                          const SizedBox(height: 1),
                           Text(
                             _panel.subtitle!,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500,
-                              color: isLight ? const Color(0xFF555048) : Colors.white54,
+                            style: EatsTheme.getPrimaryFontStyle(
+                              fontSize: 9,
+                              fontWeight: isLight ? FontWeight.w600 : FontWeight.normal,
+                              color: subtitleColor,
                             ),
                           ),
+                        ],
                       ],
                     ),
                   ),
@@ -824,48 +762,70 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           ),
 
           // Faceplate Content Area
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                if (_panel.children.isEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white24, style: BorderStyle.solid),
-                    ),
-                    child: Column(
-                      children: [
-                        const Icon(Icons.dashboard_customize_outlined, size: 32, color: Colors.white38),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'No Rows Added Yet',
-                          style: TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Click "+ ADD ROW" to start designing your custom synthesizer faceplate.',
-                          style: TextStyle(fontSize: 10, color: Colors.white38),
-                        ),
-                        const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.add, size: 14),
-                          label: const Text('CREATE FIRST ROW'),
-                          onPressed: _addRow,
-                        ),
-                      ],
+          Stack(
+            children: [
+              if ((_panel.backgroundSvg != null && _panel.backgroundSvg!.isNotEmpty) ||
+                  (_panel.backgroundSvgLayers != null && _panel.backgroundSvgLayers!.isNotEmpty))
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: PanelSvgBackgroundPainter(
+                        svgData: _panel.backgroundSvg,
+                        layers: _panel.backgroundSvgLayers,
+                        isLightChassis: isLight,
+                        opacity: _panel.backgroundSvgOpacity,
+                        accentColor: accent,
+                        strokeWidth: _panel.backgroundSvgStrokeWidth,
+                        tileMode: _panel.backgroundSvgTile,
+                      ),
                     ),
                   ),
-                ] else ...[
-                  for (int r = 0; r < _panel.children.length; r++) ...[
-                    _buildRowDesigner(r, _panel.children[r], isLight, accent),
-                    if (r < _panel.children.length - 1) const SizedBox(height: 12),
+                ),
+
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    if (_panel.children.isEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white24, style: BorderStyle.solid),
+                        ),
+                        child: Column(
+                          children: [
+                            const Icon(Icons.dashboard_customize_outlined, size: 32, color: Colors.white38),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'No Rows Added Yet',
+                              style: TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Click "+ ADD ROW" to start designing your custom synthesizer faceplate.',
+                              style: TextStyle(fontSize: 10, color: Colors.white38),
+                            ),
+                            const SizedBox(height: 12),
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.add, size: 14),
+                              label: const Text('CREATE FIRST ROW'),
+                              onPressed: _addRow,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else ...[
+                      for (int r = 0; r < _panel.children.length; r++) ...[
+                        _buildRowDesigner(r, _panel.children[r], isLight, accent),
+                        if (r < _panel.children.length - 1) const SizedBox(height: 12),
+                      ],
+                    ],
                   ],
-                ],
-              ],
-            ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -876,7 +836,37 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
 
   Widget _buildRowDesigner(int rowIndex, LuaGuiNode rowNode, bool isLight, Color accent) {
     final isRowSelected = _selectedRowIndex == rowIndex && _selectedChildIndex == null;
-    final rowTextureType = rowNode.backgroundStyle != null ? DawTextureEngine.mapStyleToTexture(rowNode.backgroundStyle!) : null;
+
+    final bool isGroup = rowNode.type == LuaGuiNodeType.group;
+    final bool hasInnerRow = isGroup && rowNode.children.length == 1 && rowNode.children.first.type == LuaGuiNodeType.row;
+    final List<LuaGuiNode> widgetsToRender = hasInnerRow ? rowNode.children.first.children : rowNode.children;
+    final effectiveRowAccent = rowNode.accentColor ?? accent;
+
+    final bool hasCustomBg = rowNode.backgroundStyle != null || rowNode.backgroundColor != null;
+    final bool isMinimalGroup = isGroup &&
+        (rowNode.backgroundStyle == PanelBackgroundStyle.minimalWhite || (isLight && !hasCustomBg));
+    final double opacityFactor = rowNode.opacity ?? 1.0;
+    final double bWidth = rowNode.borderWidth ?? (isMinimalGroup || isGroup ? 1.0 : (rowNode.backgroundStyle != null || rowNode.backgroundColor != null ? 1.0 : 0.0));
+
+    Color cardBg;
+    if (isMinimalGroup) {
+      cardBg = rowNode.backgroundColor ??
+          (_panel.backgroundSvg != null && _panel.backgroundSvg!.isNotEmpty
+              ? const Color(0xFFFBFBFC).withOpacity(0.55)
+              : const Color(0xFFFBFBFC));
+    } else if (rowNode.backgroundColor != null) {
+      cardBg = rowNode.backgroundColor!;
+    } else if (isGroup) {
+      cardBg = isLight ? Colors.black.withOpacity(0.05) : EatsTheme.panelHeader.withOpacity(0.6);
+    } else {
+      cardBg = isLight ? Colors.black.withOpacity(0.03) : Colors.black.withOpacity(0.2);
+    }
+
+    if (opacityFactor <= 0.0) {
+      cardBg = Colors.transparent;
+    } else if (opacityFactor < 1.0) {
+      cardBg = cardBg.withOpacity((cardBg.opacity * opacityFactor).clamp(0.0, 1.0));
+    }
 
     return DragTarget<Object>(
       onWillAcceptWithDetails: (_) => true,
@@ -891,6 +881,40 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
       builder: (context, candidateData, rejectedData) {
         final isDropHovered = candidateData.isNotEmpty;
 
+        Border? cardBorder;
+        if (isDropHovered || isRowSelected) {
+          cardBorder = Border.all(color: EatsTheme.primaryCyan, width: 1.5);
+        } else if (bWidth > 0.0) {
+          cardBorder = Border.all(
+            color: rowNode.borderColor ??
+                (isMinimalGroup
+                    ? (_panel.backgroundSvg != null ? const Color(0xFFDCDFE6).withOpacity(0.85) : const Color(0xFFE4E7EE))
+                    : (isLight ? const Color(0xFF9E9A8E) : effectiveRowAccent.withOpacity(0.5))),
+            width: bWidth,
+          );
+        }
+
+        List<BoxShadow>? cardShadows;
+        if (isMinimalGroup && opacityFactor > 0.0 && !isRowSelected && !isDropHovered) {
+          cardShadows = [
+            BoxShadow(
+              color: Colors.black.withOpacity((_panel.backgroundSvg != null ? 0.04 : 0.06) * opacityFactor),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+              spreadRadius: -2,
+            ),
+            BoxShadow(
+              color: Colors.white.withOpacity((_panel.backgroundSvg != null ? 0.65 : 0.95) * opacityFactor),
+              blurRadius: 12,
+              offset: const Offset(0, -3),
+            ),
+          ];
+        } else if (isRowSelected) {
+          cardShadows = [
+            BoxShadow(color: EatsTheme.primaryCyan.withOpacity(0.25), blurRadius: 10),
+          ];
+        }
+
         return GestureDetector(
           onTap: () {
             setState(() {
@@ -899,105 +923,134 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
               _selectedStackChildIndex = null;
             });
           },
-          child: DawTexturedContainer(
-            texture: rowTextureType,
-            textureRotation: rowNode.textureRotation ?? 0.0,
-            textureScale: rowNode.textureScale ?? 1.0,
-            color: isDropHovered
-                ? EatsTheme.primaryCyan.withOpacity(0.18)
-                : (isRowSelected
-                    ? (isLight ? Colors.blue.withOpacity(0.08) : Colors.blueAccent.withOpacity(0.12))
-                    : (rowNode.backgroundColor ?? (isLight ? Colors.black.withOpacity(0.03) : Colors.black.withOpacity(0.2)))),
-            padding: const EdgeInsets.all(8),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: isDropHovered
-                  ? EatsTheme.primaryCyan
-                  : (isRowSelected ? Colors.blueAccent : (isLight ? Colors.black12 : Colors.white12)),
-              width: (isDropHovered || isRowSelected) ? 1.5 : 1.0,
+          child: Container(
+            margin: isMinimalGroup ? const EdgeInsets.symmetric(horizontal: 4, vertical: 4) : EdgeInsets.zero,
+            padding: isMinimalGroup ? const EdgeInsets.symmetric(horizontal: 14, vertical: 14) : const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isDropHovered ? EatsTheme.primaryCyan.withOpacity(0.18) : cardBg,
+              borderRadius: BorderRadius.circular(rowNode.cornerRadius ?? (isMinimalGroup ? 26.0 : 6.0)),
+              border: cardBorder,
+              boxShadow: cardShadows,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Stack(
               children: [
-                // Row Management Bar
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.drag_indicator, size: 14, color: isLight ? Colors.black38 : Colors.white38),
-                        const SizedBox(width: 4),
-                        Text(
-                          rowNode.type == LuaGuiNodeType.group
-                              ? 'GROUP: ${(rowNode.label ?? "SECTION").toUpperCase()} (${rowNode.children.length} items)'
-                              : 'ROW ${rowIndex + 1} (${rowNode.children.length} widgets)',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            color: rowNode.accentColor ?? (isLight ? Colors.black54 : Colors.white54),
+                    // Group Header (Centered like in Live Interaction!)
+                    if (isGroup && rowNode.label != null && rowNode.label!.isNotEmpty) ...[
+                      Center(
+                        child: Text(
+                          rowNode.label!.toUpperCase(),
+                          style: EatsTheme.getDisplayFontStyle(
+                            color: isLight ? const Color(0xFF1E1E24) : effectiveRowAccent,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
                           ),
                         ),
-                      ],
+                      ),
+                      const SizedBox(height: 10),
+                    ] else if (!isGroup) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.drag_indicator, size: 14, color: isLight ? Colors.black38 : Colors.white38),
+                              const SizedBox(width: 4),
+                              Text(
+                                'ROW ${rowIndex + 1} (${rowNode.children.length} widgets)',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: rowNode.accentColor ?? (isLight ? Colors.black54 : Colors.white54),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+
+                    // Children
+                    if (widgetsToRender.isEmpty) ...[
+                      Container(
+                        height: 60,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: isLight ? Colors.black12 : Colors.white12, style: BorderStyle.solid),
+                        ),
+                        child: Text(
+                          isGroup ? 'Empty Group • Add widgets here' : 'Empty Row • Drag or click widgets in toolbox to add here',
+                          style: TextStyle(fontSize: 10, color: isLight ? Colors.black38 : Colors.white38),
+                        ),
+                      ),
+                    ] else ...[
+                      Wrap(
+                        spacing: 16,
+                        runSpacing: 12,
+                        alignment: _parseWrapAlignment(rowNode.align),
+                        crossAxisAlignment: _parseWrapCrossAlignment(rowNode.crossAlign),
+                        children: [
+                          for (int c = 0; c < widgetsToRender.length; c++) ...[
+                            _buildWidgetDesignerSlot(
+                              rowIndex,
+                              hasInnerRow ? 0 : c,
+                              widgetsToRender[c],
+                              isLight,
+                              effectiveRowAccent,
+                              stackChildIndex: hasInnerRow ? c : null,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+
+                // Subtle toolbar on top-right
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: (isLight ? Colors.black : Colors.white).withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    Row(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         if (rowIndex > 0)
                           IconButton(
-                            icon: const Icon(Icons.arrow_upward, size: 14),
-                            tooltip: 'Move Row Up',
+                            icon: const Icon(Icons.arrow_upward, size: 12),
+                            tooltip: 'Move Up',
                             padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                            constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
                             onPressed: () => _moveRow(rowIndex, rowIndex - 1),
                           ),
                         if (rowIndex < _panel.children.length - 1)
                           IconButton(
-                            icon: const Icon(Icons.arrow_downward, size: 14),
-                            tooltip: 'Move Row Down',
+                            icon: const Icon(Icons.arrow_downward, size: 12),
+                            tooltip: 'Move Down',
                             padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                            constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
                             onPressed: () => _moveRow(rowIndex, rowIndex + 1),
                           ),
                         IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 14),
-                          tooltip: 'Delete Row',
+                          icon: const Icon(Icons.delete_outline, size: 12),
+                          tooltip: 'Delete',
                           color: Colors.redAccent.withOpacity(0.8),
                           padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                          constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
                           onPressed: () => _deleteRow(rowIndex),
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 6),
-
-                // Row Children
-                if (rowNode.children.isEmpty) ...[
-                  Container(
-                    height: 60,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.white12, style: BorderStyle.solid),
-                    ),
-                    child: Text(
-                      'Empty Row • Drag or click widgets in toolbox to add here',
-                      style: TextStyle(fontSize: 10, color: isLight ? Colors.black38 : Colors.white38),
-                    ),
-                  ),
-                ] else ...[
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    alignment: _parseWrapAlignment(rowNode.align),
-                    crossAxisAlignment: _parseWrapCrossAlignment(rowNode.crossAlign),
-                    children: [
-                      for (int c = 0; c < rowNode.children.length; c++) ...[
-                        _buildWidgetDesignerSlot(rowIndex, c, rowNode.children[c], isLight, accent),
-                      ],
-                    ],
-                  ),
-                ],
               ],
             ),
           ),
@@ -1006,19 +1059,28 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     );
   }
 
-  Widget _buildWidgetDesignerSlot(int rowIndex, int childIndex, LuaGuiNode node, bool isLight, Color accent) {
-    if (node.type == LuaGuiNodeType.column || node.type == LuaGuiNodeType.group) {
+  Widget _buildWidgetDesignerSlot(
+    int rowIndex,
+    int childIndex,
+    LuaGuiNode node,
+    bool isLight,
+    Color accent, {
+    int? stackChildIndex,
+  }) {
+    if ((node.type == LuaGuiNodeType.column || node.type == LuaGuiNodeType.group) && stackChildIndex == null) {
       return _buildStackDesignerSlot(rowIndex, childIndex, node, isLight, accent);
     }
 
-    final isSelected = _selectedRowIndex == rowIndex && _selectedChildIndex == childIndex && _selectedStackChildIndex == null;
+    final isSelected = _selectedRowIndex == rowIndex &&
+        _selectedChildIndex == childIndex &&
+        _selectedStackChildIndex == stackChildIndex;
 
     final widgetSlot = GestureDetector(
       onTap: () {
         setState(() {
           _selectedRowIndex = rowIndex;
           _selectedChildIndex = childIndex;
-          _selectedStackChildIndex = null;
+          _selectedStackChildIndex = stackChildIndex;
         });
       },
       child: Container(
@@ -1059,21 +1121,35 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
       ),
     );
 
+    final location = GuiWidgetLocation(
+      rowIndex: rowIndex,
+      childIndex: childIndex,
+      stackChildIndex: stackChildIndex,
+    );
+
     return DragTarget<Object>(
       onWillAcceptWithDetails: (_) => true,
       onAcceptWithDetails: (details) {
         final data = details.data;
         if (data is GuiPaletteItem) {
-          _addWidgetToRow(rowIndex, data, insertIndex: childIndex);
+          if (stackChildIndex != null) {
+            _addWidgetToStack(rowIndex, childIndex, data, insertIndex: stackChildIndex);
+          } else {
+            _addWidgetToRow(rowIndex, data, insertIndex: childIndex);
+          }
         } else if (data is GuiWidgetLocation) {
-          _moveWidget(data, toRow: rowIndex, toChild: childIndex);
+          if (stackChildIndex != null) {
+            _moveWidget(data, toRow: rowIndex, toChild: childIndex, toStackChild: stackChildIndex);
+          } else {
+            _moveWidget(data, toRow: rowIndex, toChild: childIndex);
+          }
         }
       },
       builder: (context, candidateData, rejectedData) {
         final isHovered = candidateData.isNotEmpty;
 
         return Draggable<GuiWidgetLocation>(
-          data: GuiWidgetLocation(rowIndex: rowIndex, childIndex: childIndex),
+          data: location,
           feedback: Material(
             color: Colors.transparent,
             child: Opacity(
@@ -1308,12 +1384,13 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     switch (node.type) {
       case LuaGuiNodeType.column:
       case LuaGuiNodeType.group:
+        final effectiveGroupAccent = node.accentColor ?? accent;
         return Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: isLight ? Colors.black.withOpacity(0.04) : Colors.black.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: isLight ? Colors.black12 : Colors.white12),
+            color: isLight ? Colors.black.withOpacity(0.04) : EatsTheme.panelHeader.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(node.cornerRadius ?? 4),
+            border: Border.all(color: node.borderColor ?? (isLight ? const Color(0xFF9E9A8E) : effectiveGroupAccent.withOpacity(0.5))),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1327,13 +1404,30 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
                 : node.children
                     .map((c) => Padding(
                           padding: const EdgeInsets.symmetric(vertical: 2.0),
-                          child: _renderMockWidget(c, isLight, accent),
+                          child: _renderMockWidget(c, isLight, effectiveGroupAccent),
                         ))
                     .toList(),
           ),
         );
 
+      case LuaGuiNodeType.row:
+        final effectiveRowAccent = node.accentColor ?? accent;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: _parseMainAxisAlignment(node.align),
+          crossAxisAlignment: _parseCrossAxisAlignment(node.crossAlign),
+          children: node.children
+              .map((c) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: _renderMockWidget(c, isLight, effectiveRowAccent),
+                  ))
+              .toList(),
+        );
+
       case LuaGuiNodeType.knob:
+        final effectiveKnobStyle = (node.knobStyle == KnobStyle.standard && _panel.defaultKnobStyle != null)
+            ? _panel.defaultKnobStyle
+            : node.knobStyle;
         return SkeuomorphicHardwareKnob(
           label: node.label ?? (node.param ?? 'KNOB'),
           showLabelText: node.showLabel,
@@ -1343,8 +1437,11 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           max: 1.0,
           defaultValue: 0.5,
           size: node.size ?? 52,
-          knobStyle: node.knobStyle,
-          accentColor: accent,
+          knobStyle: effectiveKnobStyle,
+          customSkin: node.customSkin,
+          accentColor: node.accentColor ?? accent,
+          isLightChassis: isLight,
+          formatValue: node.unit != null ? (v) => '${(v * 100).toStringAsFixed(0)} ${node.unit}' : null,
           onChanged: (_) {},
         );
 

@@ -4,14 +4,88 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 
 import '../models/track_model.dart';
+import '../models/chord_model.dart';
 import '../eatscript/eat_script_engine.dart';
 import 'poly_synth.dart';
 import 'sampler_engine.dart';
 import 'soundfont_engine.dart';
 import 'wajuce_audio_backend.dart';
 
+class _ActivePlayingVoice {
+  final TrackChannel track;
+  final double startTime;
+  final double durationSec;
+  final double velocity;
+  final Float32List samples;
+  final bool isLooping;
+  final bool isFrozen;
+
+  _ActivePlayingVoice({
+    required this.track,
+    required this.startTime,
+    required this.durationSec,
+    required this.velocity,
+    required this.samples,
+    this.isLooping = false,
+    this.isFrozen = false,
+  });
+
+  String get trackId => track.id;
+
+  (double, double) computeLevelAt(double currentTime) {
+    if (track.isMuted) return (0.0, 0.0);
+    if (currentTime < startTime) return (0.0, 0.0);
+    final elapsedSec = currentTime - startTime;
+    if (!isLooping && elapsedSec >= durationSec) return (0.0, 0.0);
+
+    final int totalSamples = samples.length;
+    if (totalSamples == 0) return (0.0, 0.0);
+
+    int startSample = (elapsedSec * 44100).toInt();
+    if (isLooping) {
+      startSample %= totalSamples;
+    } else if (startSample >= totalSamples) {
+      return (0.0, 0.0);
+    }
+
+    final int windowSize = math.min(256, totalSamples - startSample);
+    if (windowSize <= 0) return (0.0, 0.0);
+
+    double sumSq = 0.0;
+    double maxSample = 0.0;
+    for (int i = 0; i < windowSize; i++) {
+      final s = samples[startSample + i].abs();
+      if (s > maxSample) maxSample = s;
+      sumSq += s * s;
+    }
+
+    final double rms = math.sqrt(sumSq / windowSize);
+    final double rawEnergy = (maxSample * 0.70) + (rms * 0.30);
+
+    final double normVol = (track.volume / 1.5).clamp(0.0, 1.0);
+    final double outVol = (normVol * velocity).clamp(0.0, 1.0);
+    final double outEnergy = (rawEnergy * outVol).clamp(0.0, 1.0);
+
+    final double panVal = track.pan.clamp(-1.0, 1.0);
+    final double leftPanFactor = panVal <= 0 ? 1.0 : (1.0 - panVal);
+    final double rightPanFactor = panVal >= 0 ? 1.0 : (1.0 + panVal);
+
+    return (
+      (outEnergy * leftPanFactor).clamp(0.0, 1.0),
+      (outEnergy * rightPanFactor).clamp(0.0, 1.0),
+    );
+  }
+}
+
 class AudioEngine {
   final WajuceAudioBackend _backend = WajuceAudioBackend();
+
+  // Active playing voices for continuous real-time audio metering across chord sustains
+  final List<_ActivePlayingVoice> _activeVoices = [];
+
+  void clearActiveVoices() {
+    _activeVoices.clear();
+  }
 
   // High-performance PCM buffer cache.
   // Stores synthesized Float32List buffers for notes to eliminate per-note DSP overhead.
@@ -36,6 +110,7 @@ class AudioEngine {
 
   bool get hasActiveMeterActivity {
     if (_leftPeak > 0.001 || _rightPeak > 0.001) return true;
+    if (_activeVoices.isNotEmpty) return true;
     for (final val in _trackLeftPeaks.values) {
       if (val > 0.001) return true;
     }
@@ -186,56 +261,101 @@ class AudioEngine {
   }
 
   void updateMeters({bool force = false}) {
-    if (!_backend.hasActiveAudioSources) {
-      decayMeters();
-      return;
-    }
-
     final now = DateTime.now();
     final dt = (now.difference(_lastMeterUpdateTime).inMicroseconds / 1000000.0).clamp(0.001, 0.5);
     _lastMeterUpdateTime = now;
 
-    // Time-constant decay: ~300ms release time
+    // Time-constant decay: ~300ms release time for standard ballistic release
     final decay = math.exp(-dt / 0.30);
 
-    // On native desktop, query native FFI analyser at most every 150ms (or on force)
-    // to eliminate JUCE audio device thread lock contention on heavy FX graphs.
-    // Note-driven peaks provide instantaneous, 60fps responsive LED meter visuals.
-    if (!kIsWeb && !force && now.difference(_lastNativeMeterCall).inMilliseconds < 150) {
-      _leftPeak *= decay;
-      _rightPeak *= decay;
-      _trackLeftPeaks.updateAll((_, v) => v * decay);
-      _trackRightPeaks.updateAll((_, v) => v * decay);
+    final currentAudioTime = currentTime;
+
+    // 1. Prune finished voices (with 100ms grace window for natural release tail)
+    _activeVoices.removeWhere((v) => !v.isLooping && (currentAudioTime >= v.startTime + v.durationSec + 0.1));
+
+    if (_activeVoices.isEmpty && !_backend.hasActiveAudioSources) {
+      decayMeters();
       return;
     }
-    _lastNativeMeterCall = now;
 
-    _backend.updateMeters(_meterBuffer, (l, r) {
-      if (l > 0.001 || r > 0.001) {
-        _leftPeak = math.max(_leftPeak * decay, l);
-        _rightPeak = math.max(_rightPeak * decay, r);
-      } else {
-        _leftPeak *= decay;
-        _rightPeak *= decay;
+    // 2. Measure active voices per track
+    final Set<String> mutedTrackIds = {};
+    final Map<String, (double, double)> activeTrackLevels = {};
+    for (final voice in _activeVoices) {
+      if (voice.track.isMuted) {
+        mutedTrackIds.add(voice.trackId);
+        continue;
       }
-    });
-    for (int i = 0; i < _timeData.length && i < _meterBuffer.length; i++) {
-      _timeData[i] = _meterBuffer[i];
+      final (lvlLeft, lvlRight) = voice.computeLevelAt(currentAudioTime);
+      if (lvlLeft > 0.0001 || lvlRight > 0.0001) {
+        final existing = activeTrackLevels[voice.trackId] ?? (0.0, 0.0);
+        // Headroom soft saturation when combining polyphonic voices on same track
+        final combinedL = 1.0 - (1.0 - existing.$1) * (1.0 - lvlLeft);
+        final combinedR = 1.0 - (1.0 - existing.$2) * (1.0 - lvlRight);
+        activeTrackLevels[voice.trackId] = (combinedL, combinedR);
+      }
+    }
+
+    // 3. Query native hardware analyser for master bus
+    double hwMasterL = 0.0;
+    double hwMasterR = 0.0;
+    if (_backend.hasActiveAudioSources) {
+      _backend.updateMeters(_meterBuffer, (l, r) {
+        hwMasterL = l;
+        hwMasterR = r;
+      });
+      for (int i = 0; i < _timeData.length && i < _meterBuffer.length; i++) {
+        _timeData[i] = _meterBuffer[i];
+      }
+    }
+
+    // 4. Update track peaks with instantaneous attack and smooth ballistic decay
+    final allTrackKeys = {..._trackLeftPeaks.keys, ..._trackRightPeaks.keys, ...activeTrackLevels.keys};
+    double sumTrackL = 0.0;
+    double sumTrackR = 0.0;
+
+    for (final trackId in allTrackKeys) {
+      if (mutedTrackIds.contains(trackId)) {
+        _trackLeftPeaks[trackId] = 0.0;
+        _trackRightPeaks[trackId] = 0.0;
+        continue;
+      }
+      final active = activeTrackLevels[trackId];
+      if (active != null) {
+        final prevL = _trackLeftPeaks[trackId] ?? 0.0;
+        final prevR = _trackRightPeaks[trackId] ?? 0.0;
+        _trackLeftPeaks[trackId] = math.max(prevL * decay, active.$1);
+        _trackRightPeaks[trackId] = math.max(prevR * decay, active.$2);
+      } else {
+        final prevL = _trackLeftPeaks[trackId] ?? 0.0;
+        final prevR = _trackRightPeaks[trackId] ?? 0.0;
+        final newL = prevL * decay;
+        final newR = prevR * decay;
+        _trackLeftPeaks[trackId] = newL < 0.001 ? 0.0 : newL;
+        _trackRightPeaks[trackId] = newR < 0.001 ? 0.0 : newR;
+      }
+      sumTrackL += _trackLeftPeaks[trackId] ?? 0.0;
+      sumTrackR += _trackRightPeaks[trackId] ?? 0.0;
+    }
+
+    // 5. Update master peak (blend hardware analyser readout with active track sum)
+    final double voiceMasterL = (sumTrackL * 0.85).clamp(0.0, 1.0);
+    final double voiceMasterR = (sumTrackR * 0.85).clamp(0.0, 1.0);
+    final double targetL = math.max(hwMasterL, voiceMasterL);
+    final double targetR = math.max(hwMasterR, voiceMasterR);
+
+    if (targetL > 0.001 || targetR > 0.001) {
+      _leftPeak = math.max(_leftPeak * decay, targetL);
+      _rightPeak = math.max(_rightPeak * decay, targetR);
+    } else {
+      _leftPeak = (_leftPeak * decay) < 0.001 ? 0.0 : _leftPeak * decay;
+      _rightPeak = (_rightPeak * decay) < 0.001 ? 0.0 : _rightPeak * decay;
     }
 
     // Smoothly decay CPU meter towards baseline when audio load drops
-    if (_leftPeak < 0.001 && _rightPeak < 0.001) {
+    if (_leftPeak < 0.001 && _rightPeak < 0.001 && _activeVoices.isEmpty) {
       _cpuLoad = (_cpuLoad * 0.90) + (0.015 * 0.10);
     }
-
-    _trackLeftPeaks.updateAll((_, val) {
-      final dec = val * decay;
-      return dec < 0.001 ? 0.0 : dec;
-    });
-    _trackRightPeaks.updateAll((_, val) {
-      final dec = val * decay;
-      return dec < 0.001 ? 0.0 : dec;
-    });
   }
 
   final Uint8List _trackTapBuffer = Uint8List(256);
@@ -436,6 +556,21 @@ class AudioEngine {
       timbrePoints: timbrePoints,
     );
 
+    if (track.isMonophonicTrack) {
+      _activeVoices.removeWhere((v) => v.trackId == track.id);
+    }
+    while (_activeVoices.length >= 64) {
+      _activeVoices.removeAt(0);
+    }
+    _activeVoices.add(_ActivePlayingVoice(
+      track: track,
+      startTime: scheduledTime ?? currentTime,
+      durationSec: durationSec,
+      velocity: velocity,
+      samples: samples,
+      isLooping: loop,
+    ));
+
     _backend.playPcmBuffer(
       samples,
       outVol,
@@ -474,6 +609,16 @@ class AudioEngine {
     _leftPeak = math.max(_leftPeak, trkLeft * 0.85);
     _rightPeak = math.max(_rightPeak, trkRight * 0.85);
 
+    _activeVoices.add(_ActivePlayingVoice(
+      track: track,
+      startTime: scheduledTime ?? currentTime,
+      durationSec: math.max(0.0, (samples.length / 44100.0) - startOffsetSec),
+      velocity: 1.0,
+      samples: samples,
+      isLooping: false,
+      isFrozen: true,
+    ));
+
     _backend.playFrozenStream(
       trackId: track.id,
       samples: samples,
@@ -488,11 +633,13 @@ class AudioEngine {
   /// Stops frozen stream on a specific track.
   void stopFrozenTrack(String trackId) {
     _backend.stopFrozenStream(trackId);
+    _activeVoices.removeWhere((v) => v.trackId == trackId && v.isFrozen);
   }
 
   /// Stops all active frozen audio streams.
   void stopAllFrozenTracks() {
     _backend.stopAllFrozenStreams();
+    _activeVoices.removeWhere((v) => v.isFrozen);
   }
 
   /// Synthesizes a note PCM buffer for a given track (used for live synthesis and offline baking).
@@ -527,6 +674,24 @@ class AudioEngine {
   }
 
   // ── Buffer Generation & Caching ────────────────────────────────────────────
+
+  @visibleForTesting
+  bool isBufferCached({
+    required TrackChannel track,
+    required int midiNote,
+    required double durationSec,
+    int? targetMidiNote,
+    bool isSlide = false,
+    bool isAccent = false,
+    String? articulation,
+  }) {
+    final durMs = (durationSec * 1000).round();
+    final pHash = _computeParamsHash(track);
+    final targetPitchStr = (isSlide && targetMidiNote != null) ? '_tgt$targetMidiNote' : '';
+    final artStr = (articulation != null && articulation.isNotEmpty) ? '_art$articulation' : '';
+    final cacheKey = '${track.id}_${midiNote}${targetPitchStr}${artStr}_${durMs}_${isAccent ? 1 : 0}_${isSlide ? 1 : 0}_$pHash';
+    return _pcmCache.containsKey(cacheKey);
+  }
 
   (Float32List, String?) _getOrCreateBuffer({
     required TrackChannel track,
@@ -691,11 +856,13 @@ class AudioEngine {
 
   void stopNote(TrackChannel track, [int? pitch]) {
     _backend.stopTrackNotes(track.id);
+    _activeVoices.removeWhere((v) => v.trackId == track.id);
   }
 
   /// Panic: Immediately stops all playing sources and clears audio meters.
   void stopAllSound() {
     _backend.stopAllSound();
+    _activeVoices.clear();
     _leftPeak = 0.0;
     _rightPeak = 0.0;
     _trackLeftPeaks.clear();
@@ -757,6 +924,18 @@ class AudioEngine {
       articulation: articulation,
     );
 
+    if (track.isMonophonicTrack) {
+      _activeVoices.removeWhere((v) => v.trackId == track.id);
+    }
+    _activeVoices.add(_ActivePlayingVoice(
+      track: track,
+      startTime: currentTime,
+      durationSec: sustainDurationSec,
+      velocity: velocity,
+      samples: samples,
+      isLooping: true,
+    ));
+
     _backend.noteOn(
       samples: samples,
       volume: outVol,
@@ -775,6 +954,7 @@ class AudioEngine {
     required int midiNote,
     double releaseSec = 0.12,
   }) {
+    _activeVoices.removeWhere((v) => v.trackId == track.id && v.isLooping);
     _backend.noteOff(
       trackId: track.id,
       midiNote: midiNote,
@@ -785,6 +965,11 @@ class AudioEngine {
   /// Stops all active live sustaining notes.
   void stopAllLiveNotes({String? trackId}) {
     _backend.stopAllLiveNotes(trackId: trackId);
+    if (trackId != null) {
+      _activeVoices.removeWhere((v) => v.trackId == trackId && v.isLooping);
+    } else {
+      _activeVoices.removeWhere((v) => v.isLooping);
+    }
   }
 
   void clearChannelStrips() {
@@ -801,6 +986,7 @@ class AudioEngine {
     int startStep = 0,
     int lookaheadSteps = 16,
     bool eagerAll = false,
+    ChordEvent? Function(int step)? chordLookup,
   }) {
     final Set<String> activeIrNames = {};
     for (final track in tracks) {
@@ -837,7 +1023,6 @@ class AudioEngine {
             continue;
           }
 
-          final dur = math.min(2.5, stepDurationSec * note.durationSteps);
           int? targetPitch;
           if (track.isMonophonicTrack) {
             final nextNotes = notes.where((n) => n.startStep > note.startStep && n.startStep <= (note.startStep + math.max(1.5, note.durationSteps + 0.5))).toList();
@@ -851,21 +1036,34 @@ class AudioEngine {
               targetPitch = nextColNotes.first.pitch;
             }
           }
+
+          // Remap pitch with harmonic chord track context if active, matching _scheduleStep
+          int effectivePitch = note.pitch;
+          final chord = chordLookup?.call(absoluteNoteStep.toInt());
+          if (chord != null && track.chordFollowMode != ChordFollowMode.off) {
+            effectivePitch = ChordTheory.remapPitchForChord(note.pitch, chord, track.chordFollowMode.name);
+          }
+
+          int? effectiveTargetPitch = targetPitch;
+          if (targetPitch != null && chord != null && track.chordFollowMode != ChordFollowMode.off) {
+            effectiveTargetPitch = ChordTheory.remapPitchForChord(targetPitch, chord, track.chordFollowMode.name);
+          }
+
           final hasSlideParam = (track.luaParams['Slide'] ?? 0.0) > 0.01 ||
               (track.luaParams['Portamento'] ?? 0.0) > 0.01 ||
               (track.luaParams['Glide'] ?? 0.0) > 0.01;
-          final bool isSlideNote = note.isSlide || hasSlideParam || targetPitch != null;
+          final bool isSlideNote = note.isSlide || hasSlideParam || effectiveTargetPitch != null;
           final bool isAccentNote = note.isAccent || note.velocity > 0.75;
           final double noteDurSec = math.max(0.02, math.min(3.0, stepDurationSec * note.durationSteps));
 
           _getOrCreateBuffer(
             track: track,
-            midiNote: note.pitch,
+            midiNote: effectivePitch,
             velocity: note.velocity,
             durationSec: noteDurSec,
             isSlide: isSlideNote,
             isAccent: isAccentNote,
-            targetMidiNote: targetPitch,
+            targetMidiNote: effectiveTargetPitch,
           );
         }
       }

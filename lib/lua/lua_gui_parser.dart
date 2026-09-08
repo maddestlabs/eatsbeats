@@ -1,12 +1,23 @@
 import 'dart:ui';
+import '../ui/vector/vector_skin_model.dart';
+import '../eatscript/eat_script_engine.dart';
 import 'eats_lua_parser.dart';
 import 'lua_gui_model.dart';
 
+typedef EatScriptGuiParser = LuaGuiParser;
+
 class LuaGuiParser {
-  /// Extracts and parses the `LuaGuiPanelDef` from a Lua script string, if present.
+  /// Extracts and parses the `LuaGuiPanelDef` from a Lua or EatScript string, if present.
   static LuaGuiPanelDef? parseFromCode(String luaCode) {
     if (!luaCode.contains('gui') && !luaCode.contains('GUI') && !luaCode.contains('panel') && !luaCode.contains('layout')) {
       return null;
+    }
+
+    if (EatScriptEngine.isEatScript(luaCode)) {
+      final comp = EatScriptEngine.compile(luaCode);
+      if (comp.guiLayout != null) {
+        return comp.guiLayout;
+      }
     }
 
     try {
@@ -63,6 +74,82 @@ class LuaGuiParser {
           (panelMap['corner_radius'] as num?)?.toDouble() ??
           (panelMap['radius'] as num?)?.toDouble();
 
+      final backgroundSvg = (panelMap['backgroundSvg'] as String?) ??
+          (panelMap['bgSvg'] as String?) ??
+          (panelMap['svgBackground'] as String?) ??
+          (panelMap['vectorBackground'] as String?);
+      final backgroundSvgOpacity = (panelMap['backgroundSvgOpacity'] as num?)?.toDouble() ??
+          (panelMap['bgSvgOpacity'] as num?)?.toDouble() ??
+          0.20;
+      final backgroundSvgStrokeWidth = (panelMap['backgroundSvgStrokeWidth'] as num?)?.toDouble() ??
+          (panelMap['bgSvgStrokeWidth'] as num?)?.toDouble() ??
+          (panelMap['svgStrokeWidth'] as num?)?.toDouble() ??
+          (panelMap['strokeWidth'] as num?)?.toDouble();
+
+      final backgroundSvgTileRaw = panelMap['backgroundSvgTile'] ??
+          panelMap['bgSvgTile'] ??
+          panelMap['svgTile'] ??
+          panelMap['tile'] ??
+          panelMap['repeat'];
+      final backgroundSvgTile = LuaGuiNode.parseSvgTileMode(backgroundSvgTileRaw);
+
+      LuaGuiGradientDef? backgroundGradient;
+      final gradRaw = panelMap['backgroundGradient'] ?? panelMap['gradient'];
+      if (gradRaw is Map) {
+        final gradMap = Map<String, dynamic>.from(gradRaw);
+        final typeStr = (gradMap['type'] as String?)?.toLowerCase() ?? 'radial';
+        final type = typeStr == 'linear' ? PanelGradientType.linear : PanelGradientType.radial;
+        final rawColors = gradMap['colors'];
+        final List<Color> colors = [];
+        if (rawColors is List) {
+          for (final c in rawColors) {
+            final parsedCol = LuaGuiNode.parseColor(c);
+            if (parsedCol != null) colors.add(parsedCol);
+          }
+        }
+        if (colors.length >= 2) {
+          final stops = (gradMap['stops'] is List)
+              ? (gradMap['stops'] as List).map((s) => (s as num).toDouble()).toList()
+              : null;
+          final radius = (gradMap['radius'] as num?)?.toDouble() ?? 1.0;
+          backgroundGradient = LuaGuiGradientDef(
+            type: type,
+            colors: colors,
+            stops: stops,
+            radius: radius,
+          );
+        }
+      }
+
+      List<SvgLayerDef>? backgroundSvgLayers;
+      final layersRaw = panelMap['backgroundSvgLayers'] ?? panelMap['svgLayers'] ?? panelMap['layers'];
+      if (layersRaw is List) {
+        final List<SvgLayerDef> layers = [];
+        for (final item in layersRaw) {
+          if (item is Map) {
+            final path = (item['path'] as String?) ?? (item['d'] as String?) ?? '';
+            if (path.trim().isNotEmpty) {
+              final color = LuaGuiNode.parseColor(item['color'] ?? item['tint'] ?? item['strokeColor'] ?? item['fillColor']);
+              final strokeWidth = (item['strokeWidth'] as num?)?.toDouble() ?? (item['stroke'] as num?)?.toDouble();
+              final styleStr = (item['style'] as String?)?.toLowerCase() ?? (item['mode'] as String?)?.toLowerCase() ?? 'stroke';
+              final style = styleStr == 'fill' ? SvgLayerStyle.fill : SvgLayerStyle.stroke;
+              final opacity = (item['opacity'] as num?)?.toDouble() ?? 1.0;
+              final layerTileRaw = item['tile'] ?? item['repeat'] ?? item['tileMode'];
+              final layerTile = layerTileRaw != null ? LuaGuiNode.parseSvgTileMode(layerTileRaw) : backgroundSvgTile;
+              layers.add(SvgLayerDef(
+                path: path,
+                color: color,
+                strokeWidth: strokeWidth,
+                style: style,
+                opacity: opacity,
+                tileMode: layerTile,
+              ));
+            }
+          }
+        }
+        if (layers.isNotEmpty) backgroundSvgLayers = layers;
+      }
+
       final rawLayout = panelMap['layout'] ?? panelMap['children'] ?? panelMap['items'];
       final List<LuaGuiNode> nodes = [];
 
@@ -88,30 +175,52 @@ class LuaGuiParser {
         textureScale: textureScale,
         sideCheeks: sideCheeks,
         cornerRadius: cornerRadius,
+        backgroundSvg: backgroundSvg,
+        backgroundSvgOpacity: backgroundSvgOpacity,
+        backgroundSvgStrokeWidth: backgroundSvgStrokeWidth,
+        backgroundSvgTile: backgroundSvgTile,
+        backgroundGradient: backgroundGradient,
+        backgroundSvgLayers: backgroundSvgLayers,
         children: nodes,
       );
+
+
     } catch (_) {
       return null;
     }
   }
 
-  static String? _extractGuiTableString(String luaCode) {
-    // Look for `function ...gui()... return { ... } end`
-    final guiFuncMatch = RegExp(r'function\s+[\w\.:]*gui\s*\([^)]*\)[\s\S]*?return\s*(\{[\s\S]*?\})\s*end', caseSensitive: false).firstMatch(luaCode);
-    if (guiFuncMatch != null) {
-      return _extractBalancedTable(luaCode, guiFuncMatch.start);
+  static String? _extractGuiTableString(String code) {
+    // 1. Look for `function ...gui` or `def ...gui` followed by `return`
+    final funcMatch = RegExp(
+      r'(?:function\s+[\w\.:]*gui|def\s+[\w\.:]*gui)\s*\([^)]*\)[^:]*?:?[\s\S]*?return\s*\{',
+      caseSensitive: false,
+    ).firstMatch(code);
+    if (funcMatch != null) {
+      final matchedStr = funcMatch.group(0)!;
+      final returnIdx = funcMatch.start + matchedStr.toLowerCase().lastIndexOf('return');
+      final braceIdx = code.indexOf('{', returnIdx);
+      if (braceIdx != -1) {
+        return _extractBalancedTable(code, braceIdx);
+      }
     }
 
-    // Look for `GUI\s*=\s*\{` or `local\s+GUI\s*=\s*\{` or `\w+\.gui\s*=\s*\{`
-    final guiAssignMatch = RegExp(r'(?:local\s+)?(?:[\w\.]+\.)?gui\s*=\s*\{', caseSensitive: false).firstMatch(luaCode);
+    // 2. Look for `GUI\s*=\s*\{` or `local\s+GUI\s*=\s*\{` or `\w+\.gui\s*=\s*\{` or `gui\s*=\s*\{`
+    final guiAssignMatch = RegExp(r'(?:local\s+)?(?:[\w\.]+\.)?gui\s*=\s*\{', caseSensitive: false).firstMatch(code);
     if (guiAssignMatch != null) {
-      return _extractBalancedTable(luaCode, guiAssignMatch.start);
+      final braceIdx = code.indexOf('{', guiAssignMatch.start);
+      if (braceIdx != -1) {
+        return _extractBalancedTable(code, braceIdx);
+      }
     }
 
-    // Look for `@gui:\s*\{`
-    final commentGuiMatch = RegExp(r'--\s*@gui:\s*\{', caseSensitive: false).firstMatch(luaCode);
+    // 3. Look for `@gui:\s*\{`
+    final commentGuiMatch = RegExp(r'(?:--|#)\s*@gui:\s*\{', caseSensitive: false).firstMatch(code);
     if (commentGuiMatch != null) {
-      return _extractBalancedTable(luaCode, commentGuiMatch.start);
+      final braceIdx = code.indexOf('{', commentGuiMatch.start);
+      if (braceIdx != -1) {
+        return _extractBalancedTable(code, braceIdx);
+      }
     }
 
     return null;
@@ -222,6 +331,22 @@ class LuaGuiParser {
     final nodeTexRot = (m['textureRotation'] as num?)?.toDouble() ?? (m['rotation'] as num?)?.toDouble();
     final nodeTexScale = (m['textureScale'] as num?)?.toDouble() ?? (m['bgScale'] as num?)?.toDouble();
     final nodeCornerRadius = (m['cornerRadius'] as num?)?.toDouble() ?? (m['radius'] as num?)?.toDouble();
+    final opacity = (m['opacity'] as num?)?.toDouble() ??
+        (m['bgOpacity'] as num?)?.toDouble() ??
+        (m['backgroundOpacity'] as num?)?.toDouble();
+    final borderWidth = (m['borderWidth'] as num?)?.toDouble() ??
+        (m['border'] as num?)?.toDouble();
+    final borderColor = LuaGuiNode.parseColor(m['borderColor'] ?? m['border_color']);
+
+    CustomControlSkin? customSkin;
+    final rawSkin = m['skin'] ?? m['customSkin'] ?? m['vectorSkin'];
+    if (rawSkin is Map) {
+      customSkin = CustomControlSkin.fromMap(param ?? 'custom', Map<String, dynamic>.from(rawSkin));
+    } else if (m.containsKey('chassis') || m.containsKey('indicator')) {
+      customSkin = CustomControlSkin.fromMap(param ?? 'custom', m);
+    }
+
+    final resolvedKnobStyle = customSkin != null ? KnobStyle.customVector : knobStyle;
 
     return LuaGuiNode(
       type: type,
@@ -245,7 +370,7 @@ class LuaGuiParser {
       rightText: rightText,
       text: text,
       action: action,
-      knobStyle: knobStyle,
+      knobStyle: resolvedKnobStyle,
       sliderStyle: sliderStyle,
       canvasMode: canvasMode,
       cols: cols,
@@ -256,6 +381,10 @@ class LuaGuiParser {
       showLabel: showLabel,
       showValue: showValue,
       palette: palette,
+      customSkin: customSkin,
+      opacity: opacity,
+      borderWidth: borderWidth,
+      borderColor: borderColor,
       children: children,
     );
   }

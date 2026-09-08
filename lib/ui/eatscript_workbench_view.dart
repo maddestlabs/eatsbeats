@@ -1,9 +1,12 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../models/script_target_model.dart';
 import '../theme/eats_theme.dart';
+import 'widgets/code_editor_scroll_controller.dart';
+import 'widgets/show_on_screen_absorber.dart';
 import '../eatscript/eat_param_model.dart';
 import '../lua/lua_preset_library.dart';
 import '../lua/lua_script_library.dart';
@@ -17,7 +20,6 @@ import 'widgets/eatsbeats_slider.dart';
 import 'widgets/live_track_visualizer_widget.dart';
 import 'widgets/project_script_runner_dialog.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
-import 'widgets/waveform_painter.dart';
 
 enum DesignStudioViewMode {
   code,
@@ -26,19 +28,33 @@ enum DesignStudioViewMode {
   guiPreview,
 }
 
-typedef DesignWorkbenchView = LuaWorkbenchView;
-typedef EatscriptWorkbenchView = LuaWorkbenchView;
+typedef DesignWorkbenchView = EatscriptWorkbenchView;
+typedef LuaWorkbenchView = EatscriptWorkbenchView;
 
-class LuaWorkbenchView extends StatefulWidget {
+class EatscriptWorkbenchView extends StatefulWidget {
   final DawState dawState;
 
-  const LuaWorkbenchView({super.key, required this.dawState});
+  const EatscriptWorkbenchView({super.key, required this.dawState});
 
   @override
-  State<LuaWorkbenchView> createState() => _LuaWorkbenchViewState();
+  State<EatscriptWorkbenchView> createState() => _EatscriptWorkbenchViewState();
 }
 
-class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
+class _EatscriptWorkbenchViewState extends State<EatscriptWorkbenchView> {
+  static const double _editorFontSize = 12.0;
+  static const double _editorLineHeight = 1.5; // Exactly 18.0 px line box
+  static const double _editorRowHeight = 18.0;
+  static const double _editorVerticalPadding = 8.0;
+
+  static final StrutStyle _editorStrutStyle = StrutStyle(
+    fontFamily: 'monospace',
+    fontFamilyFallback: EatsTheme.displayFontFallbacks,
+    fontSize: _editorFontSize,
+    height: _editorLineHeight,
+    forceStrutHeight: true,
+    leadingDistribution: TextLeadingDistribution.even,
+  );
+
   late TextEditingController _codeController;
   late FocusNode _editorFocusNode;
   late ScrollController _editorScrollController;
@@ -49,28 +65,41 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
   DesignStudioViewMode _viewMode = DesignStudioViewMode.code;
   bool _isGuiDesignMode = false;
 
+  String _lastCode = '';
+
   @override
   void initState() {
     super.initState();
     final activeTarget = widget.dawState.activeScriptTarget;
     _lastTargetId = activeTarget.id;
-    _codeController = TextEditingController(text: widget.dawState.getScriptCodeForTarget(activeTarget));
+    final initialCode = widget.dawState.getScriptCodeForTarget(activeTarget);
+    _lastCode = initialCode;
+    _codeController = TextEditingController(text: initialCode);
     _codeController.addListener(_onCodeChanged);
     _editorFocusNode = FocusNode(debugLabel: 'EatscriptWorkbenchEditor');
 
-    _editorScrollController = ScrollController();
+    _editorScrollController = CodeEditorScrollController();
     _gutterScrollController = ScrollController();
 
-    _editorScrollController.addListener(() {
-      if (_gutterScrollController.hasClients &&
-          _gutterScrollController.offset != _editorScrollController.offset) {
-        _gutterScrollController.jumpTo(_editorScrollController.offset);
+    _editorScrollController.addListener(_syncGutterScroll);
+  }
+
+  void _syncGutterScroll() {
+    if (_gutterScrollController.hasClients && _editorScrollController.hasClients) {
+      final maxGutter = _gutterScrollController.position.maxScrollExtent;
+      final target = _editorScrollController.offset.clamp(0.0, maxGutter);
+      if (_gutterScrollController.offset != target) {
+        _gutterScrollController.jumpTo(target);
       }
-    });
+    }
   }
 
   void _onCodeChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    if (_codeController.text != _lastCode) {
+      _lastCode = _codeController.text;
+      setState(() {});
+    }
   }
 
   @override
@@ -78,18 +107,21 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
     _codeController.removeListener(_onCodeChanged);
     _codeController.dispose();
     _editorFocusNode.dispose();
+    _editorScrollController.removeListener(_syncGutterScroll);
     _editorScrollController.dispose();
     _gutterScrollController.dispose();
     super.dispose();
   }
 
   @override
-  void didUpdateWidget(covariant LuaWorkbenchView oldWidget) {
+  void didUpdateWidget(covariant EatscriptWorkbenchView oldWidget) {
     super.didUpdateWidget(oldWidget);
     final activeTarget = widget.dawState.activeScriptTarget;
     if (activeTarget.id != _lastTargetId) {
       _lastTargetId = activeTarget.id;
-      _codeController.text = widget.dawState.getScriptCodeForTarget(activeTarget);
+      final newCode = widget.dawState.getScriptCodeForTarget(activeTarget);
+      _lastCode = newCode;
+      _codeController.text = newCode;
     }
   }
 
@@ -126,6 +158,7 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
   void _loadTemplate(String code, String name) {
     final activeTarget = widget.dawState.activeScriptTarget;
     final eatCode = EatScriptEngine.isEatScript(code) ? code : EatTranspiler.transpileLuaPreset(code);
+    _lastCode = eatCode;
     setState(() {
       _codeController.text = eatCode;
     });
@@ -624,97 +657,193 @@ class _LuaWorkbenchViewState extends State<LuaWorkbenchView> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       color: EatsTheme.panelHeader,
-                      child: Row(
-                        children: [
-                          Icon(Icons.terminal, size: 14, color: EatsTheme.textMuted),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              'TARGET: ${activeTarget.title.toUpperCase()}',
-                              style: EatsTheme.getPrimaryFontStyle(
-                                color: targetBadgeBg,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
+                      child: LayoutBuilder(
+                        builder: (context, headerConstraints) {
+                          final isCompact = headerConstraints.maxWidth < 450;
+                          return Row(
+                            children: [
+                              Icon(Icons.terminal, size: 14, color: EatsTheme.textMuted),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'TARGET: ${activeTarget.title.toUpperCase()}',
+                                  style: EatsTheme.getPrimaryFontStyle(
+                                    color: targetBadgeBg,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Text(
-                            '${lines.length} lines • Ctrl+Enter to run',
-                            style: EatsTheme.getPrimaryFontStyle(
-                              color: EatsTheme.textMuted,
-                              fontSize: 9.5,
-                            ),
-                          ),
-                        ],
+                              if (!isCompact) ...[
+                                InkWell(
+                                  onTap: () {
+                                    _codeController.selection = TextSelection(
+                                      baseOffset: 0,
+                                      extentOffset: _codeController.text.length,
+                                    );
+                                    _editorFocusNode.requestFocus();
+                                  },
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.select_all, size: 12, color: EatsTheme.textSecondary),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          'SELECT ALL',
+                                          style: EatsTheme.getPrimaryFontStyle(
+                                            color: EatsTheme.textSecondary,
+                                            fontSize: 9.5,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                              ],
+                              InkWell(
+                                onTap: () async {
+                                  await Clipboard.setData(ClipboardData(text: _codeController.text));
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: const Text('Copied script to clipboard'),
+                                        backgroundColor: EatsTheme.panelHeader,
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(4),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.copy, size: 12, color: EatsTheme.textSecondary),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'COPY',
+                                        style: EatsTheme.getPrimaryFontStyle(
+                                          color: EatsTheme.textSecondary,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              if (!isCompact) ...[
+                                const SizedBox(width: 10),
+                                Text(
+                                  '${lines.length} lines • Ctrl+Enter to run',
+                                  style: EatsTheme.getPrimaryFontStyle(
+                                    color: EatsTheme.textMuted,
+                                    fontSize: 9.5,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          );
+                        },
                       ),
                     ),
 
-                    // Synchronized 20-line Viewport (Height = 20 * 16.8px + 16px = 352px)
+                    // Synchronized 20-line Viewport with ShowOnScreenAbsorber to prevent outer scroll jumps
                     SizedBox(
                       height: 340,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Line Number Gutter (Synced scroll offset)
-                          Container(
-                            width: 42,
-                            color: EatsTheme.codeEditorGutterBackground,
-                            child: SingleChildScrollView(
-                              controller: _gutterScrollController,
-                              physics: const NeverScrollableScrollPhysics(),
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: List.generate(
-                                  lines.length.clamp(1, 9999),
-                                  (i) => Container(
-                                    height: 16.8,
-                                    alignment: Alignment.centerRight,
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: Text(
-                                      '${i + 1}',
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        fontSize: 12,
-                                        height: 1.4,
-                                        color: (i + 1 == result.errorLine)
-                                            ? Colors.redAccent
-                                            : EatsTheme.codeEditorGutterTextColor,
-                                        fontWeight: (i + 1 == result.errorLine) ? FontWeight.bold : FontWeight.normal,
-                                      ),
-                                    ),
+                      child: ShowOnScreenAbsorber(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Line Number Gutter (Synced scroll offset, hidden scrollbar, mouse wheel pass-through)
+                            Listener(
+                              onPointerSignal: (event) {
+                                if (event is PointerScrollEvent && _editorScrollController.hasClients) {
+                                  final maxScroll = _editorScrollController.position.maxScrollExtent;
+                                  final newOffset = (_editorScrollController.offset + event.scrollDelta.dy).clamp(0.0, maxScroll);
+                                  _editorScrollController.jumpTo(newOffset);
+                                }
+                              },
+                              child: Container(
+                                width: 42,
+                                color: EatsTheme.codeEditorGutterBackground,
+                                child: ScrollConfiguration(
+                                  behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                                  child: ListView.builder(
+                                    controller: _gutterScrollController,
+                                    physics: const NeverScrollableScrollPhysics(),
+                                    padding: const EdgeInsets.only(top: 4.0, bottom: _editorVerticalPadding),
+                                    itemCount: lines.length,
+                                    itemExtent: _editorRowHeight,
+                                    itemBuilder: (context, i) {
+                                      final isError = (i + 1 == result.errorLine);
+                                      return Container(
+                                        height: _editorRowHeight,
+                                        alignment: Alignment.centerRight,
+                                        padding: const EdgeInsets.only(right: 8),
+                                        child: Text(
+                                          '${i + 1}',
+                                          strutStyle: _editorStrutStyle,
+                                          style: TextStyle(
+                                            fontFamily: 'monospace',
+                                            fontFamilyFallback: EatsTheme.displayFontFallbacks,
+                                            fontSize: _editorFontSize,
+                                            height: _editorLineHeight,
+                                            leadingDistribution: TextLeadingDistribution.even,
+                                            color: isError
+                                                ? Colors.redAccent
+                                                : EatsTheme.codeEditorGutterTextColor,
+                                            fontWeight: isError ? FontWeight.bold : FontWeight.normal,
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
                               ),
                             ),
-                          ),
 
-                          // Code Editor Text Field (Master Scroll)
-                          Expanded(
-                            child: TextField(
-                              controller: _codeController,
-                              focusNode: _editorFocusNode,
-                              scrollController: _editorScrollController,
-                              maxLines: null,
-                              expands: true,
-                              keyboardType: TextInputType.multiline,
-                              style: TextStyle(
-                                color: EatsTheme.codeEditorTextColor,
-                                fontSize: 12,
-                                height: 1.4,
-                                fontFamily: 'monospace',
-                              ),
-                              decoration: InputDecoration(
-                                isDense: true,
-                                contentPadding: const EdgeInsets.all(8),
-                                border: InputBorder.none,
-                                hintText: '# Write Eatscript DSP, MIDI FX, or Clip script here...',
-                                hintStyle: TextStyle(color: EatsTheme.textMuted, fontFamily: 'monospace'),
+                            // Code Editor Text Field (Master Scroll)
+                            Expanded(
+                              child: TextField(
+                                controller: _codeController,
+                                focusNode: _editorFocusNode,
+                                scrollController: _editorScrollController,
+                                scrollPhysics: const ClampingScrollPhysics(),
+                                maxLines: null,
+                                expands: true,
+                                keyboardType: TextInputType.multiline,
+                                strutStyle: _editorStrutStyle,
+                                style: TextStyle(
+                                  color: EatsTheme.codeEditorTextColor,
+                                  fontSize: _editorFontSize,
+                                  height: _editorLineHeight,
+                                  leadingDistribution: TextLeadingDistribution.even,
+                                  fontFamily: 'monospace',
+                                  fontFamilyFallback: EatsTheme.displayFontFallbacks,
+                                ),
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.fromLTRB(8, _editorVerticalPadding, 8, _editorVerticalPadding),
+                                  border: InputBorder.none,
+                                  hintText: '# Write Eatscript DSP, MIDI FX, or Clip script here...',
+                                  hintStyle: TextStyle(
+                                    color: EatsTheme.textMuted,
+                                    fontFamily: 'monospace',
+                                    fontFamilyFallback: EatsTheme.displayFontFallbacks,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ],

@@ -18,11 +18,34 @@ class EatsTheme {
       currentPreset == EatsThemePreset.breakfast;
 
   // --- Dual-Context Font Settings ---
-  static String primaryFontName = 'Sans Serif';
+  static String primaryFontName = 'Roboto Condensed';
   static String displayFontName = 'Monospace';
 
-  static const String _primaryFontFamily = 'sans-serif';
+  static const String _primaryFontFamily = 'RobotoCondensed';
   static const String _displayFontFamily = 'monospace';
+
+  /// Primary UI font fallbacks ensuring full Unicode, system emoji, and web CDN compatibility.
+  /// On Desktop/Mobile, system emoji fonts ('Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji')
+  /// allow emojis (e.g. 🎹, 🎸, 🥁, 🎤) in track and clip names to render alongside Roboto Condensed.
+  /// On Web, 'Roboto Condensed' also resolves via Google Fonts CDN in web/index.html.
+  static const List<String> primaryFontFallbacks = [
+    'Roboto Condensed', // Web Google Fonts name
+    'Segoe UI Emoji',    // Windows emoji & unicode symbols
+    'Apple Color Emoji', // macOS & iOS emoji
+    'Noto Color Emoji',  // Android, Linux, ChromeOS & Web emoji
+    'Roboto',
+    'sans-serif',
+  ];
+
+  static const List<String> displayFontFallbacks = [
+    'Roboto Mono',
+    'Consolas',
+    'Menlo',
+    'Segoe UI Emoji',
+    'Apple Color Emoji',
+    'Noto Color Emoji',
+    'monospace',
+  ];
 
   /// Get TextStyle dynamically for Context 1 (Primary UI) with safety fallback
   static TextStyle getPrimaryFontStyle({
@@ -31,15 +54,26 @@ class EatsTheme {
     Color? color,
     TextDecoration? decoration,
     double? letterSpacing,
+    List<String>? fontFamilyFallback,
   }) {
+    // Roboto Condensed benefits from subtle positive tracking on small labels
+    final effectiveLetterSpacing = letterSpacing ??
+        (fontSize != null && fontSize <= 11.0 ? 0.25 : null);
+    // At small sizes (<12), Medium (w500) ensures narrow condensed stems remain crisp and legible
+    final effectiveFontWeight = fontWeight ??
+        (fontSize != null && fontSize <= 11.0 ? FontWeight.w500 : null);
+
     final baseStyle = TextStyle(
       fontSize: fontSize,
-      fontWeight: fontWeight,
+      fontWeight: effectiveFontWeight,
       color: color,
       decoration: decoration,
-      letterSpacing: letterSpacing,
+      letterSpacing: effectiveLetterSpacing,
     );
-    return baseStyle.copyWith(fontFamily: _primaryFontFamily);
+    return baseStyle.copyWith(
+      fontFamily: _primaryFontFamily,
+      fontFamilyFallback: fontFamilyFallback ?? primaryFontFallbacks,
+    );
   }
 
   /// Get TextStyle dynamically for Context 2 (Display, Meters & Monospace Code) with safety fallback
@@ -49,6 +83,7 @@ class EatsTheme {
     Color? color,
     TextDecoration? decoration,
     double? letterSpacing,
+    List<String>? fontFamilyFallback,
   }) {
     final baseStyle = TextStyle(
       fontSize: fontSize,
@@ -57,7 +92,10 @@ class EatsTheme {
       decoration: decoration,
       letterSpacing: letterSpacing,
     );
-    return baseStyle.copyWith(fontFamily: _displayFontFamily);
+    return baseStyle.copyWith(
+      fontFamily: _displayFontFamily,
+      fontFamilyFallback: fontFamilyFallback ?? displayFontFallbacks,
+    );
   }
 
   // --- Color Palette Tokens ---
@@ -476,24 +514,25 @@ class EatsTheme {
       ),
       textTheme: baseTheme.textTheme.apply(
         fontFamily: _primaryFontFamily,
+        fontFamilyFallback: primaryFontFallbacks,
         bodyColor: textPrimary,
         displayColor: textPrimary,
       ).copyWith(
-        bodyLarge: getPrimaryFontStyle(color: textPrimary, fontSize: 14),
-        bodyMedium: getPrimaryFontStyle(color: textPrimary, fontSize: 13),
-        bodySmall: getPrimaryFontStyle(color: textSecondary, fontSize: 11),
+        bodyLarge: getPrimaryFontStyle(color: textPrimary, fontSize: 14, fontWeight: FontWeight.w400),
+        bodyMedium: getPrimaryFontStyle(color: textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+        bodySmall: getPrimaryFontStyle(color: textSecondary, fontSize: 11, fontWeight: FontWeight.w500),
         titleLarge: getPrimaryFontStyle(color: textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
         titleMedium: getPrimaryFontStyle(color: textPrimary, fontSize: 14, fontWeight: FontWeight.bold),
         titleSmall: getPrimaryFontStyle(color: textSecondary, fontSize: 12, fontWeight: FontWeight.bold),
         labelLarge: getPrimaryFontStyle(color: textPrimary, fontSize: 12, fontWeight: FontWeight.bold),
-        labelMedium: getPrimaryFontStyle(color: textSecondary, fontSize: 10),
-        labelSmall: getPrimaryFontStyle(color: textMuted, fontSize: 9),
+        labelMedium: getPrimaryFontStyle(color: textSecondary, fontSize: 10.5, fontWeight: FontWeight.w600),
+        labelSmall: getPrimaryFontStyle(color: textMuted, fontSize: 9.5, fontWeight: FontWeight.w600),
       ),
       popupMenuTheme: PopupMenuThemeData(
         color: panelHeader,
         surfaceTintColor: Colors.transparent,
-        textStyle: getPrimaryFontStyle(color: textPrimary, fontSize: 11),
-        labelTextStyle: WidgetStateProperty.all(getPrimaryFontStyle(color: textPrimary, fontSize: 11)),
+        textStyle: getPrimaryFontStyle(color: textPrimary, fontSize: 11.5, fontWeight: FontWeight.w500),
+        labelTextStyle: WidgetStateProperty.all(getPrimaryFontStyle(color: textPrimary, fontSize: 11.5, fontWeight: FontWeight.w500)),
       ),
       sliderTheme: SliderThemeData(
         activeTrackColor: primaryCyan,

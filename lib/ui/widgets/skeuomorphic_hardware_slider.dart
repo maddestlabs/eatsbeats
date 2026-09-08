@@ -143,6 +143,8 @@ class _SkeuomorphicHardwareSliderState extends State<SkeuomorphicHardwareSlider>
       context: context,
       title: widget.label != null ? 'Edit ${widget.label}' : 'Edit Value',
       initialValue: displayVal,
+      minValue: widget.min,
+      maxValue: widget.max,
       minMaxHint: 'Range: ${widget.min} - ${widget.max}',
       accentColor: accent,
       onResetDefault: () => widget.onChanged(widget.defaultValue),

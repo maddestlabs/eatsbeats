@@ -2868,10 +2868,15 @@ class GraphEvaluator {
 
     const outputGain = GainNode(
       input: masterBrilliance,
-      staticGain: 5.5,
+      staticGain: 0.75,
     );
 
-    return outputGain;
+    const softMaster = DistortionNode(
+      input: outputGain,
+      drive: 0.95,
+    );
+
+    return softMaster;
   }
 
   /// Authentic Warm Felt Studio Upright Piano Physical Model (Commuted Waveguide).
@@ -2920,10 +2925,15 @@ class GraphEvaluator {
 
     const outputGain = GainNode(
       input: feltWarmth,
-      staticGain: 5.5,
+      staticGain: 1.65,
     );
 
-    return outputGain;
+    const softMaster = DistortionNode(
+      input: outputGain,
+      drive: 0.95,
+    );
+
+    return softMaster;
   }
 
   /// Authentic Honky-Tonk / Tack Saloon Piano Physical Model (Commuted Waveguide).
@@ -2991,10 +3001,15 @@ class GraphEvaluator {
 
     const outputGain = GainNode(
       input: toneCut,
-      staticGain: 4.8,
+      staticGain: 0.45,
     );
 
-    return outputGain;
+    const softMaster = DistortionNode(
+      input: outputGain,
+      drive: 0.95,
+    );
+
+    return softMaster;
   }
 
   /// Authentic Toy Piano / Metal Tine Metallophone Physical Model.
@@ -3030,7 +3045,7 @@ class GraphEvaluator {
 
     const outputGain = GainNode(
       input: bellBrightness,
-      staticGain: 0.50,
+      staticGain: 1.5,
     );
 
     return outputGain;
