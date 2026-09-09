@@ -12,7 +12,7 @@ import 'package:eatsbeats/ui/modular/modular_rack_dsl.dart';
 import 'package:eatsbeats/ui/modular/patch_cable_painter.dart';
 import 'package:eatsbeats/ui/widgets/floating_instrument_window.dart';
 import 'package:eatsbeats/models/script_target_model.dart';
-import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/eatscript/eat_preset_library.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/audio/audio_engine.dart';
-import 'package:eatsbeats/lua/lua_engine.dart';
+import 'package:eatsbeats/eatscript/eat_engine.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/ui/transport_header.dart';
 

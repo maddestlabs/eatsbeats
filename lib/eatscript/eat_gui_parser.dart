@@ -3,15 +3,17 @@ import 'dart:ui';
 import '../ui/vector/vector_skin_model.dart';
 import '../ui/hardware/eat_hardware_knob_model.dart';
 import '../ui/hardware/eat_hardware_scale.dart';
-import '../eatscript/eat_script_engine.dart';
-import 'eats_lua_parser.dart';
-import 'lua_gui_model.dart';
+import 'eat_script_engine.dart';
+import 'eat_project_parser.dart';
+import 'eat_gui_model.dart';
 
-typedef EatScriptGuiParser = LuaGuiParser;
+// Backwards-compatibility aliases
+typedef LuaGuiParser = EatGuiParser;
+typedef EatScriptGuiParser = EatGuiParser;
 
-class LuaGuiParser {
-  /// Extracts and parses the `LuaGuiPanelDef` from a Lua or EatScript string, if present.
-  static LuaGuiPanelDef? parseFromCode(String luaCode) {
+class EatGuiParser {
+  /// Extracts and parses the `EatScriptGuiPanelDef` from a Lua or EatScript string, if present.
+  static EatScriptGuiPanelDef? parseFromCode(String luaCode) {
     if (!luaCode.contains('gui') && !luaCode.contains('GUI') && !luaCode.contains('panel') && !luaCode.contains('layout')) {
       return null;
     }
@@ -39,8 +41,8 @@ class LuaGuiParser {
     }
   }
 
-  /// Parses a [LuaGuiPanelDef] directly from a decoded Map (e.g. from Eatscript or Lua parser).
-  static LuaGuiPanelDef? parseFromMap(Map<String, dynamic> parsed) {
+  /// Parses a [EatScriptGuiPanelDef] directly from a decoded Map (e.g. from Eatscript or Lua parser).
+  static EatScriptGuiPanelDef? parseFromMap(Map<String, dynamic> parsed) {
     if (parsed.isEmpty) return null;
 
     try {
@@ -54,14 +56,14 @@ class LuaGuiParser {
       final subtitle = panelMap['subtitle'] as String?;
       final style = (panelMap['style'] as String?) ?? 'rack';
       final bgRaw = panelMap['background'] ?? panelMap['bg'] ?? panelMap['chassis'] ?? panelMap['theme'] ?? panelMap['style'] ?? panelMap['texture'];
-      final backgroundStyle = LuaGuiNode.parseBackgroundStyle(bgRaw is String ? bgRaw : null);
-      final backgroundColor = LuaGuiNode.parseColor(bgRaw);
+      final backgroundStyle = EatScriptGuiNode.parseBackgroundStyle(bgRaw is String ? bgRaw : null);
+      final backgroundColor = EatScriptGuiNode.parseColor(bgRaw);
       final accentRaw = panelMap['accent'] ?? panelMap['accentColor'] ?? panelMap['color'];
       final accentColor = (accentRaw is String && accentRaw.toLowerCase() == 'track')
           ? null
-          : LuaGuiNode.parseColor(accentRaw);
+          : EatScriptGuiNode.parseColor(accentRaw);
       final knobStyleRaw = panelMap['knobStyle'] ?? panelMap['knobs'] ?? panelMap['knob_style'];
-      final defaultKnobStyle = LuaGuiNode.parseKnobStyle(knobStyleRaw is String ? knobStyleRaw : (backgroundStyle == PanelBackgroundStyle.silver ? 'chrome' : null));
+      final defaultKnobStyle = EatScriptGuiNode.parseKnobStyle(knobStyleRaw is String ? knobStyleRaw : (backgroundStyle == PanelBackgroundStyle.silver ? 'chrome' : null));
       final textureRotation = (panelMap['textureRotation'] as num?)?.toDouble() ??
           (panelMap['rotation'] as num?)?.toDouble() ??
           0.0;
@@ -97,9 +99,9 @@ class LuaGuiParser {
           panelMap['svgTile'] ??
           panelMap['tile'] ??
           panelMap['repeat'];
-      final backgroundSvgTile = LuaGuiNode.parseSvgTileMode(backgroundSvgTileRaw);
+      final backgroundSvgTile = EatScriptGuiNode.parseSvgTileMode(backgroundSvgTileRaw);
 
-      LuaGuiGradientDef? backgroundGradient;
+      EatScriptGuiGradientDef? backgroundGradient;
       final gradRaw = panelMap['backgroundGradient'] ?? panelMap['gradient'];
       if (gradRaw is Map) {
         final gradMap = Map<String, dynamic>.from(gradRaw);
@@ -109,7 +111,7 @@ class LuaGuiParser {
         final List<Color> colors = [];
         if (rawColors is List) {
           for (final c in rawColors) {
-            final parsedCol = LuaGuiNode.parseColor(c);
+            final parsedCol = EatScriptGuiNode.parseColor(c);
             if (parsedCol != null) colors.add(parsedCol);
           }
         }
@@ -118,7 +120,7 @@ class LuaGuiParser {
               ? (gradMap['stops'] as List).map((s) => (s as num).toDouble()).toList()
               : null;
           final radius = (gradMap['radius'] as num?)?.toDouble() ?? 1.0;
-          backgroundGradient = LuaGuiGradientDef(
+          backgroundGradient = EatScriptGuiGradientDef(
             type: type,
             colors: colors,
             stops: stops,
@@ -135,13 +137,13 @@ class LuaGuiParser {
           if (item is Map) {
             final path = (item['path'] as String?) ?? (item['d'] as String?) ?? '';
             if (path.trim().isNotEmpty) {
-              final color = LuaGuiNode.parseColor(item['color'] ?? item['tint'] ?? item['strokeColor'] ?? item['fillColor']);
+              final color = EatScriptGuiNode.parseColor(item['color'] ?? item['tint'] ?? item['strokeColor'] ?? item['fillColor']);
               final strokeWidth = (item['strokeWidth'] as num?)?.toDouble() ?? (item['stroke'] as num?)?.toDouble();
               final styleStr = (item['style'] as String?)?.toLowerCase() ?? (item['mode'] as String?)?.toLowerCase() ?? 'stroke';
               final style = styleStr == 'fill' ? SvgLayerStyle.fill : SvgLayerStyle.stroke;
               final opacity = (item['opacity'] as num?)?.toDouble() ?? 1.0;
               final layerTileRaw = item['tile'] ?? item['repeat'] ?? item['tileMode'];
-              final layerTile = layerTileRaw != null ? LuaGuiNode.parseSvgTileMode(layerTileRaw) : backgroundSvgTile;
+              final layerTile = layerTileRaw != null ? EatScriptGuiNode.parseSvgTileMode(layerTileRaw) : backgroundSvgTile;
               layers.add(SvgLayerDef(
                 path: path,
                 color: color,
@@ -157,7 +159,7 @@ class LuaGuiParser {
       }
 
       final rawLayout = panelMap['layout'] ?? panelMap['children'] ?? panelMap['items'];
-      final List<LuaGuiNode> nodes = [];
+      final List<EatScriptGuiNode> nodes = [];
 
       if (rawLayout is List) {
         for (final item in rawLayout) {
@@ -169,7 +171,7 @@ class LuaGuiParser {
         if (node != null) nodes.add(node);
       }
 
-      return LuaGuiPanelDef(
+      return EatScriptGuiPanelDef(
         title: title,
         subtitle: subtitle,
         style: style,
@@ -267,23 +269,23 @@ class LuaGuiParser {
     return null;
   }
 
-  static LuaGuiNode? _parseNode(dynamic raw, [KnobStyle defaultKnobStyle = KnobStyle.standard]) {
+  static EatScriptGuiNode? _parseNode(dynamic raw, [KnobStyle defaultKnobStyle = KnobStyle.standard]) {
     if (raw is! Map) return null;
     final m = Map<String, dynamic>.from(raw);
 
     final rawType = (m['type'] as String?) ?? (m['widget'] as String?);
-    final type = LuaGuiNode.parseType(rawType);
-    if (type == LuaGuiNodeType.unknown) return null;
+    final type = EatScriptGuiNode.parseType(rawType);
+    if (type == EatScriptGuiNodeType.unknown) return null;
 
     final param = m['param'] as String? ?? m['name'] as String?;
     final label = m['label'] as String? ?? m['title'] as String? ?? param;
     final unit = m['unit'] as String?;
     final size = (m['size'] as num?)?.toDouble();
-    final accentColor = LuaGuiNode.parseColor(m['accent'] ?? m['accentColor'] ?? m['color']);
+    final accentColor = EatScriptGuiNode.parseColor(m['accent'] ?? m['accentColor'] ?? m['color']);
     final cleanType = (rawType ?? '').toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
     final isExplicitHSlider = cleanType == 'hslider' || cleanType == 'horizontalslider' || cleanType == 'hslider';
     final isExplicitVSlider = cleanType == 'vslider' || cleanType == 'verticalslider' || cleanType == 'fader';
-    final defaultOrientation = isExplicitHSlider ? 'horizontal' : (isExplicitVSlider ? 'vertical' : (type == LuaGuiNodeType.slider ? 'horizontal' : 'vertical'));
+    final defaultOrientation = isExplicitHSlider ? 'horizontal' : (isExplicitVSlider ? 'vertical' : (type == EatScriptGuiNodeType.slider ? 'horizontal' : 'vertical'));
     final orientation = (m['orientation'] as String?) ?? defaultOrientation;
     final align = (m['align'] as String?) ?? 'space_around';
     final crossAlign = (m['crossAlign'] as String?) ?? (m['crossAxisAlignment'] as String?) ?? 'center';
@@ -292,9 +294,9 @@ class LuaGuiParser {
     final text = m['text'] as String?;
     final action = m['action'] as String? ?? m['onClick'] as String? ?? m['callback'] as String?;
     final knobStyle = m['knobStyle'] != null || m['style'] != null
-        ? LuaGuiNode.parseKnobStyle((m['knobStyle'] ?? m['style']) as String?)
+        ? EatScriptGuiNode.parseKnobStyle((m['knobStyle'] ?? m['style']) as String?)
         : defaultKnobStyle;
-    final sliderStyle = LuaGuiNode.parseSliderStyle((m['sliderStyle'] ?? m['style']) as String?);
+    final sliderStyle = EatScriptGuiNode.parseSliderStyle((m['sliderStyle'] ?? m['style']) as String?);
 
     final width = (m['width'] is num) ? (m['width'] as num).toDouble() : null;
     final height = (m['height'] is num) ? (m['height'] as num).toDouble() : null;
@@ -312,7 +314,7 @@ class LuaGuiParser {
     final rawPalette = m['palette'] ?? m['colors'];
     if (rawPalette is List) {
       for (final p in rawPalette) {
-        final c = LuaGuiNode.parseColor(p);
+        final c = EatScriptGuiNode.parseColor(p);
         if (c != null) palette.add(c);
       }
     }
@@ -322,7 +324,7 @@ class LuaGuiParser {
       options = (m['options'] as List).map((e) => e.toString()).toList();
     }
 
-    List<LuaGuiNode> children = [];
+    List<EatScriptGuiNode> children = [];
     final rawChildren = m['children'] ?? m['items'] ?? m['__list'];
     if (rawChildren is List) {
       for (final childRaw in rawChildren) {
@@ -332,8 +334,8 @@ class LuaGuiParser {
     }
 
     final bgRaw = m['background'] ?? m['bg'] ?? m['texture'] ?? m['theme'];
-    final nodeBgStyle = bgRaw is String ? LuaGuiNode.parseBackgroundStyle(bgRaw) : null;
-    final nodeBgColor = LuaGuiNode.parseColor(bgRaw) ?? LuaGuiNode.parseColor(m['backgroundColor'] ?? m['color']);
+    final nodeBgStyle = bgRaw is String ? EatScriptGuiNode.parseBackgroundStyle(bgRaw) : null;
+    final nodeBgColor = EatScriptGuiNode.parseColor(bgRaw) ?? EatScriptGuiNode.parseColor(m['backgroundColor'] ?? m['color']);
     final nodeTexRot = (m['textureRotation'] as num?)?.toDouble() ?? (m['rotation'] as num?)?.toDouble();
     final nodeTexScale = (m['textureScale'] as num?)?.toDouble() ?? (m['bgScale'] as num?)?.toDouble();
     final nodeCornerRadius = (m['cornerRadius'] as num?)?.toDouble() ?? (m['radius'] as num?)?.toDouble();
@@ -342,7 +344,7 @@ class LuaGuiParser {
         (m['backgroundOpacity'] as num?)?.toDouble();
     final borderWidth = (m['borderWidth'] as num?)?.toDouble() ??
         (m['border'] as num?)?.toDouble();
-    final borderColor = LuaGuiNode.parseColor(m['borderColor'] ?? m['border_color']);
+    final borderColor = EatScriptGuiNode.parseColor(m['borderColor'] ?? m['border_color']);
 
     CustomControlSkin? customSkin;
     final rawSkin = m['skin'] ?? m['customSkin'] ?? m['vectorSkin'];
@@ -358,31 +360,33 @@ class LuaGuiParser {
     final styleStr = ((m['knobStyle'] ?? m['style'] ?? '') as String).toLowerCase();
     final hwStr = (hwRaw?.toString() ?? styleStr).toLowerCase();
 
-    final isHardware = knobStyle == KnobStyle.hardwareKnob ||
-        hwRaw != null ||
-        styleStr.contains('hardware') ||
+    final hasHardwareToken = styleStr.contains('hardware') ||
         styleStr.contains('fluted') ||
         styleStr.contains('bakelite') ||
         styleStr.contains('knurled') ||
         styleStr.contains('stepped') ||
         styleStr.contains('twotone') ||
-        styleStr.contains('chrome') ||
-        styleStr.contains('snes') ||
-        styleStr.contains('minimal') ||
+        styleStr.contains('encoder') ||
+        styleStr.contains('potentiometer') ||
+        styleStr.contains('selector');
+
+    final isHardware = knobStyle == KnobStyle.hardwareKnob ||
+        hwRaw != null ||
+        hasHardwareToken ||
         hwStr.contains('hardware') ||
         hwStr.contains('fluted') ||
         hwStr.contains('bakelite') ||
         hwStr.contains('knurled') ||
         hwStr.contains('stepped') ||
         hwStr.contains('twotone') ||
-        hwStr.contains('chrome') ||
-        hwStr.contains('snes') ||
-        hwStr.contains('minimal');
+        hwStr.contains('encoder') ||
+        hwStr.contains('potentiometer') ||
+        hwStr.contains('selector');
 
-    final capColor = LuaGuiNode.parseColor(m['capColor'] ?? m['cap_color'] ?? m['cap']);
-    final bodyColor = LuaGuiNode.parseColor(m['bodyColor'] ?? m['body_color'] ?? m['body']);
-    final indicatorColor = LuaGuiNode.parseColor(m['indicatorColor'] ?? m['indicator_color'] ?? m['pointerColor'] ?? m['pointer_color'] ?? m['indicator']);
-    final dialColor = LuaGuiNode.parseColor(m['dialColor'] ?? m['dial_color'] ?? m['scaleColor'] ?? m['scale_color']);
+    final capColor = EatScriptGuiNode.parseColor(m['capColor'] ?? m['cap_color'] ?? m['cap']);
+    final bodyColor = EatScriptGuiNode.parseColor(m['bodyColor'] ?? m['body_color'] ?? m['body']);
+    final indicatorColor = EatScriptGuiNode.parseColor(m['indicatorColor'] ?? m['indicator_color'] ?? m['pointerColor'] ?? m['pointer_color'] ?? m['indicator']);
+    final dialColor = EatScriptGuiNode.parseColor(m['dialColor'] ?? m['dial_color'] ?? m['scaleColor'] ?? m['scale_color']);
 
     final capSize = (m['capSize'] as num?)?.toDouble() ?? (m['cap_size'] as num?)?.toDouble();
     final bodySize = (m['bodySize'] as num?)?.toDouble() ?? (m['body_size'] as num?)?.toDouble() ?? (m['skirtSize'] as num?)?.toDouble();
@@ -440,18 +444,33 @@ class LuaGuiParser {
       hardwareScale = EatScaleGraduation(
         labels: labels,
         tickDivisions: math.max(1, labels.length - 1),
+        tickColor: dialColor,
+        labelColor: dialColor,
       );
     } else if (rawScale is String) {
-      if (rawScale == '0_to_10' || rawScale == '0..10') {
-        hardwareScale = EatScaleGraduation.zeroToTen();
-      } else if (rawScale == 'low_mid_high' || rawScale == 'pitch') {
-        hardwareScale = EatScaleGraduation.lowMidHigh();
-      } else if (rawScale == '1_to_6' || rawScale == '1..6' || rawScale == 'sustain') {
-        hardwareScale = EatScaleGraduation.sustainOneToSix();
-      } else if (rawScale == 'db' || rawScale == 'decibel' || rawScale == 'fader') {
-        hardwareScale = const EatScaleGraduation(
+      final s = rawScale.toLowerCase().trim();
+      if (s == '0_to_10' || s == '0..10' || s == 'zero_to_ten') {
+        hardwareScale = EatScaleGraduation.zeroToTen(tickColor: dialColor, labelColor: dialColor);
+      } else if (s == 'clean_ticks' || s == 'clean' || s == 'ticks') {
+        hardwareScale = EatScaleGraduation.cleanTicks(tickColor: dialColor, labelColor: dialColor);
+      } else if (s == 'tb303_dial' || s == '303' || s == 'tb303' || s == 'calibrated') {
+        hardwareScale = EatScaleGraduation.tb303Dial(tickColor: dialColor, labelColor: dialColor);
+      } else if (s == 'low_mid_high' || s == 'pitch') {
+        hardwareScale = EatScaleGraduation.lowMidHigh(tickColor: dialColor, labelColor: dialColor);
+      } else if (s == '1_to_6' || s == '1..6' || s == 'sustain' || s == 'sustain_1_to_6') {
+        hardwareScale = EatScaleGraduation.sustainOneToSix(tickColor: dialColor, labelColor: dialColor);
+      } else if (s == 'bipolar' || s == '-5_to_+5' || s == '-5..+5') {
+        hardwareScale = EatScaleGraduation.bipolar(tickColor: dialColor, labelColor: dialColor);
+      } else if (s == 'mode_steps' || s == 'selector' || s == 'tb303_selector' || s == 'steps') {
+        hardwareScale = EatScaleGraduation.tb303Selector(tickColor: dialColor, labelColor: dialColor);
+      } else if (s == 'none' || s == 'unmarked' || s == 'blank' || s == 'off') {
+        hardwareScale = const EatScaleGraduation(tickDivisions: 0, labels: []);
+      } else if (s == 'db' || s == 'decibel' || s == 'fader') {
+        hardwareScale = EatScaleGraduation(
           tickDivisions: 12,
-          labels: ['+6', '0', '-6', '-12', '-24', '-inf'],
+          labels: const ['+6', '0', '-6', '-12', '-24', '-inf'],
+          tickColor: dialColor,
+          labelColor: dialColor,
         );
       }
     }
@@ -463,11 +482,11 @@ class LuaGuiParser {
     KnobStyle resolvedKnobStyle = knobStyle;
     if (customSkin != null) {
       resolvedKnobStyle = KnobStyle.customVector;
-    } else if (hardwareKnobStyle != null) {
+    } else if (hardwareKnobStyle != null && (knobStyle == KnobStyle.hardwareKnob || hwRaw != null || hasHardwareToken)) {
       resolvedKnobStyle = KnobStyle.hardwareKnob;
     }
 
-    return LuaGuiNode(
+    return EatScriptGuiNode(
       type: type,
       param: param,
       label: label,
@@ -502,7 +521,7 @@ class LuaGuiParser {
       palette: palette,
       customSkin: customSkin,
       hardwareKnobStyle: hardwareKnobStyle,
-      hardwareScale: hardwareScale ?? hardwareKnobStyle?.scale,
+      hardwareScale: hardwareScale,
       opacity: opacity,
       borderWidth: borderWidth,
       borderColor: borderColor,

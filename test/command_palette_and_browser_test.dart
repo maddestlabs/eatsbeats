@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/models/command_palette_registry.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/theme/eats_theme.dart';
-import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/eatscript/eat_preset_library.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

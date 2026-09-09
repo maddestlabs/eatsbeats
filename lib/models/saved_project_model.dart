@@ -30,7 +30,7 @@ class SavedProjectItem {
   factory SavedProjectItem.fromJson(Map<String, dynamic> json) => SavedProjectItem(
         id: json['id'] as String? ?? '',
         name: json['name'] as String? ?? 'Untitled Project',
-        fileName: json['fileName'] as String? ?? 'project.eats.lua',
+        fileName: json['fileName'] as String? ?? 'project.eat',
         filePath: json['filePath'] as String?,
         fileSizeBytes: (json['fileSizeBytes'] as num?)?.toInt() ?? 0,
         lastModified: json['lastModified'] != null

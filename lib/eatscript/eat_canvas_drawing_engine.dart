@@ -2,92 +2,92 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 /// Base class for recorded vector drawing operations on the programmable canvas.
-abstract class LuaCanvasOp {
-  const LuaCanvasOp();
+abstract class EatCanvasOp {
+  const EatCanvasOp();
 }
 
-class LuaCanvasClearOp extends LuaCanvasOp {
+class EatCanvasClearOp extends EatCanvasOp {
   final Color color;
-  const LuaCanvasClearOp(this.color);
+  const EatCanvasClearOp(this.color);
 }
 
-class LuaCanvasLineOp extends LuaCanvasOp {
+class EatCanvasLineOp extends EatCanvasOp {
   final Offset p1;
   final Offset p2;
   final Color color;
   final double strokeWidth;
-  const LuaCanvasLineOp(this.p1, this.p2, this.color, this.strokeWidth);
+  const EatCanvasLineOp(this.p1, this.p2, this.color, this.strokeWidth);
 }
 
-class LuaCanvasRectOp extends LuaCanvasOp {
+class EatCanvasRectOp extends EatCanvasOp {
   final Rect rect;
   final Color color;
   final bool filled;
   final double strokeWidth;
   final double cornerRadius;
-  const LuaCanvasRectOp(this.rect, this.color, this.filled, this.strokeWidth, this.cornerRadius);
+  const EatCanvasRectOp(this.rect, this.color, this.filled, this.strokeWidth, this.cornerRadius);
 }
 
-class LuaCanvasCircleOp extends LuaCanvasOp {
+class EatCanvasCircleOp extends EatCanvasOp {
   final Offset center;
   final double radius;
   final Color color;
   final bool filled;
   final double strokeWidth;
-  const LuaCanvasCircleOp(this.center, this.radius, this.color, this.filled, this.strokeWidth);
+  const EatCanvasCircleOp(this.center, this.radius, this.color, this.filled, this.strokeWidth);
 }
 
-class LuaCanvasTextOp extends LuaCanvasOp {
+class EatCanvasTextOp extends EatCanvasOp {
   final String text;
   final Offset position;
   final double fontSize;
   final Color color;
   final TextAlign align;
   final bool isBold;
-  const LuaCanvasTextOp(this.text, this.position, this.fontSize, this.color, this.align, {this.isBold = false});
+  const EatCanvasTextOp(this.text, this.position, this.fontSize, this.color, this.align, {this.isBold = false});
 }
 
-class LuaCanvasPathOp extends LuaCanvasOp {
+class EatCanvasPathOp extends EatCanvasOp {
   final List<Offset> points;
   final Color color;
   final bool closed;
   final Color? fillColor;
   final double strokeWidth;
-  const LuaCanvasPathOp(this.points, this.color, this.closed, this.fillColor, this.strokeWidth);
+  const EatCanvasPathOp(this.points, this.color, this.closed, this.fillColor, this.strokeWidth);
 }
 
-class LuaCanvasWaveformOp extends LuaCanvasOp {
+class EatCanvasWaveformOp extends EatCanvasOp {
   final double gain;
   final double timebase;
   final Color color;
   final double strokeWidth;
-  const LuaCanvasWaveformOp(this.gain, this.timebase, this.color, this.strokeWidth);
+  const EatCanvasWaveformOp(this.gain, this.timebase, this.color, this.strokeWidth);
 }
 
-class LuaCanvasSpectrumOp extends LuaCanvasOp {
+class EatCanvasSpectrumOp extends EatCanvasOp {
   final int bands;
   final double gain;
   final double decay;
   final Color color;
-  const LuaCanvasSpectrumOp(this.bands, this.gain, this.decay, this.color);
+  const EatCanvasSpectrumOp(this.bands, this.gain, this.decay, this.color);
 }
 
-class LuaCanvasGridOp extends LuaCanvasOp {
+class EatCanvasGridOp extends EatCanvasOp {
   final int cols;
   final int rows;
   final Color color;
   final double strokeWidth;
-  const LuaCanvasGridOp(this.cols, this.rows, this.color, this.strokeWidth);
+  const EatCanvasGridOp(this.cols, this.rows, this.color, this.strokeWidth);
 }
 
 /// Canvas recorder passed to Lua draw routines.
-class LuaCanvasDrawingContext {
+class EatCanvasDrawingContext {
   final double width;
   final double height;
   final Color defaultAccent;
-  final List<LuaCanvasOp> ops = [];
+  final List<EatCanvasOp> ops = [];
 
-  LuaCanvasDrawingContext({
+  EatCanvasDrawingContext({
     required this.width,
     required this.height,
     required this.defaultAccent,
@@ -110,11 +110,11 @@ class LuaCanvasDrawingContext {
   }
 
   void clear([dynamic color]) {
-    ops.add(LuaCanvasClearOp(parseColor(color, const Color(0xFF0D1117))));
+    ops.add(EatCanvasClearOp(parseColor(color, const Color(0xFF0D1117))));
   }
 
   void line(num x1, num y1, num x2, num y2, [dynamic color, num? strokeWidth]) {
-    ops.add(LuaCanvasLineOp(
+    ops.add(EatCanvasLineOp(
       Offset(x1.toDouble(), y1.toDouble()),
       Offset(x2.toDouble(), y2.toDouble()),
       parseColor(color),
@@ -123,7 +123,7 @@ class LuaCanvasDrawingContext {
   }
 
   void rect(num x, num y, num w, num h, [dynamic color, bool? filled, num? strokeWidth, num? cornerRadius]) {
-    ops.add(LuaCanvasRectOp(
+    ops.add(EatCanvasRectOp(
       Rect.fromLTWH(x.toDouble(), y.toDouble(), w.toDouble(), h.toDouble()),
       parseColor(color),
       filled ?? false,
@@ -133,7 +133,7 @@ class LuaCanvasDrawingContext {
   }
 
   void circle(num cx, num cy, num radius, [dynamic color, bool? filled, num? strokeWidth]) {
-    ops.add(LuaCanvasCircleOp(
+    ops.add(EatCanvasCircleOp(
       Offset(cx.toDouble(), cy.toDouble()),
       radius.toDouble().clamp(0.5, 1000.0),
       parseColor(color),
@@ -147,7 +147,7 @@ class LuaCanvasDrawingContext {
     if (align == 'center' || align == 'centre') textAlignment = TextAlign.center;
     if (align == 'right') textAlignment = TextAlign.right;
 
-    ops.add(LuaCanvasTextOp(
+    ops.add(EatCanvasTextOp(
       str,
       Offset(x.toDouble(), y.toDouble()),
       (fontSize?.toDouble() ?? 11.0).clamp(6.0, 72.0),
@@ -171,7 +171,7 @@ class LuaCanvasDrawingContext {
       }
     }
     if (offsetList.isNotEmpty) {
-      ops.add(LuaCanvasPathOp(
+      ops.add(EatCanvasPathOp(
         offsetList,
         parseColor(color),
         closed ?? false,
@@ -182,7 +182,7 @@ class LuaCanvasDrawingContext {
   }
 
   void waveform([num? gain, num? timebase, dynamic color, num? strokeWidth]) {
-    ops.add(LuaCanvasWaveformOp(
+    ops.add(EatCanvasWaveformOp(
       gain?.toDouble() ?? 1.0,
       timebase?.toDouble() ?? 1.0,
       parseColor(color),
@@ -191,7 +191,7 @@ class LuaCanvasDrawingContext {
   }
 
   void spectrum([int? bands, num? gain, num? decay, dynamic color]) {
-    ops.add(LuaCanvasSpectrumOp(
+    ops.add(EatCanvasSpectrumOp(
       bands ?? 16,
       gain?.toDouble() ?? 1.0,
       decay?.toDouble() ?? 0.6,
@@ -200,7 +200,7 @@ class LuaCanvasDrawingContext {
   }
 
   void grid([int? cols, int? rows, dynamic color, num? strokeWidth]) {
-    ops.add(LuaCanvasGridOp(
+    ops.add(EatCanvasGridOp(
       cols ?? 8,
       rows ?? 6,
       parseColor(color, Colors.white.withOpacity(0.08)),
@@ -209,14 +209,27 @@ class LuaCanvasDrawingContext {
   }
 }
 
-typedef EatScriptCanvasDrawingEngine = LuaCanvasDrawingEngine;
-typedef EatScriptCanvasOp = LuaCanvasOp;
-typedef EatScriptCanvasDrawingContext = LuaCanvasDrawingContext;
+// Backwards-compatibility aliases
+typedef LuaCanvasDrawingEngine = EatCanvasDrawingEngine;
+typedef LuaCanvasOp = EatCanvasOp;
+typedef LuaCanvasDrawingContext = EatCanvasDrawingContext;
+typedef EatScriptCanvasDrawingEngine = EatCanvasDrawingEngine;
+typedef EatScriptCanvasOp = EatCanvasOp;
+typedef EatScriptCanvasDrawingContext = EatCanvasDrawingContext;
+typedef LuaCanvasClearOp = EatCanvasClearOp;
+typedef LuaCanvasLineOp = EatCanvasLineOp;
+typedef LuaCanvasRectOp = EatCanvasRectOp;
+typedef LuaCanvasCircleOp = EatCanvasCircleOp;
+typedef LuaCanvasTextOp = EatCanvasTextOp;
+typedef LuaCanvasPathOp = EatCanvasPathOp;
+typedef LuaCanvasWaveformOp = EatCanvasWaveformOp;
+typedef LuaCanvasSpectrumOp = EatCanvasSpectrumOp;
+typedef LuaCanvasGridOp = EatCanvasGridOp;
 
 /// Evaluates programmable EatScript and Lua 2D drawing routines with high performance.
-class LuaCanvasDrawingEngine {
-  /// Evaluates the script's `draw` / `on_draw` routine into a list of [LuaCanvasOp].
-  static List<LuaCanvasOp> evaluate({
+class EatCanvasDrawingEngine {
+  /// Evaluates the script's `draw` / `on_draw` routine into a list of [EatCanvasOp].
+  static List<EatCanvasOp> evaluate({
     required String scriptCode,
     required double width,
     required double height,
@@ -226,7 +239,7 @@ class LuaCanvasDrawingEngine {
     Offset? touchPos,
     bool isTouchDown = false,
   }) {
-    final ctx = LuaCanvasDrawingContext(
+    final ctx = EatCanvasDrawingContext(
       width: width,
       height: height,
       defaultAccent: accentColor,
@@ -249,7 +262,7 @@ class LuaCanvasDrawingEngine {
 
   static void _executeScriptDraw(
     String scriptCode,
-    LuaCanvasDrawingContext ctx,
+    EatCanvasDrawingContext ctx,
     double width,
     double height,
     Map<String, double> params,
@@ -408,7 +421,7 @@ class LuaCanvasDrawingEngine {
   }
 
   static void _generateDefaultVectorDisplay(
-    LuaCanvasDrawingContext ctx,
+    EatCanvasDrawingContext ctx,
     double width,
     double height,
     Map<String, double> params,

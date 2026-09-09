@@ -1,17 +1,18 @@
 import 'pipe_family_presets.dart';
 import 'brass_reed_family_presets.dart';
-import '../eatscript/eat_script_engine.dart';
-import '../eatscript/eat_transpiler.dart';
+import 'eat_script_engine.dart';
+import 'eat_transpiler.dart';
 
 // Backwards-compatibility aliases for LuaScript definitions & Eatscript branding
-typedef LuaPreset = LuaScriptDef;
-typedef LuaPresetCategory = LuaScriptCategory;
-typedef LuaPresetLibrary = LuaScriptLibrary;
-typedef EatPreset = LuaScriptDef;
-typedef EatScriptCategory = LuaScriptCategory;
-typedef EatScriptLibrary = LuaScriptLibrary;
+typedef LuaPreset = EatScriptDef;
+typedef LuaPresetCategory = EatScriptCategory;
+typedef LuaPresetLibrary = EatScriptLibrary;
+typedef LuaScriptDef = EatScriptDef;
+typedef LuaScriptCategory = EatScriptCategory;
+typedef LuaScriptLibrary = EatScriptLibrary;
+typedef EatPreset = EatScriptDef;
 
-enum LuaScriptCategory {
+enum EatScriptCategory {
   instrument,
   audioFx,
   midiFx,
@@ -60,15 +61,15 @@ enum LuaScriptCategory {
   }
 }
 
-class LuaScriptDef {
+class EatScriptDef {
   final String id;
   final String name;
-  final LuaScriptCategory category;
+  final EatScriptCategory category;
   final String description;
   final String code;
   final List<String> tags;
 
-  const LuaScriptDef({
+  const EatScriptDef({
     required this.id,
     required this.name,
     required this.category,
@@ -156,7 +157,7 @@ class LuaScriptDef {
   }
 }
 
-class LuaScriptLibrary {
+class EatScriptLibrary {
   static final List<LuaScriptDef> _customScripts = [];
 
   static List<LuaScriptDef> get scripts => [..._builtinPresets, ...PipeFamilyPresets.all, ...BrassReedFamilyPresets.all, ..._customScripts];
@@ -8049,35 +8050,40 @@ function Eats303.gui()
     panel = {
       title = "EATS-303 ACID BASSLINE",
       subtitle = "Eats-303 Acid Synth • (JC-303 & Open303 DSP)",
-      background = "silver",
+      background = "minimal_white",
       accent = "#000000",
       knobStyle = "chrome",
       layout = {
         {
           type = "row",
+          orientation = "vertical",
+          align = "space_around",
+          crossAlign = "center",
           children = {
-            { type = "switch", param = "Waveform", label = "WAVEFORM", options = {"SAW", "SQR"} },
-            { type = "divider", orientation = "vertical", height = 62 },
-            { type = "knob", param = "Pitch", label = "PITCH", size = 52, knobStyle = "chrome" },
-            { type = "knob", param = "Cutoff", label = "CUTOFF", size = 58, knobStyle = "chrome" },
-            { type = "knob", param = "Resonance", label = "RESONANCE", size = 58, knobStyle = "chrome" },
-            { type = "knob", param = "EnvMod", label = "ENV MOD", size = 54, knobStyle = "chrome" },
-            { type = "knob", param = "Decay", label = "DECAY", size = 54, knobStyle = "chrome" },
-            { type = "knob", param = "Accent", label = "ACCENT", size = 54, knobStyle = "chrome" },
+            { type = "knob", param = "Waveform", label = "WAVEFORM", size = 44, knobStyle = "hardware", style = "tb303_selector", hardware = "tb303_selector", showValue = false, capColor = "#DCDFE5", bodyColor = "#90939A", indicatorColor = "#2A2D35", dialColor = "#2A2D35", capSize = 0.98, bodySize = 1.0, indicatorWidth = 1.5 },
+            { type = "divider" },
+            { type = "knob", param = "Pitch", label = "PITCH", size = 44, knobStyle = "hardware", style = "tb303_potentiometer", hardware = "tb303_potentiometer", showValue = false, bodyColor = "#202024", indicatorColor = "#2A2D35", dialColor = "#2A2D35", capSize = 0.98, bodySize = 1.0, indicatorLength = 0.95, indicatorWidth = 1.5 },
+            { type = "knob", param = "Cutoff", label = "CUTOFF", size = 44, knobStyle = "hardware", style = "tb303_potentiometer", hardware = "tb303_potentiometer", showValue = false, bodyColor = "#202024", indicatorColor = "#2A2D35", dialColor = "#2A2D35", capSize = 0.98, bodySize = 1.0, indicatorLength = 0.95, indicatorWidth = 1.5 },
+            { type = "knob", param = "Resonance", label = "RESONANCE", size = 44, knobStyle = "hardware", style = "tb303_potentiometer", hardware = "tb303_potentiometer", showValue = false, bodyColor = "#202024", indicatorColor = "#2A2D35", dialColor = "#2A2D35", capSize = 0.98, bodySize = 1.0, indicatorLength = 0.95, indicatorWidth = 1.5 },
+            { type = "knob", param = "EnvMod", label = "ENV MOD", size = 44, knobStyle = "hardware", style = "tb303_potentiometer", hardware = "tb303_potentiometer", showValue = false, bodyColor = "#202024", indicatorColor = "#2A2D35", dialColor = "#2A2D35", capSize = 0.98, bodySize = 1.0, indicatorLength = 0.95, indicatorWidth = 1.5 },
+            { type = "knob", param = "Decay", label = "DECAY", size = 44, knobStyle = "hardware", style = "tb303_potentiometer", hardware = "tb303_potentiometer", showValue = false, bodyColor = "#202024", indicatorColor = "#2A2D35", dialColor = "#2A2D35", capSize = 0.98, bodySize = 1.0, indicatorLength = 0.95, indicatorWidth = 1.5 },
+            { type = "knob", param = "Accent", label = "ACCENT", size = 44, knobStyle = "hardware", style = "tb303_potentiometer", hardware = "tb303_potentiometer", showValue = false, bodyColor = "#202024", indicatorColor = "#2A2D35", dialColor = "#2A2D35", capSize = 0.98, bodySize = 1.0, indicatorLength = 0.95, indicatorWidth = 1.5 },
           }
         },
-        { type = "divider", orientation = "horizontal" },
         {
           type = "row",
+          orientation = "vertical",
+          align = "space_around",
+          crossAlign = "center",
           children = {
-            { type = "knob", param = "Octave", label = "OCTAVE", size = 50, knobStyle = "chrome" },
-            { type = "divider", orientation = "vertical", height = 56 },
-            { type = "switch", param = "SubWaveform", label = "SUB OSC", options = {"SIN", "SQR"} },
-            { type = "knob", param = "SubVolume", label = "SUB VOL", size = 52, knobStyle = "chrome" },
-            { type = "divider", orientation = "vertical", height = 56 },
-            { type = "slider", param = "Slide", label = "PORTAMENTO SLIDE", orientation = "horizontal", size = 140 },
-            { type = "divider", orientation = "vertical", height = 56 },
-            { type = "knob", param = "Drive", label = "DRIVE", size = 54, knobStyle = "chrome" },
+            { type = "knob", param = "Octave", label = "OCTAVE", size = 44, knobStyle = "hardware", style = "tb303_selector", hardware = "tb303_selector", showValue = false, capColor = "#202024", bodyColor = "#90939A", indicatorColor = "#DCDFE5", dialColor = "#2A2D35", capSize = 0.98, bodySize = 1.0, indicatorWidth = 1.5 },
+            { type = "divider" },
+            { type = "switch", param = "SubWaveform", label = "SUB OSC", orientation = "vertical" },
+            { type = "knob", param = "SubVolume", label = "SUB VOL", size = 44, knobStyle = "hardware", style = "cream_fluted", hardware = "cream_fluted", showValue = false, bodySize = 1.0 },
+            { type = "divider" },
+            { type = "hslider", param = "Slide", label = "PORTAMENTO SLIDE", width = 150, style = "capsule" },
+            { type = "divider" },
+            { type = "knob", param = "Drive", label = "DRIVE", size = 44, knobStyle = "hardware", style = "cream_fluted", hardware = "cream_fluted", showValue = false, bodySize = 1.0 },
           }
         }
       }
@@ -8242,7 +8248,7 @@ def gui():
             "title": "YM2612 FM SOUND PROCESSOR",
             "subtitle": "16-Bit 4-Operator FM Hardware Synthesis",
             "background": "#111111",
-            "accent": "#CCCCCC",
+            "accent": "track",
             "layout": [
                 {
                     "type": "row",

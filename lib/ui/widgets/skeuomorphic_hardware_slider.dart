@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../../lua/lua_gui_model.dart' show SliderStyle;
+import '../../eatscript/eat_gui_model.dart' show SliderStyle;
 import '../../theme/eats_theme.dart';
 import '../hardware/eat_hardware_scale.dart';
 import 'compact_value_dialog.dart';

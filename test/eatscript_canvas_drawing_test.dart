@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
-import 'package:eatsbeats/lua/lua_gui_model.dart';
-import 'package:eatsbeats/lua/lua_canvas_drawing_engine.dart';
+import 'package:eatsbeats/eatscript/eat_gui_model.dart';
+import 'package:eatsbeats/eatscript/eat_canvas_drawing_engine.dart';
 import 'package:eatsbeats/ui/widgets/eatscript_programmable_canvas_widget.dart';
 
 void main() {

@@ -3,7 +3,10 @@ import '../models/track_model.dart';
 import '../models/automation_model.dart';
 import '../models/lyric_model.dart';
 
-class EatsLuaSerializer {
+// Backwards-compatibility alias
+typedef EatsLuaSerializer = EatProjectSerializer;
+
+class EatProjectSerializer {
   /// Serializes a full [DawState] object into a formatted `.eats.lua` script.
   static String serialize(DawState dawState, {String projectName = 'Untitled Song'}) {
     final buffer = StringBuffer();

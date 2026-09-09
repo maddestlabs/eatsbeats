@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/models/track_model.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/audio/poly_synth.dart';
-import 'package:eatsbeats/lua/eats_lua_serializer.dart';
+import 'package:eatsbeats/eatscript/eat_project_serializer.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

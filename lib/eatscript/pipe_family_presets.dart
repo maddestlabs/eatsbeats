@@ -1,4 +1,4 @@
-import 'lua_script_library.dart';
+import 'eat_script_library.dart';
 
 /// General MIDI Pipe Family (GM 72–79 / 1-indexed 73–80) Physical Modeling Presets.
 ///

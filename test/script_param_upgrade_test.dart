@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:eatsbeats/lua/lua_engine.dart';
+import 'package:eatsbeats/eatscript/eat_engine.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

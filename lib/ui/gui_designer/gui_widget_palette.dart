@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../lua/lua_gui_model.dart';
+import '../../eatscript/eat_gui_model.dart';
 import '../../theme/eats_theme.dart';
 import '../hardware/eat_hardware_knob_model.dart';
 

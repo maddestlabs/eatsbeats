@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../theme/eats_theme.dart';
-import '../lua/lua_preset_library.dart';
+import '../eatscript/eat_preset_library.dart';
 import '../utils/platform_env_helper.dart';
 import 'widgets/lcd_display_widget.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';

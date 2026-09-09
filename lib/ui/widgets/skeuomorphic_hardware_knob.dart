@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../../lua/lua_gui_model.dart';
+import '../../eatscript/eat_gui_model.dart';
 import '../../theme/eats_theme.dart';
 import '../vector/built_in_vector_skins.dart';
 import '../vector/two_pass_vector_painter.dart';

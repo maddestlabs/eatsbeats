@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../../lua/lua_gui_model.dart';
+import '../../eatscript/eat_gui_model.dart';
 import 'svg_path_parser.dart';
 
 /// Renders single or multi-layered SVG path watermarks cleanly scaled and centered behind controls,

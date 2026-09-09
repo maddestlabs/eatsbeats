@@ -4,8 +4,8 @@ import 'package:eatsbeats/models/chord_model.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/script_target_model.dart';
 import 'package:eatsbeats/models/track_model.dart';
-import 'package:eatsbeats/lua/lua_script_library.dart';
-import 'package:eatsbeats/lua/project_script_engine.dart';
+import 'package:eatsbeats/eatscript/eat_script_library.dart';
+import 'package:eatsbeats/eatscript/project_script_engine.dart';
 import 'package:eatsbeats/ui/widgets/project_script_runner_dialog.dart';
 
 void main() {

@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
-import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/eatscript/eat_preset_library.dart';
 import 'package:eatsbeats/ui/widgets/project_browser_drawer.dart';
 
 void main() {

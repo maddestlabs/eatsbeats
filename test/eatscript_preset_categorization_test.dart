@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/eatscript/eat_preset_library.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 
 void main() {

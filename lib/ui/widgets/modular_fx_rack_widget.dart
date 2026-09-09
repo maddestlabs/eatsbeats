@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../audio/convolver_engine.dart';
 import '../../audio/procedural_ir_generator.dart';
-import '../../lua/lua_preset_library.dart';
+import '../../eatscript/eat_preset_library.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';

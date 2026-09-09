@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
-import 'package:eatsbeats/lua/eats_lua_serializer.dart';
+import 'package:eatsbeats/eatscript/eat_project_serializer.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -124,7 +124,8 @@ end
 
       final genTrack = newState.patterns.first.tracks.firstWhere((t) => t.name == 'Procedural Hats');
       expect(genTrack.clips.length, equals(1));
-      expect(genTrack.clips.first.luaScriptCode, contains('function process(notes, context)'));
+      // Legacy clip script is migrated to native Eatscript def process(...)
+      expect(genTrack.clips.first.eatScriptCode, contains('def process('));
       newState.dispose();
     });
 

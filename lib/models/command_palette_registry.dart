@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../lua/lua_preset_library.dart';
-import '../lua/lua_script_library.dart';
+import '../eatscript/eat_preset_library.dart';
+import '../eatscript/eat_script_library.dart';
 import '../ui/widgets/project_script_runner_dialog.dart';
 import '../theme/eats_theme.dart';
 import '../ui/widgets/ui_scale_dialog.dart';

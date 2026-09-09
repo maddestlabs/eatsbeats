@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/models/daw_state.dart';
-import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/eatscript/eat_preset_library.dart';
 import 'package:eatsbeats/ui/widgets/preset_search_dialog.dart';
 import 'package:eatsbeats/ui/widgets/floating_instrument_window.dart';
 import 'package:eatsbeats/ui/widgets/modular_fx_rack_widget.dart';

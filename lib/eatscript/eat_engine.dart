@@ -3,13 +3,16 @@ import 'dart:typed_data';
 
 import '../audio/time_context.dart';
 import '../models/automation_model.dart';
-import '../eatscript/eat_dsp_synthesizer.dart';
-import '../eatscript/eat_script_engine.dart';
-import '../eatscript/eat_param_model.dart';
+import 'eat_dsp_synthesizer.dart';
+import 'eat_script_engine.dart';
+import 'eat_param_model.dart';
 
-export '../eatscript/eat_param_model.dart';
+export 'eat_param_model.dart';
 
-class LuaEngine {
+// Backwards-compatibility alias
+typedef LuaEngine = EatEngine;
+
+class EatEngine {
   /// Evaluates a 4-stage ADSR envelope at [time] seconds.
   /// [attack]: Attack time in seconds (0.0 to N)
   /// [decay]: Decay time in seconds (0.0 to N)

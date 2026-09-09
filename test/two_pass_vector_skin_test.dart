@@ -1,14 +1,14 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:eatsbeats/lua/lua_gui_model.dart';
-import 'package:eatsbeats/lua/lua_gui_parser.dart';
-import 'package:eatsbeats/lua/lua_gui_serializer.dart';
+import 'package:eatsbeats/eatscript/eat_gui_model.dart';
+import 'package:eatsbeats/eatscript/eat_gui_parser.dart';
+import 'package:eatsbeats/eatscript/eat_gui_serializer.dart';
 import 'package:eatsbeats/ui/vector/built_in_vector_skins.dart';
 import 'package:eatsbeats/ui/vector/two_pass_vector_painter.dart';
 import 'package:eatsbeats/ui/vector/vector_skin_model.dart';
 import 'package:eatsbeats/eatscript/eat_script_engine.dart';
-import 'package:eatsbeats/lua/lua_script_library.dart';
+import 'package:eatsbeats/eatscript/eat_script_library.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

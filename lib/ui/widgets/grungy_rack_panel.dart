@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../lua/lua_gui_model.dart';
+import '../../eatscript/eat_gui_model.dart';
 import '../../theme/eats_theme.dart';
 import '../textures/daw_texture_engine.dart';
 import '../vector/panel_svg_background.dart';

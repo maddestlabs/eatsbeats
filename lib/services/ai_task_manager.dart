@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
-import '../lua/lua_script_library.dart';
+import '../eatscript/eat_script_library.dart';
 import 'gemini_service.dart';
 import 'ai_mixing_engine.dart';
 

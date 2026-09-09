@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import '../models/track_model.dart';
 import '../models/chord_model.dart';
 import '../audio/time_context.dart';
-import '../eatscript/eat_script_engine.dart';
+import 'eat_script_engine.dart';
 
 /// Evaluates clips and processes MIDI FX chains to produce scheduled Note events.
 /// Implements persistent Voice ID tracking to prevent stuck notes when parameters

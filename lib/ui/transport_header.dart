@@ -6,7 +6,7 @@ import '../models/daw_state.dart';
 import '../theme/eats_theme.dart';
 import '../utils/eats_file_helper.dart';
 import '../utils/url_script_helper.dart';
-import '../lua/default_song.dart';
+import '../eatscript/default_song.dart';
 import '../eatscript/default_song_eat.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
 import 'widgets/skeuomorphic_hardware_switch.dart';

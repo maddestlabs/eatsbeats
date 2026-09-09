@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../lua/lua_gui_model.dart';
+import '../../eatscript/eat_gui_model.dart';
 import '../../theme/eats_theme.dart';
 import '../vector/built_in_vector_skins.dart';
 import '../vector/vector_skin_model.dart';
@@ -941,7 +941,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       const SizedBox(height: 6),
                       _buildDropdown<String>(
                         label: 'Dial / Scale Graduations',
-                        value: _getScalePresetName((selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite()).scale),
+                        value: _getScalePresetName(selectedNode.hardwareScale ?? (selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite()).scale),
                         items: const [
                           DropdownMenuItem(value: 'zero_to_ten', child: Text('0 to 10 Numbers')),
                           DropdownMenuItem(value: 'clean_ticks', child: Text('Clean Graduation Ticks (10 Ticks)')),
@@ -986,6 +986,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                                 break;
                             }
                             _updateSelectedNode(selectedNode.copyWith(
+                              hardwareScale: newScale,
                               hardwareKnobStyle: currentStyle.copyWith(scale: newScale),
                             ));
                           }

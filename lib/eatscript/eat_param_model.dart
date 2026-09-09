@@ -1,7 +1,12 @@
-import '../lua/lua_gui_model.dart';
+import 'eat_gui_model.dart';
+
+// Backwards-compatibility aliases
+typedef LuaParamDef = EatParamDef;
+typedef ScriptParamDef = EatParamDef;
+typedef ScriptCompilationResult = LuaCompilationResult;
 
 /// Unified script parameter definition for Eatscript and legacy script engines.
-class LuaParamDef {
+class EatParamDef {
   final String name;
   final double min;
   final double max;
@@ -9,7 +14,7 @@ class LuaParamDef {
   final double step;
   final List<String> options;
 
-  LuaParamDef({
+  EatParamDef({
     required this.name,
     required this.min,
     required this.max,
@@ -46,9 +51,9 @@ class LuaCompilationResult {
   final bool isSuccess;
   final String errorMessage;
   final int errorLine;
-  final List<LuaParamDef> params;
+  final List<EatParamDef> params;
   final String scriptType; // 'synth', 'drum', 'effect', or 'generator'
-  final LuaGuiPanelDef? guiLayout;
+  final EatScriptGuiPanelDef? guiLayout;
 
   LuaCompilationResult({
     required this.isSuccess,
@@ -60,6 +65,3 @@ class LuaCompilationResult {
   });
 }
 
-typedef EatParamDef = LuaParamDef;
-typedef ScriptParamDef = LuaParamDef;
-typedef ScriptCompilationResult = LuaCompilationResult;

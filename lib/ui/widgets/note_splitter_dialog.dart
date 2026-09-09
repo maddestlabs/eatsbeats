@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../eatscript/eat_script_engine.dart';
 import '../../eatscript/eat_param_model.dart';
-import '../../lua/lua_gui_parser.dart';
-import '../../lua/lua_script_library.dart';
-import '../../lua/note_splitter_engine.dart';
+import '../../eatscript/eat_gui_parser.dart';
+import '../../eatscript/eat_script_library.dart';
+import '../../eatscript/note_splitter_engine.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';

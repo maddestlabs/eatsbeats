@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:eatsbeats/audio/graph/graph_evaluator.dart';
 import 'package:eatsbeats/audio/gm/gm_instrument_registry.dart';
-import 'package:eatsbeats/lua/lua_script_library.dart';
+import 'package:eatsbeats/eatscript/eat_script_library.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

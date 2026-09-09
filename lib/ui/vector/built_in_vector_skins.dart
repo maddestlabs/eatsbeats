@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../lua/lua_gui_model.dart';
+import '../../eatscript/eat_gui_model.dart';
 import 'svg_path_parser.dart';
 import 'vector_skin_model.dart';
 

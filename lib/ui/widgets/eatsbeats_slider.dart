@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../lua/lua_gui_model.dart' show SliderStyle;
+import '../../eatscript/eat_gui_model.dart' show SliderStyle;
 import '../../theme/eats_theme.dart';
 import 'skeuomorphic_hardware_slider.dart';
 

@@ -6,8 +6,8 @@ import 'package:eatsbeats/audio/gm/gm_instrument_registry.dart';
 import 'package:eatsbeats/audio/graph/graph_node.dart';
 import 'package:eatsbeats/audio/graph/graph_primitives.dart';
 import 'package:eatsbeats/audio/graph/graph_evaluator.dart';
-import 'package:eatsbeats/lua/lua_engine.dart';
-import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/eatscript/eat_engine.dart';
+import 'package:eatsbeats/eatscript/eat_preset_library.dart';
 
 void main() {
   group('Eatsbeats Graph (eatsbeats.graph) Core DSP Unit Tests', () {

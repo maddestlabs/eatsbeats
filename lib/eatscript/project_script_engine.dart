@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/chord_model.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
-import 'lua_script_library.dart';
+import 'eat_script_library.dart';
 import '../audio/procgen/procedural_piano_engine.dart';
 
 /// Result of executing a project script.

@@ -1,6 +1,6 @@
 import 'dart:ui';
-import 'lua_preset_library.dart';
-import 'lua_script_library.dart';
+import 'eat_preset_library.dart';
+import 'eat_script_library.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../models/chord_model.dart';
@@ -8,10 +8,13 @@ import '../models/automation_model.dart';
 import '../models/lyric_model.dart';
 import '../theme/eats_theme.dart';
 
-import '../eatscript/eat_script_engine.dart';
-import '../eatscript/eat_transpiler.dart';
+import 'eat_script_engine.dart';
+import 'eat_transpiler.dart';
 
-class EatsLuaParser {
+// Backwards-compatibility alias
+typedef EatsLuaParser = EatProjectParser;
+
+class EatProjectParser {
   /// Parses a `.eats.lua` or `.eat` project string and updates/populates [DawState].
   static Map<String, dynamic> parseLuaTableToMap(String luaCode) {
     final trimmed = luaCode.trim();

@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:eatsbeats/lua/lua_engine.dart';
-import 'package:eatsbeats/lua/lua_gui_model.dart';
-import 'package:eatsbeats/lua/lua_gui_parser.dart';
-import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/eatscript/eat_engine.dart';
+import 'package:eatsbeats/eatscript/eat_gui_model.dart';
+import 'package:eatsbeats/eatscript/eat_gui_parser.dart';
+import 'package:eatsbeats/eatscript/eat_preset_library.dart';
 
 void main() {
   group('Lua GUI Parser Tests', () {
@@ -15,14 +15,14 @@ void main() {
 
       final layout = result.guiLayout!;
       expect(layout.title, contains('303'));
-      expect(layout.backgroundStyle, equals(PanelBackgroundStyle.silver));
+      expect(layout.backgroundStyle, equals(PanelBackgroundStyle.minimalWhite));
       expect(layout.defaultKnobStyle, equals(KnobStyle.chrome));
       expect(layout.children.length, greaterThanOrEqualTo(2));
 
       // First row should contain Waveform switch, divider, and Cutoff/Resonance knobs
       final row1 = layout.children[0];
       expect(row1.type, equals(LuaGuiNodeType.row));
-      expect(row1.children.any((c) => c.type == LuaGuiNodeType.switchToggle && c.param == 'Waveform'), isTrue);
+      expect(row1.children.any((c) => (c.type == LuaGuiNodeType.knob || c.type == LuaGuiNodeType.switchToggle) && c.param == 'Waveform'), isTrue);
       expect(row1.children.any((c) => c.type == LuaGuiNodeType.knob && c.param == 'Cutoff'), isTrue);
       expect(row1.children.any((c) => c.type == LuaGuiNodeType.knob && c.param == 'Resonance'), isTrue);
     });

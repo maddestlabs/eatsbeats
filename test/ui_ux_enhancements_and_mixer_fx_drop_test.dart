@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
-import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/eatscript/eat_preset_library.dart';
 import 'package:eatsbeats/ui/mixer_view.dart';
 import 'package:eatsbeats/ui/widgets/project_browser_drawer.dart';
 import 'package:eatsbeats/main.dart';

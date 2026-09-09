@@ -3,8 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/audio/sid_dsp_engine.dart';
 import 'package:eatsbeats/audio/graph/graph_evaluator.dart';
-import 'package:eatsbeats/lua/lua_engine.dart';
-import 'package:eatsbeats/lua/lua_script_library.dart';
+import 'package:eatsbeats/eatscript/eat_engine.dart';
+import 'package:eatsbeats/eatscript/eat_script_library.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

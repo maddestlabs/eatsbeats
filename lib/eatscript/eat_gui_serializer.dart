@@ -1,19 +1,22 @@
 import 'dart:ui';
-import '../eatscript/eat_param_model.dart';
+import 'eat_param_model.dart';
 import '../ui/vector/vector_skin_model.dart';
 import '../ui/hardware/eat_hardware_knob_model.dart';
-import 'lua_gui_model.dart';
-import 'lua_gui_parser.dart';
-import '../eatscript/eat_script_engine.dart';
+import '../ui/hardware/eat_hardware_scale.dart';
+import 'eat_gui_model.dart';
+import 'eat_gui_parser.dart';
+import 'eat_script_engine.dart';
 
-typedef EatScriptGuiSerializer = LuaGuiSerializer;
+// Backwards-compatibility aliases
+typedef LuaGuiSerializer = EatGuiSerializer;
+typedef EatScriptGuiSerializer = EatGuiSerializer;
 
-/// Serializes [LuaGuiPanelDef] and its component tree into clean Eatscript or legacy Lua code.
-class LuaGuiSerializer {
-  /// Serializes a [LuaGuiPanelDef] into an EatScript `def gui():` or Lua `function <TableName>.gui()` code block.
+/// Serializes [EatScriptGuiPanelDef] and its component tree into clean Eatscript or legacy Lua code.
+class EatGuiSerializer {
+  /// Serializes a [EatScriptGuiPanelDef] into an EatScript `def gui():` or Lua `function <TableName>.gui()` code block.
   /// Defaults to pure Pythonic EatScript unless existing code is legacy Lua.
   static String serialize({
-    required LuaGuiPanelDef panel,
+    required EatScriptGuiPanelDef panel,
     String? existingScriptCode,
     String instrumentName = 'Instrument',
   }) {
@@ -32,9 +35,9 @@ class LuaGuiSerializer {
     );
   }
 
-  /// Serializes [LuaGuiPanelDef] into a pure, Pythonic EatScript `def gui():` block.
+  /// Serializes [EatScriptGuiPanelDef] into a pure, Pythonic EatScript `def gui():` block.
   static String serializeToEatScript({
-    required LuaGuiPanelDef panel,
+    required EatScriptGuiPanelDef panel,
     String? existingScriptCode,
     String instrumentName = 'Instrument',
   }) {
@@ -183,9 +186,9 @@ class LuaGuiSerializer {
     return '${existingScriptCode.trimRight()}\n\n$guiBlock\n';
   }
 
-  /// Serializes a [LuaGuiPanelDef] into legacy Lua code (`function <TableName>.gui()`).
+  /// Serializes a [EatScriptGuiPanelDef] into legacy Lua code (`function <TableName>.gui()`).
   static String serializeToLua({
-    required LuaGuiPanelDef panel,
+    required EatScriptGuiPanelDef panel,
     String? existingScriptCode,
     String instrumentName = 'Instrument',
   }) {
@@ -300,8 +303,8 @@ class LuaGuiSerializer {
     return -1;
   }
 
-  /// Synthesizes a default [LuaGuiPanelDef] from a list of parameter definitions.
-  static LuaGuiPanelDef generateDefaultPanel({
+  /// Synthesizes a default [EatScriptGuiPanelDef] from a list of parameter definitions.
+  static EatScriptGuiPanelDef generateDefaultPanel({
     required String title,
     String? subtitle,
     List<LuaParamDef> params = const [],
@@ -309,13 +312,13 @@ class LuaGuiSerializer {
     Color? accentColor,
     KnobStyle defaultKnobStyle = KnobStyle.standard,
   }) {
-    final List<LuaGuiNode> rows = [];
-    final List<LuaGuiNode> currentKnobs = [];
+    final List<EatScriptGuiNode> rows = [];
+    final List<EatScriptGuiNode> currentKnobs = [];
 
     for (final p in params) {
       if (p.options.isNotEmpty) {
-        currentKnobs.add(LuaGuiNode(
-          type: LuaGuiNodeType.listBox,
+        currentKnobs.add(EatScriptGuiNode(
+          type: EatScriptGuiNodeType.listBox,
           param: p.name,
           label: p.name.toUpperCase(),
           options: p.options,
@@ -323,8 +326,8 @@ class LuaGuiSerializer {
           height: 75,
         ));
       } else {
-        currentKnobs.add(LuaGuiNode(
-          type: LuaGuiNodeType.knob,
+        currentKnobs.add(EatScriptGuiNode(
+          type: EatScriptGuiNodeType.knob,
           param: p.name,
           label: p.name.toUpperCase(),
           size: 52,
@@ -333,8 +336,8 @@ class LuaGuiSerializer {
       }
 
       if (currentKnobs.length >= 4) {
-        rows.add(LuaGuiNode(
-          type: LuaGuiNodeType.row,
+        rows.add(EatScriptGuiNode(
+          type: EatScriptGuiNodeType.row,
           children: List.from(currentKnobs),
         ));
         currentKnobs.clear();
@@ -342,24 +345,24 @@ class LuaGuiSerializer {
     }
 
     if (currentKnobs.isNotEmpty) {
-      rows.add(LuaGuiNode(
-        type: LuaGuiNodeType.row,
+      rows.add(EatScriptGuiNode(
+        type: EatScriptGuiNodeType.row,
         children: List.from(currentKnobs),
       ));
     }
 
     if (rows.isEmpty) {
-      rows.add(const LuaGuiNode(
-        type: LuaGuiNodeType.row,
+      rows.add(const EatScriptGuiNode(
+        type: EatScriptGuiNodeType.row,
         children: [
-          LuaGuiNode(type: LuaGuiNodeType.knob, param: 'Volume', label: 'VOLUME', size: 52),
-          LuaGuiNode(type: LuaGuiNodeType.knob, param: 'Cutoff', label: 'CUTOFF', size: 52),
-          LuaGuiNode(type: LuaGuiNodeType.knob, param: 'Resonance', label: 'RESO', size: 52),
+          EatScriptGuiNode(type: EatScriptGuiNodeType.knob, param: 'Volume', label: 'VOLUME', size: 52),
+          EatScriptGuiNode(type: EatScriptGuiNodeType.knob, param: 'Cutoff', label: 'CUTOFF', size: 52),
+          EatScriptGuiNode(type: EatScriptGuiNodeType.knob, param: 'Resonance', label: 'RESO', size: 52),
         ],
       ));
     }
 
-    return LuaGuiPanelDef(
+    return EatScriptGuiPanelDef(
       title: title,
       subtitle: subtitle ?? 'Custom Instrument Faceplate',
       backgroundStyle: backgroundStyle,
@@ -372,7 +375,7 @@ class LuaGuiSerializer {
   /// Ensures that [scriptCode] contains a `function <Name>.gui()` block.
   /// If missing, synthesizes and injects a default panel layout based on the script's parameters.
   static String ensureGuiBlock(String scriptCode, {String instrumentName = 'Instrument'}) {
-    if (LuaGuiParser.parseFromCode(scriptCode) != null) {
+    if (EatScriptGuiParser.parseFromCode(scriptCode) != null) {
       return scriptCode;
     }
     final compilation = EatScriptEngine.compile(scriptCode).toLuaCompilationResult();
@@ -387,9 +390,9 @@ class LuaGuiSerializer {
     );
   }
 
-  static void _serializeNode(StringBuffer buffer, LuaGuiNode node, {required String indent}) {
+  static void _serializeNode(StringBuffer buffer, EatScriptGuiNode node, {required String indent}) {
     switch (node.type) {
-      case LuaGuiNodeType.row:
+      case EatScriptGuiNodeType.row:
         final rowAlignStr = (node.align != 'space_around' && node.align.isNotEmpty) ? ', align = "${node.align}"' : '';
         final rowCrossStr = (node.crossAlign != 'center' && node.crossAlign.isNotEmpty) ? ', crossAlign = "${node.crossAlign}"' : '';
         final rowBgStr = node.backgroundStyle != null
@@ -413,9 +416,9 @@ class LuaGuiSerializer {
         buffer.writeln('$indent},');
         break;
 
-      case LuaGuiNodeType.column:
-      case LuaGuiNodeType.group:
-        final typeStr = node.type == LuaGuiNodeType.column ? 'column' : 'group';
+      case EatScriptGuiNodeType.column:
+      case EatScriptGuiNodeType.group:
+        final typeStr = node.type == EatScriptGuiNodeType.column ? 'column' : 'group';
         final colAlignStr = (node.align != 'space_around' && node.align != 'top' && node.align != 'start' && node.align.isNotEmpty) ? ', align = "${node.align}"' : '';
         final colCrossStr = (node.crossAlign != 'center' && node.crossAlign.isNotEmpty) ? ', crossAlign = "${node.crossAlign}"' : '';
         final labelStr = (node.label != null && node.label!.isNotEmpty) ? ', label = "${_escape(node.label!)}"' : '';
@@ -440,7 +443,7 @@ class LuaGuiSerializer {
         buffer.writeln('$indent},');
         break;
 
-      case LuaGuiNodeType.knob:
+      case EatScriptGuiNodeType.knob:
         final param = node.param ?? 'Param';
         final label = node.label ?? param;
         final unitStr = node.unit != null && node.unit!.isNotEmpty ? ', unit = "${_escape(node.unit!)}"' : '';
@@ -490,12 +493,13 @@ class LuaGuiSerializer {
           final bodySizeStr = node.bodySize != null ? ', bodySize = ${node.bodySize}' : '';
           final indLenStr = node.indicatorLength != null ? ', indicatorLength = ${node.indicatorLength}' : '';
           final indWidthStr = node.indicatorWidth != null ? ', indicatorWidth = ${node.indicatorWidth}' : '';
-          buffer.writeln('$indent{ type = "knob", param = "$param", label = "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr$capStr$bodyStr$indStr$dialStr$capSizeStr$bodySizeStr$indLenStr$indWidthStr },');
+          final scaleStr = _getScaleStringLua(node);
+          buffer.writeln('$indent{ type = "knob", param = "$param", label = "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr$capStr$bodyStr$indStr$dialStr$capSizeStr$bodySizeStr$indLenStr$indWidthStr$scaleStr },');
         }
         break;
 
-      case LuaGuiNodeType.slider:
-      case LuaGuiNodeType.fader:
+      case EatScriptGuiNodeType.slider:
+      case EatScriptGuiNodeType.fader:
         final param = node.param ?? 'Param';
         final label = node.label ?? param;
         final isH = node.orientation == 'horizontal';
@@ -506,10 +510,11 @@ class LuaGuiSerializer {
             ? ', style = "console"'
             : (node.sliderStyle == SliderStyle.minimalPill ? ', style = "minimal_pill"' : ', style = "capsule"');
         final showLabelStr = !node.showLabel ? ', showLabel = false' : '';
-        buffer.writeln('$indent{ type = "$typeStr", param = "$param", label = "${_escape(label)}"$widthStr$heightStr$styleStr$showLabelStr },');
+        final scaleStr = _getScaleStringLua(node);
+        buffer.writeln('$indent{ type = "$typeStr", param = "$param", label = "${_escape(label)}"$widthStr$heightStr$styleStr$showLabelStr$scaleStr },');
         break;
 
-      case LuaGuiNodeType.switchToggle:
+      case EatScriptGuiNodeType.switchToggle:
         final param = node.param ?? 'Switch';
         final label = node.label ?? param;
         final leftStr = node.leftText != null ? ', leftText = "${_escape(node.leftText!)}"' : '';
@@ -519,7 +524,7 @@ class LuaGuiSerializer {
         buffer.writeln('$indent{ type = "switch", param = "$param", label = "${_escape(label)}"$leftStr$rightStr$orientStr$showLabelStr },');
         break;
 
-      case LuaGuiNodeType.segmentedPill:
+      case EatScriptGuiNodeType.segmentedPill:
         final param = node.param ?? 'Mode';
         final label = node.label ?? param;
         final optsStr = node.options.isNotEmpty ? ', options = { ${node.options.map((o) => '"${_escape(o)}"').join(', ')} }' : '';
@@ -527,7 +532,7 @@ class LuaGuiSerializer {
         buffer.writeln('$indent{ type = "segmented_pill", param = "$param", label = "${_escape(label)}"$optsStr$showLabelStr },');
         break;
 
-      case LuaGuiNodeType.button:
+      case EatScriptGuiNodeType.button:
         final action = node.action ?? (node.param ?? 'action');
         final label = node.label ?? 'TRIGGER';
         final widthStr = node.width != null ? ', width = ${node.width!.toInt()}' : ', width = 100';
@@ -535,7 +540,7 @@ class LuaGuiSerializer {
         buffer.writeln('$indent{ type = "button", action = "$action", label = "${_escape(label)}"$widthStr$heightStr },');
         break;
 
-      case LuaGuiNodeType.listBox:
+      case EatScriptGuiNodeType.listBox:
         final param = node.param ?? 'Choice';
         final label = node.label ?? param;
         final widthStr = node.width != null ? ', width = ${node.width!.toInt()}' : ', width = 140';
@@ -544,7 +549,7 @@ class LuaGuiSerializer {
         buffer.writeln('$indent{ type = "listbox", param = "$param", label = "${_escape(label)}"$widthStr$heightStr$showLabelStr },');
         break;
 
-      case LuaGuiNodeType.nixie:
+      case EatScriptGuiNodeType.nixie:
         final param = node.param ?? 'Nixie';
         final label = node.label ?? param;
         final unitStr = node.unit != null && node.unit!.isNotEmpty ? ', unit = "${_escape(node.unit!)}"' : '';
@@ -553,35 +558,35 @@ class LuaGuiSerializer {
         buffer.writeln('$indent{ type = "nixie", param = "$param", label = "${_escape(label)}"$unitStr$widthStr$showLabelStr },');
         break;
 
-      case LuaGuiNodeType.lcd:
+      case EatScriptGuiNodeType.lcd:
         final param = node.param ?? 'LCD';
         final label = node.label ?? param;
         buffer.writeln('$indent{ type = "lcd", param = "$param", label = "${_escape(label)}" },');
         break;
 
-      case LuaGuiNodeType.spaceVisualizer:
+      case EatScriptGuiNodeType.spaceVisualizer:
         final heightStr = node.height != null ? ', height = ${node.height!.toInt()}' : ', height = 140';
         buffer.writeln('$indent{ type = "space_visualizer"$heightStr },');
         break;
 
-      case LuaGuiNodeType.waveshaperCanvas:
+      case EatScriptGuiNodeType.waveshaperCanvas:
         final heightStr = node.height != null ? ', height = ${node.height!.toInt()}' : ', height = 150';
         buffer.writeln('$indent{ type = "waveshaper_canvas"$heightStr },');
         break;
 
-      case LuaGuiNodeType.oscilloscope:
+      case EatScriptGuiNodeType.oscilloscope:
         final widthStr = node.width != null ? ', width = ${node.width!.toInt()}' : ', width = 320';
         final heightStr = node.height != null ? ', height = ${node.height!.toInt()}' : ', height = 140';
         buffer.writeln('$indent{ type = "oscilloscope"$widthStr$heightStr },');
         break;
 
-      case LuaGuiNodeType.spectrum:
+      case EatScriptGuiNodeType.spectrum:
         final widthStr = node.width != null ? ', width = ${node.width!.toInt()}' : ', width = 320';
         final heightStr = node.height != null ? ', height = ${node.height!.toInt()}' : ', height = 140';
         buffer.writeln('$indent{ type = "spectrum"$widthStr$heightStr },');
         break;
 
-      case LuaGuiNodeType.canvas:
+      case EatScriptGuiNodeType.canvas:
         final mode = node.canvasMode;
         final widthStr = node.width != null ? ', width = ${node.width!.toInt()}' : ', width = 340';
         final heightStr = node.height != null ? ', height = ${node.height!.toInt()}' : ', height = 180';
@@ -590,16 +595,16 @@ class LuaGuiSerializer {
         buffer.writeln('$indent{ type = "canvas", mode = "$mode"$widthStr$heightStr$dpadStr$actionStr },');
         break;
 
-      case LuaGuiNodeType.divider:
+      case EatScriptGuiNodeType.divider:
         buffer.writeln('$indent{ type = "divider" },');
         break;
 
-      case LuaGuiNodeType.label:
+      case EatScriptGuiNodeType.label:
         final text = node.text ?? (node.label ?? '');
         buffer.writeln('$indent{ type = "label", text = "${_escape(text)}" },');
         break;
 
-      case LuaGuiNodeType.spacer:
+      case EatScriptGuiNodeType.spacer:
         buffer.writeln('$indent{ type = "spacer" },');
         break;
 
@@ -608,14 +613,14 @@ class LuaGuiSerializer {
     }
   }
 
-  static void _serializeNodeEat(StringBuffer buffer, LuaGuiNode node, {required String indent}) {
+  static void _serializeNodeEat(StringBuffer buffer, EatScriptGuiNode node, {required String indent}) {
     switch (node.type) {
-      case LuaGuiNodeType.row:
-      case LuaGuiNodeType.column:
-      case LuaGuiNodeType.group:
-        final typeStr = node.type == LuaGuiNodeType.row
+      case EatScriptGuiNodeType.row:
+      case EatScriptGuiNodeType.column:
+      case EatScriptGuiNodeType.group:
+        final typeStr = node.type == EatScriptGuiNodeType.row
             ? 'row'
-            : (node.type == LuaGuiNodeType.column ? 'column' : 'group');
+            : (node.type == EatScriptGuiNodeType.column ? 'column' : 'group');
         buffer.writeln('$indent{');
         buffer.writeln('$indent    "type": "$typeStr",');
         if (node.label != null && node.label!.isNotEmpty) {
@@ -664,7 +669,7 @@ class LuaGuiSerializer {
         buffer.writeln('$indent},');
         break;
 
-      case LuaGuiNodeType.knob:
+      case EatScriptGuiNodeType.knob:
         final param = node.param ?? 'Param';
         final label = node.label ?? param;
         final unitStr = node.unit != null && node.unit!.isNotEmpty ? ', "unit": "${_escape(node.unit!)}"' : '';
@@ -717,12 +722,13 @@ class LuaGuiSerializer {
           final bodySizeStr = node.bodySize != null ? ', "bodySize": ${node.bodySize}' : '';
           final indLenStr = node.indicatorLength != null ? ', "indicatorLength": ${node.indicatorLength}' : '';
           final indWidthStr = node.indicatorWidth != null ? ', "indicatorWidth": ${node.indicatorWidth}' : '';
-          buffer.writeln('$indent{"type": "knob", "param": "$param", "label": "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr$accentStr$capStr$bodyStr$indStr$dialStr$capSizeStr$bodySizeStr$indLenStr$indWidthStr},');
+          final scaleStr = _getScaleStringEat(node);
+          buffer.writeln('$indent{"type": "knob", "param": "$param", "label": "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr$accentStr$capStr$bodyStr$indStr$dialStr$capSizeStr$bodySizeStr$indLenStr$indWidthStr$scaleStr},');
         }
         break;
 
-      case LuaGuiNodeType.slider:
-      case LuaGuiNodeType.fader:
+      case EatScriptGuiNodeType.slider:
+      case EatScriptGuiNodeType.fader:
         final param = node.param ?? 'Param';
         final label = node.label ?? param;
         final isH = node.orientation == 'horizontal';
@@ -734,10 +740,11 @@ class LuaGuiSerializer {
             : (node.sliderStyle == SliderStyle.minimalPill ? ', "style": "minimal_pill"' : ', "style": "capsule"');
         final showLabelStr = !node.showLabel ? ', "showLabel": False' : '';
         final accentStr = node.accentColor != null ? ', "accent": "${_hex(node.accentColor!)}"' : '';
-        buffer.writeln('$indent{"type": "$typeStr", "param": "$param", "label": "${_escape(label)}"$widthStr$heightStr$styleStr$showLabelStr$accentStr},');
+        final scaleStr = _getScaleStringEat(node);
+        buffer.writeln('$indent{"type": "$typeStr", "param": "$param", "label": "${_escape(label)}"$widthStr$heightStr$styleStr$showLabelStr$accentStr$scaleStr},');
         break;
 
-      case LuaGuiNodeType.switchToggle:
+      case EatScriptGuiNodeType.switchToggle:
         final param = node.param ?? 'Switch';
         final label = node.label ?? param;
         final leftStr = node.leftText != null ? ', "leftText": "${_escape(node.leftText!)}"' : '';
@@ -747,7 +754,7 @@ class LuaGuiSerializer {
         buffer.writeln('$indent{"type": "switch", "param": "$param", "label": "${_escape(label)}"$leftStr$rightStr$orientStr$showLabelStr},');
         break;
 
-      case LuaGuiNodeType.segmentedPill:
+      case EatScriptGuiNodeType.segmentedPill:
         final param = node.param ?? 'Mode';
         final label = node.label ?? param;
         final optsStr = node.options.isNotEmpty ? ', "options": [${node.options.map((o) => '"${_escape(o)}"').join(', ')}]' : '';
@@ -755,7 +762,7 @@ class LuaGuiSerializer {
         buffer.writeln('$indent{"type": "segmented_pill", "param": "$param", "label": "${_escape(label)}"$optsStr$showLabelStr},');
         break;
 
-      case LuaGuiNodeType.button:
+      case EatScriptGuiNodeType.button:
         final action = node.action ?? (node.param ?? 'action');
         final label = node.label ?? 'TRIGGER';
         final widthStr = node.width != null ? ', "width": ${node.width!.toInt()}' : ', "width": 100';
@@ -763,7 +770,7 @@ class LuaGuiSerializer {
         buffer.writeln('$indent{"type": "button", "action": "$action", "label": "${_escape(label)}"$widthStr$heightStr},');
         break;
 
-      case LuaGuiNodeType.listBox:
+      case EatScriptGuiNodeType.listBox:
         final param = node.param ?? 'Choice';
         final label = node.label ?? param;
         final widthStr = node.width != null ? ', "width": ${node.width!.toInt()}' : ', "width": 140';
@@ -773,7 +780,7 @@ class LuaGuiSerializer {
         buffer.writeln('$indent{"type": "listbox", "param": "$param", "label": "${_escape(label)}"$widthStr$heightStr$optsStr$showLabelStr},');
         break;
 
-      case LuaGuiNodeType.nixie:
+      case EatScriptGuiNodeType.nixie:
         final param = node.param ?? 'Nixie';
         final label = node.label ?? param;
         final unitStr = node.unit != null && node.unit!.isNotEmpty ? ', "unit": "${_escape(node.unit!)}"' : '';
@@ -782,35 +789,35 @@ class LuaGuiSerializer {
         buffer.writeln('$indent{"type": "nixie", "param": "$param", "label": "${_escape(label)}"$unitStr$widthStr$showLabelStr},');
         break;
 
-      case LuaGuiNodeType.lcd:
+      case EatScriptGuiNodeType.lcd:
         final param = node.param ?? 'LCD';
         final label = node.label ?? param;
         buffer.writeln('$indent{"type": "lcd", "param": "$param", "label": "${_escape(label)}"},');
         break;
 
-      case LuaGuiNodeType.spaceVisualizer:
+      case EatScriptGuiNodeType.spaceVisualizer:
         final heightStr = node.height != null ? ', "height": ${node.height!.toInt()}' : ', "height": 140';
         buffer.writeln('$indent{"type": "space_visualizer"$heightStr},');
         break;
 
-      case LuaGuiNodeType.waveshaperCanvas:
+      case EatScriptGuiNodeType.waveshaperCanvas:
         final heightStr = node.height != null ? ', "height": ${node.height!.toInt()}' : ', "height": 150';
         buffer.writeln('$indent{"type": "waveshaper_canvas"$heightStr},');
         break;
 
-      case LuaGuiNodeType.oscilloscope:
+      case EatScriptGuiNodeType.oscilloscope:
         final widthStr = node.width != null ? ', "width": ${node.width!.toInt()}' : ', "width": 320';
         final heightStr = node.height != null ? ', "height": ${node.height!.toInt()}' : ', "height": 140';
         buffer.writeln('$indent{"type": "oscilloscope"$widthStr$heightStr},');
         break;
 
-      case LuaGuiNodeType.spectrum:
+      case EatScriptGuiNodeType.spectrum:
         final widthStr = node.width != null ? ', "width": ${node.width!.toInt()}' : ', "width": 320';
         final heightStr = node.height != null ? ', "height": ${node.height!.toInt()}' : ', "height": 140';
         buffer.writeln('$indent{"type": "spectrum"$widthStr$heightStr},');
         break;
 
-      case LuaGuiNodeType.canvas:
+      case EatScriptGuiNodeType.canvas:
         final mode = node.canvasMode;
         final widthStr = node.width != null ? ', "width": ${node.width!.toInt()}' : ', "width": 340';
         final heightStr = node.height != null ? ', "height": ${node.height!.toInt()}' : ', "height": 180';
@@ -819,16 +826,16 @@ class LuaGuiSerializer {
         buffer.writeln('$indent{"type": "canvas", "mode": "$mode"$widthStr$heightStr$dpadStr$actionStr},');
         break;
 
-      case LuaGuiNodeType.divider:
+      case EatScriptGuiNodeType.divider:
         buffer.writeln('$indent{"type": "divider"},');
         break;
 
-      case LuaGuiNodeType.label:
+      case EatScriptGuiNodeType.label:
         final text = node.text ?? (node.label ?? '');
         buffer.writeln('$indent{"type": "label", "text": "${_escape(text)}"},');
         break;
 
-      case LuaGuiNodeType.spacer:
+      case EatScriptGuiNodeType.spacer:
         buffer.writeln('$indent{"type": "spacer"},');
         break;
 
@@ -932,8 +939,75 @@ class LuaGuiSerializer {
   static String _hex(Color c) => '#${c.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
 
   static String _colorStr(Color c) {
-    if (LuaGuiNode.isTrackColor(c)) return 'track';
+    if (EatScriptGuiNode.isTrackColor(c)) return 'track';
     return _hex(c);
+  }
+
+  static String? _getScalePresetString(EatScaleGraduation scale) {
+    if (scale.labels.contains('CLASSIC')) return 'mode_steps';
+    if (scale.labels.contains('low') && scale.labels.contains('mid') && scale.labels.contains('high')) return 'low_mid_high';
+    if (scale.leadLabel == 'dyn' || (scale.labels.isNotEmpty && scale.labels.first == '1' && scale.labels.last == '6')) return '1_to_6';
+    if (scale.hasBlockCenterDetent) return 'tb303_dial';
+    if (scale.labels.contains('+6') && scale.labels.contains('-inf')) return 'db';
+    if (scale.labels.length == 11 && scale.labels.first == '0' && scale.labels.last == '10') return '0_to_10';
+    if (scale.labels.contains('0') && scale.hasCenterDetent && scale.labels.contains('-5')) return 'bipolar';
+    if (scale.tickDivisions == 0 && scale.labels.isEmpty) return 'none';
+    if (scale.labels.isEmpty && scale.tickDivisions > 0) return 'clean_ticks';
+    return null;
+  }
+
+  static String _getScaleStringEat(EatScriptGuiNode node) {
+    final scale = node.hardwareScale ?? (node.knobStyle == KnobStyle.hardwareKnob ? node.hardwareKnobStyle?.scale : null);
+    if (scale == null) return '';
+
+    final preset = _getScalePresetString(scale);
+    if (node.knobStyle == KnobStyle.hardwareKnob) {
+      final hwName = _getHardwarePresetName(node.hardwareKnobStyle);
+      if (node.hardwareScale == null) {
+        if (hwName == 'tb303_selector' && preset == 'mode_steps') return '';
+        if (hwName == 'tb303_potentiometer' && preset == 'tb303_dial') return '';
+        if ((hwName == 'standard_hardware' || hwName == 'encoder') && preset == 'clean_ticks') return '';
+        if (hwName != 'tb303_selector' && hwName != 'tb303_potentiometer' && hwName != 'standard_hardware' && hwName != 'encoder' && preset == '0_to_10') return '';
+      } else {
+        if (hwName == 'tb303_selector' && preset == 'mode_steps') return '';
+        if (hwName == 'tb303_potentiometer' && preset == 'tb303_dial') return '';
+      }
+    }
+
+    if (preset != null) {
+      return ', "scale": "$preset"';
+    } else if (scale.labels.isNotEmpty) {
+      final labelsStr = scale.labels.map((l) => '"${_escape(l)}"').join(', ');
+      return ', "scale": [$labelsStr]';
+    }
+    return '';
+  }
+
+  static String _getScaleStringLua(EatScriptGuiNode node) {
+    final scale = node.hardwareScale ?? (node.knobStyle == KnobStyle.hardwareKnob ? node.hardwareKnobStyle?.scale : null);
+    if (scale == null) return '';
+
+    final preset = _getScalePresetString(scale);
+    if (node.knobStyle == KnobStyle.hardwareKnob) {
+      final hwName = _getHardwarePresetName(node.hardwareKnobStyle);
+      if (node.hardwareScale == null) {
+        if (hwName == 'tb303_selector' && preset == 'mode_steps') return '';
+        if (hwName == 'tb303_potentiometer' && preset == 'tb303_dial') return '';
+        if ((hwName == 'standard_hardware' || hwName == 'encoder') && preset == 'clean_ticks') return '';
+        if (hwName != 'tb303_selector' && hwName != 'tb303_potentiometer' && hwName != 'standard_hardware' && hwName != 'encoder' && preset == '0_to_10') return '';
+      } else {
+        if (hwName == 'tb303_selector' && preset == 'mode_steps') return '';
+        if (hwName == 'tb303_potentiometer' && preset == 'tb303_dial') return '';
+      }
+    }
+
+    if (preset != null) {
+      return ', scale = "$preset"';
+    } else if (scale.labels.isNotEmpty) {
+      final labelsStr = scale.labels.map((l) => '"${_escape(l)}"').join(', ');
+      return ', scale = { $labelsStr }';
+    }
+    return '';
   }
 }
 

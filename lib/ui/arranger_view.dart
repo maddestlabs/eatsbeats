@@ -3,7 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../audio/sampler_engine.dart';
-import '../lua/lua_preset_library.dart';
+import '../eatscript/eat_preset_library.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../models/chord_model.dart';

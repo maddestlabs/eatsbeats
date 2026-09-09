@@ -1,4 +1,4 @@
-import 'lua_script_library.dart';
+import 'eat_script_library.dart';
 
 /// General MIDI Brass & Reed Family (GM 56–71) and Ethnic Sitar (GM 104)
 /// Physical Modeling Presets for Eatsbeats.

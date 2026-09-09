@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../models/script_target_model.dart';
-import '../lua/lua_preset_library.dart';
+import '../eatscript/eat_preset_library.dart';
 import '../theme/eats_theme.dart';
 import 'widgets/eatsbeats_slider.dart';
 import 'widgets/project_browser_drawer.dart';

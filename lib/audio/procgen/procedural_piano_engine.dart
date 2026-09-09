@@ -7,8 +7,8 @@ import 'package:flutter/material.dart';
 import '../../models/chord_model.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
-import '../../lua/lua_script_library.dart';
-import '../../lua/project_script_engine.dart';
+import '../../eatscript/eat_script_library.dart';
+import '../../eatscript/project_script_engine.dart';
 
 /// Mulberry32 32-bit deterministic pseudo-random number generator.
 class Mulberry32Rng {

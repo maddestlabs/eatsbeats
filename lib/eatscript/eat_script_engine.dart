@@ -1,6 +1,6 @@
 import 'dart:typed_data';
-import '../lua/lua_gui_model.dart';
-import '../lua/lua_gui_parser.dart';
+import 'eat_gui_model.dart';
+import 'eat_gui_parser.dart';
 import '../models/automation_model.dart';
 import '../models/track_model.dart';
 import '../audio/time_context.dart';

@@ -5,8 +5,8 @@ import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
 import 'package:eatsbeats/ui/arranger_view.dart';
 import 'package:eatsbeats/ui/sequence_editor_view.dart';
-import 'package:eatsbeats/lua/eats_lua_serializer.dart';
-import 'package:eatsbeats/lua/eats_lua_parser.dart';
+import 'package:eatsbeats/eatscript/eat_project_serializer.dart';
+import 'package:eatsbeats/eatscript/eat_project_parser.dart';
 
 void main() {
   group('TrackClip Pattern Index & Hex Model Tests', () {

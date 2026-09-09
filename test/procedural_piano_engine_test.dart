@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/audio/procgen/procedural_piano_engine.dart';
-import 'package:eatsbeats/lua/lua_script_library.dart';
+import 'package:eatsbeats/eatscript/eat_script_library.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 
 void main() {

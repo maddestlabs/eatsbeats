@@ -1,4 +1,4 @@
-import '../../lua/lua_script_library.dart';
+import '../../eatscript/eat_script_library.dart';
 import '../../models/track_model.dart';
 import '../../eatscript/eat_script_engine.dart';
 

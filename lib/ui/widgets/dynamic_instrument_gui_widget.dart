@@ -8,8 +8,8 @@ import '../../audio/soundfont_engine.dart';
 import '../../audio/soundfont_decoder.dart';
 import '../../eatscript/eat_script_engine.dart';
 import '../../eatscript/eat_param_model.dart';
-import '../../lua/lua_gui_model.dart';
-import '../../lua/lua_script_library.dart';
+import '../../eatscript/eat_gui_model.dart';
+import '../../eatscript/eat_script_library.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../models/script_target_model.dart';
@@ -1105,6 +1105,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         if (node.bodySize != null) style = style.copyWith(skirtRadiusRatio: node.bodySize);
         if (node.indicatorLength != null) style = style.copyWith(indicatorLength: node.indicatorLength);
         if (node.indicatorWidth != null) style = style.copyWith(indicatorWidth: node.indicatorWidth);
+        if (node.hardwareScale != null) style = style.copyWith(scale: node.hardwareScale);
 
         return EatHardwareKnob(
           label: node.label ?? paramDef.name,

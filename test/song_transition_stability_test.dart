@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/models/daw_state.dart';
-import 'package:eatsbeats/lua/default_song.dart';
+import 'package:eatsbeats/eatscript/default_song.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

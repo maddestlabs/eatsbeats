@@ -5,7 +5,7 @@ import '../../models/lyric_model.dart';
 import '../../models/chord_model.dart';
 import '../../eatscript/eat_script_engine.dart';
 import '../../eatscript/eat_param_model.dart';
-import '../../lua/lua_preset_library.dart';
+import '../../eatscript/eat_preset_library.dart';
 import '../../models/script_target_model.dart';
 import 'preset_browser_dialog.dart';
 import '../../audio/audio_to_midi_engine.dart';

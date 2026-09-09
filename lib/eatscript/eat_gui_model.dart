@@ -3,13 +3,13 @@ import '../ui/vector/vector_skin_model.dart';
 import '../ui/hardware/eat_hardware_knob_model.dart';
 import '../ui/hardware/eat_hardware_scale.dart';
 
-// EatScript first-class naming aliases
-typedef EatScriptGuiNodeType = LuaGuiNodeType;
-typedef EatScriptGuiNode = LuaGuiNode;
-typedef EatScriptGuiPanelDef = LuaGuiPanelDef;
-typedef EatScriptGuiGradientDef = LuaGuiGradientDef;
+// Backwards-compatibility aliases
+typedef LuaGuiNodeType = EatScriptGuiNodeType;
+typedef LuaGuiNode = EatScriptGuiNode;
+typedef LuaGuiPanelDef = EatScriptGuiPanelDef;
+typedef LuaGuiGradientDef = EatScriptGuiGradientDef;
 
-enum LuaGuiNodeType {
+enum EatScriptGuiNodeType {
   knob,
   slider,
   fader,
@@ -75,8 +75,8 @@ enum PanelBackgroundStyle {
   pcbGreen,
 }
 
-class LuaGuiNode {
-  final LuaGuiNodeType type;
+class EatScriptGuiNode {
+  final EatScriptGuiNodeType type;
   final String? param;
   final String? label;
   final String? unit;
@@ -122,9 +122,9 @@ class LuaGuiNode {
   final double? bodySize;         // Skirt / body fullness ratio (e.g. 1.0 .. 1.45)
   final double? indicatorLength;  // Indicator ratio (0.3 .. 0.95)
   final double? indicatorWidth;   // Indicator width (1.0 .. 5.0)
-  final List<LuaGuiNode> children;
+  final List<EatScriptGuiNode> children;
 
-  const LuaGuiNode({
+  const EatScriptGuiNode({
     required this.type,
     this.param,
     this.label,
@@ -174,8 +174,8 @@ class LuaGuiNode {
     this.children = const [],
   });
 
-  LuaGuiNode copyWith({
-    LuaGuiNodeType? type,
+  EatScriptGuiNode copyWith({
+    EatScriptGuiNodeType? type,
     String? param,
     String? label,
     String? unit,
@@ -223,9 +223,9 @@ class LuaGuiNode {
     double? bodySize,
     double? indicatorLength,
     double? indicatorWidth,
-    List<LuaGuiNode>? children,
+    List<EatScriptGuiNode>? children,
   }) {
-    return LuaGuiNode(
+    return EatScriptGuiNode(
       type: type ?? this.type,
       param: param ?? this.param,
       label: label ?? this.label,
@@ -276,69 +276,69 @@ class LuaGuiNode {
     );
   }
 
-  static LuaGuiNodeType parseType(String? rawType) {
-    if (rawType == null) return LuaGuiNodeType.unknown;
+  static EatScriptGuiNodeType parseType(String? rawType) {
+    if (rawType == null) return EatScriptGuiNodeType.unknown;
     final clean = rawType.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
     switch (clean) {
       case 'knob':
       case 'rotary':
-        return LuaGuiNodeType.knob;
+        return EatScriptGuiNodeType.knob;
       case 'slider':
       case 'hslider':
       case 'horizontalslider':
       case 'vslider':
       case 'verticalslider':
-        return LuaGuiNodeType.slider;
+        return EatScriptGuiNodeType.slider;
       case 'fader':
-        return LuaGuiNodeType.fader;
+        return EatScriptGuiNodeType.fader;
       case 'switch':
       case 'toggle':
       case 'rocker':
       case 'slideswitch':
-        return LuaGuiNodeType.switchToggle;
+        return EatScriptGuiNodeType.switchToggle;
       case 'button':
       case 'pushbutton':
       case 'arcadebutton':
-        return LuaGuiNodeType.button;
+        return EatScriptGuiNodeType.button;
       case 'listbox':
       case 'list':
       case 'listview':
       case 'select':
       case 'dropdown':
-        return LuaGuiNodeType.listBox;
+        return EatScriptGuiNodeType.listBox;
       case 'nixie':
       case 'nixiedisplay':
-        return LuaGuiNodeType.nixie;
+        return EatScriptGuiNodeType.nixie;
       case 'lcd':
       case 'lcddisplay':
-        return LuaGuiNodeType.lcd;
+        return EatScriptGuiNodeType.lcd;
       case 'meter':
       case 'vumeter':
-        return LuaGuiNodeType.meter;
+        return EatScriptGuiNodeType.meter;
       case 'space':
       case 'spacevisualizer':
       case 'roomvisualizer':
       case 'cabvisualizer':
       case 'roomcanvas':
       case 'cabcanvas':
-        return LuaGuiNodeType.spaceVisualizer;
+        return EatScriptGuiNodeType.spaceVisualizer;
       case 'waveshaper':
       case 'shaper':
       case 'waveshapercanvas':
       case 'shapercanvas':
       case 'transfercanvas':
-        return LuaGuiNodeType.waveshaperCanvas;
+        return EatScriptGuiNodeType.waveshaperCanvas;
       case 'oscilloscope':
       case 'scope':
       case 'waveform':
       case 'wavevisualizer':
       case 'eatsscope':
-        return LuaGuiNodeType.oscilloscope;
+        return EatScriptGuiNodeType.oscilloscope;
       case 'spectrum':
       case 'fft':
       case 'spectrumanalyzer':
       case 'eatsspectrum':
-        return LuaGuiNodeType.spectrum;
+        return EatScriptGuiNodeType.spectrum;
       case 'segmented_pill':
       case 'segmentedpill':
       case 'segmented':
@@ -346,7 +346,7 @@ class LuaGuiNode {
       case 'pillselector':
       case 'pill_switch':
       case 'mode_pill':
-        return LuaGuiNodeType.segmentedPill;
+        return EatScriptGuiNodeType.segmentedPill;
       case 'canvas':
       case 'gamecanvas':
       case 'screen':
@@ -354,43 +354,43 @@ class LuaGuiNode {
       case 'viewport':
       case 'visualizer':
       case 'framebuffer':
-        return LuaGuiNodeType.canvas;
+        return EatScriptGuiNodeType.canvas;
       case 'dpad':
       case 'joystick':
       case 'directional':
-        return LuaGuiNodeType.dpad;
+        return EatScriptGuiNodeType.dpad;
       case 'gamepad':
       case 'arcadebuttons':
       case 'actionbuttons':
       case 'controller':
-        return LuaGuiNodeType.gamepad;
+        return EatScriptGuiNodeType.gamepad;
       case 'divider':
       case 'separator':
       case 'line':
       case 'vbar':
       case 'hbar':
-        return LuaGuiNodeType.divider;
+        return EatScriptGuiNodeType.divider;
       case 'row':
       case 'hgroup':
       case 'hbox':
-        return LuaGuiNodeType.row;
+        return EatScriptGuiNodeType.row;
       case 'column':
       case 'col':
       case 'vgroup':
       case 'vbox':
-        return LuaGuiNodeType.column;
+        return EatScriptGuiNodeType.column;
       case 'group':
       case 'section':
       case 'panel':
-        return LuaGuiNodeType.group;
+        return EatScriptGuiNodeType.group;
       case 'label':
       case 'text':
-        return LuaGuiNodeType.label;
+        return EatScriptGuiNodeType.label;
       case 'spacer':
       case 'space':
-        return LuaGuiNodeType.spacer;
+        return EatScriptGuiNodeType.spacer;
       default:
-        return LuaGuiNodeType.unknown;
+        return EatScriptGuiNodeType.unknown;
     }
   }
 
@@ -576,7 +576,7 @@ enum PanelGradientType {
   radial,
 }
 
-class LuaGuiGradientDef {
+class EatScriptGuiGradientDef {
   final PanelGradientType type;
   final List<Color> colors;
   final List<double>? stops;
@@ -585,7 +585,7 @@ class LuaGuiGradientDef {
   final Alignment center;
   final double radius;
 
-  const LuaGuiGradientDef({
+  const EatScriptGuiGradientDef({
     this.type = PanelGradientType.radial,
     required this.colors,
     this.stops,
@@ -644,7 +644,7 @@ class SvgLayerDef {
   });
 }
 
-class LuaGuiPanelDef {
+class EatScriptGuiPanelDef {
   final String title;
   final String? subtitle;
   final String style; // 'rack', 'vintage', 'modern', 'grunge', 'silver', 'tb303'
@@ -660,11 +660,11 @@ class LuaGuiPanelDef {
   final double backgroundSvgOpacity;
   final double? backgroundSvgStrokeWidth; // Optional stroke thickness for watermark line art
   final SvgTileMode backgroundSvgTile; // Tiling mode: none, x, y, xy
-  final LuaGuiGradientDef? backgroundGradient; // Optional linear or radial GPU gradient
+  final EatScriptGuiGradientDef? backgroundGradient; // Optional linear or radial GPU gradient
   final List<SvgLayerDef>? backgroundSvgLayers; // Optional multi-path layered vector watermark
-  final List<LuaGuiNode> children;
+  final List<EatScriptGuiNode> children;
 
-  const LuaGuiPanelDef({
+  const EatScriptGuiPanelDef({
     required this.title,
     this.subtitle,
     this.style = 'rack',
@@ -685,7 +685,7 @@ class LuaGuiPanelDef {
     required this.children,
   });
 
-  LuaGuiPanelDef copyWith({
+  EatScriptGuiPanelDef copyWith({
     String? title,
     String? subtitle,
     String? style,
@@ -701,11 +701,11 @@ class LuaGuiPanelDef {
     double? backgroundSvgOpacity,
     double? backgroundSvgStrokeWidth,
     SvgTileMode? backgroundSvgTile,
-    LuaGuiGradientDef? backgroundGradient,
+    EatScriptGuiGradientDef? backgroundGradient,
     List<SvgLayerDef>? backgroundSvgLayers,
-    List<LuaGuiNode>? children,
+    List<EatScriptGuiNode>? children,
   }) {
-    return LuaGuiPanelDef(
+    return EatScriptGuiPanelDef(
       title: title ?? this.title,
       subtitle: subtitle ?? this.subtitle,
       style: style ?? this.style,

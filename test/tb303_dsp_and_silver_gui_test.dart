@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:eatsbeats/lua/lua_engine.dart';
-import 'package:eatsbeats/lua/lua_gui_model.dart';
-import 'package:eatsbeats/lua/lua_gui_parser.dart';
-import 'package:eatsbeats/lua/lua_preset_library.dart';
+import 'package:eatsbeats/eatscript/eat_engine.dart';
+import 'package:eatsbeats/eatscript/eat_gui_model.dart';
+import 'package:eatsbeats/eatscript/eat_gui_parser.dart';
+import 'package:eatsbeats/eatscript/eat_preset_library.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
 import 'package:eatsbeats/ui/widgets/dynamic_instrument_gui_widget.dart';
 import 'package:eatsbeats/ui/widgets/grungy_rack_panel.dart';
 import 'package:eatsbeats/ui/widgets/skeuomorphic_hardware_knob.dart';
 import 'package:eatsbeats/ui/widgets/skeuomorphic_hardware_switch.dart';
+import 'package:eatsbeats/ui/hardware/eat_hardware_knob.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -101,7 +102,7 @@ return Eats303
       expect(find.text('EATS-303 ACID BASSLINE'), findsOneWidget);
 
       // Verify knobs and switches rendered
-      expect(find.byType(SkeuomorphicHardwareKnob), findsWidgets);
+      expect(find.byType(EatHardwareKnob), findsWidgets);
       expect(find.byType(SkeuomorphicHardwareSwitch), findsWidgets);
 
       // Verify Cutoff and Resonance labels

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart' hide Easing;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/audio/easing.dart';
 import 'package:eatsbeats/audio/time_context.dart';
-import 'package:eatsbeats/lua/lua_engine.dart';
+import 'package:eatsbeats/eatscript/eat_engine.dart';
 import 'package:eatsbeats/models/automation_model.dart';
 import 'package:eatsbeats/models/track_model.dart';
 

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:eatsbeats/lua/lua_gui_model.dart';
-import 'package:eatsbeats/lua/lua_gui_parser.dart';
-import 'package:eatsbeats/lua/lua_gui_serializer.dart';
-import 'package:eatsbeats/lua/lua_script_library.dart';
+import 'package:eatsbeats/eatscript/eat_gui_model.dart';
+import 'package:eatsbeats/eatscript/eat_gui_parser.dart';
+import 'package:eatsbeats/eatscript/eat_gui_serializer.dart';
+import 'package:eatsbeats/eatscript/eat_script_library.dart';
 import 'package:eatsbeats/ui/hardware/eat_hardware_knob.dart';
 import 'package:eatsbeats/ui/hardware/eat_hardware_knob_model.dart';
 import 'package:eatsbeats/ui/hardware/eat_hardware_scale.dart';
@@ -443,6 +443,146 @@ def gui():
 
       final selectorNode = comp.guiLayout!.children[1];
       expect(selectorNode.hardwareKnobStyle!.capStyle, EatCapStyle.diagonalBar);
+    });
+
+    test('Dial / scale graduations (clean_ticks, unmarked, bipolar, list) serialize and round-trip successfully', () {
+      final panel = LuaGuiPanelDef(
+        title: 'SCALE TEST',
+        children: [
+          LuaGuiNode(
+            type: LuaGuiNodeType.knob,
+            param: 'TicksKnob',
+            label: 'TICKS',
+            knobStyle: KnobStyle.hardwareKnob,
+            hardwareKnobStyle: EatHardwareKnobStyle.vintageBakelite(),
+            hardwareScale: EatScaleGraduation.cleanTicks(),
+          ),
+          LuaGuiNode(
+            type: LuaGuiNodeType.knob,
+            param: 'NoneKnob',
+            label: 'UNMARKED',
+            knobStyle: KnobStyle.hardwareKnob,
+            hardwareKnobStyle: EatHardwareKnobStyle.vintageBakelite(),
+            hardwareScale: const EatScaleGraduation(tickDivisions: 0, labels: []),
+          ),
+          LuaGuiNode(
+            type: LuaGuiNodeType.knob,
+            param: 'BipolarKnob',
+            label: 'BIPOLAR',
+            knobStyle: KnobStyle.hardwareKnob,
+            hardwareKnobStyle: EatHardwareKnobStyle.vintageBakelite(),
+            hardwareScale: EatScaleGraduation.bipolar(),
+          ),
+          LuaGuiNode(
+            type: LuaGuiNodeType.knob,
+            param: 'CustomKnob',
+            label: 'CUSTOM',
+            knobStyle: KnobStyle.hardwareKnob,
+            hardwareKnobStyle: EatHardwareKnobStyle.vintageBakelite(),
+            hardwareScale: const EatScaleGraduation(labels: ['LO', 'HI'], tickDivisions: 1),
+          ),
+        ],
+      );
+
+      // EatScript serialization check
+      final eatScript = LuaGuiSerializer.serialize(
+        panel: panel,
+        instrumentName: 'ScaleTest',
+      );
+      expect(eatScript, contains('"scale": "clean_ticks"'));
+      expect(eatScript, contains('"scale": "none"'));
+      expect(eatScript, contains('"scale": "bipolar"'));
+      expect(eatScript, contains('"scale": ["LO", "HI"]'));
+
+      // Round-trip parse check through EatScriptEngine
+      final comp = EatScriptEngine.compile(eatScript);
+      expect(comp.isSuccess, isTrue);
+      expect(comp.guiLayout, isNotNull);
+      final nodes = comp.guiLayout!.children;
+      expect(nodes.length, 4);
+
+      // 1. clean_ticks
+      expect(nodes[0].hardwareScale, isNotNull);
+      expect(nodes[0].hardwareScale!.tickDivisions, 10);
+      expect(nodes[0].hardwareScale!.labels.isEmpty, isTrue);
+
+      // 2. none / unmarked
+      expect(nodes[1].hardwareScale, isNotNull);
+      expect(nodes[1].hardwareScale!.tickDivisions, 0);
+      expect(nodes[1].hardwareScale!.labels.isEmpty, isTrue);
+
+      // 3. bipolar
+      expect(nodes[2].hardwareScale, isNotNull);
+      expect(nodes[2].hardwareScale!.hasCenterDetent, isTrue);
+
+      // 4. custom list
+      expect(nodes[3].hardwareScale, isNotNull);
+      expect(nodes[3].hardwareScale!.labels, ['LO', 'HI']);
+
+      // Legacy Lua serialization check
+      final luaScript = LuaGuiSerializer.serializeToLua(
+        panel: panel,
+        instrumentName: 'ScaleTest',
+      );
+      expect(luaScript, contains('scale = "clean_ticks"'));
+      expect(luaScript, contains('scale = "none"'));
+      expect(luaScript, contains('scale = "bipolar"'));
+      expect(luaScript, contains('scale = { "LO", "HI" }'));
+
+      // Lua round-trip parse check
+      final parsedLua = LuaGuiParser.parseFromCode(luaScript);
+      expect(parsedLua, isNotNull);
+      expect(parsedLua!.children[0].hardwareScale!.tickDivisions, 10);
+      expect(parsedLua.children[1].hardwareScale!.tickDivisions, 0);
+      expect(parsedLua.children[2].hardwareScale!.hasCenterDetent, isTrue);
+      expect(parsedLua.children[3].hardwareScale!.labels, ['LO', 'HI']);
+    });
+
+    test('Eats-303 hardware GUI compiles and contains authentic TB-303 controls', () {
+      final preset = LuaScriptLibrary.getPresetById('eats_303');
+      expect(preset, isNotNull);
+
+      final panel = LuaGuiParser.parseFromCode(preset!.code);
+      expect(panel, isNotNull);
+      expect(panel!.title, 'EATS-303 ACID BASSLINE');
+      expect(panel.backgroundStyle, PanelBackgroundStyle.minimalWhite);
+      expect(panel.children.length, 2);
+
+      // Top row: Waveform selector + 6 potentiometers
+      final topRow = panel.children[0];
+      expect(topRow.children.length, 8); // Waveform, divider, Pitch, Cutoff, Resonance, EnvMod, Decay, Accent
+      final waveNode = topRow.children[0];
+      expect(waveNode.param, 'Waveform');
+      expect(waveNode.hardwareKnobStyle!.capStyle, EatCapStyle.diagonalBar);
+
+      final cutoffNode = topRow.children[3];
+      expect(cutoffNode.param, 'Cutoff');
+      expect(cutoffNode.hardwareKnobStyle!.knurlStyle, EatKnurlStyle.fineSawtooth);
+      expect(cutoffNode.indicatorLength, 0.95);
+
+      // Bottom row: Octave selector, SubWaveform switch, SubVolume cream_fluted, Slide capsule slider, Drive cream_fluted
+      final bottomRow = panel.children[1];
+      expect(bottomRow.children.length, 8);
+      final octNode = bottomRow.children[0];
+      expect(octNode.param, 'Octave');
+      expect(octNode.hardwareKnobStyle!.capStyle, EatCapStyle.diagonalBar);
+
+      final switchNode = bottomRow.children[2];
+      expect(switchNode.param, 'SubWaveform');
+      expect(switchNode.type, LuaGuiNodeType.switchToggle);
+
+      final subVolNode = bottomRow.children[3];
+      expect(subVolNode.param, 'SubVolume');
+      expect(subVolNode.hardwareKnobStyle!.knurlStyle, EatKnurlStyle.fluted);
+
+      final slideNode = bottomRow.children[5];
+      expect(slideNode.param, 'Slide');
+      expect(slideNode.sliderStyle, SliderStyle.capsule);
+      expect(slideNode.width, 150);
+
+      final driveNode = bottomRow.children[7];
+      expect(driveNode.param, 'Drive');
+      expect(driveNode.hardwareKnobStyle!.knurlStyle, EatKnurlStyle.fluted);
     });
   });
 }

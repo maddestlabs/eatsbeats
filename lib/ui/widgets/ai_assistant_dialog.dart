@@ -5,7 +5,7 @@ import '../../theme/eats_theme.dart';
 import '../../services/gemini_service.dart';
 import '../../services/ai_mixing_engine.dart';
 import '../../services/ai_task_manager.dart';
-import '../../lua/lua_script_library.dart';
+import '../../eatscript/eat_script_library.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'skeuomorphic_hardware_button.dart';
 

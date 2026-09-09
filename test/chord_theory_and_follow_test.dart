@@ -4,10 +4,10 @@ import 'package:eatsbeats/models/chord_model.dart';
 import 'package:eatsbeats/models/track_model.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/audio/time_context.dart';
-import 'package:eatsbeats/lua/midi_pipeline_engine.dart';
-import 'package:eatsbeats/lua/lua_engine.dart';
-import 'package:eatsbeats/lua/eats_lua_serializer.dart';
-import 'package:eatsbeats/lua/eats_lua_parser.dart';
+import 'package:eatsbeats/eatscript/midi_pipeline_engine.dart';
+import 'package:eatsbeats/eatscript/eat_engine.dart';
+import 'package:eatsbeats/eatscript/eat_project_serializer.dart';
+import 'package:eatsbeats/eatscript/eat_project_parser.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

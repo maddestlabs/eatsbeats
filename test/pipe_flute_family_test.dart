@@ -4,10 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/audio/gm/gm_instrument_registry.dart';
 import 'package:eatsbeats/audio/graph/graph_evaluator.dart';
-import 'package:eatsbeats/lua/lua_engine.dart';
-import 'package:eatsbeats/lua/lua_gui_model.dart';
-import 'package:eatsbeats/lua/lua_gui_parser.dart';
-import 'package:eatsbeats/lua/lua_script_library.dart';
+import 'package:eatsbeats/eatscript/eat_engine.dart';
+import 'package:eatsbeats/eatscript/eat_gui_model.dart';
+import 'package:eatsbeats/eatscript/eat_gui_parser.dart';
+import 'package:eatsbeats/eatscript/eat_script_library.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 
 Uint8List _createMidiFileWithTracks({

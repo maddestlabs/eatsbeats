@@ -2,8 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../audio/audio_engine.dart';
-import '../../lua/lua_canvas_drawing_engine.dart';
-import '../../lua/lua_gui_model.dart';
+import '../../eatscript/eat_canvas_drawing_engine.dart';
+import '../../eatscript/eat_gui_model.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
