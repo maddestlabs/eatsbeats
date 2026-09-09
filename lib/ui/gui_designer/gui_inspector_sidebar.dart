@@ -4,6 +4,8 @@ import '../../lua/lua_gui_model.dart';
 import '../../theme/eats_theme.dart';
 import '../vector/built_in_vector_skins.dart';
 import '../vector/vector_skin_model.dart';
+import '../hardware/eat_hardware_knob_model.dart';
+import '../hardware/eat_hardware_scale.dart';
 import 'gui_widget_palette.dart';
 
 class GuiInspectorSidebar extends StatefulWidget {
@@ -42,6 +44,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
   late TextEditingController _labelController;
   late TextEditingController _unitController;
   late TextEditingController _svgController;
+  late TextEditingController _chassisHexController;
 
   @override
   void initState() {
@@ -49,10 +52,53 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     _initControllers();
   }
 
+  String _getChassisDisplayText(LuaGuiPanelDef panel) {
+    if (panel.backgroundColor != null) {
+      return '#${panel.backgroundColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
+    }
+    switch (panel.backgroundStyle) {
+      case PanelBackgroundStyle.dark:
+        return 'dark';
+      case PanelBackgroundStyle.silver:
+        return 'silver';
+      case PanelBackgroundStyle.grunge:
+        return 'grunge';
+      case PanelBackgroundStyle.snes:
+        return 'snes';
+      case PanelBackgroundStyle.minimalWhite:
+        return 'minimal_white';
+      case PanelBackgroundStyle.walnut:
+        return 'walnut';
+      case PanelBackgroundStyle.mahogany:
+        return 'mahogany';
+      case PanelBackgroundStyle.blondePine:
+        return 'blonde_pine';
+      case PanelBackgroundStyle.rosewood:
+        return 'rosewood';
+      case PanelBackgroundStyle.brushedSteel:
+        return 'brushed_steel';
+      case PanelBackgroundStyle.brushedSteelVert:
+        return 'brushed_steel_vert';
+      case PanelBackgroundStyle.matteMetal:
+        return 'matte_metal';
+      case PanelBackgroundStyle.tolex:
+        return 'tolex';
+      case PanelBackgroundStyle.carbon:
+        return 'carbon';
+      case PanelBackgroundStyle.mesh:
+        return 'mesh';
+      case PanelBackgroundStyle.pcbGreen:
+        return 'pcb_green';
+      default:
+        return 'dark';
+    }
+  }
+
   void _initControllers() {
     _titleController = TextEditingController(text: widget.panel.title);
     _subtitleController = TextEditingController(text: widget.panel.subtitle ?? '');
     _svgController = TextEditingController(text: widget.panel.backgroundSvg ?? '');
+    _chassisHexController = TextEditingController(text: _getChassisDisplayText(widget.panel));
 
     final selectedNode = _getSelectedNode();
     _labelController = TextEditingController(text: selectedNode?.label ?? '');
@@ -71,6 +117,13 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     if (oldWidget.panel.backgroundSvg != widget.panel.backgroundSvg) {
       _svgController.text = widget.panel.backgroundSvg ?? '';
     }
+    if (oldWidget.panel.backgroundColor != widget.panel.backgroundColor ||
+        oldWidget.panel.backgroundStyle != widget.panel.backgroundStyle) {
+      final expectedText = _getChassisDisplayText(widget.panel);
+      if (_chassisHexController.text.trim().toLowerCase() != expectedText.toLowerCase()) {
+        _chassisHexController.text = expectedText;
+      }
+    }
 
     final selectedNode = _getSelectedNode();
     if (selectedNode != null) {
@@ -86,6 +139,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     _labelController.dispose();
     _unitController.dispose();
     _svgController.dispose();
+    _chassisHexController.dispose();
     super.dispose();
   }
 
@@ -300,24 +354,81 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                   ),
                   const SizedBox(height: 8),
 
-                  _buildTextField(
-                    'Custom Chassis Hex (e.g. #ECEEF2)',
-                    TextEditingController(
-                      text: widget.panel.backgroundColor != null
-                          ? '#${widget.panel.backgroundColor!.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}'
-                          : (widget.panel.backgroundStyle == PanelBackgroundStyle.minimalWhite
-                              ? '#ECEEF2'
-                              : (widget.panel.backgroundStyle == PanelBackgroundStyle.silver
-                                  ? '#D4D0C5'
-                                  : (widget.panel.backgroundStyle == PanelBackgroundStyle.snes ? '#D8D6CD' : ''))),
-                    ),
-                    (v) {
-                      final col = LuaGuiNode.parseColor(v);
-                      widget.onPanelUpdated(widget.panel.copyWith(
-                        backgroundStyle: col != null ? PanelBackgroundStyle.custom : widget.panel.backgroundStyle,
-                        backgroundColor: col,
-                      ));
-                    },
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: _buildTextField(
+                          'Chassis Color Hex / Theme (e.g. #24211D, dark, silver)',
+                          _chassisHexController,
+                          (v) {
+                            final clean = v.trim().toLowerCase();
+                            if (clean == 'dark') {
+                              widget.onPanelUpdated(widget.panel.copyWith(
+                                backgroundStyle: PanelBackgroundStyle.dark,
+                                backgroundColor: null,
+                              ));
+                              return;
+                            }
+                            final bgStyle = LuaGuiNode.parseBackgroundStyle(clean);
+                            if (clean != 'dark' && clean.isNotEmpty && !clean.startsWith('#') && bgStyle != PanelBackgroundStyle.dark) {
+                              widget.onPanelUpdated(widget.panel.copyWith(
+                                backgroundStyle: bgStyle,
+                                backgroundColor: null,
+                              ));
+                              return;
+                            }
+                            final col = LuaGuiNode.parseColor(v);
+                            if (col != null && !LuaGuiNode.isTrackColor(col)) {
+                              widget.onPanelUpdated(widget.panel.copyWith(
+                                backgroundStyle: PanelBackgroundStyle.custom,
+                                backgroundColor: col,
+                              ));
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2.0),
+                        child: InkWell(
+                          onTap: () {
+                            _showColorPickerDialog(
+                              context: context,
+                              title: 'Chassis Background Color',
+                              currentColor: widget.panel.backgroundColor,
+                              defaultColor: EatsTheme.panelBackground,
+                              onColorChanged: (col) {
+                                if (col != null) {
+                                  _chassisHexController.text = _hex(col);
+                                  widget.onPanelUpdated(widget.panel.copyWith(
+                                    backgroundStyle: PanelBackgroundStyle.custom,
+                                    backgroundColor: col,
+                                  ));
+                                } else {
+                                  _chassisHexController.text = 'dark';
+                                  widget.onPanelUpdated(widget.panel.copyWith(
+                                    backgroundStyle: PanelBackgroundStyle.dark,
+                                    backgroundColor: null,
+                                  ));
+                                }
+                              },
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: widget.panel.backgroundColor ?? EatsTheme.panelBackground,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: Colors.white38),
+                            ),
+                            child: const Icon(Icons.colorize, size: 14, color: Colors.white70),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 10),
 
@@ -585,22 +696,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       ],
                       onChanged: (v) {
                         if (v != null) {
-                          _updateSelectedNode(LuaGuiNode(
-                            type: selectedNode.type,
-                            param: selectedNode.param,
-                            label: selectedNode.label,
-                            unit: selectedNode.unit,
-                            size: selectedNode.size,
-                            width: selectedNode.width,
-                            height: selectedNode.height,
-                            knobStyle: selectedNode.knobStyle,
-                            sliderStyle: selectedNode.sliderStyle,
-                            orientation: selectedNode.orientation,
-                            options: selectedNode.options,
-                            align: v,
-                            crossAlign: selectedNode.crossAlign,
-                            children: selectedNode.children,
-                          ));
+                          _updateSelectedNode(selectedNode.copyWith(align: v));
                         }
                       },
                     ),
@@ -616,26 +712,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       ],
                       onChanged: (v) {
                         if (v != null) {
-                          _updateSelectedNode(LuaGuiNode(
-                            type: selectedNode.type,
-                            param: selectedNode.param,
-                            label: selectedNode.label,
-                            unit: selectedNode.unit,
-                            size: selectedNode.size,
-                            width: selectedNode.width,
-                            height: selectedNode.height,
-                            backgroundStyle: selectedNode.backgroundStyle,
-                            backgroundColor: selectedNode.backgroundColor,
-                            textureRotation: selectedNode.textureRotation,
-                            textureScale: selectedNode.textureScale,
-                            knobStyle: selectedNode.knobStyle,
-                            sliderStyle: selectedNode.sliderStyle,
-                            orientation: selectedNode.orientation,
-                            options: selectedNode.options,
-                            align: selectedNode.align,
-                            crossAlign: v,
-                            children: selectedNode.children,
-                          ));
+                          _updateSelectedNode(selectedNode.copyWith(crossAlign: v));
                         }
                       },
                     ),
@@ -667,26 +744,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       onChanged: (v) {
                         if (v != null) {
                           final style = v == 'none' ? null : LuaGuiNode.parseBackgroundStyle(v);
-                          _updateSelectedNode(LuaGuiNode(
-                            type: selectedNode.type,
-                            param: selectedNode.param,
-                            label: selectedNode.label,
-                            unit: selectedNode.unit,
-                            size: selectedNode.size,
-                            width: selectedNode.width,
-                            height: selectedNode.height,
-                            backgroundStyle: style,
-                            backgroundColor: selectedNode.backgroundColor,
-                            textureRotation: selectedNode.textureRotation,
-                            textureScale: selectedNode.textureScale,
-                            knobStyle: selectedNode.knobStyle,
-                            sliderStyle: selectedNode.sliderStyle,
-                            orientation: selectedNode.orientation,
-                            options: selectedNode.options,
-                            align: selectedNode.align,
-                            crossAlign: selectedNode.crossAlign,
-                            children: selectedNode.children,
-                          ));
+                          _updateSelectedNode(selectedNode.copyWith(backgroundStyle: style));
                         }
                       },
                     ),
@@ -702,26 +760,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       ],
                       onChanged: (v) {
                         if (v != null) {
-                          _updateSelectedNode(LuaGuiNode(
-                            type: selectedNode.type,
-                            param: selectedNode.param,
-                            label: selectedNode.label,
-                            unit: selectedNode.unit,
-                            size: selectedNode.size,
-                            width: selectedNode.width,
-                            height: selectedNode.height,
-                            backgroundStyle: selectedNode.backgroundStyle,
-                            backgroundColor: selectedNode.backgroundColor,
-                            textureRotation: v,
-                            textureScale: selectedNode.textureScale,
-                            knobStyle: selectedNode.knobStyle,
-                            sliderStyle: selectedNode.sliderStyle,
-                            orientation: selectedNode.orientation,
-                            options: selectedNode.options,
-                            align: selectedNode.align,
-                            crossAlign: selectedNode.crossAlign,
-                            children: selectedNode.children,
-                          ));
+                          _updateSelectedNode(selectedNode.copyWith(textureRotation: v));
                         }
                       },
                     ),
@@ -737,24 +776,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     contentPadding: EdgeInsets.zero,
                     activeColor: EatsTheme.primaryCyan,
                     onChanged: (v) {
-                      _updateSelectedNode(LuaGuiNode(
-                        type: selectedNode.type,
-                        param: selectedNode.param,
-                        label: selectedNode.label,
-                        unit: selectedNode.unit,
-                        size: selectedNode.size,
-                        width: selectedNode.width,
-                        height: selectedNode.height,
-                        knobStyle: selectedNode.knobStyle,
-                        sliderStyle: selectedNode.sliderStyle,
-                        orientation: selectedNode.orientation,
-                        options: selectedNode.options,
-                        align: selectedNode.align,
-                        crossAlign: selectedNode.crossAlign,
-                        showLabel: v ?? true,
-                        showValue: selectedNode.showValue,
-                        children: selectedNode.children,
-                      ));
+                      _updateSelectedNode(selectedNode.copyWith(showLabel: v ?? true));
                     },
                   ),
                   if (selectedNode.type == LuaGuiNodeType.knob) ...[
@@ -765,70 +787,19 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       contentPadding: EdgeInsets.zero,
                       activeColor: EatsTheme.primaryCyan,
                       onChanged: (v) {
-                        _updateSelectedNode(LuaGuiNode(
-                          type: selectedNode.type,
-                          param: selectedNode.param,
-                          label: selectedNode.label,
-                          unit: selectedNode.unit,
-                          size: selectedNode.size,
-                          width: selectedNode.width,
-                          height: selectedNode.height,
-                          knobStyle: selectedNode.knobStyle,
-                          sliderStyle: selectedNode.sliderStyle,
-                          orientation: selectedNode.orientation,
-                          options: selectedNode.options,
-                          align: selectedNode.align,
-                          crossAlign: selectedNode.crossAlign,
-                          showLabel: selectedNode.showLabel,
-                          showValue: v ?? true,
-                          children: selectedNode.children,
-                        ));
+                        _updateSelectedNode(selectedNode.copyWith(showValue: v ?? true));
                       },
                     ),
                   ],
                   const SizedBox(height: 8),
 
                   _buildTextField('Display Label', _labelController, (v) {
-                    _updateSelectedNode(LuaGuiNode(
-                      type: selectedNode.type,
-                      param: selectedNode.param,
-                      label: v,
-                      unit: selectedNode.unit,
-                      size: selectedNode.size,
-                      width: selectedNode.width,
-                      height: selectedNode.height,
-                      knobStyle: selectedNode.knobStyle,
-                      sliderStyle: selectedNode.sliderStyle,
-                      orientation: selectedNode.orientation,
-                      options: selectedNode.options,
-                      align: selectedNode.align,
-                      crossAlign: selectedNode.crossAlign,
-                      showLabel: selectedNode.showLabel,
-                      showValue: selectedNode.showValue,
-                      children: selectedNode.children,
-                    ));
+                    _updateSelectedNode(selectedNode.copyWith(label: v));
                   }),
                   const SizedBox(height: 8),
 
                   _buildTextField('Unit String (e.g. Hz, dB, ms, %)', _unitController, (v) {
-                    _updateSelectedNode(LuaGuiNode(
-                      type: selectedNode.type,
-                      param: selectedNode.param,
-                      label: selectedNode.label,
-                      unit: v,
-                      size: selectedNode.size,
-                      width: selectedNode.width,
-                      height: selectedNode.height,
-                      knobStyle: selectedNode.knobStyle,
-                      sliderStyle: selectedNode.sliderStyle,
-                      orientation: selectedNode.orientation,
-                      options: selectedNode.options,
-                      align: selectedNode.align,
-                      crossAlign: selectedNode.crossAlign,
-                      showLabel: selectedNode.showLabel,
-                      showValue: selectedNode.showValue,
-                      children: selectedNode.children,
-                    ));
+                    _updateSelectedNode(selectedNode.copyWith(unit: v));
                   }),
                   const SizedBox(height: 12),
 
@@ -844,24 +815,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       ],
                       onChanged: (v) {
                         if (v != null) {
-                          _updateSelectedNode(LuaGuiNode(
-                            type: selectedNode.type,
-                            param: selectedNode.param,
-                            label: selectedNode.label,
-                            unit: selectedNode.unit,
-                            size: selectedNode.size,
-                            width: selectedNode.width,
-                            height: selectedNode.height,
-                            knobStyle: selectedNode.knobStyle,
-                            sliderStyle: selectedNode.sliderStyle,
-                            orientation: v,
-                            options: selectedNode.options,
-                            align: selectedNode.align,
-                            crossAlign: selectedNode.crossAlign,
-                            showLabel: selectedNode.showLabel,
-                            showValue: selectedNode.showValue,
-                            children: selectedNode.children,
-                          ));
+                          _updateSelectedNode(selectedNode.copyWith(orientation: v));
                         }
                       },
                     ),
@@ -880,47 +834,16 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       onChanged: (v) {
                         if (v != null) {
                           _labelController.text = v.toUpperCase();
-                          _updateSelectedNode(LuaGuiNode(
-                            type: selectedNode.type,
+                          _updateSelectedNode(selectedNode.copyWith(
                             param: v,
                             label: v.toUpperCase(),
-                            unit: selectedNode.unit,
-                            size: selectedNode.size,
-                            width: selectedNode.width,
-                            height: selectedNode.height,
-                            knobStyle: selectedNode.knobStyle,
-                            sliderStyle: selectedNode.sliderStyle,
-                            orientation: selectedNode.orientation,
-                            options: selectedNode.options,
-                            align: selectedNode.align,
-                            crossAlign: selectedNode.crossAlign,
-                            showLabel: selectedNode.showLabel,
-                            showValue: selectedNode.showValue,
-                            children: selectedNode.children,
                           ));
                         }
                       },
                     ),
                   ] else ...[
                     _buildTextField('Parameter Name', TextEditingController(text: selectedNode.param ?? ''), (v) {
-                      _updateSelectedNode(LuaGuiNode(
-                        type: selectedNode.type,
-                        param: v,
-                        label: selectedNode.label,
-                        unit: selectedNode.unit,
-                        size: selectedNode.size,
-                        width: selectedNode.width,
-                        height: selectedNode.height,
-                        knobStyle: selectedNode.knobStyle,
-                        sliderStyle: selectedNode.sliderStyle,
-                        orientation: selectedNode.orientation,
-                        options: selectedNode.options,
-                        align: selectedNode.align,
-                        crossAlign: selectedNode.crossAlign,
-                        showLabel: selectedNode.showLabel,
-                        showValue: selectedNode.showValue,
-                        children: selectedNode.children,
-                      ));
+                      _updateSelectedNode(selectedNode.copyWith(param: v));
                     }),
                   ],
                   const SizedBox(height: 14),
@@ -936,60 +859,295 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       divisions: 10,
                       activeColor: EatsTheme.primaryCyan,
                       onChanged: (v) {
-                        _updateSelectedNode(LuaGuiNode(
-                          type: selectedNode.type,
-                          param: selectedNode.param,
-                          label: selectedNode.label,
-                          unit: selectedNode.unit,
-                          size: v,
-                          width: selectedNode.width,
-                          height: selectedNode.height,
-                          knobStyle: selectedNode.knobStyle,
-                          sliderStyle: selectedNode.sliderStyle,
-                          orientation: selectedNode.orientation,
-                          options: selectedNode.options,
-                          align: selectedNode.align,
-                          crossAlign: selectedNode.crossAlign,
-                          children: selectedNode.children,
-                        ));
+                        _updateSelectedNode(selectedNode.copyWith(size: v));
                       },
                     ),
                     const SizedBox(height: 6),
-                    _buildDropdown<KnobStyle>(
-                      label: 'Knob Skin',
-                      value: selectedNode.knobStyle,
+                    _buildDropdown<String>(
+                      label: 'Hardware Model Preset',
+                      value: selectedNode.knobStyle == KnobStyle.customVector
+                          ? 'custom_vector'
+                          : _getHardwarePresetName(selectedNode.hardwareKnobStyle),
                       items: const [
-                        DropdownMenuItem(value: KnobStyle.standard, child: Text('Standard Hardware')),
-                        DropdownMenuItem(value: KnobStyle.chrome, child: Text('Chrome Fluted (303)')),
-                        DropdownMenuItem(value: KnobStyle.vintage, child: Text('Vintage Bakelite')),
-                        DropdownMenuItem(value: KnobStyle.snes, child: Text('SNES Console Cream')),
-                        DropdownMenuItem(value: KnobStyle.minimalWhite, child: Text('Minimalist Matte Ceramic')),
-                        DropdownMenuItem(value: KnobStyle.customVector, child: Text('Custom Vector (SVG)')),
+                        DropdownMenuItem(value: 'vintage_bakelite', child: Text('Vintage Bakelite (Body 0-10)')),
+                        DropdownMenuItem(value: 'cream_fluted', child: Text('Cream Fluted (Pitch Arc)')),
+                        DropdownMenuItem(value: 'chrome_fluted', child: Text('Chrome Fluted (303 Bassline)')),
+                        DropdownMenuItem(value: 'tb303_potentiometer', child: Text('TB-303 Potentiometer (48-Tooth Sawtooth)')),
+                        DropdownMenuItem(value: 'tb303_acid_halo', child: Text('TB-303 Acid Neon Halo (D16 Glow)')),
+                        DropdownMenuItem(value: 'tb303_selector', child: Text('TB-303 Rotary Selector (Mode / Wave)')),
+                        DropdownMenuItem(value: 'standard_hardware', child: Text('Standard Metallic (Gunmetal/Cyan)')),
+                        DropdownMenuItem(value: 'anodized_knurled', child: Text('Anodized Knurled (Head / Sustain)')),
+                        DropdownMenuItem(value: 'two_tone_stepped', child: Text('Two-Tone Stepped (Punch / Rattle)')),
+                        DropdownMenuItem(value: 'snes_console', child: Text('SNES Console Cream (16-Bit Retro)')),
+                        DropdownMenuItem(value: 'minimal_white', child: Text('Minimalist Matte Ceramic (Clean)')),
+                        DropdownMenuItem(value: 'encoder', child: Text('Studio Neon LED Encoder')),
+                        DropdownMenuItem(value: 'custom_vector', child: Text('Custom Vector (SVG Skin)')),
                       ],
                       onChanged: (v) {
                         if (v != null) {
-                          _updateSelectedNode(LuaGuiNode(
-                            type: selectedNode.type,
-                            param: selectedNode.param,
-                            label: selectedNode.label,
-                            unit: selectedNode.unit,
-                            size: selectedNode.size,
-                            width: selectedNode.width,
-                            height: selectedNode.height,
-                            knobStyle: v,
-                            customSkin: v == KnobStyle.customVector
-                                ? (selectedNode.customSkin ?? BuiltInVectorSkins.getSkinForKnobStyle(selectedNode.knobStyle))
-                                : selectedNode.customSkin,
-                            sliderStyle: selectedNode.sliderStyle,
-                            orientation: selectedNode.orientation,
-                            options: selectedNode.options,
-                            align: selectedNode.align,
-                            crossAlign: selectedNode.crossAlign,
-                            children: selectedNode.children,
-                          ));
+                          if (v == 'custom_vector') {
+                            _updateSelectedNode(selectedNode.copyWith(
+                              knobStyle: KnobStyle.customVector,
+                              customSkin: selectedNode.customSkin ?? BuiltInVectorSkins.getSkinForKnobStyle(selectedNode.knobStyle),
+                            ));
+                          } else {
+                            EatHardwareKnobStyle hwStyle;
+                            switch (v) {
+                              case 'tb303_potentiometer':
+                                hwStyle = EatHardwareKnobStyle.tb303Potentiometer(accentColor: selectedNode.accentColor);
+                                break;
+                              case 'tb303_acid_halo':
+                                hwStyle = EatHardwareKnobStyle.tb303AcidHalo(accentColor: selectedNode.accentColor);
+                                break;
+                              case 'tb303_selector':
+                                hwStyle = EatHardwareKnobStyle.tb303Selector(accentColor: selectedNode.accentColor);
+                                break;
+                              case 'standard_hardware':
+                                hwStyle = EatHardwareKnobStyle.standardHardware(accentColor: selectedNode.accentColor);
+                                break;
+                              case 'cream_fluted':
+                                hwStyle = EatHardwareKnobStyle.creamFluted(accentColor: selectedNode.accentColor);
+                                break;
+                              case 'chrome_fluted':
+                                hwStyle = EatHardwareKnobStyle.chromeFluted(accentColor: selectedNode.accentColor);
+                                break;
+                              case 'snes_console':
+                                hwStyle = EatHardwareKnobStyle.snesConsole(accentColor: selectedNode.accentColor);
+                                break;
+                              case 'minimal_white':
+                                hwStyle = EatHardwareKnobStyle.minimalWhite(accentColor: selectedNode.accentColor);
+                                break;
+                              case 'anodized_knurled':
+                                hwStyle = EatHardwareKnobStyle.anodizedKnurled(accentColor: selectedNode.accentColor);
+                                break;
+                              case 'two_tone_stepped':
+                                hwStyle = EatHardwareKnobStyle.twoToneStepped(accentColor: selectedNode.accentColor);
+                                break;
+                              case 'encoder':
+                                hwStyle = EatHardwareKnobStyle.illuminatedEncoder(activeColor: selectedNode.accentColor ?? const Color(0xFF00E5FF));
+                                break;
+                              default:
+                                hwStyle = EatHardwareKnobStyle.vintageBakelite(accentColor: selectedNode.accentColor);
+                            }
+                            _updateSelectedNode(selectedNode.copyWith(
+                              knobStyle: KnobStyle.hardwareKnob,
+                              hardwareKnobStyle: hwStyle,
+                            ));
+                          }
                         }
                       },
                     ),
+                    if (selectedNode.knobStyle != KnobStyle.customVector) ...[
+                      const SizedBox(height: 6),
+                      _buildDropdown<String>(
+                        label: 'Dial / Scale Graduations',
+                        value: _getScalePresetName((selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite()).scale),
+                        items: const [
+                          DropdownMenuItem(value: 'zero_to_ten', child: Text('0 to 10 Numbers')),
+                          DropdownMenuItem(value: 'clean_ticks', child: Text('Clean Graduation Ticks (10 Ticks)')),
+                          DropdownMenuItem(value: 'tb303_dial', child: Text('TB-303 Calibrated (12-O\'clock Block)')),
+                          DropdownMenuItem(value: 'low_mid_high', child: Text('Low / Mid / High (Pitch Scale)')),
+                          DropdownMenuItem(value: 'sustain_1_to_6', child: Text('1 to 6 (dyn Sustain Scale)')),
+                          DropdownMenuItem(value: 'bipolar', child: Text('-5 to +5 Bipolar Center')),
+                          DropdownMenuItem(value: 'mode_steps', child: Text('Mode Selector (Classic / Step / Wave...)')),
+                          DropdownMenuItem(value: 'none', child: Text('Unmarked / No Ticks')),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) {
+                            final currentStyle = selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite();
+                            final tickCol = currentStyle.scale.tickColor ?? selectedNode.dialColor ?? const Color(0xFF1E1E24);
+                            final labelCol = currentStyle.scale.labelColor ?? selectedNode.dialColor ?? const Color(0xFF1E1E24);
+                            EatScaleGraduation newScale;
+                            switch (v) {
+                              case 'clean_ticks':
+                                newScale = EatScaleGraduation.cleanTicks(tickColor: tickCol, labelColor: labelCol);
+                                break;
+                              case 'tb303_dial':
+                                newScale = EatScaleGraduation.tb303Dial(tickColor: tickCol, labelColor: labelCol);
+                                break;
+                              case 'low_mid_high':
+                                newScale = EatScaleGraduation.lowMidHigh(tickColor: tickCol, labelColor: labelCol);
+                                break;
+                              case 'sustain_1_to_6':
+                                newScale = EatScaleGraduation.sustainOneToSix(tickColor: tickCol, labelColor: labelCol);
+                                break;
+                              case 'bipolar':
+                                newScale = EatScaleGraduation.bipolar(tickColor: tickCol, labelColor: labelCol);
+                                break;
+                              case 'mode_steps':
+                                newScale = EatScaleGraduation.tb303Selector(tickColor: tickCol, labelColor: labelCol);
+                                break;
+                              case 'none':
+                                newScale = const EatScaleGraduation(tickDivisions: 0, labels: []);
+                                break;
+                              case 'zero_to_ten':
+                              default:
+                                newScale = EatScaleGraduation.zeroToTen(tickColor: tickCol, labelColor: labelCol);
+                                break;
+                            }
+                            _updateSelectedNode(selectedNode.copyWith(
+                              hardwareKnobStyle: currentStyle.copyWith(scale: newScale),
+                            ));
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _buildSectionHeader('HARDWARE KNOB COLORS & ACCENTS'),
+                      const SizedBox(height: 6),
+                      _buildColorTileRow(
+                        context: context,
+                        label: 'Cap / Disc Color',
+                        currentColor: selectedNode.capColor ?? selectedNode.hardwareKnobStyle?.capColor,
+                        defaultColor: (selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite()).capColor,
+                        onColorChanged: (col) {
+                          final currentStyle = selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite();
+                          _updateSelectedNode(selectedNode.copyWith(
+                            capColor: col,
+                            hardwareKnobStyle: col != null ? currentStyle.copyWith(capColor: col) : currentStyle,
+                          ));
+                        },
+                      ),
+                      _buildColorTileRow(
+                        context: context,
+                        label: 'Body / Skirt Color',
+                        currentColor: selectedNode.bodyColor ?? selectedNode.hardwareKnobStyle?.bodyColor,
+                        defaultColor: (selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite()).bodyColor,
+                        onColorChanged: (col) {
+                          final currentStyle = selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite();
+                          _updateSelectedNode(selectedNode.copyWith(
+                            bodyColor: col,
+                            hardwareKnobStyle: col != null ? currentStyle.copyWith(bodyColor: col) : currentStyle,
+                          ));
+                        },
+                      ),
+                      _buildColorTileRow(
+                        context: context,
+                        label: 'Indicator / Notch Color',
+                        currentColor: selectedNode.indicatorColor ?? selectedNode.hardwareKnobStyle?.indicatorColor,
+                        defaultColor: (selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite()).indicatorColor,
+                        onColorChanged: (col) {
+                          final currentStyle = selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite();
+                          _updateSelectedNode(selectedNode.copyWith(
+                            indicatorColor: col,
+                            hardwareKnobStyle: col != null ? currentStyle.copyWith(indicatorColor: col) : currentStyle,
+                          ));
+                        },
+                      ),
+                      _buildColorTileRow(
+                        context: context,
+                        label: 'Dial / Scale Color',
+                        currentColor: selectedNode.dialColor ?? selectedNode.hardwareKnobStyle?.scale.tickColor,
+                        defaultColor: (selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite()).scale.tickColor ?? const Color(0xFFE8E5DC),
+                        onColorChanged: (col) {
+                          final currentStyle = selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite();
+                          _updateSelectedNode(selectedNode.copyWith(
+                            dialColor: col,
+                            hardwareKnobStyle: col != null
+                                ? currentStyle.copyWith(scale: currentStyle.scale.copyWith(tickColor: col, labelColor: col))
+                                : currentStyle,
+                          ));
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _buildSectionHeader('KNOB ANATOMY PROPORTIONS'),
+                      const SizedBox(height: 6),
+                      Builder(
+                        builder: (ctx) {
+                          final currentStyle = selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite();
+                          final defaultCap = currentStyle.capStyle == EatCapStyle.insetRim ? 0.82 : 0.94;
+                          final capRatio = selectedNode.capSize ?? currentStyle.capRadiusRatio ?? defaultCap;
+                          final bodyRatio = selectedNode.bodySize ?? currentStyle.skirtRadiusRatio;
+                          final indLen = selectedNode.indicatorLength ?? currentStyle.indicatorLength;
+                          final indWidth = selectedNode.indicatorWidth ?? currentStyle.indicatorWidth;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Cap Diameter Ratio', style: TextStyle(fontSize: 9.5, color: Colors.white70)),
+                                  Text('${(capRatio * 100).toInt()}%', style: const TextStyle(fontSize: 9.5, fontFamily: 'monospace', color: Colors.white)),
+                                ],
+                              ),
+                              Slider(
+                                value: capRatio.clamp(0.50, 0.98),
+                                min: 0.50,
+                                max: 0.98,
+                                divisions: 24,
+                                activeColor: EatsTheme.primaryCyan,
+                                onChanged: (v) {
+                                  _updateSelectedNode(selectedNode.copyWith(
+                                    capSize: v,
+                                    hardwareKnobStyle: currentStyle.copyWith(capRadiusRatio: v),
+                                  ));
+                                },
+                              ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Body / Skirt Fullness', style: TextStyle(fontSize: 9.5, color: Colors.white70)),
+                                  Text('${(bodyRatio * 100).toInt()}%', style: const TextStyle(fontSize: 9.5, fontFamily: 'monospace', color: Colors.white)),
+                                ],
+                              ),
+                              Slider(
+                                value: bodyRatio.clamp(1.0, 1.40),
+                                min: 1.0,
+                                max: 1.40,
+                                divisions: 20,
+                                activeColor: EatsTheme.primaryCyan,
+                                onChanged: (v) {
+                                  _updateSelectedNode(selectedNode.copyWith(
+                                    bodySize: v,
+                                    hardwareKnobStyle: currentStyle.copyWith(skirtRadiusRatio: v),
+                                  ));
+                                },
+                              ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Indicator Notch Length', style: TextStyle(fontSize: 9.5, color: Colors.white70)),
+                                  Text('${(indLen * 100).toInt()}%', style: const TextStyle(fontSize: 9.5, fontFamily: 'monospace', color: Colors.white)),
+                                ],
+                              ),
+                              Slider(
+                                value: indLen.clamp(0.30, 0.95),
+                                min: 0.30,
+                                max: 0.95,
+                                divisions: 13,
+                                activeColor: EatsTheme.primaryCyan,
+                                onChanged: (v) {
+                                  _updateSelectedNode(selectedNode.copyWith(
+                                    indicatorLength: v,
+                                    hardwareKnobStyle: currentStyle.copyWith(indicatorLength: v),
+                                  ));
+                                },
+                              ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Indicator Notch Width', style: TextStyle(fontSize: 9.5, color: Colors.white70)),
+                                  Text('${indWidth.toStringAsFixed(1)}px', style: const TextStyle(fontSize: 9.5, fontFamily: 'monospace', color: Colors.white)),
+                                ],
+                              ),
+                              Slider(
+                                value: indWidth.clamp(1.0, 5.0),
+                                min: 1.0,
+                                max: 5.0,
+                                divisions: 8,
+                                activeColor: EatsTheme.primaryCyan,
+                                onChanged: (v) {
+                                  _updateSelectedNode(selectedNode.copyWith(
+                                    indicatorWidth: v,
+                                    hardwareKnobStyle: currentStyle.copyWith(indicatorWidth: v),
+                                  ));
+                                },
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
                       icon: Icon(Icons.fork_right, size: 14, color: EatsTheme.primaryCyan),
@@ -1016,21 +1174,8 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       ],
                       onChanged: (v) {
                         if (v != null) {
-                          _updateSelectedNode(LuaGuiNode(
-                            type: selectedNode.type,
-                            param: selectedNode.param,
-                            label: selectedNode.label,
-                            unit: selectedNode.unit,
-                            size: selectedNode.size,
-                            width: selectedNode.width,
-                            height: selectedNode.height,
-                            knobStyle: selectedNode.knobStyle,
+                          _updateSelectedNode(selectedNode.copyWith(
                             sliderStyle: v,
-                            orientation: selectedNode.orientation,
-                            options: selectedNode.options,
-                            align: selectedNode.align,
-                            crossAlign: selectedNode.crossAlign,
-                            children: selectedNode.children,
                           ));
                         }
                       },
@@ -1331,6 +1476,423 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     );
   }
 
+  String _getHardwarePresetName(EatHardwareKnobStyle? style) {
+    if (style == null) return 'vintage_bakelite';
+    if (style.capStyle == EatCapStyle.diagonalBar) return 'tb303_selector';
+    if (style.haloColor != null) return 'tb303_acid_halo';
+    if (style.knurlStyle == EatKnurlStyle.fineSawtooth) return 'tb303_potentiometer';
+    if (style.indicatorColor == const Color(0xFF51388E)) return 'snes_console';
+    if (style.capColor == const Color(0xFFF6F6F7)) return 'minimal_white';
+    if (style.capColor == const Color(0xFF1E2026)) return 'standard_hardware';
+    if (style.capColor == const Color(0xFFDCDFE5)) return 'chrome_fluted';
+    if (style.knurlStyle == EatKnurlStyle.fluted) return 'cream_fluted';
+    if (style.knurlStyle == EatKnurlStyle.diamond) return 'anodized_knurled';
+    if (style.skirtStyle == EatSkirtStyle.stepped) return 'two_tone_stepped';
+    if (style.indicatorStyle == EatIndicatorStyle.illuminatedLed) return 'encoder';
+    return 'vintage_bakelite';
+  }
+
+  String _getScalePresetName(EatScaleGraduation scale) {
+    if (scale.labels.contains('CLASSIC')) return 'mode_steps';
+    if (scale.labels.contains('low')) return 'low_mid_high';
+    if (scale.labels.contains('dyn') || scale.leadLabel == 'dyn') return 'sustain_1_to_6';
+    if (scale.hasBlockCenterDetent) return 'tb303_dial';
+    if (scale.labels.length == 11 && scale.labels.first == '0') return 'zero_to_ten';
+    if (scale.labels.contains('0') && scale.hasCenterDetent) return 'bipolar';
+    if (scale.tickDivisions == 0 && scale.labels.isEmpty) return 'none';
+    if (scale.labels.isEmpty && scale.tickDivisions > 0) return 'clean_ticks';
+    return 'zero_to_ten';
+  }
+
+  String _hex(Color c) => '#${c.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
+
+  Widget _buildColorTileRow({
+    required BuildContext context,
+    required String label,
+    required Color? currentColor,
+    required Color defaultColor,
+    required ValueChanged<Color?> onColorChanged,
+  }) {
+    final isTrack = LuaGuiNode.isTrackColor(currentColor);
+    final effectiveColor = isTrack
+        ? (widget.trackColor ?? EatsTheme.primaryCyan)
+        : (currentColor ?? defaultColor);
+
+    String textBadge;
+    if (isTrack) {
+      textBadge = 'TRACK ACCENT';
+    } else if (currentColor != null) {
+      textBadge = _hex(currentColor);
+    } else {
+      textBadge = 'PRESET DEFAULT';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6.0),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: () => _showColorPickerDialog(
+          context: context,
+          title: label,
+          currentColor: currentColor,
+          defaultColor: defaultColor,
+          onColorChanged: onColorChanged,
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.04),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: effectiveColor,
+                  border: Border.all(
+                    color: isTrack ? EatsTheme.primaryCyan : Colors.white60,
+                    width: isTrack ? 1.8 : 1.0,
+                  ),
+                  boxShadow: isTrack
+                      ? [BoxShadow(color: effectiveColor.withOpacity(0.6), blurRadius: 6)]
+                      : null,
+                ),
+                child: isTrack
+                    ? const Center(
+                        child: Icon(Icons.graphic_eq, size: 10, color: Colors.black),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    Text(
+                      textBadge,
+                      style: TextStyle(
+                        fontSize: 8.5,
+                        fontFamily: 'monospace',
+                        color: isTrack ? EatsTheme.primaryCyan : EatsTheme.textMuted,
+                        fontWeight: isTrack ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.unfold_more, size: 14, color: EatsTheme.textMuted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showColorPickerDialog({
+    required BuildContext context,
+    required String title,
+    required Color? currentColor,
+    required Color defaultColor,
+    required ValueChanged<Color?> onColorChanged,
+  }) {
+    Color? workingColor = currentColor;
+    final hexController = TextEditingController(
+      text: currentColor != null && !LuaGuiNode.isTrackColor(currentColor)
+          ? _hex(currentColor)
+          : (LuaGuiNode.isTrackColor(currentColor) ? 'track' : ''),
+    );
+    final trackColor = widget.trackColor ?? EatsTheme.primaryCyan;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final isTrack = LuaGuiNode.isTrackColor(workingColor);
+            final previewColor = isTrack
+                ? trackColor
+                : (workingColor ?? defaultColor);
+
+            return AlertDialog(
+              backgroundColor: const Color(0xFF141822),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.5), width: 1.2),
+              ),
+              titlePadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+              title: Row(
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: previewColor,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: previewColor.withOpacity(0.5),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                    child: isTrack
+                        ? const Center(child: Icon(Icons.graphic_eq, size: 12, color: Colors.black))
+                        : null,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: EatsTheme.getDisplayFontStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      isTrack
+                          ? 'TRACK ACCENT'
+                          : (workingColor != null ? _hex(workingColor!) : 'DEFAULT'),
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 9.5,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 380,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'DYNAMIC DAW COLOR',
+                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white60),
+                      ),
+                      const SizedBox(height: 6),
+                      InkWell(
+                        onTap: () {
+                          setModalState(() {
+                            workingColor = LuaGuiNode.trackColorSentinel;
+                            hexController.text = 'track';
+                          });
+                          onColorChanged(LuaGuiNode.trackColorSentinel);
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isTrack
+                                ? EatsTheme.primaryCyan.withOpacity(0.16)
+                                : Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isTrack ? EatsTheme.primaryCyan : Colors.white24,
+                              width: isTrack ? 1.5 : 1.0,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: trackColor,
+                                  boxShadow: [
+                                    BoxShadow(color: trackColor.withOpacity(0.6), blurRadius: 4),
+                                  ],
+                                ),
+                                child: const Icon(Icons.graphic_eq, size: 11, color: Colors.black),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Dynamic DAW Track Accent',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: isTrack ? EatsTheme.primaryCyan : Colors.white,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Always reflects current track color (${_hex(trackColor)})',
+                                      style: TextStyle(fontSize: 9, color: EatsTheme.textMuted),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (isTrack)
+                                Icon(Icons.check_circle, size: 16, color: EatsTheme.primaryCyan),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      const Text(
+                        'CURATED STUDIO SWATCHES',
+                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white60),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: const [
+                          Color(0xFFE8E5DC), // Cream Off-White
+                          Color(0xFFF6F6F7), // Matte Pure White
+                          Color(0xFFDCDFE5), // Brushed Chrome
+                          Color(0xFF90939A), // Anodized Silver
+                          Color(0xFF2A2D35), // Studio Gunmetal
+                          Color(0xFF202024), // Bakelite Black
+                          Color(0xFF141416), // Pitch Dark
+                          Color(0xFF00E5FF), // Cyan Neon
+                          Color(0xFF00FF9D), // Acid Green
+                          Color(0xFFFF3D00), // Signal Red
+                          Color(0xFFFFD700), // Amber Gold
+                          Color(0xFF51388E), // SNES Classic Purple
+                          Color(0xFFE040FB), // Synth Magenta
+                          Color(0xFF2979FF), // Cobalt Blue
+                        ].map((col) {
+                          final isSelected = !isTrack && workingColor?.value == col.value;
+                          return InkWell(
+                            onTap: () {
+                              setModalState(() {
+                                workingColor = col;
+                                hexController.text = _hex(col);
+                              });
+                              onColorChanged(col);
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                color: col,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isSelected ? Colors.white : Colors.white24,
+                                  width: isSelected ? 2.2 : 1.0,
+                                ),
+                                boxShadow: isSelected
+                                    ? [BoxShadow(color: col.withOpacity(0.8), blurRadius: 6)]
+                                    : null,
+                              ),
+                              child: isSelected
+                                  ? Center(
+                                      child: Icon(
+                                        Icons.check,
+                                        size: 13,
+                                        color: col.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 14),
+
+                      const Text(
+                        'CUSTOM HEX OR NAME',
+                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white60),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: hexController,
+                              style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.white),
+                              decoration: InputDecoration(
+                                hintText: '#00E5FF or track',
+                                hintStyle: TextStyle(color: EatsTheme.textMuted, fontSize: 11),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                filled: true,
+                                fillColor: const Color(0xFF0C0F16),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(6),
+                                  borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(6),
+                                  borderSide: BorderSide(color: EatsTheme.primaryCyan),
+                                ),
+                              ),
+                              onChanged: (v) {
+                                final clean = v.trim().toLowerCase();
+                                if (clean == 'track') {
+                                  setModalState(() {
+                                    workingColor = LuaGuiNode.trackColorSentinel;
+                                  });
+                                  onColorChanged(LuaGuiNode.trackColorSentinel);
+                                  return;
+                                }
+                                final col = LuaGuiNode.parseColor(v);
+                                if (col != null) {
+                                  setModalState(() {
+                                    workingColor = col;
+                                  });
+                                  onColorChanged(col);
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    onColorChanged(null);
+                    Navigator.of(dialogCtx).pop();
+                  },
+                  child: Text('Reset to Default', style: TextStyle(fontSize: 11, color: EatsTheme.textMuted)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: EatsTheme.primaryCyan,
+                    foregroundColor: Colors.black,
+                  ),
+                  onPressed: () => Navigator.of(dialogCtx).pop(),
+                  child: const Text('Done', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showForkSkinDialog(BuildContext context, LuaGuiNode node) {
     final skin = node.customSkin ?? BuiltInVectorSkins.getSkinForKnobStyle(node.knobStyle);
     final scriptCode = BuiltInVectorSkins.exportToEatScript(skin, node.param ?? 'custom_knob');
@@ -1410,22 +1972,9 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
               foregroundColor: Colors.black,
             ),
             onPressed: () {
-              _updateSelectedNode(LuaGuiNode(
-                type: node.type,
-                param: node.param,
-                label: node.label,
-                unit: node.unit,
-                size: node.size,
-                width: node.width,
-                height: node.height,
+              _updateSelectedNode(node.copyWith(
                 knobStyle: KnobStyle.customVector,
                 customSkin: skin,
-                sliderStyle: node.sliderStyle,
-                orientation: node.orientation,
-                options: node.options,
-                align: node.align,
-                crossAlign: node.crossAlign,
-                children: node.children,
               ));
               Navigator.of(ctx).pop();
               ScaffoldMessenger.of(context).showSnackBar(

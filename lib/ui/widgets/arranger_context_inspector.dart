@@ -86,9 +86,15 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
     '🔊', '⚡', '🎧', '🎵', '🎶', '👾', '🔥', '✨',
   ];
 
+  late InspectorTab _activeTab;
+
   @override
   void initState() {
     super.initState();
+    _activeTab = widget.initialTab;
+    if (widget.dawState.activeClip == null) {
+      _activeTab = InspectorTab.track;
+    }
     widget.dawState.addListener(_onDawStateChanged);
     final track = widget.dawState.activeTrack;
     _trackNameController.text = track.name;
@@ -112,6 +118,9 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
       oldWidget.dawState.removeListener(_onDawStateChanged);
       widget.dawState.addListener(_onDawStateChanged);
     }
+    if (oldWidget.initialTab != widget.initialTab) {
+      _activeTab = widget.initialTab;
+    }
     final track = widget.dawState.activeTrack;
     if (track.id != _lastTrackId) {
       _trackNameController.text = track.name;
@@ -127,6 +136,9 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
     } else if (clip == null) {
       _lastClipId = null;
       _isEditingClipName = false;
+      if (_activeTab == InspectorTab.clip) {
+        _activeTab = InspectorTab.track;
+      }
     }
   }
 
@@ -138,10 +150,126 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
     super.dispose();
   }
 
+  Widget _buildInspectorTabBar(BuildContext context, TrackChannel track, TrackClip clip) {
+    final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
+    final trackColor = track.color;
+    final isTrackActive = _activeTab == InspectorTab.track;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: isGrungy ? const Color(0xFF141210) : EatsTheme.controlBackground,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isGrungy ? const Color(0xFF38322B) : EatsTheme.panelHeader,
+          width: 1.0,
+        ),
+      ),
+      child: Row(
+        children: [
+          // TRACK TAB BUTTON
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(4),
+              onTap: () {
+                if (_activeTab != InspectorTab.track) {
+                  setState(() => _activeTab = InspectorTab.track);
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                decoration: BoxDecoration(
+                  color: isTrackActive
+                      ? (isGrungy ? const Color(0xFF28231E) : EatsTheme.panelHeader)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(4),
+                  border: isTrackActive
+                      ? Border.all(color: trackColor.withOpacity(0.6), width: 1.0)
+                      : Border.all(color: Colors.transparent),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      track.iconData,
+                      size: 11,
+                      color: isTrackActive ? trackColor : EatsTheme.textSecondary,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'TRACK',
+                      style: TextStyle(
+                        color: isTrackActive ? Colors.white : EatsTheme.textSecondary,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 3),
+          // CLIP TAB BUTTON
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(4),
+              onTap: () {
+                if (_activeTab != InspectorTab.clip) {
+                  setState(() => _activeTab = InspectorTab.clip);
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                decoration: BoxDecoration(
+                  color: !isTrackActive
+                      ? (isGrungy ? const Color(0xFF28231E) : EatsTheme.panelHeader)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(4),
+                  border: !isTrackActive
+                      ? Border.all(color: EatsTheme.accentGold.withOpacity(0.6), width: 1.0)
+                      : Border.all(color: Colors.transparent),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.movie_creation_outlined,
+                      size: 11,
+                      color: !isTrackActive ? EatsTheme.accentGold : EatsTheme.textSecondary,
+                    ),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        'CLIP (${clip.name.toUpperCase()})',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: !isTrackActive ? Colors.white : EatsTheme.textSecondary,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final track = widget.dawState.activeTrack;
     final clip = widget.dawState.activeClip;
+    final isMaster = track.id == widget.dawState.masterTrack.id || widget.dawState.isMasterSelected;
     
     return Container(
       width: widget.width,
@@ -151,9 +279,13 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
       child: ListView(
         padding: const EdgeInsets.all(12),
         children: [
-          if (clip != null)
-            _buildClipSection(context, track, clip)
-          else if (track.id == widget.dawState.masterTrack.id || widget.dawState.isMasterSelected)
+          if (clip != null && !isMaster) ...[
+            _buildInspectorTabBar(context, track, clip),
+            if (_activeTab == InspectorTab.clip)
+              _buildClipSection(context, track, clip)
+            else
+              _buildTrackSection(context, track),
+          ] else if (isMaster)
             _buildMasterBusSection(context, track)
           else
             _buildTrackSection(context, track),
@@ -1834,7 +1966,10 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
           ),
         ),
         InkWell(
-          onTap: () => widget.dawState.selectClip(null),
+          onTap: () {
+            setState(() => _activeTab = InspectorTab.track);
+            widget.dawState.selectClip(null);
+          },
           borderRadius: BorderRadius.circular(4),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),

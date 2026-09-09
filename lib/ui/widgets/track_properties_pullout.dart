@@ -11,6 +11,7 @@ class TrackPropertiesPullout extends StatelessWidget {
   final ValueChanged<bool> onExpansionChanged;
   final ValueChanged<double> onWidthChanged;
   final VoidCallback onClose;
+  final InspectorTab initialTab;
 
   static const double minPropertiesWidth = 290.0;
   static const double defaultPropertiesWidth = 290.0;
@@ -26,6 +27,7 @@ class TrackPropertiesPullout extends StatelessWidget {
     required this.onExpansionChanged,
     required this.onWidthChanged,
     required this.onClose,
+    this.initialTab = InspectorTab.track,
   });
 
   @override
@@ -119,6 +121,7 @@ class TrackPropertiesPullout extends StatelessWidget {
               child: ArrangerContextInspector(
                 dawState: dawState,
                 onClose: onClose,
+                initialTab: initialTab,
                 onResize: (deltaX) {
                   final newWidth = (propertiesWidth - deltaX)
                       .clamp(minPropertiesWidth, maxPropertiesWidth);

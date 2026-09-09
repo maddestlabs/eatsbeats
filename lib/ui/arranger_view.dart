@@ -641,10 +641,11 @@ class _ArrangerViewState extends State<ArrangerView> {
                                            // Track Content (Row 1: Name & M/S/FX/Follow; Row 2: Volume & Pan)
                                            Expanded(
                                              child: Padding(
-                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                child: Column(
                                                  crossAxisAlignment: CrossAxisAlignment.start,
                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                 mainAxisSize: MainAxisSize.min,
                                                  children: [
                                                    // Row 1: Readable Name (with emoji support) & Follow, M, S Action Buttons
                                                    Row(
@@ -712,7 +713,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                        _buildFreezeButton(track),
                                                      ],
                                                    ),
-                                                  const SizedBox(height: 4),
+                                                  const SizedBox(height: 1),
                                                   // Row 2: Volume Slider with Level Readout & Skeuomorphic Pan Knob
                                                   Row(
                                                     children: [

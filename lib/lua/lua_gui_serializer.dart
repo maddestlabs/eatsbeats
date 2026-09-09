@@ -1,6 +1,7 @@
 import 'dart:ui';
 import '../eatscript/eat_param_model.dart';
 import '../ui/vector/vector_skin_model.dart';
+import '../ui/hardware/eat_hardware_knob_model.dart';
 import 'lua_gui_model.dart';
 import 'lua_gui_parser.dart';
 import '../eatscript/eat_script_engine.dart';
@@ -474,8 +475,22 @@ class LuaGuiSerializer {
           buffer.writeln('$indent  }');
           buffer.writeln('$indent},');
         } else {
-          final styleStr = node.knobStyle != KnobStyle.standard ? ', knobStyle = "${_knobStyleToString(node.knobStyle)}"' : '';
-          buffer.writeln('$indent{ type = "knob", param = "$param", label = "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr },');
+          String styleStr = '';
+          if (node.knobStyle == KnobStyle.hardwareKnob) {
+            final hwName = _getHardwarePresetName(node.hardwareKnobStyle);
+            styleStr = ', knobStyle = "hardware", style = "$hwName", hardware = "$hwName"';
+          } else if (node.knobStyle != KnobStyle.standard) {
+            styleStr = ', knobStyle = "${_knobStyleToString(node.knobStyle)}"';
+          }
+          final capStr = node.capColor != null ? ', capColor = "${_colorStr(node.capColor!)}"' : '';
+          final bodyStr = node.bodyColor != null ? ', bodyColor = "${_colorStr(node.bodyColor!)}"' : '';
+          final indStr = node.indicatorColor != null ? ', indicatorColor = "${_colorStr(node.indicatorColor!)}"' : '';
+          final dialStr = node.dialColor != null ? ', dialColor = "${_colorStr(node.dialColor!)}"' : '';
+          final capSizeStr = node.capSize != null ? ', capSize = ${node.capSize}' : '';
+          final bodySizeStr = node.bodySize != null ? ', bodySize = ${node.bodySize}' : '';
+          final indLenStr = node.indicatorLength != null ? ', indicatorLength = ${node.indicatorLength}' : '';
+          final indWidthStr = node.indicatorWidth != null ? ', indicatorWidth = ${node.indicatorWidth}' : '';
+          buffer.writeln('$indent{ type = "knob", param = "$param", label = "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr$capStr$bodyStr$indStr$dialStr$capSizeStr$bodySizeStr$indLenStr$indWidthStr },');
         }
         break;
 
@@ -687,8 +702,22 @@ class LuaGuiSerializer {
           buffer.writeln('$indent    },');
           buffer.writeln('$indent},');
         } else {
-          final styleStr = node.knobStyle != KnobStyle.standard ? ', "knobStyle": "${_knobStyleToString(node.knobStyle)}"' : '';
-          buffer.writeln('$indent{"type": "knob", "param": "$param", "label": "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr$accentStr},');
+          String styleStr = '';
+          if (node.knobStyle == KnobStyle.hardwareKnob) {
+            final hwName = _getHardwarePresetName(node.hardwareKnobStyle);
+            styleStr = ', "knobStyle": "hardware", "style": "$hwName", "hardware": "$hwName"';
+          } else if (node.knobStyle != KnobStyle.standard) {
+            styleStr = ', "knobStyle": "${_knobStyleToString(node.knobStyle)}"';
+          }
+          final capStr = node.capColor != null ? ', "capColor": "${_colorStr(node.capColor!)}"' : '';
+          final bodyStr = node.bodyColor != null ? ', "bodyColor": "${_colorStr(node.bodyColor!)}"' : '';
+          final indStr = node.indicatorColor != null ? ', "indicatorColor": "${_colorStr(node.indicatorColor!)}"' : '';
+          final dialStr = node.dialColor != null ? ', "dialColor": "${_colorStr(node.dialColor!)}"' : '';
+          final capSizeStr = node.capSize != null ? ', "capSize": ${node.capSize}' : '';
+          final bodySizeStr = node.bodySize != null ? ', "bodySize": ${node.bodySize}' : '';
+          final indLenStr = node.indicatorLength != null ? ', "indicatorLength": ${node.indicatorLength}' : '';
+          final indWidthStr = node.indicatorWidth != null ? ', "indicatorWidth": ${node.indicatorWidth}' : '';
+          buffer.writeln('$indent{"type": "knob", "param": "$param", "label": "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr$accentStr$capStr$bodyStr$indStr$dialStr$capSizeStr$bodySizeStr$indLenStr$indWidthStr},');
         }
         break;
 
@@ -862,10 +891,28 @@ class LuaGuiSerializer {
         return 'minimal_white';
       case KnobStyle.customVector:
         return 'custom';
+      case KnobStyle.hardwareKnob:
+        return 'hardware';
       case KnobStyle.standard:
       default:
         return 'standard';
     }
+  }
+
+  static String _getHardwarePresetName(EatHardwareKnobStyle? style) {
+    if (style == null) return 'vintage_bakelite';
+    if (style.capStyle == EatCapStyle.diagonalBar) return 'tb303_selector';
+    if (style.haloColor != null) return 'tb303_acid_halo';
+    if (style.knurlStyle == EatKnurlStyle.fineSawtooth) return 'tb303_potentiometer';
+    if (style.indicatorColor == const Color(0xFF51388E)) return 'snes_console';
+    if (style.capColor == const Color(0xFFF6F6F7)) return 'minimal_white';
+    if (style.capColor == const Color(0xFF1E2026)) return 'standard_hardware';
+    if (style.capColor == const Color(0xFFDCDFE5)) return 'chrome_fluted';
+    if (style.knurlStyle == EatKnurlStyle.fluted) return 'cream_fluted';
+    if (style.knurlStyle == EatKnurlStyle.diamond) return 'anodized_knurled';
+    if (style.skirtStyle == EatSkirtStyle.stepped) return 'two_tone_stepped';
+    if (style.indicatorStyle == EatIndicatorStyle.illuminatedLed) return 'encoder';
+    return 'vintage_bakelite';
   }
 
   static String _tileModeToString(SvgTileMode mode) {
@@ -883,5 +930,10 @@ class LuaGuiSerializer {
   }
 
   static String _hex(Color c) => '#${c.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
+
+  static String _colorStr(Color c) {
+    if (LuaGuiNode.isTrackColor(c)) return 'track';
+    return _hex(c);
+  }
 }
 

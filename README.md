@@ -11,9 +11,8 @@ Mobile-first and web-first digital audio workstation (DAW) built with Flutter an
 
 ## Features
 
-- **Pure-Dart DSP & Eatscript**: 100% VM-less, pure-Dart audio synthesis and Pythonic scripting DSL.
 - **Native & Web Portability**: Built with Flutter and `wajuce` (native Web Audio backend) for Windows, macOS, Linux, Android, iOS, and Web.
-- **Interactive Music Tracker & Piano Roll**: Real-time sequencing synced to live Eatscript clip automation and MIDI FX pipelines.
+- **Hybrid Music Tracker / Piano Roll / Score / Code editor**: Real-time sequencing synced to live Eatscript clip automation and MIDI FX pipelines.
 - **Dynamic GUI Designer**: Create and customize instrument interfaces with knobs, sliders, XY pads, and ADSR envelopes.
 - **Classic Emulations & Rebirth Template**: Built-in procedural 303 acid basslines with slide/accent, 808/909 drum machines, C64 SID, Yamaha FM/OPL3, and SNES DSP chipsets.
 - **Physical Modeling & SoundFonts**: Commuted waveguide piano physical models, Karplus-Strong string synthesis, and integrated General MIDI SoundFont support.

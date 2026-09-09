@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../ui/vector/vector_skin_model.dart';
+import '../ui/hardware/eat_hardware_knob_model.dart';
+import '../ui/hardware/eat_hardware_scale.dart';
 
 // EatScript first-class naming aliases
 typedef EatScriptGuiNodeType = LuaGuiNodeType;
@@ -41,6 +43,7 @@ enum KnobStyle {
   snes,
   minimalWhite,
   customVector,
+  hardwareKnob,
 }
 
 enum SliderStyle {
@@ -106,9 +109,19 @@ class LuaGuiNode {
   final bool showValue;
   final List<Color> palette;
   final CustomControlSkin? customSkin;
+  final EatHardwareKnobStyle? hardwareKnobStyle;
+  final EatScaleGraduation? hardwareScale;
   final double? opacity; // 0.0 = completely transparent background, 1.0 = solid
   final double? borderWidth; // 0.0 = no border
   final Color? borderColor;
+  final Color? capColor;
+  final Color? bodyColor;
+  final Color? indicatorColor;
+  final Color? dialColor;
+  final double? capSize;          // Cap radius ratio (e.g. 0.55 .. 0.98)
+  final double? bodySize;         // Skirt / body fullness ratio (e.g. 1.0 .. 1.45)
+  final double? indicatorLength;  // Indicator ratio (0.3 .. 0.95)
+  final double? indicatorWidth;   // Indicator width (1.0 .. 5.0)
   final List<LuaGuiNode> children;
 
   const LuaGuiNode({
@@ -145,9 +158,19 @@ class LuaGuiNode {
     this.showValue = true,
     this.palette = const [],
     this.customSkin,
+    this.hardwareKnobStyle,
+    this.hardwareScale,
     this.opacity,
     this.borderWidth,
     this.borderColor,
+    this.capColor,
+    this.bodyColor,
+    this.indicatorColor,
+    this.dialColor,
+    this.capSize,
+    this.bodySize,
+    this.indicatorLength,
+    this.indicatorWidth,
     this.children = const [],
   });
 
@@ -185,9 +208,21 @@ class LuaGuiNode {
     bool? showValue,
     List<Color>? palette,
     CustomControlSkin? customSkin,
+    EatHardwareKnobStyle? hardwareKnobStyle,
+    EatScaleGraduation? hardwareScale,
+    bool clearHardwareKnobStyle = false,
+    bool clearHardwareScale = false,
     double? opacity,
     double? borderWidth,
     Color? borderColor,
+    Color? capColor,
+    Color? bodyColor,
+    Color? indicatorColor,
+    Color? dialColor,
+    double? capSize,
+    double? bodySize,
+    double? indicatorLength,
+    double? indicatorWidth,
     List<LuaGuiNode>? children,
   }) {
     return LuaGuiNode(
@@ -224,9 +259,19 @@ class LuaGuiNode {
       showValue: showValue ?? this.showValue,
       palette: palette ?? this.palette,
       customSkin: customSkin ?? this.customSkin,
+      hardwareKnobStyle: clearHardwareKnobStyle ? null : (hardwareKnobStyle ?? this.hardwareKnobStyle),
+      hardwareScale: clearHardwareScale ? null : (hardwareScale ?? this.hardwareScale),
       opacity: opacity ?? this.opacity,
       borderWidth: borderWidth ?? this.borderWidth,
       borderColor: borderColor ?? this.borderColor,
+      capColor: capColor ?? this.capColor,
+      bodyColor: bodyColor ?? this.bodyColor,
+      indicatorColor: indicatorColor ?? this.indicatorColor,
+      dialColor: dialColor ?? this.dialColor,
+      capSize: capSize ?? this.capSize,
+      bodySize: bodySize ?? this.bodySize,
+      indicatorLength: indicatorLength ?? this.indicatorLength,
+      indicatorWidth: indicatorWidth ?? this.indicatorWidth,
       children: children ?? this.children,
     );
   }
@@ -352,6 +397,15 @@ class LuaGuiNode {
   static KnobStyle parseKnobStyle(String? raw) {
     if (raw == null) return KnobStyle.standard;
     final clean = raw.toLowerCase().trim();
+    if (clean.contains('hardware') ||
+        clean.contains('console_knob') ||
+        clean.contains('consoleknob') ||
+        clean.contains('fluted') ||
+        clean.contains('stepped') ||
+        clean.contains('twotone') ||
+        clean.contains('two_tone')) {
+      return KnobStyle.hardwareKnob;
+    }
     if (clean.contains('custom') || clean.contains('vector') || clean.contains('svg')) {
       return KnobStyle.customVector;
     }
@@ -456,12 +510,25 @@ class LuaGuiNode {
 
 
 
+  /// Special sentinel color designating that a component dynamically follows the DAW track color.
+  static const Color trackColorSentinel = Color(0x00000001);
+
+  /// Checks if a given color matches the dynamic track color sentinel.
+  static bool isTrackColor(Color? c) => c != null && c.value == 0x00000001;
+
   static Color? parseColor(dynamic colorVal) {
     if (colorVal == null) return null;
-    if (colorVal is int) return Color(colorVal);
+    if (colorVal is int) {
+      if (colorVal == 0x00000001) return trackColorSentinel;
+      return Color(colorVal);
+    }
+    if (colorVal is Color) return colorVal;
     if (colorVal is String) {
       final s = colorVal.trim();
-      if (s.toLowerCase() == 'track' || s.toLowerCase() == 'auto' || s.toLowerCase() == 'none') {
+      if (s.toLowerCase() == 'track') {
+        return trackColorSentinel;
+      }
+      if (s.toLowerCase() == 'auto' || s.toLowerCase() == 'none') {
         return null;
       }
       if (s.startsWith('#')) {

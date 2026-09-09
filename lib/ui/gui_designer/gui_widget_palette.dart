@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../lua/lua_gui_model.dart';
 import '../../theme/eats_theme.dart';
+import '../hardware/eat_hardware_knob_model.dart';
 
 class GuiPaletteItem {
   final String id;
@@ -20,6 +21,106 @@ class GuiPaletteItem {
 
 class GuiWidgetPalette {
   static final List<GuiPaletteItem> items = [
+    // 0. Hardware Console Dials
+    GuiPaletteItem(
+      id: 'hw_knob_cream',
+      title: 'Cream Fluted (Pitch)',
+      category: 'HARDWARE CONSOLE',
+      icon: Icons.album,
+      createNode: ({String? defaultParam}) => LuaGuiNode(
+        type: LuaGuiNodeType.knob,
+        param: defaultParam ?? 'Pitch',
+        label: (defaultParam ?? 'pitch').toLowerCase(),
+        size: 64,
+        knobStyle: KnobStyle.hardwareKnob,
+        hardwareKnobStyle: EatHardwareKnobStyle.creamFluted(),
+      ),
+    ),
+    GuiPaletteItem(
+      id: 'hw_knob_bakelite',
+      title: 'Bakelite Skirt (Body)',
+      category: 'HARDWARE CONSOLE',
+      icon: Icons.radio_button_checked,
+      createNode: ({String? defaultParam}) => LuaGuiNode(
+        type: LuaGuiNodeType.knob,
+        param: defaultParam ?? 'Body',
+        label: (defaultParam ?? 'body').toLowerCase(),
+        size: 64,
+        knobStyle: KnobStyle.hardwareKnob,
+        hardwareKnobStyle: EatHardwareKnobStyle.vintageBakelite(),
+      ),
+    ),
+    GuiPaletteItem(
+      id: 'hw_knob_knurled',
+      title: 'Anodized Knurled (Head)',
+      category: 'HARDWARE CONSOLE',
+      icon: Icons.change_circle_outlined,
+      createNode: ({String? defaultParam}) => LuaGuiNode(
+        type: LuaGuiNodeType.knob,
+        param: defaultParam ?? 'Head',
+        label: (defaultParam ?? 'head').toLowerCase(),
+        size: 64,
+        knobStyle: KnobStyle.hardwareKnob,
+        hardwareKnobStyle: EatHardwareKnobStyle.anodizedKnurled(),
+      ),
+    ),
+    GuiPaletteItem(
+      id: 'hw_knob_stepped',
+      title: 'Two-Tone Stepped (Punch)',
+      category: 'HARDWARE CONSOLE',
+      icon: Icons.motion_photos_on_outlined,
+      createNode: ({String? defaultParam}) => LuaGuiNode(
+        type: LuaGuiNodeType.knob,
+        param: defaultParam ?? 'Punch',
+        label: (defaultParam ?? 'punch').toLowerCase(),
+        size: 64,
+        knobStyle: KnobStyle.hardwareKnob,
+        hardwareKnobStyle: EatHardwareKnobStyle.twoToneStepped(),
+      ),
+    ),
+    GuiPaletteItem(
+      id: 'hw_knob_tb303_pot',
+      title: 'TB-303 Potentiometer (Cutoff)',
+      category: 'HARDWARE CONSOLE',
+      icon: Icons.grain,
+      createNode: ({String? defaultParam}) => LuaGuiNode(
+        type: LuaGuiNodeType.knob,
+        param: defaultParam ?? 'Cutoff',
+        label: (defaultParam ?? 'cutoff').toLowerCase(),
+        size: 64,
+        knobStyle: KnobStyle.hardwareKnob,
+        hardwareKnobStyle: EatHardwareKnobStyle.tb303Potentiometer(),
+      ),
+    ),
+    GuiPaletteItem(
+      id: 'hw_knob_tb303_halo',
+      title: 'TB-303 Acid Halo (Resonance)',
+      category: 'HARDWARE CONSOLE',
+      icon: Icons.highlight,
+      createNode: ({String? defaultParam}) => LuaGuiNode(
+        type: LuaGuiNodeType.knob,
+        param: defaultParam ?? 'Resonance',
+        label: (defaultParam ?? 'resonance').toLowerCase(),
+        size: 64,
+        knobStyle: KnobStyle.hardwareKnob,
+        hardwareKnobStyle: EatHardwareKnobStyle.tb303AcidHalo(),
+      ),
+    ),
+    GuiPaletteItem(
+      id: 'hw_knob_tb303_selector',
+      title: 'TB-303 Selector (Mode / Wave)',
+      category: 'HARDWARE CONSOLE',
+      icon: Icons.adjust,
+      createNode: ({String? defaultParam}) => LuaGuiNode(
+        type: LuaGuiNodeType.knob,
+        param: defaultParam ?? 'Mode',
+        label: (defaultParam ?? 'mode').toLowerCase(),
+        size: 68,
+        knobStyle: KnobStyle.hardwareKnob,
+        hardwareKnobStyle: EatHardwareKnobStyle.tb303Selector(),
+      ),
+    ),
+
     // 1. Controls
     GuiPaletteItem(
       id: 'knob',

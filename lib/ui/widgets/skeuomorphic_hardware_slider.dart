@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../lua/lua_gui_model.dart' show SliderStyle;
 import '../../theme/eats_theme.dart';
+import '../hardware/eat_hardware_scale.dart';
 import 'compact_value_dialog.dart';
 
 /// A realistic skeuomorphic console mixer fader slider control.
@@ -25,6 +26,7 @@ class SkeuomorphicHardwareSlider extends StatefulWidget {
   final bool showTooltip;
   final int? divisions;
   final double step;
+  final EatScaleGraduation? scaleGraduation;
 
   const SkeuomorphicHardwareSlider({
     super.key,
@@ -45,6 +47,7 @@ class SkeuomorphicHardwareSlider extends StatefulWidget {
     this.showTooltip = true,
     this.divisions,
     this.step = 0.0,
+    this.scaleGraduation,
   });
 
   @override
@@ -82,9 +85,10 @@ class _SkeuomorphicHardwareSliderState extends State<SkeuomorphicHardwareSlider>
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final totalLength = isHoriz
+        final rawLength = isHoriz
             ? (constraints.hasBoundedWidth && constraints.maxWidth.isFinite ? constraints.maxWidth : widget.length)
             : (constraints.hasBoundedHeight && constraints.maxHeight.isFinite ? constraints.maxHeight : widget.length);
+        final totalLength = math.max(40.0, rawLength);
 
         final widgetWidth = isHoriz ? totalLength : 40.0;
         final widgetHeight = isHoriz ? (widget.style == SliderStyle.capsule ? 26.0 : 36.0) : totalLength;
@@ -99,12 +103,13 @@ class _SkeuomorphicHardwareSliderState extends State<SkeuomorphicHardwareSlider>
               isGrungyTheme: isGrungy,
               orientation: widget.orientation,
               style: widget.style,
-              showLevelMarkings: widget.showLevelMarkings,
+              showLevelMarkings: widget.showLevelMarkings || widget.scaleGraduation != null,
+              scaleGraduation: widget.scaleGraduation,
             ),
           ),
         );
 
-        return GestureDetector(
+        final sliderGesture = GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTapDown: (details) {
             widget.onChangeStart?.call();
@@ -131,6 +136,8 @@ class _SkeuomorphicHardwareSliderState extends State<SkeuomorphicHardwareSlider>
                 )
               : content,
         );
+
+        return sliderGesture;
       },
     );
   }
@@ -165,6 +172,7 @@ class _FaderPainter extends CustomPainter {
   final Axis orientation;
   final SliderStyle style;
   final bool showLevelMarkings;
+  final EatScaleGraduation? scaleGraduation;
 
   _FaderPainter({
     required this.normalizedValue,
@@ -173,6 +181,7 @@ class _FaderPainter extends CustomPainter {
     required this.orientation,
     required this.style,
     required this.showLevelMarkings,
+    this.scaleGraduation,
   });
 
   // Pre-allocated static worker paints (zero allocation per frame during fader drag)
@@ -223,6 +232,25 @@ class _FaderPainter extends CustomPainter {
     textDirection: TextDirection.ltr,
   )..layout();
 
+  static final Map<String, TextPainter> _labelPainterCache = {};
+  static TextPainter _getTextPainterForLabel(String label, Color color) {
+    final key = '$label-${color.value}';
+    return _labelPainterCache.putIfAbsent(key, () {
+      return TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: color,
+            fontSize: 6.5,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+    });
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final isHoriz = orientation == Axis.horizontal;
@@ -265,13 +293,20 @@ class _FaderPainter extends CustomPainter {
       final maxy = trackLength - 14.0;
       final travel = maxy - miny;
 
-      const numTicks = 16;
-      for (int i = 0; i <= numTicks; i++) {
-        final frac = i / numTicks;
+      final divisions = scaleGraduation?.tickDivisions ?? 16;
+      final minorSub = scaleGraduation?.minorSubdivisions ?? 0;
+      final stepInterval = math.max(1, minorSub + 1);
+
+      for (int i = 0; i <= divisions; i++) {
+        final frac = i / divisions;
         final yPos = maxy - (frac * travel);
 
-        final isMajor = (i % 4 == 0);
-        final tickLen = isMajor ? 5.0 : 3.0;
+        final isMajor = (scaleGraduation != null)
+            ? (i % stepInterval == 0)
+            : (i % 4 == 0);
+        final tickLen = isMajor
+            ? (scaleGraduation?.majorTickLength ?? 5.0)
+            : (scaleGraduation?.tickLength ?? 3.0);
         final paint = isMajor ? _tickMajor : _tickMinor;
 
         // Left Ticks
@@ -280,8 +315,20 @@ class _FaderPainter extends CustomPainter {
         canvas.drawLine(Offset(centerCross + 4.0, yPos), Offset(centerCross + 4.0 + tickLen, yPos), paint);
       }
 
-      // Draw bottom "0.00" label using pre-cached TextPainter
-      _cachedZeroLabel.paint(canvas, Offset(centerCross - (_cachedZeroLabel.width / 2), trackLength - 9));
+      if (scaleGraduation != null && scaleGraduation!.labels.isNotEmpty) {
+        final labels = scaleGraduation!.labels;
+        final count = labels.length;
+        final labelCol = scaleGraduation!.labelColor ?? const Color(0xFF687285);
+        for (int k = 0; k < count; k++) {
+          final frac = count > 1 ? k / (count - 1) : 0.0;
+          final yPos = maxy - (frac * travel);
+          final painter = _getTextPainterForLabel(labels[k], labelCol);
+          painter.paint(canvas, Offset(centerCross + 11.0, yPos - (painter.height / 2)));
+        }
+      } else {
+        // Draw bottom "0.00" label using pre-cached TextPainter
+        _cachedZeroLabel.paint(canvas, Offset(centerCross - (_cachedZeroLabel.width / 2), trackLength - 9));
+      }
     }
 
     // Outer Recessed Channel Boundary Frame

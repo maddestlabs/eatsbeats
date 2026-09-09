@@ -5,6 +5,8 @@ import '../../theme/eats_theme.dart';
 import '../vector/built_in_vector_skins.dart';
 import '../vector/two_pass_vector_painter.dart';
 import '../vector/vector_skin_model.dart';
+import '../hardware/eat_hardware_knob.dart';
+import '../hardware/eat_hardware_knob_model.dart';
 import 'compact_value_dialog.dart';
 
 /// A realistic skeuomorphic metallic hardware knob control.
@@ -24,6 +26,7 @@ class SkeuomorphicHardwareKnob extends StatefulWidget {
   final Color? accentColor;
   final KnobStyle knobStyle;
   final CustomControlSkin? customSkin;
+  final EatHardwareKnobStyle? hardwareStyle;
   final bool isLightChassis;
   final String Function(double)? formatValue;
   final double step;
@@ -44,6 +47,7 @@ class SkeuomorphicHardwareKnob extends StatefulWidget {
     this.accentColor,
     this.knobStyle = KnobStyle.standard,
     this.customSkin,
+    this.hardwareStyle,
     this.isLightChassis = false,
     this.formatValue,
     this.step = 0.0,
@@ -62,6 +66,52 @@ class _SkeuomorphicHardwareKnobState extends State<SkeuomorphicHardwareKnob> {
 
   @override
   Widget build(BuildContext context) {
+    EatHardwareKnobStyle? resolvedHwStyle = widget.hardwareStyle;
+    if (resolvedHwStyle == null && widget.customSkin == null) {
+      final accent = widget.accentColor ?? EatsTheme.primaryCyan;
+      switch (widget.knobStyle) {
+        case KnobStyle.standard:
+          resolvedHwStyle = EatHardwareKnobStyle.standardHardware(accentColor: accent);
+          break;
+        case KnobStyle.chrome:
+          resolvedHwStyle = EatHardwareKnobStyle.chromeFluted(accentColor: accent);
+          break;
+        case KnobStyle.vintage:
+          resolvedHwStyle = EatHardwareKnobStyle.vintageBakelite(accentColor: accent);
+          break;
+        case KnobStyle.snes:
+          resolvedHwStyle = EatHardwareKnobStyle.snesConsole(accentColor: accent);
+          break;
+        case KnobStyle.minimalWhite:
+          resolvedHwStyle = EatHardwareKnobStyle.minimalWhite(accentColor: accent);
+          break;
+        case KnobStyle.hardwareKnob:
+          resolvedHwStyle = EatHardwareKnobStyle.vintageBakelite(accentColor: accent);
+          break;
+        case KnobStyle.customVector:
+          break;
+      }
+    }
+
+    if (resolvedHwStyle != null) {
+      return EatHardwareKnob(
+        label: widget.label,
+        showLabelText: widget.showLabelText,
+        showValueText: widget.showValueText,
+        value: widget.value,
+        min: widget.min,
+        max: widget.max,
+        defaultValue: widget.defaultValue,
+        step: widget.step,
+        size: widget.size,
+        style: resolvedHwStyle,
+        formatValue: widget.formatValue,
+        onChanged: widget.onChanged,
+        onChangeStart: widget.onChangeStart,
+        onChangeEnd: widget.onChangeEnd,
+      );
+    }
+
     final isMinimal = widget.knobStyle == KnobStyle.minimalWhite;
     final isLight = widget.isLightChassis || isMinimal;
     final activeColor = widget.accentColor ?? (widget.knobStyle == KnobStyle.chrome || isMinimal ? const Color(0xFF141416) : EatsTheme.primaryCyan);

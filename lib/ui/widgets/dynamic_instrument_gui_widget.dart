@@ -27,6 +27,8 @@ import 'skeuomorphic_hardware_button.dart';
 import 'skeuomorphic_hardware_knob.dart';
 import 'skeuomorphic_hardware_slider.dart';
 import 'skeuomorphic_hardware_switch.dart';
+import '../hardware/eat_hardware_knob.dart';
+import '../hardware/eat_hardware_knob_model.dart';
 import '../../models/script_preset_model.dart';
 import 'preset_browser_dialog.dart';
 import 'script_search_dialog.dart';
@@ -73,6 +75,24 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
       onParamChanged!(paramName, value);
     } else {
       dawState.updateLuaParam(paramName, value);
+    }
+  }
+
+  EatHardwareKnobStyle _resolveDefaultHardwareKnobStyle(KnobStyle knobStyle, Color accent) {
+    switch (knobStyle) {
+      case KnobStyle.standard:
+        return EatHardwareKnobStyle.standardHardware(accentColor: accent);
+      case KnobStyle.chrome:
+        return EatHardwareKnobStyle.chromeFluted(accentColor: accent);
+      case KnobStyle.vintage:
+        return EatHardwareKnobStyle.vintageBakelite(accentColor: accent);
+      case KnobStyle.snes:
+        return EatHardwareKnobStyle.snesConsole(accentColor: accent);
+      case KnobStyle.minimalWhite:
+        return EatHardwareKnobStyle.minimalWhite(accentColor: accent);
+      case KnobStyle.hardwareKnob:
+      default:
+        return EatHardwareKnobStyle.vintageBakelite(accentColor: accent);
     }
   }
 
@@ -700,7 +720,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             );
           } else if (baseRowBg != Colors.transparent || border != null) {
             rowWidget = Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
               decoration: BoxDecoration(
                 color: baseRowBg,
                 borderRadius: BorderRadius.circular(node.cornerRadius ?? 6),
@@ -983,7 +1003,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               color: groupBg,
               textureRotation: node.textureRotation ?? 0.0,
               textureScale: node.textureScale ?? 1.0,
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
               margin: const EdgeInsets.symmetric(vertical: 4),
               borderRadius: BorderRadius.circular(node.cornerRadius ?? 6),
               border: border,
@@ -991,7 +1011,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             );
           } else {
             return Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
               margin: const EdgeInsets.symmetric(vertical: 4),
               decoration: BoxDecoration(
                 color: groupBg,
@@ -1021,7 +1041,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               );
 
         return Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
           margin: const EdgeInsets.symmetric(vertical: 4),
           decoration: BoxDecoration(
             color: fallbackBg,
@@ -1036,19 +1056,67 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         final rawVal = (track.luaParams[node.param] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
         final currentVal = paramDef.isInteger ? rawVal.roundToDouble() : rawVal;
 
-        return SkeuomorphicHardwareKnob(
-          label: node.label ?? paramDef.name.toUpperCase(),
+        if (node.knobStyle == KnobStyle.customVector && node.customSkin != null) {
+          return SkeuomorphicHardwareKnob(
+            label: node.label ?? paramDef.name.toUpperCase(),
+            showLabelText: node.showLabel,
+            showValueText: node.showValue,
+            value: currentVal,
+            min: paramDef.min,
+            max: paramDef.max,
+            defaultValue: paramDef.defaultValue,
+            size: node.size ?? 56.0,
+            accentColor: accent,
+            knobStyle: node.knobStyle,
+            customSkin: node.customSkin,
+            isLightChassis: isLightChassis,
+            onChanged: (val) {
+              final snapped = paramDef.isInteger ? val.roundToDouble() : val;
+              _setParam(paramDef.name, snapped);
+            },
+            onChangeStart: () => dawState.beginHistoryTransaction(
+              '${paramDef.name} (${track.name})',
+              icon: Icons.tune,
+            ),
+            onChangeEnd: () => dawState.commitHistoryTransaction(),
+            formatValue: (v) {
+              final f = paramDef.getFormattedValue(v);
+              return node.unit != null ? '$f ${node.unit}' : f;
+            },
+          );
+        }
+
+        var style = node.hardwareKnobStyle ?? _resolveDefaultHardwareKnobStyle(node.knobStyle, accent);
+        Color? resolveTrack(Color? c) => LuaGuiNode.isTrackColor(c) ? (track.color) : c;
+        final effectiveCap = resolveTrack(node.capColor);
+        final effectiveBody = resolveTrack(node.bodyColor);
+        final effectiveInd = resolveTrack(node.indicatorColor);
+        final effectiveDial = resolveTrack(node.dialColor);
+
+        if (effectiveCap != null) style = style.copyWith(capColor: effectiveCap);
+        if (effectiveBody != null) style = style.copyWith(bodyColor: effectiveBody);
+        if (effectiveInd != null) style = style.copyWith(indicatorColor: effectiveInd);
+        if (effectiveDial != null) {
+          style = style.copyWith(
+            scale: style.scale.copyWith(tickColor: effectiveDial, labelColor: effectiveDial),
+          );
+        }
+        if (node.capSize != null) style = style.copyWith(capRadiusRatio: node.capSize);
+        if (node.bodySize != null) style = style.copyWith(skirtRadiusRatio: node.bodySize);
+        if (node.indicatorLength != null) style = style.copyWith(indicatorLength: node.indicatorLength);
+        if (node.indicatorWidth != null) style = style.copyWith(indicatorWidth: node.indicatorWidth);
+
+        return EatHardwareKnob(
+          label: node.label ?? paramDef.name,
           showLabelText: node.showLabel,
           showValueText: node.showValue,
           value: currentVal,
           min: paramDef.min,
           max: paramDef.max,
           defaultValue: paramDef.defaultValue,
-          size: node.size ?? 56.0,
-          accentColor: accent,
-          knobStyle: node.knobStyle,
-          customSkin: node.customSkin,
-          isLightChassis: isLightChassis,
+          step: paramDef.step,
+          size: node.size ?? 60.0,
+          style: style,
           onChanged: (val) {
             final snapped = paramDef.isInteger ? val.roundToDouble() : val;
             _setParam(paramDef.name, snapped);
@@ -1090,7 +1158,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                     activeColor: accent,
                     orientation: Axis.vertical,
                     style: node.sliderStyle,
-                    showLevelMarkings: false,
+                    scaleGraduation: node.hardwareScale ?? node.hardwareKnobStyle?.scale,
+                    showLevelMarkings: node.hardwareScale != null || node.sliderStyle == SliderStyle.console,
                     showTooltip: true,
                     onChanged: (val) {
                       final snapped = paramDef.isInteger ? val.roundToDouble() : val;

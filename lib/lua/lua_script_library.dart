@@ -603,6 +603,221 @@ class LuaScriptLibrary {
   }
 
   static const List<LuaPreset> _builtinPresets = [
+    // 00a. Kick Channel Strip (6-Zone Hardware Console Preset)
+    LuaPreset(
+      id: 'kick_channel_strip',
+      name: 'Kick Channel Strip',
+      category: LuaPresetCategory.instrument,
+      description: 'Studio console kick drum channel strip featuring 6-zone skeuomorphic hardware dials: cream fluted pitch dial, dark Bakelite body, anodized knurled sustain dial, two-tone stepped punch dial, and studio console fader.',
+      tags: ['kick', 'drums', 'hardware', 'channel_strip', 'analog', 'console'],
+      code: r'''
+# @id: kick_channel_strip
+# @name: Kick Channel Strip
+# @category: instrument
+# @description: Studio console kick drum channel strip featuring 6-zone skeuomorphic hardware dials and fader.
+
+import math
+
+def init():
+    eat.param("Pitch", min=30.0, max=160.0, default=55.0)
+    eat.param("Body", min=0.05, max=1.2, default=0.45)
+    eat.param("Sustain", min=0.0, max=1.0, default=0.35)
+    eat.param("Punch", min=0.0, max=1.0, default=0.65)
+    eat.param("Volume", min=0.0, max=1.5, default=1.0)
+
+def process(time, freq, note, params):
+    pitch = params.get("Pitch", 55.0)
+    body = params.get("Body", 0.45)
+    sustain = params.get("Sustain", 0.35)
+    punch = params.get("Punch", 0.65)
+    volume = params.get("Volume", 1.0)
+
+    pitchEnv = math.exp(-time * (25.0 + punch * 40.0))
+    instFreq = pitch + (pitch * 3.5 * pitchEnv)
+    phase = 2.0 * math.pi * instFreq * time
+    tone = math.sin(phase)
+
+    transient = (math.random() * 2.0 - 1.0) * math.exp(-time * 180.0) * punch
+    ampEnv = math.exp(-time / max(0.02, body)) + sustain * 0.25 * math.exp(-time / max(0.1, body * 2.0))
+    raw = (tone * 0.85 + transient * 0.25) * ampEnv
+    return math.tanh(raw * 1.4) * volume
+
+def gui():
+    return {
+        "panel": {
+            "title": "KICK CHANNEL STRIP",
+            "subtitle": "Studio Console • 6-Zone Hardware Engine",
+            "background": "dark",
+            "accent": "#FF4444",
+            "layout": [
+                {
+                    "type": "row",
+                    "children": [
+                        {
+                            "type": "knob",
+                            "param": "Pitch",
+                            "label": "PITCH",
+                            "style": "cream_fluted",
+                            "scale": ["low", "mid", "high"],
+                            "size": 58
+                        },
+                        {
+                            "type": "knob",
+                            "param": "Body",
+                            "label": "BODY",
+                            "style": "vintage_bakelite",
+                            "scale": "0_to_10",
+                            "size": 58
+                        },
+                        {
+                            "type": "knob",
+                            "param": "Sustain",
+                            "label": "SUSTAIN",
+                            "style": "anodized_knurled",
+                            "scale": "1_to_6",
+                            "size": 58
+                        },
+                        {
+                            "type": "knob",
+                            "param": "Punch",
+                            "label": "PUNCH",
+                            "style": "two_tone_stepped",
+                            "scale": "0_to_10",
+                            "size": 58
+                        },
+                        {
+                            "type": "divider",
+                            "orientation": "vertical",
+                            "height": 72
+                        },
+                        {
+                            "type": "slider",
+                            "param": "Volume",
+                            "label": "OUTPUT",
+                            "orientation": "vertical",
+                            "style": "console",
+                            "scale": "db",
+                            "height": 100,
+                            "width": 36
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
+KickChannelStrip = True
+''',
+    ),
+
+    // 00b. Snare Channel Strip (6-Zone Hardware Console Preset)
+    LuaPreset(
+      id: 'snare_channel_strip',
+      name: 'Snare Channel Strip',
+      category: LuaPresetCategory.instrument,
+      description: 'Studio console snare drum channel strip featuring 6-zone skeuomorphic hardware dials: cream fluted pitch dial, dark Bakelite head dial, anodized knurled wires dial, two-tone stepped rattle dial, and studio console fader.',
+      tags: ['snare', 'drums', 'hardware', 'channel_strip', 'analog', 'console'],
+      code: r'''
+# @id: snare_channel_strip
+# @name: Snare Channel Strip
+# @category: instrument
+# @description: Studio console snare drum channel strip featuring 6-zone skeuomorphic hardware dials and fader.
+
+import math
+
+def init():
+    eat.param("Pitch", min=120.0, max=320.0, default=195.0)
+    eat.param("Head", min=0.05, max=0.8, default=0.25)
+    eat.param("Wires", min=0.0, max=1.0, default=0.65)
+    eat.param("Rattle", min=0.0, max=1.0, default=0.45)
+    eat.param("Volume", min=0.0, max=1.5, default=1.0)
+
+def process(time, freq, note, params):
+    pitch = params.get("Pitch", 195.0)
+    head = params.get("Head", 0.25)
+    wires = params.get("Wires", 0.65)
+    rattle = params.get("Rattle", 0.45)
+    volume = params.get("Volume", 1.0)
+
+    toneEnv = math.exp(-time / max(0.02, head))
+    body = math.sin(2.0 * math.pi * pitch * time) * toneEnv
+    overtone = math.sin(2.0 * math.pi * (pitch * 1.74) * time) * toneEnv * 0.35
+
+    noiseEnv = math.exp(-time / max(0.03, head * 1.5))
+    noise = (math.random() * 2.0 - 1.0) * noiseEnv * wires
+    rattleBuzz = math.sin(time * 800.0) * (math.random() * 2.0 - 1.0) * noiseEnv * rattle * 0.3
+
+    raw = (body + overtone) * 0.5 + noise * 0.9 + rattleBuzz
+    return math.tanh(raw * 1.3) * volume
+
+def gui():
+    return {
+        "panel": {
+            "title": "SNARE CHANNEL STRIP",
+            "subtitle": "Studio Console • 6-Zone Hardware Engine",
+            "background": "dark",
+            "accent": "#00E5FF",
+            "layout": [
+                {
+                    "type": "row",
+                    "children": [
+                        {
+                            "type": "knob",
+                            "param": "Pitch",
+                            "label": "PITCH",
+                            "style": "cream_fluted",
+                            "scale": ["low", "mid", "high"],
+                            "size": 58
+                        },
+                        {
+                            "type": "knob",
+                            "param": "Head",
+                            "label": "HEAD",
+                            "style": "vintage_bakelite",
+                            "scale": "0_to_10",
+                            "size": 58
+                        },
+                        {
+                            "type": "knob",
+                            "param": "Wires",
+                            "label": "WIRES",
+                            "style": "anodized_knurled",
+                            "scale": "1_to_6",
+                            "size": 58
+                        },
+                        {
+                            "type": "knob",
+                            "param": "Rattle",
+                            "label": "RATTLE",
+                            "style": "two_tone_stepped",
+                            "scale": "0_to_10",
+                            "size": 58
+                        },
+                        {
+                            "type": "divider",
+                            "orientation": "vertical",
+                            "height": 72
+                        },
+                        {
+                            "type": "slider",
+                            "param": "Volume",
+                            "label": "OUTPUT",
+                            "orientation": "vertical",
+                            "style": "console",
+                            "scale": "db",
+                            "height": 100,
+                            "width": 36
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
+SnareChannelStrip = True
+''',
+    ),
+
     // 00. TTS Voice Synth (Tactile Minimalist Ceramic Vocal Formant Synthesizer)
     LuaPreset(
       id: 'tts_voice_synth',

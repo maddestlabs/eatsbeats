@@ -20,6 +20,9 @@ import '../widgets/space_visualizer_widget.dart';
 import '../widgets/waveshaper_canvas_widget.dart';
 import '../textures/daw_texture_engine.dart';
 import '../vector/panel_svg_background.dart';
+import '../hardware/eat_hardware_knob.dart';
+import '../hardware/eat_hardware_knob_model.dart';
+import '../hardware/eat_hardware_scale.dart';
 import 'gui_inspector_sidebar.dart';
 import 'gui_widget_palette.dart';
 
@@ -244,28 +247,13 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           extractedNode = newStackChildren.removeAt(source.stackChildIndex!);
 
           final newRowChildren = List<LuaGuiNode>.from(srcRow.children);
-          newRowChildren[source.childIndex!] = LuaGuiNode(
-            type: stackNode.type,
-            orientation: stackNode.orientation,
-            align: stackNode.align,
-            children: newStackChildren,
-          );
-          rows[source.rowIndex] = LuaGuiNode(
-            type: srcRow.type,
-            orientation: srcRow.orientation,
-            align: srcRow.align,
-            children: newRowChildren,
-          );
+          newRowChildren[source.childIndex!] = stackNode.copyWith(children: newStackChildren);
+          rows[source.rowIndex] = srcRow.copyWith(children: newRowChildren);
         }
       } else {
         final newRowChildren = List<LuaGuiNode>.from(srcRow.children);
         extractedNode = newRowChildren.removeAt(source.childIndex!);
-        rows[source.rowIndex] = LuaGuiNode(
-          type: srcRow.type,
-          orientation: srcRow.orientation,
-          align: srcRow.align,
-          children: newRowChildren,
-        );
+        rows[source.rowIndex] = srcRow.copyWith(children: newRowChildren);
       }
     }
 
@@ -286,18 +274,8 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
       }
 
       final newRowChildren = List<LuaGuiNode>.from(targetRow.children);
-      newRowChildren[toChild] = LuaGuiNode(
-        type: stackNode.type,
-        orientation: stackNode.orientation,
-        align: stackNode.align,
-        children: newStackChildren,
-      );
-      rows[toRow] = LuaGuiNode(
-        type: targetRow.type,
-        orientation: targetRow.orientation,
-        align: targetRow.align,
-        children: newRowChildren,
-      );
+      newRowChildren[toChild] = stackNode.copyWith(children: newStackChildren);
+      rows[toRow] = targetRow.copyWith(children: newRowChildren);
     } else {
       // Drop into a row
       final newRowChildren = List<LuaGuiNode>.from(targetRow.children);
@@ -306,12 +284,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
       } else {
         newRowChildren.add(extractedNode);
       }
-      rows[toRow] = LuaGuiNode(
-        type: targetRow.type,
-        orientation: targetRow.orientation,
-        align: targetRow.align,
-        children: newRowChildren,
-      );
+      rows[toRow] = targetRow.copyWith(children: newRowChildren);
     }
 
     _applyPanelChanges(_panel.copyWith(children: rows));
@@ -349,42 +322,14 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           s < childNode.children.length) {
         final newStackChildren = List<LuaGuiNode>.from(childNode.children)..removeAt(s);
         final newRowChildren = List<LuaGuiNode>.from(row.children);
-        newRowChildren[c] = LuaGuiNode(
-          type: childNode.type,
-          orientation: childNode.orientation,
-          align: childNode.align,
-          crossAlign: childNode.crossAlign,
-          size: childNode.size,
-          width: childNode.width,
-          height: childNode.height,
-          label: childNode.label,
-          showLabel: childNode.showLabel,
-          showValue: childNode.showValue,
-          knobStyle: childNode.knobStyle,
-          sliderStyle: childNode.sliderStyle,
-          canvasMode: childNode.canvasMode,
-          options: childNode.options,
-          children: newStackChildren,
-        );
-        rows[r] = LuaGuiNode(
-          type: row.type,
-          orientation: row.orientation,
-          align: row.align,
-          crossAlign: row.crossAlign,
-          children: newRowChildren,
-        );
+        newRowChildren[c] = childNode.copyWith(children: newStackChildren);
+        rows[r] = row.copyWith(children: newRowChildren);
         setState(() {
           _selectedStackChildIndex = null;
         });
       } else {
         final newChildren = List<LuaGuiNode>.from(row.children)..removeAt(c);
-        rows[r] = LuaGuiNode(
-          type: row.type,
-          orientation: row.orientation,
-          align: row.align,
-          crossAlign: row.crossAlign,
-          children: newChildren,
-        );
+        rows[r] = row.copyWith(children: newChildren);
         setState(() {
           _selectedChildIndex = null;
           _selectedStackChildIndex = null;
@@ -585,9 +530,11 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     final isGrunge = bgStyle == PanelBackgroundStyle.grunge;
     final textureType = DawTextureEngine.mapStyleToTexture(bgStyle);
 
-    Color chassisBg = const Color(0xFF14171E);
+    Color chassisBg = EatsTheme.panelBackground;
     if (_panel.backgroundColor != null) {
       chassisBg = _panel.backgroundColor!;
+    } else if (bgStyle == PanelBackgroundStyle.dark) {
+      chassisBg = EatsTheme.panelBackground;
     } else if (isPcbGreen) {
       chassisBg = const Color(0xFF133B1E);
     } else if (isMinimal) {
@@ -925,7 +872,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           },
           child: Container(
             margin: isMinimalGroup ? const EdgeInsets.symmetric(horizontal: 4, vertical: 4) : EdgeInsets.zero,
-            padding: isMinimalGroup ? const EdgeInsets.symmetric(horizontal: 14, vertical: 14) : const EdgeInsets.all(8),
+            padding: isMinimalGroup ? const EdgeInsets.symmetric(horizontal: 14, vertical: 14) : const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             decoration: BoxDecoration(
               color: isDropHovered ? EatsTheme.primaryCyan.withOpacity(0.18) : cardBg,
               borderRadius: BorderRadius.circular(rowNode.cornerRadius ?? (isMinimalGroup ? 26.0 : 6.0)),
@@ -1428,7 +1375,47 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
         final effectiveKnobStyle = (node.knobStyle == KnobStyle.standard && _panel.defaultKnobStyle != null)
             ? _panel.defaultKnobStyle
             : node.knobStyle;
-        return SkeuomorphicHardwareKnob(
+
+        if (effectiveKnobStyle == KnobStyle.customVector && node.customSkin != null) {
+          return SkeuomorphicHardwareKnob(
+            label: node.label ?? (node.param ?? 'KNOB'),
+            showLabelText: node.showLabel,
+            showValueText: node.showValue,
+            value: 0.5,
+            min: 0.0,
+            max: 1.0,
+            defaultValue: 0.5,
+            size: node.size ?? 52,
+            knobStyle: effectiveKnobStyle,
+            customSkin: node.customSkin,
+            accentColor: node.accentColor ?? accent,
+            isLightChassis: isLight,
+            formatValue: node.unit != null ? (v) => '${(v * 100).toStringAsFixed(0)} ${node.unit}' : null,
+            onChanged: (_) {},
+          );
+        }
+
+        var style = node.hardwareKnobStyle ?? _resolveDefaultHardwareKnobStyle(effectiveKnobStyle, node.accentColor ?? accent);
+        Color? resolveTrack(Color? c) => LuaGuiNode.isTrackColor(c) ? (widget.target.trackColor ?? accent) : c;
+        final effectiveCap = resolveTrack(node.capColor);
+        final effectiveBody = resolveTrack(node.bodyColor);
+        final effectiveInd = resolveTrack(node.indicatorColor);
+        final effectiveDial = resolveTrack(node.dialColor);
+
+        if (effectiveCap != null) style = style.copyWith(capColor: effectiveCap);
+        if (effectiveBody != null) style = style.copyWith(bodyColor: effectiveBody);
+        if (effectiveInd != null) style = style.copyWith(indicatorColor: effectiveInd);
+        if (effectiveDial != null) {
+          style = style.copyWith(
+            scale: style.scale.copyWith(tickColor: effectiveDial, labelColor: effectiveDial),
+          );
+        }
+        if (node.capSize != null) style = style.copyWith(capRadiusRatio: node.capSize);
+        if (node.bodySize != null) style = style.copyWith(skirtRadiusRatio: node.bodySize);
+        if (node.indicatorLength != null) style = style.copyWith(indicatorLength: node.indicatorLength);
+        if (node.indicatorWidth != null) style = style.copyWith(indicatorWidth: node.indicatorWidth);
+
+        return EatHardwareKnob(
           label: node.label ?? (node.param ?? 'KNOB'),
           showLabelText: node.showLabel,
           showValueText: node.showValue,
@@ -1436,11 +1423,8 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           min: 0.0,
           max: 1.0,
           defaultValue: 0.5,
-          size: node.size ?? 52,
-          knobStyle: effectiveKnobStyle,
-          customSkin: node.customSkin,
-          accentColor: node.accentColor ?? accent,
-          isLightChassis: isLight,
+          size: node.size ?? 60.0,
+          style: style,
           formatValue: node.unit != null ? (v) => '${(v * 100).toStringAsFixed(0)} ${node.unit}' : null,
           onChanged: (_) {},
         );
@@ -1449,8 +1433,8 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
       case LuaGuiNodeType.fader:
         final isH = node.orientation == 'horizontal';
         return SizedBox(
-          width: isH ? (node.width ?? 320) : 60,
-          height: isH ? 50 : (node.height ?? 120),
+          width: isH ? (node.width ?? 320) : (node.width ?? 60),
+          height: isH ? (node.height ?? 50) : (node.height ?? 120),
           child: SkeuomorphicHardwareSlider(
             label: node.showLabel ? (node.label ?? (node.param ?? 'SLIDER')) : null,
             value: 0.5,
@@ -1459,6 +1443,9 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
             defaultValue: 0.5,
             orientation: node.orientation == 'horizontal' ? Axis.horizontal : Axis.vertical,
             style: node.sliderStyle,
+            scaleGraduation: node.hardwareScale ?? node.hardwareKnobStyle?.scale,
+            showLevelMarkings: node.hardwareScale != null || node.sliderStyle == SliderStyle.console,
+            activeColor: node.accentColor ?? accent,
             onChanged: (_) {},
           ),
         );
@@ -1753,6 +1740,24 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
       case 'center':
       default:
         return CrossAxisAlignment.center;
+    }
+  }
+
+  EatHardwareKnobStyle _resolveDefaultHardwareKnobStyle(KnobStyle knobStyle, Color accent) {
+    switch (knobStyle) {
+      case KnobStyle.standard:
+        return EatHardwareKnobStyle.standardHardware(accentColor: accent);
+      case KnobStyle.chrome:
+        return EatHardwareKnobStyle.chromeFluted(accentColor: accent);
+      case KnobStyle.vintage:
+        return EatHardwareKnobStyle.vintageBakelite(accentColor: accent);
+      case KnobStyle.snes:
+        return EatHardwareKnobStyle.snesConsole(accentColor: accent);
+      case KnobStyle.minimalWhite:
+        return EatHardwareKnobStyle.minimalWhite(accentColor: accent);
+      case KnobStyle.hardwareKnob:
+      default:
+        return EatHardwareKnobStyle.vintageBakelite(accentColor: accent);
     }
   }
 }

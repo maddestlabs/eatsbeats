@@ -129,19 +129,11 @@ class _PianoRollViewState extends State<PianoRollView> {
 
   void _onContinuousPlayheadFollow() {
     if (!mounted) return;
+    if (widget.dawState.activeTabIndex != 1) return;
+    if (widget.dawState.activeTrack.activeView != MusicViewType.pianoRoll) return;
     if (widget.dawState.isFollowPlayback && widget.dawState.isPlaying) {
       if (_horizontalScroll.hasClients && !_isMarqueeSelecting && !_isMiddleMouseDragging && _draggedNoteId == null && _activeMoveNoteId == null) {
         final continuousStep = widget.dawState.continuousArrangerStepNotifier.value;
-        final currentBar = (continuousStep / 16.0).floor();
-
-        // Auto-advance across arranger clips on the active track during continuous playback
-        if (widget.dawState.activeTrack.clips.isNotEmpty) {
-          final clipAtPlayhead = widget.dawState.getClipAtBar(widget.dawState.activeTrack, currentBar);
-          if (clipAtPlayhead != null && widget.dawState.activeClip?.id != clipAtPlayhead.id) {
-            widget.dawState.selectClip(clipAtPlayhead);
-            return;
-          }
-        }
 
         final activeClip = widget.dawState.activeTrackClip;
         final clipStartStep = (activeClip.startBar * 16).toDouble();

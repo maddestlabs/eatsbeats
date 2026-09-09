@@ -1,5 +1,8 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import '../ui/vector/vector_skin_model.dart';
+import '../ui/hardware/eat_hardware_knob_model.dart';
+import '../ui/hardware/eat_hardware_scale.dart';
 import '../eatscript/eat_script_engine.dart';
 import 'eats_lua_parser.dart';
 import 'lua_gui_model.dart';
@@ -53,7 +56,10 @@ class LuaGuiParser {
       final bgRaw = panelMap['background'] ?? panelMap['bg'] ?? panelMap['chassis'] ?? panelMap['theme'] ?? panelMap['style'] ?? panelMap['texture'];
       final backgroundStyle = LuaGuiNode.parseBackgroundStyle(bgRaw is String ? bgRaw : null);
       final backgroundColor = LuaGuiNode.parseColor(bgRaw);
-      final accentColor = LuaGuiNode.parseColor(panelMap['accent'] ?? panelMap['accentColor'] ?? panelMap['color']);
+      final accentRaw = panelMap['accent'] ?? panelMap['accentColor'] ?? panelMap['color'];
+      final accentColor = (accentRaw is String && accentRaw.toLowerCase() == 'track')
+          ? null
+          : LuaGuiNode.parseColor(accentRaw);
       final knobStyleRaw = panelMap['knobStyle'] ?? panelMap['knobs'] ?? panelMap['knob_style'];
       final defaultKnobStyle = LuaGuiNode.parseKnobStyle(knobStyleRaw is String ? knobStyleRaw : (backgroundStyle == PanelBackgroundStyle.silver ? 'chrome' : null));
       final textureRotation = (panelMap['textureRotation'] as num?)?.toDouble() ??
@@ -296,7 +302,7 @@ class LuaGuiParser {
     final canvasMode = (m['mode'] as String?) ?? (m['canvasMode'] as String?) ?? 'pixel';
     final cols = (m['cols'] as num?)?.toInt() ?? (m['columns'] as num?)?.toInt() ?? (m['gridCols'] as num?)?.toInt() ?? 32;
     final rows = (m['rows'] as num?)?.toInt() ?? (m['gridRows'] as num?)?.toInt() ?? 24;
-    final scale = (m['scale'] as num?)?.toDouble() ?? 1.0;
+    final scale = (m['scale'] is num) ? (m['scale'] as num).toDouble() : 1.0;
     final showDpad = (m['showDpad'] == true) || (m['dpad'] == true) || (m['touchControls'] == true);
     final showActionButtons = (m['showActionButtons'] == true) || (m['gamepad'] == true) || (m['buttons'] == true);
     final showLabel = m['showLabel'] == false || m['hideLabel'] == true ? false : true;
@@ -346,7 +352,120 @@ class LuaGuiParser {
       customSkin = CustomControlSkin.fromMap(param ?? 'custom', m);
     }
 
-    final resolvedKnobStyle = customSkin != null ? KnobStyle.customVector : knobStyle;
+    // Parse EatScript 6-Zone Hardware Knob styling
+    EatHardwareKnobStyle? hardwareKnobStyle;
+    final hwRaw = m['hardware'] ?? m['hardwareStyle'] ?? m['knobModel'] ?? m['hardwareKnob'];
+    final styleStr = ((m['knobStyle'] ?? m['style'] ?? '') as String).toLowerCase();
+    final hwStr = (hwRaw?.toString() ?? styleStr).toLowerCase();
+
+    final isHardware = knobStyle == KnobStyle.hardwareKnob ||
+        hwRaw != null ||
+        styleStr.contains('hardware') ||
+        styleStr.contains('fluted') ||
+        styleStr.contains('bakelite') ||
+        styleStr.contains('knurled') ||
+        styleStr.contains('stepped') ||
+        styleStr.contains('twotone') ||
+        styleStr.contains('chrome') ||
+        styleStr.contains('snes') ||
+        styleStr.contains('minimal') ||
+        hwStr.contains('hardware') ||
+        hwStr.contains('fluted') ||
+        hwStr.contains('bakelite') ||
+        hwStr.contains('knurled') ||
+        hwStr.contains('stepped') ||
+        hwStr.contains('twotone') ||
+        hwStr.contains('chrome') ||
+        hwStr.contains('snes') ||
+        hwStr.contains('minimal');
+
+    final capColor = LuaGuiNode.parseColor(m['capColor'] ?? m['cap_color'] ?? m['cap']);
+    final bodyColor = LuaGuiNode.parseColor(m['bodyColor'] ?? m['body_color'] ?? m['body']);
+    final indicatorColor = LuaGuiNode.parseColor(m['indicatorColor'] ?? m['indicator_color'] ?? m['pointerColor'] ?? m['pointer_color'] ?? m['indicator']);
+    final dialColor = LuaGuiNode.parseColor(m['dialColor'] ?? m['dial_color'] ?? m['scaleColor'] ?? m['scale_color']);
+
+    final capSize = (m['capSize'] as num?)?.toDouble() ?? (m['cap_size'] as num?)?.toDouble();
+    final bodySize = (m['bodySize'] as num?)?.toDouble() ?? (m['body_size'] as num?)?.toDouble() ?? (m['skirtSize'] as num?)?.toDouble();
+    final indicatorLength = (m['indicatorLength'] as num?)?.toDouble() ?? (m['indicator_length'] as num?)?.toDouble();
+    final indicatorWidth = (m['indicatorWidth'] as num?)?.toDouble() ?? (m['indicator_width'] as num?)?.toDouble();
+
+    if (isHardware) {
+      if (hwStr.contains('selector') || hwStr == 'tb303_selector') {
+        hardwareKnobStyle = EatHardwareKnobStyle.tb303Selector(accentColor: accentColor);
+      } else if (hwStr.contains('acid') || hwStr.contains('halo') || hwStr == 'tb303_acid_halo') {
+        hardwareKnobStyle = EatHardwareKnobStyle.tb303AcidHalo(accentColor: accentColor);
+      } else if (hwStr.contains('potentiometer') || hwStr.contains('sawtooth') || hwStr == 'tb303_potentiometer') {
+        hardwareKnobStyle = EatHardwareKnobStyle.tb303Potentiometer(accentColor: accentColor);
+      } else if (hwStr.contains('standard') || hwStr == 'standard_hardware') {
+        hardwareKnobStyle = EatHardwareKnobStyle.standardHardware(accentColor: accentColor);
+      } else if (hwStr.contains('chrome') || hwStr.contains('303')) {
+        hardwareKnobStyle = EatHardwareKnobStyle.chromeFluted(accentColor: accentColor);
+      } else if (hwStr.contains('snes')) {
+        hardwareKnobStyle = EatHardwareKnobStyle.snesConsole(accentColor: accentColor);
+      } else if (hwStr.contains('minimal') || hwStr.contains('ceramic')) {
+        hardwareKnobStyle = EatHardwareKnobStyle.minimalWhite(accentColor: accentColor);
+      } else if (hwStr.contains('fluted') || hwStr.contains('cream') || hwStr.contains('pitch')) {
+        hardwareKnobStyle = EatHardwareKnobStyle.creamFluted(accentColor: accentColor);
+      } else if (hwStr.contains('knurled') || hwStr.contains('metal') || hwStr.contains('sustain') || hwStr.contains('head')) {
+        hardwareKnobStyle = EatHardwareKnobStyle.anodizedKnurled(isSustain: hwStr.contains('sustain'), accentColor: accentColor);
+      } else if (hwStr.contains('stepped') || hwStr.contains('twotone') || hwStr.contains('punch') || hwStr.contains('rattle')) {
+        hardwareKnobStyle = EatHardwareKnobStyle.twoToneStepped(accentColor: accentColor);
+      } else if (hwStr.contains('encoder') || hwStr.contains('illuminated') || hwStr.contains('neon')) {
+        hardwareKnobStyle = EatHardwareKnobStyle.illuminatedEncoder(activeColor: accentColor ?? const Color(0xFF00E5FF));
+      } else {
+        hardwareKnobStyle = EatHardwareKnobStyle.vintageBakelite(accentColor: accentColor);
+      }
+
+      if (capColor != null) hardwareKnobStyle = hardwareKnobStyle.copyWith(capColor: capColor);
+      if (bodyColor != null) hardwareKnobStyle = hardwareKnobStyle.copyWith(bodyColor: bodyColor);
+      if (indicatorColor != null) hardwareKnobStyle = hardwareKnobStyle.copyWith(indicatorColor: indicatorColor);
+      if (dialColor != null) {
+        hardwareKnobStyle = hardwareKnobStyle.copyWith(
+          scale: hardwareKnobStyle.scale.copyWith(
+            tickColor: dialColor,
+            labelColor: dialColor,
+          ),
+        );
+      }
+      if (capSize != null) hardwareKnobStyle = hardwareKnobStyle.copyWith(capRadiusRatio: capSize);
+      if (bodySize != null) hardwareKnobStyle = hardwareKnobStyle.copyWith(skirtRadiusRatio: bodySize);
+      if (indicatorLength != null) hardwareKnobStyle = hardwareKnobStyle.copyWith(indicatorLength: indicatorLength);
+      if (indicatorWidth != null) hardwareKnobStyle = hardwareKnobStyle.copyWith(indicatorWidth: indicatorWidth);
+    }
+
+    EatScaleGraduation? hardwareScale;
+    final rawScale = m['scale'] ?? m['dialScale'] ?? m['graduations'];
+    if (rawScale is List) {
+      final labels = rawScale.map((e) => e.toString()).toList();
+      hardwareScale = EatScaleGraduation(
+        labels: labels,
+        tickDivisions: math.max(1, labels.length - 1),
+      );
+    } else if (rawScale is String) {
+      if (rawScale == '0_to_10' || rawScale == '0..10') {
+        hardwareScale = EatScaleGraduation.zeroToTen();
+      } else if (rawScale == 'low_mid_high' || rawScale == 'pitch') {
+        hardwareScale = EatScaleGraduation.lowMidHigh();
+      } else if (rawScale == '1_to_6' || rawScale == '1..6' || rawScale == 'sustain') {
+        hardwareScale = EatScaleGraduation.sustainOneToSix();
+      } else if (rawScale == 'db' || rawScale == 'decibel' || rawScale == 'fader') {
+        hardwareScale = const EatScaleGraduation(
+          tickDivisions: 12,
+          labels: ['+6', '0', '-6', '-12', '-24', '-inf'],
+        );
+      }
+    }
+
+    if (hardwareKnobStyle != null && hardwareScale != null) {
+      hardwareKnobStyle = hardwareKnobStyle.copyWith(scale: hardwareScale);
+    }
+
+    KnobStyle resolvedKnobStyle = knobStyle;
+    if (customSkin != null) {
+      resolvedKnobStyle = KnobStyle.customVector;
+    } else if (hardwareKnobStyle != null) {
+      resolvedKnobStyle = KnobStyle.hardwareKnob;
+    }
 
     return LuaGuiNode(
       type: type,
@@ -382,9 +501,19 @@ class LuaGuiParser {
       showValue: showValue,
       palette: palette,
       customSkin: customSkin,
+      hardwareKnobStyle: hardwareKnobStyle,
+      hardwareScale: hardwareScale ?? hardwareKnobStyle?.scale,
       opacity: opacity,
       borderWidth: borderWidth,
       borderColor: borderColor,
+      capColor: capColor,
+      bodyColor: bodyColor,
+      indicatorColor: indicatorColor,
+      dialColor: dialColor,
+      capSize: capSize,
+      bodySize: bodySize,
+      indicatorLength: indicatorLength,
+      indicatorWidth: indicatorWidth,
       children: children,
     );
   }

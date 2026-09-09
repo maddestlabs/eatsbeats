@@ -83,19 +83,11 @@ class _ScoreViewState extends State<ScoreView> {
 
   void _onContinuousPlayheadFollow() {
     if (!mounted) return;
+    if (widget.dawState.activeTabIndex != 1) return;
+    if (widget.dawState.activeTrack.activeView != MusicViewType.score) return;
     if (widget.dawState.isFollowPlayback && widget.dawState.isPlaying) {
       if (_horizontalScroll.hasClients && !_isCanvasPanning && !_isMarqueeSelecting && _draggedNoteId == null) {
         final continuousStep = widget.dawState.continuousArrangerStepNotifier.value;
-        final currentBar = (continuousStep / 16.0).floor();
-
-        // Auto-advance across arranger clips on the active track during continuous playback
-        if (widget.dawState.activeTrack.clips.isNotEmpty) {
-          final clipAtPlayhead = widget.dawState.getClipAtBar(widget.dawState.activeTrack, currentBar);
-          if (clipAtPlayhead != null && widget.dawState.activeClip?.id != clipAtPlayhead.id) {
-            widget.dawState.selectClip(clipAtPlayhead);
-            return;
-          }
-        }
 
         final clip = widget.dawState.activeTrackClip;
         final clipStartStep = (clip.startBar * 16).toDouble();
