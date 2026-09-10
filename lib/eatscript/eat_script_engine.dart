@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'eat_gui_model.dart';
 import 'eat_gui_parser.dart';
 import '../models/automation_model.dart';
+import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../audio/time_context.dart';
 import 'eat_api.dart';
@@ -11,7 +12,9 @@ import 'eat_interpreter.dart';
 import 'eat_lexer.dart';
 import 'eat_param_model.dart';
 import 'eat_parser.dart';
+import 'eat_script_library.dart';
 import 'eat_transpiler.dart';
+import 'project_script_engine.dart';
 
 class EatCompilationResult {
   final bool isSuccess;
@@ -417,5 +420,89 @@ class EatScriptEngine {
       // Fallback
     }
     return {};
+  }
+
+  /// Executes an Eatscript Macro against [DawState] with the provided [params].
+  static ProjectScriptResult executeMacro({
+    required DawState dawState,
+    required LuaScriptDef script,
+    Map<String, dynamic> params = const {},
+  }) {
+    final compResult = compile(script.code, initialParamValues: params);
+    if (!compResult.isSuccess || compResult.program == null) {
+      return ProjectScriptResult(
+        isSuccess: false,
+        message: 'Macro Compilation Error: ${compResult.errorMessage}',
+      );
+    }
+
+    final context = EatScriptContext(
+      notes: [],
+      params: compResult.params,
+      paramValues: Map.from(params),
+      tempo: dawState.bpm,
+      keyRoot: dawState.songKeyRoot,
+      isMinor: dawState.isSongKeyMinor,
+      dawState: dawState,
+    );
+
+    final initialTrackCount = dawState.activePattern.tracks.length;
+    final initialNoteCount = dawState.activePattern.tracks.fold<int>(0, (sum, t) => sum + t.notes.length + t.clips.fold<int>(0, (cs, c) => cs + c.notes.length));
+    final initialChordCount = dawState.chordTrack.length;
+
+    final interpreter = EatInterpreter(maxExecutionSteps: 300000);
+    EatHostApi.install(interpreter, context);
+
+    try {
+      interpreter.interpret(compResult.program!);
+
+      dynamic macroReturn;
+      // 1. Check `run(project, params)`
+      if (interpreter.globals.has('run')) {
+        final fn = interpreter.globals.get('run', line: 1, column: 1);
+        if (fn is EatCallable) {
+          final projectApi = interpreter.globals.get('project', line: 1, column: 1);
+          macroReturn = fn.call(interpreter, [projectApi, context.paramValues], {}, line: 1, column: 1);
+        }
+      }
+      // 2. Check `main()`
+      else if (interpreter.globals.has('main')) {
+        final fn = interpreter.globals.get('main', line: 1, column: 1);
+        if (fn is EatCallable) {
+          macroReturn = fn.call(interpreter, [], {}, line: 1, column: 1);
+        }
+      }
+
+      final finalTrackCount = dawState.activePattern.tracks.length;
+      final finalNoteCount = dawState.activePattern.tracks.fold<int>(0, (sum, t) => sum + t.notes.length + t.clips.fold<int>(0, (cs, c) => cs + c.notes.length));
+      final finalChordCount = dawState.chordTrack.length;
+
+      final affectedTracks = (finalTrackCount - initialTrackCount).abs();
+      final affectedNotes = (finalNoteCount - initialNoteCount).abs();
+      final affectedChords = (finalChordCount - initialChordCount).abs();
+
+      String resultMessage = 'Macro executed successfully.';
+      if (macroReturn is Map && macroReturn.containsKey('message')) {
+        resultMessage = macroReturn['message'].toString();
+      } else if (context.logs.isNotEmpty) {
+        resultMessage = context.logs.join('; ');
+      } else if (affectedTracks > 0 || affectedNotes > 0 || affectedChords > 0) {
+        resultMessage = 'Macro completed: $affectedTracks track(s), $affectedNotes note(s), $affectedChords chord(s) modified.';
+      }
+
+      return ProjectScriptResult(
+        isSuccess: true,
+        message: resultMessage,
+        affectedTracksCount: affectedTracks,
+        affectedNotesCount: affectedNotes,
+        affectedChordsCount: affectedChords,
+        logs: List.unmodifiable(context.logs),
+      );
+    } catch (e) {
+      return ProjectScriptResult(
+        isSuccess: false,
+        message: 'Macro Execution Error: ${e.toString()}',
+      );
+    }
   }
 }

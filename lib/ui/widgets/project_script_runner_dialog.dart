@@ -136,6 +136,27 @@ class _ProjectScriptRunnerDialogState extends State<ProjectScriptRunnerDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFBD00FF).withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'EATSCRIPT MACRO',
+                                style: TextStyle(
+                                  color: Color(0xFFBD00FF),
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
                         Text(
                           widget.script.name,
                           style: const TextStyle(
@@ -238,7 +259,7 @@ class _ProjectScriptRunnerDialogState extends State<ProjectScriptRunnerDialog> {
                           )
                         : const Icon(Icons.play_arrow, size: 18),
                     label: Text(
-                      _isExecuting ? 'RUNNING...' : 'EXECUTE ON PROJECT',
+                      _isExecuting ? 'RUNNING MACRO...' : 'EXECUTE MACRO',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ),

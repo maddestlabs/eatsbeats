@@ -4,7 +4,9 @@ import '../models/chord_model.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import 'eat_script_library.dart';
+import 'eat_script_engine.dart';
 import '../audio/procgen/procedural_piano_engine.dart';
+import '../audio/procgen/procedural_drum_engine.dart';
 
 /// Result of executing a project script.
 class ProjectScriptResult {
@@ -13,6 +15,7 @@ class ProjectScriptResult {
   final int affectedTracksCount;
   final int affectedNotesCount;
   final int affectedChordsCount;
+  final List<String> logs;
 
   const ProjectScriptResult({
     required this.isSuccess,
@@ -20,6 +23,7 @@ class ProjectScriptResult {
     this.affectedTracksCount = 0,
     this.affectedNotesCount = 0,
     this.affectedChordsCount = 0,
+    this.logs = const [],
   });
 }
 
@@ -219,28 +223,37 @@ class ProjectScriptEngine {
       return _runStmnProceduralPiano(dawState, p);
     }
 
+    // 1b. Procedural Drum Groover Script
+    if (scriptId.contains('procedural_drum') || scriptId == 'action_procedural_drum_groover' || code.contains('procedural drum groover')) {
+      return _runProceduralDrumGroover(dawState, p);
+    }
+
     // 2. Global Chord-Aware Transposition Script
-    if (scriptId.contains('transpose') || code.contains('transpose_song') || (code.contains('transpose') && code.contains('chord'))) {
+    if (scriptId == 'action_global_transpose') {
       return _runGlobalTranspose(dawState, p);
     }
 
-    // 2. Harmonic Progression Generator Script
-    if (scriptId.contains('chord_gen') || scriptId.contains('progression') || code.contains('generate_progression') || code.contains('chord_progression')) {
+    // 3. Harmonic Progression Generator Script
+    if (scriptId == 'action_harmonic_progression') {
       return _runHarmonicProgressionGenerator(dawState, p);
     }
 
-    // 3. Procedural Multi-Track Song Generator Script
-    if (scriptId.contains('song_gen') || scriptId.contains('procedural_song') || code.contains('generate_song') || code.contains('procedural')) {
+    // 4. Procedural Multi-Track Song Generator Script
+    if (scriptId == 'action_procedural_song') {
       return _runProceduralSongGenerator(dawState, p);
     }
 
-    // 4. Groove & Velocity Humanizer Script
-    if (scriptId.contains('humanize') || code.contains('humanize_groove') || code.contains('humanize')) {
+    // 5. Groove & Velocity Humanizer Script
+    if (scriptId == 'action_humanize_groove') {
       return _runHumanizeGroove(dawState, p);
     }
 
-    // Fallback: Generic transposition or note-shift
-    return _runGlobalTranspose(dawState, p);
+    // 6. Dynamic Eatscript Macro execution
+    return EatScriptEngine.executeMacro(
+      dawState: dawState,
+      script: script,
+      params: p,
+    );
   }
 
   /// Transposes the entire project (chords, synths, melodies, basslines).
@@ -658,5 +671,22 @@ class ProjectScriptEngine {
     };
 
     return ProceduralPianoEngine.generateToDawState(dawState, mapped);
+  }
+
+  /// Runs the Procedural Drum Groover Generator.
+  static ProjectScriptResult _runProceduralDrumGroover(DawState dawState, Map<String, dynamic> params) {
+    const styleOptions = ProceduralDrumEngine.styles;
+
+    final rawStyle = params['Style'] ?? params['style'];
+    final String styleStr = rawStyle is num
+        ? (rawStyle.toInt() >= 0 && rawStyle.toInt() < styleOptions.length ? styleOptions[rawStyle.toInt()] : 'Funk / Breakbeat')
+        : (rawStyle?.toString() ?? 'Funk / Breakbeat');
+
+    final Map<String, dynamic> mapped = {
+      ...params,
+      'Style': styleStr,
+    };
+
+    return ProceduralDrumEngine.generateToDawState(dawState, mapped);
   }
 }

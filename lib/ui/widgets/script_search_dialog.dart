@@ -141,9 +141,9 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
       case LuaPresetCategory.noteSplitter:
         return const Color(0xFFFF007A);
       case LuaPresetCategory.projectAction:
-        return const Color(0xFFBD00FF);
       case LuaPresetCategory.utility:
-        return EatsTheme.textMuted;
+      case LuaPresetCategory.macro:
+        return const Color(0xFFBD00FF);
     }
   }
 
@@ -160,9 +160,9 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
       case LuaPresetCategory.noteSplitter:
         return Icons.call_split;
       case LuaPresetCategory.projectAction:
-        return Icons.auto_awesome;
       case LuaPresetCategory.utility:
-        return Icons.build;
+      case LuaPresetCategory.macro:
+        return Icons.auto_awesome;
     }
   }
 
@@ -204,7 +204,11 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
 
     var list = LuaPresetLibrary.presets;
     if (_selectedCategory != null) {
-      list = list.where((p) => p.category == _selectedCategory).toList();
+      if (_selectedCategory == LuaPresetCategory.macro) {
+        list = list.where((p) => p.isMacro).toList();
+      } else {
+        list = list.where((p) => p.category == _selectedCategory).toList();
+      }
     } else if (widget.isAddTrackMode && _selectedCustomFilter == null) {
       // In add track mode with ALL selected, show instruments first, then others
       list = [
@@ -951,7 +955,7 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
                     _buildCategoryFilterChip(LuaPresetCategory.midiSeq, 'SEQUENCES', Icons.view_timeline_outlined),
                     _buildCategoryFilterChip(LuaPresetCategory.audioFx, 'AUDIO FX', Icons.graphic_eq),
                     _buildCategoryFilterChip(LuaPresetCategory.midiFx, 'MIDI FX', Icons.bolt),
-                    _buildCategoryFilterChip(LuaPresetCategory.utility, 'UTILITIES', Icons.build),
+                    _buildCategoryFilterChip(LuaPresetCategory.macro, 'MACROS', Icons.auto_awesome),
                   ],
                 ),
               ),

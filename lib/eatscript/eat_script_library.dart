@@ -1,3 +1,5 @@
+import 'gm_standard_drum_kit_preset.dart';
+import 'modular_drumpad_kit_preset.dart';
 import 'pipe_family_presets.dart';
 import 'brass_reed_family_presets.dart';
 import 'eat_script_engine.dart';
@@ -19,7 +21,8 @@ enum EatScriptCategory {
   midiSeq,
   noteSplitter,
   projectAction,
-  utility;
+  utility,
+  macro;
 
   String get displayName {
     switch (this) {
@@ -34,16 +37,16 @@ enum EatScriptCategory {
       case LuaScriptCategory.noteSplitter:
         return 'NOTE SPLITTER';
       case LuaScriptCategory.projectAction:
-        return 'PROJECT SCRIPT';
       case LuaScriptCategory.utility:
-        return 'UTILITY';
+      case LuaScriptCategory.macro:
+        return 'MACRO';
     }
   }
 
   static LuaScriptCategory parse(String categoryStr) {
     final clean = categoryStr.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-    if (clean.contains('project') || clean.contains('action') || clean.contains('songgen') || clean.contains('generator') || clean.contains('transpos')) {
-      return LuaScriptCategory.projectAction;
+    if (clean.contains('macro') || clean.contains('project') || clean.contains('action') || clean.contains('songgen') || clean.contains('generator') || clean.contains('transpos')) {
+      return LuaScriptCategory.macro;
     }
     if (clean.contains('split') || clean.contains('separator') || clean.contains('demux')) {
       return LuaScriptCategory.noteSplitter;
@@ -56,7 +59,7 @@ enum EatScriptCategory {
       return LuaScriptCategory.audioFx;
     }
     if (clean.contains('midi')) return LuaScriptCategory.midiFx;
-    if (clean.contains('util')) return LuaScriptCategory.utility;
+    if (clean.contains('util')) return LuaScriptCategory.macro;
     return LuaScriptCategory.instrument;
   }
 }
@@ -83,7 +86,9 @@ class EatScriptDef {
   bool get isMidiFx => category == LuaScriptCategory.midiFx;
   bool get isMidiSeq => category == LuaScriptCategory.midiSeq;
   bool get isNoteSplitter => category == LuaScriptCategory.noteSplitter;
-  bool get isProjectAction => category == LuaScriptCategory.projectAction;
+  bool get isProjectAction => category == LuaScriptCategory.projectAction || category == LuaScriptCategory.macro;
+  bool get isUtility => category == LuaScriptCategory.utility || category == LuaScriptCategory.macro;
+  bool get isMacro => category == LuaScriptCategory.macro || category == LuaScriptCategory.projectAction || category == LuaScriptCategory.utility;
 
   /// Returns the script formatted as Eatscript, transpiling legacy Lua on demand.
   String get eatCode {
@@ -160,12 +165,24 @@ class EatScriptDef {
 class EatScriptLibrary {
   static final List<LuaScriptDef> _customScripts = [];
 
-  static List<LuaScriptDef> get scripts => [..._builtinPresets, ...PipeFamilyPresets.all, ...BrassReedFamilyPresets.all, ..._customScripts];
+  static List<LuaScriptDef> get scripts => [
+        GmStandardDrumKitPreset.preset,
+        ModularDrumpadKitPreset.preset,
+        ..._builtinPresets,
+        ...PipeFamilyPresets.all,
+        ...BrassReedFamilyPresets.all,
+        ..._customScripts,
+      ];
   static List<LuaScriptDef> get presets => scripts; // Compatibility alias
 
   static List<LuaScriptDef> getScriptsByCategory(LuaScriptCategory category) {
+    if (category == LuaScriptCategory.macro) {
+      return scripts.where((p) => p.isMacro).toList();
+    }
     return scripts.where((p) => p.category == category).toList();
   }
+
+  static List<LuaScriptDef> getMacros() => scripts.where((p) => p.isMacro).toList();
 
   static List<LuaScriptDef> getPresetsByCategory(LuaScriptCategory category) => getScriptsByCategory(category);
 
@@ -293,6 +310,16 @@ class EatScriptLibrary {
     }
 
     // 3. Match by code signature
+    if (luaCode.contains('modular_drumpad_kit') ||
+        luaCode.contains('ModularDrumpadKit') ||
+        luaCode.contains('Modular Drum Machine')) {
+      return getPresetById('modular_drumpad_kit');
+    }
+    if (luaCode.contains('gm_standard_drum_kit') ||
+        luaCode.contains('GmStandardDrumKit') ||
+        luaCode.contains('GM Standard Drum Kit')) {
+      return getPresetById('gm_standard_drum_kit');
+    }
     if (luaCode.contains('FmAcousticKick') || luaCode.contains('Dual-Mic FM Acoustic Kick') || luaCode.contains('NearPitchStart') || luaCode.contains('fm_acoustic_kick')) {
       return getPresetById('fm_acoustic_kick');
     }
@@ -6887,6 +6914,7 @@ function FmAcousticKick.init()
   Param.add("FarAmpDecay", 0.05, 0.6, 0.22)
   Param.add("FarLevel", 0.0, 1.0, 0.35)
   Param.add("RoomDelaySec", 0.002, 0.02, 0.008)
+  Param.add("Variance", 0.0, 1.0, 0.20)
 end
 
 function FmAcousticKick.gui()
@@ -6923,6 +6951,7 @@ function FmAcousticKick.gui()
             { type = "knob", param = "RoomDelaySec", label = "DISTANCE", size = 52 },
             { type = "knob", param = "FarFmDepth", label = "ROOM FM", size = 52 },
             { type = "knob", param = "FarAmpDecay", label = "ROOM AIR", size = 52 },
+            { type = "knob", param = "Variance", label = "VARIANCE", size = 52 },
           }
         }
       }
@@ -6978,6 +7007,7 @@ function FmAcousticSnare.init()
   Param.add("Decay", 0.05, 0.8, 0.22)
   Param.add("WireCutoff", 1000.0, 6000.0, 1800.0)
   Param.add("Variation", 0.0, 1.0, 0.0)
+  Param.add("Variance", 0.0, 1.0, 0.20)
 end
 
 function FmAcousticSnare.gui()
@@ -7003,6 +7033,7 @@ function FmAcousticSnare.gui()
             { type = "knob", param = "Snappy", label = "SNAPPY", size = 56 },
             { type = "knob", param = "Decay", label = "WIRE DEC", size = 52 },
             { type = "knob", param = "WireCutoff", label = "WIRE HPF", size = 52 },
+            { type = "knob", param = "Variance", label = "VARIANCE", size = 52 },
           }
         }
       }
@@ -7055,6 +7086,7 @@ function FmAcousticTom.init()
   Param.add("StickDecay", 0.002, 0.05, 0.012)
   Param.add("ShellFreq", 80.0, 260.0, 140.0)
   Param.add("RoomDelaySec", 0.002, 0.03, 0.010)
+  Param.add("Variance", 0.0, 1.0, 0.20)
 end
 
 function FmAcousticTom.gui()
@@ -7081,6 +7113,7 @@ function FmAcousticTom.gui()
             { type = "knob", param = "Decay", label = "RING DECAY", size = 56 },
             { type = "knob", param = "StickFmDepth", label = "STICK FM", size = 52 },
             { type = "knob", param = "ShellFreq", label = "SHELL RESO", size = 52 },
+            { type = "knob", param = "Variance", label = "VARIANCE", size = 52 },
           }
         }
       }
@@ -7130,6 +7163,7 @@ function FmAcousticHiHat.init()
   Param.add("Decay", 0.02, 0.6, 0.08)
   Param.add("Sizzle", 0.0, 1.0, 0.65)
   Param.add("Tone", 0.5, 2.0, 1.0)
+  Param.add("Variance", 0.0, 1.0, 0.15)
 end
 
 function FmAcousticHiHat.gui()
@@ -7153,6 +7187,7 @@ function FmAcousticHiHat.gui()
             { type = "knob", param = "Decay", label = "DECAY", size = 56 },
             { type = "knob", param = "Sizzle", label = "SIZZLE", size = 52 },
             { type = "knob", param = "Tone", label = "CLUSTER TONE", size = 52 },
+            { type = "knob", param = "Variance", label = "VARIANCE", size = 52 },
           }
         }
       }
@@ -11018,6 +11053,41 @@ def run(project, params):
         "track_layout": params.get("TrackLayout", 0),
         "rubato": params.get("Rubato", 0.70),
         "left_articulation": params.get("LeftArticulation", 1.0),
+    }
+''',
+    ),
+    LuaScriptDef(
+      id: 'action_procedural_drum_groover',
+      name: 'Procedural Drum Groover',
+      category: LuaScriptCategory.projectAction,
+      description: 'Procedurally generates dynamic, humanized drum grooves with swing, ghost notes, and fills mapped to the GM Standard Drum Kit.',
+      tags: const ['DRUMS', 'PROCGEN', 'GROOVE', 'SWING', 'FILLS'],
+      code: '''# @name: Procedural Drum Groover
+# @category: project_action
+# @description: Procedurally generates dynamic, humanized drum grooves with swing, ghost notes, and fills mapped to the GM Standard Drum Kit.
+
+def init():
+    return {
+        "Style": eat.param("Style", 0, 6, 0, options=["Funk / Breakbeat", "Rock / Pop", "Hip-Hop / Boom-Bap", "Jazz / Swing", "Latin / Afro-Cuban", "House / Disco (4-on-Floor)", "Trap / Halftime"]),
+        "Bars": eat.param("Bars", 1, 16, 4, step=1),
+        "Density": eat.param("Density", 0.1, 1.0, 0.75, step=0.05),
+        "Swing": eat.param("Swing", 0.0, 1.0, 0.20, step=0.05),
+        "GhostProbability": eat.param("GhostProbability", 0.0, 1.0, 0.25, step=0.05),
+        "FillDensity": eat.param("FillDensity", 0.0, 1.0, 0.35, step=0.05),
+        "Humanize": eat.param("Humanize", 0.0, 1.0, 0.25, step=0.05),
+        "Seed": eat.param("Seed", 1, 999999, 42, step=1),
+    }
+
+def run(project, params):
+    return {
+        "style": params.get("Style", 0),
+        "bars": params.get("Bars", 4),
+        "density": params.get("Density", 0.75),
+        "swing": params.get("Swing", 0.20),
+        "ghost_prob": params.get("GhostProbability", 0.25),
+        "fill_density": params.get("FillDensity", 0.35),
+        "humanize": params.get("Humanize", 0.25),
+        "seed": params.get("Seed", 42),
     }
 ''',
     ),

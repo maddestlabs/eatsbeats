@@ -1183,7 +1183,7 @@ class GmInstrumentRegistry {
     programNumber: -1,
     gmName: 'General MIDI Standard Drum Kit',
     family: GmFamily.percussion,
-    nativePresetId: 'drum_kit_sampler',
+    nativePresetId: 'gm_standard_drum_kit',
     iconName: 'drums',
     keywords: ['drum', 'drums', 'drumkit', 'percussion', 'beat'],
   );
@@ -1245,7 +1245,7 @@ class GmInstrumentRegistry {
   /// Resolves a parsed MIDI track to either a native instrument or SoundFont fallback.
   /// 
   /// Priority:
-  /// 1. Channel 9 (MIDI Ch 10) -> General MIDI Drums (`drum_kit_sampler`)
+  /// 1. Channel 9 (MIDI Ch 10) -> General MIDI Drums (`gm_standard_drum_kit`)
   /// 2. Explicit GM Program Number (if specified and has nativePresetId)
   /// 3. Track Name Semantic Keywords (matching custom models like 'cello', 'dx7', 'rhodes', 'piano')
   /// 4. Fallback -> SoundFont Sampler with exact Program Number or Default
@@ -1259,27 +1259,25 @@ class GmInstrumentRegistry {
     // 1. Channel 10 / Drum Channel check
     if (channel == 9 || cleanName.contains('drum') || cleanName.contains('percussion')) {
       final drumPreset = LuaPresetLibrary.presets.firstWhere(
-        (p) => p.id == 'drum_kit_sampler',
+        (p) => p.id == 'gm_standard_drum_kit',
         orElse: () => LuaPresetLibrary.presets.firstWhere(
-          (p) => p.id == 'soundfont_sampler',
+          (p) => p.id == 'drum_kit_sampler',
           orElse: () => LuaPresetLibrary.presets.first,
         ),
       );
 
       final initialParams = _compileInitialParams(drumPreset.code);
       return GmResolutionResult(
-        isNative: drumPreset.id != 'soundfont_sampler',
+        isNative: true,
         presetId: drumPreset.id,
         presetName: drumPreset.name,
         iconName: 'drums',
-        trackType: TrackType.sampler,
-        sampleName: 'super_small_font.sf2',
+        trackType: TrackType.eatScript,
+        sampleName: '',
         presetNum: 0.0,
         bankNum: 128.0,
         luaScriptCode: drumPreset.code,
-        luaParams: initialParams.isEmpty
-            ? {'PresetNum': 0.0, 'BankNum': 128.0}
-            : initialParams,
+        luaParams: initialParams,
         matchReason: 'gm_drum_channel',
         matchedDef: gmDrumsDef,
       );
@@ -1527,7 +1525,7 @@ class GmInstrumentRegistry {
     }
 
     buf.writeln('### Channel 10 Percussion');
-    buf.writeln('- **Standard GM Drum Kit**: ✅ Native (`drum_kit_sampler` / `analog_808` / `analog_909`)');
+    buf.writeln('- **Standard GM Drum Kit**: ✅ Native (`gm_standard_drum_kit` / `analog_808` / `analog_909`)');
     buf.writeln();
     return buf.toString();
   }

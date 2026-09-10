@@ -33,6 +33,7 @@ enum EatScriptGuiNodeType {
   dpad,
   gamepad,
   segmentedPill,
+  drumPads,
   unknown,
 }
 
@@ -355,6 +356,11 @@ class EatScriptGuiNode {
       case 'visualizer':
       case 'framebuffer':
         return EatScriptGuiNodeType.canvas;
+      case 'drumpads':
+      case 'drumpad':
+      case 'drumpadgrid':
+      case 'pads':
+        return EatScriptGuiNodeType.drumPads;
       case 'dpad':
       case 'joystick':
       case 'directional':

@@ -13,6 +13,8 @@ class EatParamDef {
   final double defaultValue;
   final double step;
   final List<String> options;
+  final bool allowVariance;
+  final double varianceScale;
 
   EatParamDef({
     required this.name,
@@ -21,7 +23,21 @@ class EatParamDef {
     required this.defaultValue,
     this.step = 0.0,
     this.options = const [],
-  });
+    bool? allowVariance,
+    this.varianceScale = 1.0,
+  }) : allowVariance = allowVariance ??
+            !(step >= 1.0 ||
+                options.isNotEmpty ||
+                name.toLowerCase().contains('octave') ||
+                name.toLowerCase().contains('waveform') ||
+                name.toLowerCase().contains('preset') ||
+                name.toLowerCase().contains('bank') ||
+                name.toLowerCase().contains('program') ||
+                name.toLowerCase().contains('seed') ||
+                name.toLowerCase().contains('algorithm') ||
+                name.toLowerCase().contains('mode') ||
+                name.toLowerCase().contains('type') ||
+                name.toLowerCase().contains('channel'));
 
   bool get isInteger =>
       step >= 1.0 ||

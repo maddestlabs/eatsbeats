@@ -32,6 +32,20 @@ class MidiPipelineEngine {
     return activeNotes;
   }
 
+  /// Processes an arbitrary list of [Note]s through a track's [MidiFXInsert] rack.
+  List<Note> processNotes({
+    required List<Note> notes,
+    required TrackChannel track,
+    required TimeContext timeContext,
+  }) {
+    List<Note> activeNotes = notes.map((n) => n.copyWith()).toList();
+    for (final midiFX in track.midiFXRack) {
+      if (!midiFX.enabled || midiFX.luaScriptCode.trim().isEmpty) continue;
+      activeNotes = _evaluateMidiFX(midiFX, activeNotes, timeContext);
+    }
+    return activeNotes;
+  }
+
   static bool _isMidiTransformScript(String code) {
     final lower = code.toLowerCase();
     return lower.contains('transform_notes') ||

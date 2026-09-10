@@ -876,6 +876,21 @@ class TrackChannel {
       eatScriptCode.contains('polyphony = 1') ||
       eatScriptCode.contains('setPolyphony(1)');
 
+  /// Determines whether this track represents a drum, percussion, or kit instrument.
+  bool get isDrumTrack =>
+      iconName == 'drums' ||
+      name.toLowerCase().contains('drum') ||
+      name.toLowerCase().contains('kick') ||
+      name.toLowerCase().contains('snare') ||
+      name.toLowerCase().contains('percussion') ||
+      sampleName.toLowerCase().contains('drum') ||
+      sampleName.toLowerCase().contains('kick') ||
+      sampleName.toLowerCase().contains('snare') ||
+      eatScriptCode.contains('gm_standard_drum_kit') ||
+      eatScriptCode.contains('modular_drumpad_kit') ||
+      eatScriptCode.contains('GmDrumKitEngine') ||
+      eatScriptCode.contains('drum(');
+
   String iconName; // e.g. 'synth', 'drums', 'bass', 'vocal', 'lead', 'fx', 'sampler', 'piano', 'guitar', 'waveform', 'code', 'music', 'tts', 'folder'
 
   IconData get iconData {

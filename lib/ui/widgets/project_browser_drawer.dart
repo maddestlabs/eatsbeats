@@ -592,7 +592,11 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
     List<LuaPreset> presets = LuaPresetLibrary.presets;
 
     if (_selectedCategoryFilter != null) {
-      presets = presets.where((p) => p.category == _selectedCategoryFilter).toList();
+      if (_selectedCategoryFilter == LuaPresetCategory.macro) {
+        presets = presets.where((p) => p.isMacro).toList();
+      } else {
+        presets = presets.where((p) => p.category == _selectedCategoryFilter).toList();
+      }
     }
 
     if (query.isNotEmpty) {
@@ -658,14 +662,9 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                 tooltip: 'Filter: MIDI FX',
               ),
               _buildCategoryChip(
-                category: LuaPresetCategory.projectAction,
+                category: LuaPresetCategory.macro,
                 icon: Icons.auto_awesome,
-                tooltip: 'Filter: Project Actions & Generators',
-              ),
-              _buildCategoryChip(
-                category: LuaPresetCategory.utility,
-                icon: Icons.build,
-                tooltip: 'Filter: Utilities',
+                tooltip: 'Filter: Macros & Project Automation',
               ),
             ],
           ),
@@ -2078,9 +2077,9 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
       case LuaPresetCategory.noteSplitter:
         return Icons.call_split;
       case LuaPresetCategory.projectAction:
-        return Icons.auto_awesome;
       case LuaPresetCategory.utility:
-        return Icons.build;
+      case LuaPresetCategory.macro:
+        return Icons.auto_awesome;
     }
   }
 
@@ -2097,8 +2096,8 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
       case LuaPresetCategory.noteSplitter:
         return const Color(0xFFFF007A);
       case LuaPresetCategory.projectAction:
-        return const Color(0xFFBD00FF);
       case LuaPresetCategory.utility:
+      case LuaPresetCategory.macro:
         return const Color(0xFFBD00FF);
     }
   }

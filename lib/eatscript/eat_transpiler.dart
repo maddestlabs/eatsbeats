@@ -54,11 +54,12 @@ class EatTranspiler {
     buffer.writeln('def init():');
     buffer.writeln('    return {');
     for (final p in params) {
+      final varianceStr = !p.allowVariance ? ', allow_variance=False' : '';
       if (p.options.isNotEmpty) {
         final optsStr = p.options.map((o) => '"$o"').join(', ');
-        buffer.writeln('        "${p.name}": eat.param("${p.name}", ${p.min}, ${p.max}, ${p.defaultValue}, options=[$optsStr]),');
+        buffer.writeln('        "${p.name}": eat.param("${p.name}", ${p.min}, ${p.max}, ${p.defaultValue}, options=[$optsStr]$varianceStr),');
       } else {
-        buffer.writeln('        "${p.name}": eat.param("${p.name}", ${p.min}, ${p.max}, ${p.defaultValue}, step=${p.step}),');
+        buffer.writeln('        "${p.name}": eat.param("${p.name}", ${p.min}, ${p.max}, ${p.defaultValue}, step=${p.step}$varianceStr),');
       }
     }
     buffer.writeln('    }');

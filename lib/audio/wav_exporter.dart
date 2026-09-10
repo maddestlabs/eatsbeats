@@ -66,10 +66,8 @@ class WavExporter {
     }
   }
 
-  // Trigger web browser download of WAV file
-  static void saveWavFile(Uint8List wavBytes, String filename) {
-    if (kIsWeb) {
-      saveWavFileImpl(wavBytes, filename);
-    }
+  // Trigger file save / download of WAV file across Web and Desktop
+  static Future<void> saveWavFile(Uint8List wavBytes, String filename) async {
+    await saveWavFileImpl(wavBytes, filename);
   }
 }

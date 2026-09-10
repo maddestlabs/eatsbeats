@@ -199,8 +199,9 @@ void main() {
       final drums = GmInstrumentRegistry.resolve(programNumber: null, trackName: 'Beat', channel: 9);
       expect(drums.iconName, equals('drums'));
       expect(drums.matchReason, equals('gm_drum_channel'));
-      expect(drums.trackType, equals(TrackType.sampler));
-      expect(drums.bankNum, equals(128.0));
+      expect(drums.trackType, equals(TrackType.eatScript));
+      expect(drums.presetId, equals('gm_standard_drum_kit'));
+      expect(drums.isNative, isTrue);
     });
   });
 
@@ -245,7 +246,8 @@ void main() {
 
       final drumTrack = dawState.activePattern.tracks[3];
       expect(drumTrack.iconName, equals('drums'));
-      expect(drumTrack.type, equals(TrackType.sampler));
+      expect(drumTrack.type, equals(TrackType.eatScript));
+      expect(drumTrack.luaScriptCode, contains('gm_standard_drum_kit'));
     });
   });
 }

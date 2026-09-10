@@ -685,6 +685,11 @@ class AudioEngine {
     bool isAccent = false,
     String? articulation,
   }) {
+    final hasVariance = (track.luaParams['Variance'] ?? track.luaParams['variance'] ?? 0.0) > 0.001 ||
+        (track.luaParams['Variation'] ?? track.luaParams['variation'] ?? 0.0) > 0.001 ||
+        (track.luaParams['Humanize'] ?? track.luaParams['humanize'] ?? 0.0) > 0.001;
+    if (hasVariance) return false;
+
     final durMs = (durationSec * 1000).round();
     final pHash = _computeParamsHash(track);
     final targetPitchStr = (isSlide && targetMidiNote != null) ? '_tgt$targetMidiNote' : '';
@@ -714,8 +719,11 @@ class AudioEngine {
     final hasMpe = (pitchBendPoints != null && pitchBendPoints.isNotEmpty) ||
         (pressurePoints != null && pressurePoints.isNotEmpty) ||
         (timbrePoints != null && timbrePoints.isNotEmpty);
-    final cacheKey = hasMpe
-        ? null // Do not cache dynamic MPE curves to preserve real-time variation
+    final hasVariance = (track.luaParams['Variance'] ?? track.luaParams['variance'] ?? 0.0) > 0.001 ||
+        (track.luaParams['Variation'] ?? track.luaParams['variation'] ?? 0.0) > 0.001 ||
+        (track.luaParams['Humanize'] ?? track.luaParams['humanize'] ?? 0.0) > 0.001;
+    final cacheKey = (hasMpe || hasVariance)
+        ? null // Do not cache dynamic MPE curves or note-to-note variance to preserve acoustic variation
         : '${track.id}_${midiNote}${targetPitchStr}${artStr}_${durMs}_${isAccent ? 1 : 0}_${isSlide ? 1 : 0}_$pHash';
 
     if (cacheKey != null) {
@@ -875,15 +883,23 @@ class AudioEngine {
   }
 
   /// Flushes backend channel strips, active sources, and PCM caches when changing songs.
-  /// Plays a live sustaining note with proper ADSR note-on lifecycle.
+  /// Plays a live sustaining note with proper ADSR note-on lifecycle, or one-shot for drums.
   void noteOn({
     required TrackChannel track,
     required int midiNote,
     required double velocity,
     double sustainDurationSec = 2.5,
     String? articulation,
+    bool loop = true,
   }) {
     if (track.isMuted) return;
+
+    final bool isDrumLike = track.isDrumTrack ||
+        track.sampleName.toLowerCase().contains('drum') ||
+        track.luaScriptCode.contains('gm_standard_drum_kit') ||
+        track.luaScriptCode.contains('modular_drumpad_kit') ||
+        track.luaScriptCode.contains('GmDrumKitEngine');
+    final bool effectiveLoop = isDrumLike ? false : loop;
 
     if (!_backend.isInitialized) {
       _backend.ready.then((_) {
@@ -894,6 +910,7 @@ class AudioEngine {
           velocity: velocity,
           sustainDurationSec: sustainDurationSec,
           articulation: articulation,
+          loop: loop,
         );
       });
       return;
@@ -933,7 +950,7 @@ class AudioEngine {
       durationSec: sustainDurationSec,
       velocity: velocity,
       samples: samples,
-      isLooping: true,
+      isLooping: effectiveLoop,
     ));
 
     _backend.noteOn(
@@ -945,6 +962,7 @@ class AudioEngine {
       fxRack: track.fxRack,
       isMonophonic: track.isMonophonicTrack,
       bufferCacheKey: cacheKey,
+      loop: effectiveLoop,
     );
   }
 

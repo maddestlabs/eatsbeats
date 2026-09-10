@@ -629,9 +629,9 @@ class CommandPaletteRegistry {
       case LuaPresetCategory.noteSplitter:
         return Icons.call_split;
       case LuaPresetCategory.projectAction:
-        return Icons.auto_awesome;
       case LuaPresetCategory.utility:
-        return Icons.build;
+      case LuaPresetCategory.macro:
+        return Icons.auto_awesome;
     }
   }
 }

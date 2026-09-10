@@ -15,6 +15,7 @@ import '../../models/track_model.dart';
 import '../../models/script_target_model.dart';
 import '../../theme/eats_theme.dart';
 import 'compact_value_dialog.dart';
+import 'drum_pad_grid_widget.dart';
 import 'eatsbeats_slider.dart';
 import 'glowing_nixie_display.dart';
 import 'grungy_rack_panel.dart';
@@ -236,6 +237,10 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
+            if (track.luaScriptCode.contains('modular_drumpad_kit') || track.luaScriptCode.contains('ModularDrumpadKit')) ...[
+              DrumPadGridWidget(dawState: dawState, track: track),
+              const SizedBox(height: 12),
+            ],
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -540,12 +545,17 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               ),
             ],
             child: Column(
-              children: layout.children.map((node) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12.0),
-                  child: _buildNode(context, node, compilation, baseAccent, isLightChassis, layout.backgroundSvg != null && layout.backgroundSvg!.isNotEmpty),
-                );
-              }).toList(),
+              children: [
+                if ((track.luaScriptCode.contains('modular_drumpad_kit') || track.luaScriptCode.contains('ModularDrumpadKit')) &&
+                    !layout.children.any((n) => n.type == LuaGuiNodeType.drumPads))
+                  DrumPadGridWidget(dawState: dawState, track: track),
+                ...layout.children.map((node) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: _buildNode(context, node, compilation, baseAccent, isLightChassis, layout.backgroundSvg != null && layout.backgroundSvg!.isNotEmpty),
+                  );
+                }),
+              ],
             ),
           ),
         ],
@@ -1735,6 +1745,9 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           isLightChassis: isLightChassis,
         );
 
+      case LuaGuiNodeType.drumPads:
+        return DrumPadGridWidget(dawState: dawState, track: track);
+
       case LuaGuiNodeType.spacer:
         return SizedBox(
           width: node.size ?? 16,
@@ -2099,6 +2112,10 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+              ],
+              if (track.luaScriptCode.contains('modular_drumpad_kit') || track.luaScriptCode.contains('ModularDrumpadKit')) ...[
+                DrumPadGridWidget(dawState: dawState, track: track),
                 const SizedBox(height: 12),
               ],
           ...compilation.params.map((paramDef) {

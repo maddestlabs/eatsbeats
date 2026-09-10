@@ -42,6 +42,8 @@ import 'script_preset_model.dart';
 import 'automation_model.dart';
 import '../audio/easing.dart';
 import '../audio/track_freeze_engine.dart';
+import '../audio/master_offline_render_engine.dart';
+import '../audio/virtual_render_pipeline.dart';
 import '../eatscript/eat_script_engine.dart';
 import '../eatscript/default_song_eat.dart';
 import '../eatscript/eat_transpiler.dart';
@@ -688,6 +690,9 @@ class DawState extends ChangeNotifier {
 
       case LuaGuiNodeType.spacer:
         return node.size ?? 16.0;
+
+      case LuaGuiNodeType.drumPads:
+        return 280.0;
 
       case LuaGuiNodeType.unknown:
         return 0.0;
@@ -2238,14 +2243,20 @@ def gui():
 
   /// Runs a project action Eatscript or Lua script with undo snapshot history recording.
   ProjectScriptResult runProjectScript(LuaScriptDef script, {Map<String, dynamic> params = const {}}) {
-    recordHistory('Run Script: ${script.name}', icon: Icons.auto_awesome, force: true);
-    final result = ProjectScriptEngine.execute(
-      dawState: this,
-      script: script,
-      params: params,
-    );
-    notifyListeners();
-    return result;
+    recordHistory('Before ${script.name}', icon: Icons.auto_awesome, force: true);
+    history.pauseRecording();
+    try {
+      final result = ProjectScriptEngine.execute(
+        dawState: this,
+        script: script,
+        params: params,
+      );
+      return result;
+    } finally {
+      history.resumeRecording();
+      recordHistory('Run Script: ${script.name}', icon: Icons.auto_awesome, force: true);
+      notifyListeners();
+    }
   }
 
   void compileLuaCode(String code) {
@@ -6121,28 +6132,136 @@ def gui():
     notifyListeners();
   }
 
-  // WAV Song Export
+  // ==========================================
+  // Audio & Video Offline Render Pipeline
+  // ==========================================
 
+  bool _isExportingAudio = false;
+  bool get isExportingAudio => _isExportingAudio;
+  double _exportProgress = 0.0;
+  double get exportProgress => _exportProgress;
+  String _exportStatus = '';
+  String get exportStatus => _exportStatus;
 
-  void exportWavSong() {
-    final int totalSamples = (44100 * (60.0 / _bpm) * 16).toInt();
-    final leftBuffer = List<double>.filled(totalSamples, 0.0);
-    final rightBuffer = List<double>.filled(totalSamples, 0.0);
+  /// Renders all active tracks offline into a stereo WAV file and prompts save/download.
+  Future<MasterRenderResult?> exportWavSong({
+    String? filename,
+    int? totalTimelineBars,
+    MasterRenderProgressCallback? onProgress,
+  }) async {
+    if (_isExportingAudio) return null;
+    _isExportingAudio = true;
+    _exportProgress = 0.0;
+    _exportStatus = 'Starting master export...';
+    notifyListeners();
 
-    // Simple audio render pass
-    for (int i = 0; i < totalSamples; i++) {
-      final t = i / 44100.0;
-      final osc = math.sin(2.0 * math.pi * 120.0 * t) * math.exp(-t * 2.0);
-      leftBuffer[i] = osc * 0.7;
-      rightBuffer[i] = osc * 0.7;
+    try {
+      final defaultName = filename ?? '${projectName.replaceAll(RegExp(r'[^\w\s-]'), '_')}.wav';
+      final result = await MasterOfflineRenderEngine.renderSongOffline(
+        tracks: tracks,
+        audioEngine: audioEngine,
+        masterTrack: masterTrack,
+        songKey: songKey,
+        bpm: _bpm,
+        totalTimelineBars: totalTimelineBars ?? this.totalTimelineBars,
+        masterVolume: _masterVolume,
+        masterSubCut: _masterSubCut,
+        masterLowGain: _masterLowGain,
+        masterMidFreq: _masterMidFreq,
+        masterMidGain: _masterMidGain,
+        masterHighGain: _masterHighGain,
+        masterLimiterEnabled: _masterLimiterEnabled,
+        masterCeilingDbfs: _masterCeilingDbfs,
+        onProgress: (p, msg) {
+          _exportProgress = p;
+          _exportStatus = msg;
+          onProgress?.call(p, msg);
+          notifyListeners();
+        },
+      );
+
+      await WavExporter.saveWavFile(result.wavBytes, defaultName);
+
+      _isExportingAudio = false;
+      _exportProgress = 1.0;
+      _exportStatus = 'Export complete';
+      notifyListeners();
+      return result;
+    } catch (e) {
+      _isExportingAudio = false;
+      _exportStatus = 'Export failed: $e';
+      debugPrint('[DawState] exportWavSong failed: $e');
+      notifyListeners();
+      return null;
     }
+  }
 
-    final wavBytes = WavExporter.encodeWav(
-      leftSamples: leftBuffer,
-      rightSamples: rightBuffer,
-    );
+  /// Non-realtime video and audio render step pipeline.
+  Future<void> renderVideoFrames({
+    String? filename,
+    int fps = 30,
+    int width = 1920,
+    int height = 1080,
+    int? totalTimelineBars,
+    Future<void> Function(VirtualRenderFrame frame)? onFrame,
+  }) async {
+    _isExportingAudio = true;
+    _exportProgress = 0.0;
+    _exportStatus = 'Rendering audio for video timeline...';
+    notifyListeners();
 
-    WavExporter.saveWavFile(wavBytes, 'eatsbeats_song.wav');
+    try {
+      final audioResult = await MasterOfflineRenderEngine.renderSongOffline(
+        tracks: tracks,
+        audioEngine: audioEngine,
+        masterTrack: masterTrack,
+        songKey: songKey,
+        bpm: _bpm,
+        totalTimelineBars: totalTimelineBars ?? this.totalTimelineBars,
+        masterVolume: _masterVolume,
+        masterSubCut: _masterSubCut,
+        masterLowGain: _masterLowGain,
+        masterMidFreq: _masterMidFreq,
+        masterMidGain: _masterMidGain,
+        masterHighGain: _masterHighGain,
+        masterLimiterEnabled: _masterLimiterEnabled,
+        masterCeilingDbfs: _masterCeilingDbfs,
+        onProgress: (p, msg) {
+          _exportProgress = p * 0.5;
+          _exportStatus = msg;
+          notifyListeners();
+        },
+      );
+
+      final options = VirtualRenderOptions(
+        fps: fps,
+        width: width,
+        height: height,
+        sampleRate: audioResult.sampleRate,
+      );
+
+      await VirtualRenderPipeline.stepVirtualTimeline(
+        audioRender: audioResult,
+        options: options,
+        bpm: _bpm,
+        onFrame: onFrame,
+        onProgress: (p, msg) {
+          _exportProgress = 0.5 + (p * 0.5);
+          _exportStatus = msg;
+          notifyListeners();
+        },
+      );
+
+      _isExportingAudio = false;
+      _exportProgress = 1.0;
+      _exportStatus = 'Video frame processing complete';
+      notifyListeners();
+    } catch (e) {
+      _isExportingAudio = false;
+      _exportStatus = 'Video render failed: $e';
+      debugPrint('[DawState] renderVideoFrames failed: $e');
+      notifyListeners();
+    }
   }
 
   // ==========================================

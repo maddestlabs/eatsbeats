@@ -59,10 +59,74 @@ class GraphContext {
     this.pitchBendPoints,
     this.pressurePoints,
     this.timbrePoints,
-  }) : totalSamples = (sampleRate * durationSec).toInt().clamp(1, 441000);
+    int? seed,
+  })  : totalSamples = (sampleRate * durationSec).toInt().clamp(1, 441000),
+        seed = seed ?? (DateTime.now().microsecondsSinceEpoch ^ (midiNote << 12));
+
+  final int seed;
+  final Map<String, double> _variedParamCache = {};
+
+  bool isParamVarianceExempt(String name) {
+    final lower = name.toLowerCase();
+    if (params['Variance_$name'] == 0.0 ||
+        params['no_variance_$name'] == 1.0 ||
+        params['ignore_variance_$name'] == 1.0 ||
+        params['allow_variance_$name'] == 0.0) {
+      return true;
+    }
+    return lower == 'variance' ||
+        lower == 'variation' ||
+        lower == 'strike_drift' ||
+        lower == 'strikedrift' ||
+        lower == 'humanize' ||
+        lower == 'dynamics' ||
+        lower.contains('octave') ||
+        lower.contains('waveform') ||
+        lower.contains('subwaveform') ||
+        lower.contains('preset') ||
+        lower.contains('bank') ||
+        lower.contains('program') ||
+        lower.contains('algorithm') ||
+        lower.contains('feedback') ||
+        lower.contains('mode') ||
+        lower.contains('type') ||
+        lower.contains('channel') ||
+        lower.contains('polyphony');
+  }
 
   double getParam(String name, double defaultValue) {
-    return params[name] ?? defaultValue;
+    final baseVal = params[name] ?? defaultValue;
+    final variance = (params['Variance'] ?? params['Variation'] ?? params['Humanize'] ?? params['StrikeDrift'] ?? 0.0).clamp(0.0, 1.0);
+    if (variance <= 0.001 || isParamVarianceExempt(name)) {
+      return baseVal;
+    }
+
+    if (_variedParamCache.containsKey(name)) {
+      return _variedParamCache[name]!;
+    }
+
+    // Deterministic pseudo-random float in [-1.0, 1.0] derived from seed and param name hash
+    int h = seed ^ name.hashCode;
+    h = (h * 1103515245 + 12345) & 0x7FFFFFFF;
+    final double rnd = (h / 2147483647.0) * 2.0 - 1.0;
+
+    final lower = name.toLowerCase();
+    double scale = 0.08;
+    if (lower.contains('pitch') || lower.contains('freq') || lower.contains('tune')) {
+      scale = 0.03; // Micro-pitch deflection
+    } else if (lower.contains('decay') || lower.contains('rel') || lower.contains('dwell') || lower.contains('time')) {
+      scale = 0.12; // Dwell/damping variation
+    } else if (lower.contains('fm') || lower.contains('depth') || lower.contains('click') || lower.contains('punch') || lower.contains('mod')) {
+      scale = 0.15; // Strike/transient variation
+    } else if (lower.contains('gain') || lower.contains('reso') || lower.contains('q')) {
+      scale = 0.07;
+    }
+
+    final double effectiveAmount = variance * scale;
+    final double offset = (baseVal.abs() > 1e-6) ? baseVal * effectiveAmount * rnd : effectiveAmount * rnd;
+    final double variedVal = baseVal + offset;
+    _variedParamCache[name] = variedVal;
+    return variedVal;
   }
 
   static double interpolateCurve(List<List<double>>? points, double progress, double fallback) {

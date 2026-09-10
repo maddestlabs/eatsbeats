@@ -192,10 +192,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Global Chord-Aware Song Transpose'), findsOneWidget);
-      expect(find.text('EXECUTE ON PROJECT'), findsOneWidget);
+      expect(find.text('EXECUTE MACRO'), findsOneWidget);
       expect(find.text('SEMITONES'), findsOneWidget);
 
-      await tester.tap(find.text('EXECUTE ON PROJECT'));
+      await tester.tap(find.text('EXECUTE MACRO'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProjectScriptRunnerDialog), findsNothing);

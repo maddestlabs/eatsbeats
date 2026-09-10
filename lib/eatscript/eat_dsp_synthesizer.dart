@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import '../audio/drum/gm_drum_kit_engine.dart';
 import '../audio/fm_chip_engine.dart';
 import '../audio/graph/graph_evaluator.dart';
 import '../audio/snes_dsp_engine.dart';
@@ -75,6 +76,7 @@ class EatDspSynthesizer {
 
   /// Resets persistent DSP voice states for a given [trackId] or all tracks when loading/transitioning songs.
   static void resetVoiceStates([String? trackId]) {
+    GmDrumKitEngine.resetVoiceStates(trackId);
     if (trackId != null) {
       _acidVoiceStates.remove(trackId);
       _hihatVoiceStates.remove(trackId);
@@ -108,6 +110,23 @@ class EatDspSynthesizer {
     List<List<double>>? timbrePoints,
     double velocity = 0.9,
   }) {
+    // 0a. General MIDI Standard Drum Kit & Modular Drum Machine (Notes 35–81)
+    if (code.contains('gm_standard_drum_kit') ||
+        code.contains('GmStandardDrumKit') ||
+        code.contains('GM Standard Drum Kit') ||
+        code.contains('modular_drumpad_kit') ||
+        code.contains('ModularDrumpadKit') ||
+        code.contains('Modular Drum Machine')) {
+      return GmDrumKitEngine.synthesizeBuffer(
+        note: note,
+        durationSec: durationSec,
+        velocity: isAccent ? 1.0 : velocity,
+        params: params,
+        isAccent: isAccent,
+        trackId: trackId,
+      );
+    }
+
     // 0. Physical Acoustic & Analog 808 Graph Synthesis
     if (code.contains('FmAcousticKick') ||
         code.contains('NearPitchStart') ||

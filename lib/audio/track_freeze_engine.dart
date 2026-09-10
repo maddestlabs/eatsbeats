@@ -3,7 +3,10 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import '../models/track_model.dart';
+import '../eatscript/midi_pipeline_engine.dart';
 import 'audio_engine.dart';
+import 'time_context.dart';
+import 'offline_dsp_fx_processor.dart';
 
 /// Callback for reporting freeze progress from 0.0 to 1.0.
 typedef FreezeProgressCallback = void Function(double progress, String status);
@@ -75,6 +78,7 @@ class TrackFreezeEngine {
     required TrackChannel track,
     required AudioEngine audioEngine,
     double bpm = 120.0,
+    String songKey = 'C Major',
     int totalTimelineBars = 16,
     int sampleRate = 44100,
     bool includeFx = true,
@@ -93,7 +97,18 @@ class TrackFreezeEngine {
 
     final Float32List masterBuffer = Float32List(totalSamples);
 
-    // 1. Collect all note events with absolute step positions
+    final pipeline = MidiPipelineEngine();
+    final timeContext = TimeContext(
+      bpm: bpm,
+      currentBar: 0.0,
+      currentBeat: 0.0,
+      audioTimeSeconds: 0.0,
+      songKey: songKey,
+      timeSignatureNumerator: 4,
+      timeSignatureDenominator: 4,
+    );
+
+    // 1. Collect all note events with absolute step positions, accounting for MIDI FX
     final List<_ScheduledNoteEvent> events = [];
 
     if (track.clips.isNotEmpty) {
@@ -102,8 +117,13 @@ class TrackFreezeEngine {
         final int clipTotalSteps = clip.barLength * 16;
         final int loopSteps = clip.effectiveLoopLengthBars * 16;
 
-        final List<Note> sourceNotes = clip.notes.isNotEmpty ? clip.notes : track.notes;
-        if (sourceNotes.isEmpty) continue;
+        final List<Note> baseNotes = clip.notes.isNotEmpty ? clip.notes : track.notes;
+        if (baseNotes.isEmpty) continue;
+
+        // Process clip through MIDI FX Rack if enabled
+        final List<Note> sourceNotes = track.midiFXRack.any((f) => f.enabled)
+            ? pipeline.processClip(clip: clip, track: track, timeContext: timeContext)
+            : baseNotes;
 
         if (loopSteps > 0 && loopSteps < clipTotalSteps) {
           // Looped clip: repeat notes over clip span
@@ -135,8 +155,12 @@ class TrackFreezeEngine {
         }
       }
     } else if (track.notes.isNotEmpty) {
-      // Pattern mode notes
-      for (final n in track.notes) {
+      // Pattern mode notes through MIDI FX Rack
+      final List<Note> sourceNotes = track.midiFXRack.any((f) => f.enabled)
+          ? pipeline.processNotes(notes: track.notes, track: track, timeContext: timeContext)
+          : track.notes;
+
+      for (final n in sourceNotes) {
         events.add(_ScheduledNoteEvent(
           note: n,
           absStartStep: n.startStep,
@@ -145,6 +169,7 @@ class TrackFreezeEngine {
       }
     } else {
       // Step sequencer fallback
+      final List<Note> stepNotes = [];
       for (int sIdx = 0; sIdx < track.steps.length; sIdx++) {
         final s = track.steps[sIdx];
         if (s.active) {
@@ -152,21 +177,28 @@ class TrackFreezeEngine {
           final bool isSlideStep = s.isSlide || (track.isMonophonicTrack && nextStep.active);
           final int? targetPitch = nextStep.active ? nextStep.pitch : null;
 
-          events.add(_ScheduledNoteEvent(
-            note: Note(
-              id: 'step_$sIdx',
-              pitch: s.pitch,
-              startStep: sIdx.toDouble(),
-              durationSteps: 1.0,
-              velocity: s.velocity,
-              isSlide: isSlideStep,
-              isAccent: s.isAccent,
-            ),
-            absStartStep: sIdx.toDouble(),
-            durationSec: stepDurationSec,
-            targetMidiNote: targetPitch,
+          stepNotes.add(Note(
+            id: 'step_$sIdx',
+            pitch: s.pitch,
+            startStep: sIdx.toDouble(),
+            durationSteps: 1.0,
+            velocity: s.velocity,
+            isSlide: isSlideStep,
+            isAccent: s.isAccent,
           ));
         }
+      }
+
+      final List<Note> sourceNotes = track.midiFXRack.any((f) => f.enabled)
+          ? pipeline.processNotes(notes: stepNotes, track: track, timeContext: timeContext)
+          : stepNotes;
+
+      for (final n in sourceNotes) {
+        events.add(_ScheduledNoteEvent(
+          note: n,
+          absStartStep: n.startStep,
+          durationSec: stepDurationSec,
+        ));
       }
     }
 
@@ -220,8 +252,20 @@ class TrackFreezeEngine {
       }
     }
 
-    // 3. Post-render processing: soft peak limiter / normalization
-    onProgress?.call(0.90, 'Normalizing & limiting peaks...');
+    // 3. Track EQ & Audio FX Rack processing
+    if (includeFx) {
+      if (track.eqEnabled) {
+        onProgress?.call(0.86, 'Applying Track EQ (${track.name})...');
+        OfflineDspFxProcessor.processTrackEq(masterBuffer, track: track, sampleRate: sampleRate);
+      }
+      if (track.fxRack.any((f) => f.enabled && f.mix > 0.0)) {
+        onProgress?.call(0.88, 'Processing Track FX Rack (${track.name})...');
+        OfflineDspFxProcessor.processTrackFx(masterBuffer, fxRack: track.fxRack, bpm: bpm, sampleRate: sampleRate);
+      }
+    }
+
+    // 4. Post-render processing: soft peak limiter / normalization
+    onProgress?.call(0.92, 'Normalizing & limiting peaks...');
     await Future.delayed(Duration.zero);
 
     double maxPeak = 0.0;
