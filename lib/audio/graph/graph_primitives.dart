@@ -2830,18 +2830,23 @@ class UprightPluckSlapExciterNode extends GraphNode {
   final String? pluckMassParam;
   final double slapClick;
   final String? slapClickParam;
+  final double fingerFlesh;
+  final String? fingerFleshParam;
 
   const UprightPluckSlapExciterNode({
     this.pluckMass = 2.0,
     this.pluckMassParam,
     this.slapClick = 0.0,
     this.slapClickParam,
+    this.fingerFlesh = 0.70,
+    this.fingerFleshParam,
   });
 
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
     final double mass = (pluckMassParam != null ? ctx.getParam(pluckMassParam!, pluckMass) : pluckMass).clamp(0.5, 4.0);
     double slap = (slapClickParam != null ? ctx.getParam(slapClickParam!, slapClick) : slapClick).clamp(0.0, 2.0);
+    final double flesh = (fingerFleshParam != null ? ctx.getParam(fingerFleshParam!, fingerFlesh) : fingerFlesh).clamp(0.1, 1.0);
 
     final art = ctx.articulation?.toLowerCase();
     final bool isSlapArt = (art == 'slap' || art == 'pop');
@@ -2855,33 +2860,192 @@ class UprightPluckSlapExciterNode extends GraphNode {
     final int len = outBuffer.length;
     outBuffer.fillRange(0, len, 0.0);
 
-    // Warm, punchy side-finger flesh pull with 110Hz body thump (16ms impulse)
-    final double pulseSec = 0.016;
+    // Warm, punchy side-finger flesh pull with dynamic contact duration (10ms to 24ms based on flesh ratio)
+    final double pulseSec = (0.012 + flesh * 0.014).clamp(0.010, 0.026);
     final int pluckSamples = (pulseSec * sr).toInt().clamp(16, len ~/ 2);
 
     for (int i = 0; i < pluckSamples; i++) {
       final double tNorm = i / pluckSamples;
-      final double fleshPulse = math.sin(tNorm * math.pi) * math.exp(-tNorm * 1.8);
-      final double woodThump = math.sin(2.0 * math.pi * 110.0 * (i / sr)) * math.exp(-tNorm * 4.0);
-      outBuffer[i] = (fleshPulse * 0.75 + woodThump * 0.25) * mass * ctx.velocity * 1.35;
+      // Smoothstep fingertip pull and elastodynamic release
+      final double attackNorm = (tNorm / 0.55).clamp(0.0, 1.0);
+      final double smoothRamp = attackNorm * attackNorm * (3.0 - 2.0 * attackNorm);
+      final double decayFactor = math.exp(-math.max(0.0, tNorm - 0.55) * (3.0 + (1.0 - flesh) * 4.0));
+      final double fleshPulse = smoothRamp * decayFactor;
+
+      final double woodThump = math.sin(2.0 * math.pi * 110.0 * (i / sr)) * math.exp(-tNorm * 3.5);
+      final double exciterGain = 0.38 * (0.8 + mass * 0.15) * ctx.velocity;
+      outBuffer[i] = (fleshPulse * 0.70 + woodThump * 0.30) * exciterGain;
     }
 
-    // Fingerboard wood slap transient (only if explicitly enabled via SlapClick or slap articulation)
-    if (slap > 0.02) {
-      final int slapLen = (0.010 * sr).toInt().clamp(5, pluckSamples);
+    // Fingerboard wood slap transient on firm plucks (increases with velocity)
+    if (slap > 0.02 && ctx.velocity >= 0.7) {
+      final int slapLen = (0.014 * sr).toInt().clamp(10, pluckSamples);
       int rng = 0x44424153 ^ (ctx.midiNote * 67); // "DBAS"
+      final double velScale = (ctx.velocity - 0.65) / 0.35;
       for (int i = 0; i < slapLen && i < outBuffer.length; i++) {
         final double tNorm = i / slapLen;
         rng ^= (rng << 13) & 0xFFFFFFFF;
         rng ^= (rng >> 17) & 0xFFFFFFFF;
         rng ^= (rng << 5) & 0xFFFFFFFF;
         final double noise = ((rng & 0xFFFFFF) / 8388607.5) - 1.0;
-        final double slapEnv = math.exp(-tNorm * 8.0) * (1.0 - tNorm);
-        outBuffer[i] += noise * slapEnv * slap * 0.35 * ctx.velocity;
+        final double slapEnv = math.exp(-tNorm * 5.5) * (1.0 - tNorm);
+        outBuffer[i] += noise * slapEnv * slap * 0.28 * velScale;
       }
     }
   }
 }
+
+/// Physical Modeling Digital Waveguide for Acoustic Upright Double Bass.
+/// Features:
+/// - Fractional delay line with 4-point cubic Hermite interpolation for continuous micro-intonation & vibrato.
+/// - 1st-order allpass dispersion filter simulating heavy gut/steel string stiffness and inharmonicity (B).
+/// - Frequency-dependent internal damping (loop loss filter).
+/// - Non-linear ebony fingerboard collision solver (Hunt-Crossley contact mechanics)
+///   which produces the authentic fretless "growl", string buzz, and percussive slap.
+class UprightBassWaveguideNode extends GraphNode {
+  final GraphNode exciter;
+  final double sustain;
+  final String? sustainParam;
+  final double stringDamping;
+  final String? stringDampingParam;
+  final double dispersion; // Inharmonicity coefficient (0.0 = harmonic, 0.5 = heavy gut/steel dispersion)
+  final String? dispersionParam;
+  final double actionHeight; // mm clearance above fingerboard (1.0 to 8.0 mm; lower = more growl)
+  final String? actionHeightParam;
+  final double fingerboardSlap; // Intensity of wood slap collision
+  final String? fingerboardSlapParam;
+
+  const UprightBassWaveguideNode({
+    required this.exciter,
+    this.sustain = 0.995,
+    this.sustainParam,
+    this.stringDamping = 0.28,
+    this.stringDampingParam,
+    this.dispersion = 0.22,
+    this.dispersionParam,
+    this.actionHeight = 3.2,
+    this.actionHeightParam,
+    this.fingerboardSlap = 0.40,
+    this.fingerboardSlapParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    exciter.process(ctx, outBuffer);
+
+    double baseFreq = ctx.freq > 10.0 ? ctx.freq : 55.0; // Default A1
+    final double sr = ctx.sampleRate;
+    double fb = (sustainParam != null ? ctx.getParam(sustainParam!, sustain) : sustain).clamp(0.85, 0.9998);
+    double damp = (stringDampingParam != null ? ctx.getParam(stringDampingParam!, stringDamping) : stringDamping).clamp(0.02, 0.95);
+    final double disp = (dispersionParam != null ? ctx.getParam(dispersionParam!, dispersion) : dispersion).clamp(0.0, 0.85);
+    final double action = (actionHeightParam != null ? ctx.getParam(actionHeightParam!, actionHeight) : actionHeight).clamp(1.0, 8.0);
+    double slap = (fingerboardSlapParam != null ? ctx.getParam(fingerboardSlapParam!, fingerboardSlap) : fingerboardSlap).clamp(0.0, 2.0);
+
+    final art = ctx.articulation?.toLowerCase();
+    if (art == 'muted' || art == 'palm_mute' || art == 'chop') {
+      damp = math.max(damp, 0.65);
+      fb = math.min(fb, 0.94);
+    } else if (art == 'harmonics' || art == 'flageolet') {
+      baseFreq *= 2.0;
+      fb = math.max(fb, 0.997);
+      damp = math.min(damp, 0.10);
+    } else if (art == 'slap' || art == 'pop') {
+      slap = math.max(slap, 1.2);
+      damp = math.min(damp, 0.16);
+      fb = math.max(fb, 0.992);
+    }
+
+    // Delay buffer sized down to 15 Hz for low C0/B0 extensions
+    final double maxDelaySamples = sr / 15.0;
+    final int bufSize = maxDelaySamples.toInt() + 32;
+    final delayLine = Float32List(bufSize);
+    int writeIdx = 0;
+
+    // Filter states
+    double lossFilterState = 0.0;
+    double dispStateIn = 0.0;
+    double dispStateOut = 0.0;
+
+    // Allpass dispersion coefficient: negative phase delay expands high partials
+    final double aDisp = -disp * 0.40;
+
+    // Action clearance limit scaled by velocity & action height
+    final double collisionThreshold = (action / 4.0) * 0.42;
+    final double collisionStiffness = 1.6 + slap * 1.2;
+
+    for (int i = 0; i < len; i++) {
+      final double inSample = outBuffer[i];
+      final double normTime = len > 1 ? i / (len - 1) : 0.0;
+      final double bendSemitones = ctx.getPitchBendAt(normTime);
+      final double pressure = ctx.getPressureAt(normTime);
+      final double timbre = ctx.getTimbreAt(normTime);
+
+      final double curFreq = (baseFreq * math.pow(2.0, bendSemitones / 12.0)).clamp(20.0, 2000.0);
+      final double delaySamples = (sr / curFreq).clamp(4.0, bufSize - 8.0);
+
+      // Read from delay line with 4-point Hermite/Cubic interpolation
+      final double readPos = writeIdx - delaySamples;
+      double rIdx = readPos >= 0 ? readPos : (readPos + bufSize);
+      while (rIdx >= bufSize) rIdx -= bufSize;
+      while (rIdx < 0) rIdx += bufSize;
+
+      final int i1 = rIdx.toInt() % bufSize;
+      final int i0 = (i1 - 1 + bufSize) % bufSize;
+      final int i2 = (i1 + 1) % bufSize;
+      final int i3 = (i1 + 2) % bufSize;
+      final double frac = rIdx - rIdx.floor();
+
+      final double y0 = delayLine[i0];
+      final double y1 = delayLine[i1];
+      final double y2 = delayLine[i2];
+      final double y3 = delayLine[i3];
+      final double c0 = y1;
+      final double c1 = 0.5 * (y2 - y0);
+      final double c2 = y0 - 2.5 * y1 + 2.0 * y2 - 0.5 * y3;
+      final double c3 = 0.5 * (y3 - y0) + 1.5 * (y1 - y2);
+      final double delayedSample = ((c3 * frac + c2) * frac + c1) * frac + c0;
+
+      // 1. Allpass dispersion filter:
+      // Heavy low strings (C1, C2) exhibit significantly higher inharmonicity B than lighter strings (C3, C4)
+      final double stringStiffness = math.sqrt(90.0 / curFreq).clamp(0.3, 2.4);
+      final double effectiveDisp = (disp * stringStiffness).clamp(0.01, 0.85);
+      final double aDisp = -effectiveDisp * 0.38;
+
+      final double dispOut = aDisp * delayedSample + dispStateIn - aDisp * dispStateOut;
+      dispStateIn = delayedSample;
+      dispStateOut = dispOut;
+
+      // 2. Frequency-dependent loop loss filter (1-pole lowpass)
+      final double curDamp = (damp * 0.08 * (curFreq / 100.0).clamp(0.3, 2.0) * (1.0 - (timbre - 0.5) * 0.2) + pressure * 0.05).clamp(0.005, 0.40);
+      lossFilterState = (1.0 - curDamp) * dispOut + curDamp * lossFilterState;
+
+      // Acoustic loop sustain calibrated to real upright bass string decay:
+      final double decayRate = (0.75 + (1.0 - fb) * 14.0) * math.pow(curFreq / 55.0, 0.32);
+      final double exactLoopFb = math.exp(-decayRate / curFreq).clamp(0.970, 0.9985);
+      double loopSample = lossFilterState * exactLoopFb;
+
+      // 3. Non-linear ebony fingerboard collision solver (Hunt-Crossley contact mechanics)
+      final double excursionScale = math.sqrt(65.0 / curFreq).clamp(0.7, 1.8);
+      final double thresh = collisionThreshold * excursionScale * 1.4;
+
+      if (loopSample > thresh) {
+        final double delta = loopSample - thresh;
+        loopSample = thresh + delta * (0.65 / (1.0 + collisionStiffness * delta));
+      } else if (loopSample < -thresh * 1.2) {
+        final double delta = -loopSample - thresh * 1.2;
+        loopSample = -(thresh * 1.2 + delta * (0.70 / (1.0 + collisionStiffness * 0.7 * delta)));
+      }
+
+      // 4. Feedback injection into waveguide
+      delayLine[writeIdx] = inSample + loopSample;
+      writeIdx = (writeIdx + 1) % bufSize;
+
+      outBuffer[i] = inSample * 0.5 + loopSample;
+    }
+  }
+}
+
 
 /// 4-Pole 24dB/oct Virtual Analog Transistor Ladder Lowpass Filter.
 /// Models the iconic Minimoog ladder topology with resonant feedback and tanh non-linear saturation.

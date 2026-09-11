@@ -47,6 +47,7 @@ import '../audio/virtual_render_pipeline.dart';
 import '../eatscript/eat_script_engine.dart';
 import '../eatscript/default_song_eat.dart';
 import '../eatscript/eat_transpiler.dart';
+import '../audio/procgen/procedural_song_engine.dart';
 
 enum ArrangerViewMode { timeline, sequence }
 
@@ -334,8 +335,13 @@ class DawState extends ChangeNotifier {
   int _activeTabIndex = 0; // 0: Arranger, 1: Edit, 2: Track, 3: Mixer, 4: Scripts
   int get activeTabIndex => _activeTabIndex;
   set activeTabIndex(int index) {
-    _activeTabIndex = index;
-    notifyListeners();
+    if (_activeTabIndex != index) {
+      if (activeTrack.clips.isNotEmpty) {
+        _syncClipNotes(activeTrack);
+      }
+      _activeTabIndex = index;
+      notifyListeners();
+    }
   }
 
   ArrangerViewMode _arrangerViewMode = ArrangerViewMode.timeline;
@@ -1639,9 +1645,13 @@ class DawState extends ChangeNotifier {
         (activeClip!.trackId == activeTrack.id || activeTrack.clips.any((c) => c.id == activeClip!.id));
     if (isSameTrack && hasValidTrackClip) return;
 
-    // Persist current activeTrack notes back to activeClip before switching
-    if (activeClip != null && activeClip!.trackId == activeTrack.id) {
-      activeClip!.notes = activeTrack.notes.map((n) => n.copyWith()).toList();
+    // Persist current activeTrack notes back to clip before switching
+    if (activeTrack.clips.isNotEmpty) {
+      final curClip = (activeClip != null && (activeClip!.trackId == activeTrack.id || activeTrack.clips.any((c) => c.id == activeClip!.id)))
+          ? activeClip!
+          : (getClipAtBar(activeTrack, _arrangerStep ~/ 16) ?? activeTrack.clips.first);
+      curClip.notes = activeTrack.notes.map((n) => n.copyWith()).toList();
+      curClip.evaluatedNotesCache = null;
     }
 
     _activeTrackIndex = newIndex;
@@ -1777,6 +1787,31 @@ class DawState extends ChangeNotifier {
 
   void _initDemoTracks() {
     loadFromEatsLua(DefaultSongEat.midnightBitesEat);
+  }
+
+  /// Generates an authentic procedural multi-track song (e.g. Lo-Fi Hip Hop, Synthwave)
+  /// using physical Eatscript models and the GM Standard Drum Kit.
+  ProjectScriptResult generateProceduralDemo({
+    String style = 'Lo-Fi Hip Hop',
+    int seed = 42,
+    int bars = 16,
+    String structure = 'Full Arrangement (Intro-Verse-Chorus-Outro)',
+  }) {
+    recordHistory('Before Procedural $style Generation', icon: Icons.auto_awesome, force: true);
+    history.pauseRecording();
+    try {
+      final result = ProceduralSongEngine.generateToDawState(this, {
+        'Style': style,
+        'Seed': seed,
+        'Bars': bars,
+        'Structure': structure,
+      });
+      return result;
+    } finally {
+      history.resumeRecording();
+      recordHistory('Generate Procedural Demo: $style', icon: Icons.auto_awesome, force: true);
+      notifyListeners();
+    }
   }
 
   // Script Target & Project Script Management
@@ -2270,11 +2305,19 @@ def gui():
   TrackClip? activeClip;
 
   void openClipInEditor(TrackClip clip) {
+    if (activeTrack.clips.isNotEmpty) {
+      final prevClip = (activeClip != null && (activeClip!.trackId == activeTrack.id || activeTrack.clips.any((c) => c.id == activeClip!.id)))
+          ? activeClip!
+          : (getClipAtBar(activeTrack, _arrangerStep ~/ 16) ?? activeTrack.clips.first);
+      prevClip.notes = activeTrack.notes.map((n) => n.copyWith()).toList();
+      prevClip.evaluatedNotesCache = null;
+    }
     activeClip = clip;
     final tIdx = activePattern.tracks.indexWhere((t) => t.id == clip.trackId);
     if (tIdx != -1) {
       _activeTrackIndex = tIdx;
     }
+    activeTrack.notes = clip.notes.map((n) => n.copyWith()).toList();
     shouldCenterEditViewOnOpen = true;
     _activeTabIndex = 1; // Switch to EDIT tab
     notifyListeners();
@@ -2673,6 +2716,15 @@ def gui():
   }
 
   void selectClip(TrackClip? clip) {
+    if (activeClip?.id == clip?.id && clip != null) return;
+    // Persist current activeTrack notes before switching clips
+    if (activeTrack.clips.isNotEmpty) {
+      final curClip = (activeClip != null && (activeClip!.trackId == activeTrack.id || activeTrack.clips.any((c) => c.id == activeClip!.id)))
+          ? activeClip!
+          : (getClipAtBar(activeTrack, _arrangerStep ~/ 16) ?? activeTrack.clips.first);
+      curClip.notes = activeTrack.notes.map((n) => n.copyWith()).toList();
+      curClip.evaluatedNotesCache = null;
+    }
     activeClip = clip;
     if (clip != null) {
       final track = activePattern.tracks.where((t) => t.id == clip.trackId || t.clips.any((c) => c.id == clip.id)).firstOrNull;
@@ -3583,12 +3635,17 @@ def gui():
 
   void _syncClipNotes(TrackChannel track) {
     if (track.clips.isNotEmpty) {
-      if (activeClip != null && (activeClip!.trackId == track.id || track.clips.any((c) => c.id == activeClip!.id))) {
-        activeClip!.notes = track.notes.map((n) => n.copyWith()).toList();
-      } else if (track.clips.length == 1) {
-        track.clips.first.notes = track.notes.map((n) => n.copyWith()).toList();
-      }
+      final clip = (activeClip != null && (activeClip!.trackId == track.id || track.clips.any((c) => c.id == activeClip!.id)))
+          ? activeClip!
+          : (getClipAtBar(track, _arrangerStep ~/ 16) ?? track.clips.first);
+      clip.notes = track.notes.map((n) => n.copyWith()).toList();
+      clip.evaluatedNotesCache = null;
+      activeClip ??= clip;
     }
+  }
+
+  void syncActiveTrackNotesToClip() {
+    _syncClipNotes(activeTrack);
   }
 
   // Step Editing

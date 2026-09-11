@@ -6569,116 +6569,120 @@ return FretlessBass
     ),
 
     // 00g. Upright Double Bass Physical Model
-    LuaPreset(
+    EatPreset(
       id: 'upright_bass',
       name: 'Upright Double Bass',
-      category: LuaPresetCategory.instrument,
-      description: 'Physical model of an acoustic 3/4 Upright Double Bass: heavy gut string side-finger pull, 3/4 carved spruce body resonance, 85Hz sub-bass warmth, and punchy wood body tone.',
+      category: EatScriptCategory.instrument,
+      description: 'Physical model of an acoustic 3/4 Upright Double Bass: heavy gut string side-finger pull (Hunt-Crossley elastodynamics), 4-point Hermite cubic waveguide with inharmonic dispersion, non-linear ebony fingerboard collision (fretless growl & slap), and 3/4 carved spruce body modal cavity resonator.',
       code: '''
--- @id: upright_bass
--- @name: Upright Double Bass
--- @category: instrument
--- @description: Physical model of an acoustic 3/4 Upright Double Bass: heavy gut string side-finger pull, 3/4 carved spruce body resonance, 85Hz sub-bass warmth, and punchy wood body tone.
+# --- Acoustic 3/4 Upright Double Bass (Eatscript Physical Model) ---
+# Governing physics:
+# 1. Elastodynamic side-finger flesh contact & release (Hunt-Crossley)
+# 2. Digital waveguide with 1st-order allpass dispersion for inharmonicity (B)
+# 3. Non-linear ebony fingerboard collision solver ("growl" & fretless slap)
+# 4. 3/4 Carved spruce & maple modal body cavity (58Hz air / 98Hz wood)
 
-local UprightBass = {}
+import math
 
-function UprightBass.init()
-  -- Finger Pull & Slap Dynamics
-  Param.add("FingerMass", 0.5, 4.0, 2.0)
-  Param.add("SlapClick", 0.0, 2.0, 0.0) -- Default 0.0 (warm pizzicato without click)
+def init():
+    # Pluck & Flesh Contact Dynamics
+    eat.param("FingerFlesh", min=0.1, max=1.0, default=0.70)
+    eat.param("FingerMass", min=0.5, max=4.0, default=2.2)
+    eat.param("SlapClick", min=0.0, max=2.0, default=0.35)
 
-  -- String & Cavity Resonance
-  Param.add("StringDamp", 0.05, 0.75, 0.32)
-  Param.add("SubWarmth", 0.0, 12.0, 4.5)
-  Param.add("BodyPunch", -3.0, 9.0, 3.0)
-  Param.add("WoodTone", -9.0, 6.0, -4.0)
-  Param.add("Sustain", 0.85, 0.9995, 0.996)
-  Param.add("Drive", 0.5, 2.5, 1.15)
-end
+    # String Waveguide & Inharmonicity
+    eat.param("Sustain", min=0.85, max=0.9998, default=0.995)
+    eat.param("StringDamp", min=0.05, max=0.85, default=0.28)
+    eat.param("Dispersion", min=0.0, max=0.85, default=0.22)
+    eat.param("ActionHeight", min=1.0, max=8.0, default=3.2)
 
-function UprightBass.process(time, freq, note, params)
-  local t = time
-  local phase = t * freq * 2.0 * math.pi
-  local subWarmth = params.SubWarmth or 4.5
-  local sustain = params.Sustain or 0.996
-  local decay = math.exp(-t * (1.6 / sustain))
+    # Cavity & Spruce Resonance
+    eat.param("SubWarmth", min=0.0, max=12.0, default=2.0)
+    eat.param("BodyPunch", min=-3.0, max=9.0, default=3.0)
+    eat.param("BodyWarmth", min=0.1, max=2.0, default=0.75)
+    eat.param("WoodTone", min=-9.0, max=6.0, default=-3.5)
 
-  -- Warm, deep fundamental + rich second/third wood harmonic body
-  local fundamental = math.sin(phase) * (1.0 + subWarmth * 0.06)
-  local bodyHarmonics = 0.38 * math.sin(phase * 2.0) + 0.18 * math.sin(phase * 3.0)
-  local slap = (params.SlapClick or 0.0) > 0.05 and (math.exp(-t * 140.0) * params.SlapClick * 0.4) or 0.0
+def process(time, freq, note, params):
+    # GraphEvaluator.buildUprightBass() runs the full real-time physical waveguide.
+    # Fallback analytical formula if evaluated in pure procedural mode:
+    flesh = params.get("FingerFlesh", 0.70)
+    mass = params.get("FingerMass", 2.2)
+    sustain = params.get("Sustain", 0.995)
+    slap = params.get("SlapClick", 0.35)
+    disp = params.get("Dispersion", 0.22)
+    sub = params.get("SubWarmth", 2.0)
 
-  local raw = (fundamental + bodyHarmonics) * decay + slap
-  return math.tanh(raw * (params.Drive or 1.15)) * 0.95
-end
+    t = time
+    decay = math.exp(-t * (1.8 / max(0.1, sustain)))
+    
+    # Inharmonic partial spreading
+    b_fac = 0.0004 * (1.0 + disp * 2.0)
+    f0 = freq
+    f1 = 2.0 * f0 * math.sqrt(1.0 + b_fac * 4.0)
+    f2 = 3.0 * f0 * math.sqrt(1.0 + b_fac * 9.0)
 
-function UprightBass.gui()
-  return {
-    panel = {
-      title = "UPRIGHT DOUBLE BASS",
-      subtitle = "3/4 Acoustic Spruce Cavity, Sub Warmth & Body Punch",
-      accent = "#C49A45",
-      background = "walnut",
-      rackSides = "rosewood",
-      cornerRadius = 6,
-      layout = {
-        {
-          type = "group",
-          label = "ACOUSTIC CAVITY & GUT STRING WEIGHT",
-          accent = "#C49A45",
-          children = {
-            {
-              type = "row",
-              children = {
-                { type = "knob", param = "FingerMass", label = "PULL MASS", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "SubWarmth", label = "SUB BASS", unit = "dB", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "BodyPunch", label = "180Hz BODY", unit = "dB", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "WoodTone", label = "WOOD TONE", unit = "dB", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "StringDamp", label = "GUT DAMP", unit = "%", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "Sustain", label = "SUSTAIN", knobStyle = "vintage", size = 52 },
-                { type = "knob", param = "Drive", label = "ACOUSTIC GAIN", knobStyle = "vintage", size = 52 },
-              }
-            },
-            {
-              type = "row",
-              children = {
-                { type = "hslider", param = "SubWarmth", label = "SUB-BASS HELMHOLTZ CAVITY WEIGHT (0.0dB <-> 12.0dB)", style = "capsule" },
-              }
-            },
-            {
-              type = "row",
-              children = {
-                { type = "knob", param = "SlapClick", label = "WOOD SLAP", knobStyle = "vintage", size = 52 },
-              }
-            }
-          }
+    # Tactile flesh strike transient
+    fleshPulse = math.exp(-t * (45.0 + (1.0 - flesh) * 80.0)) * mass * 0.4
+    # Fingerboard collision growl
+    slapTransient = 0.0
+    if slap > 0.05 and t < 0.025:
+        slapTransient = (math.sin(t * 3200.0) * 0.6) * math.exp(-t * 220.0) * slap * 0.5
+
+    fund = math.sin(2.0 * math.pi * f0 * t) * (1.0 + sub * 0.05)
+    harmonics = 0.42 * math.sin(2.0 * math.pi * f1 * t) + 0.22 * math.sin(2.0 * math.pi * f2 * t)
+
+    raw = (fund + harmonics) * decay + fleshPulse + slapTransient
+    return math.tanh(raw * 1.15) * 0.95
+
+def gui():
+    return {
+        "panel": {
+            "title": "UPRIGHT DOUBLE BASS",
+            "subtitle": "3/4 Carved Spruce Cavity, Gut Waveguide & Ebony Slap",
+            "accent": "#C49A45",
+            "background": "walnut",
+            "rackSides": "rosewood",
+            "cornerRadius": 6,
+            "layout": [
+                {
+                    "type": "group",
+                    "label": "FLESH PLUCK & HUNT-CROSSLEY ELASTODYNAMICS",
+                    "accent": "#C49A45",
+                    "children": [
+                        {
+                            "type": "row",
+                            "children": [
+                                {"type": "knob", "param": "FingerFlesh", "label": "FLESH RATIO", "knobStyle": "vintage", "size": 52},
+                                {"type": "knob", "param": "FingerMass", "label": "PULL MASS", "knobStyle": "vintage", "size": 52},
+                                {"type": "knob", "param": "SlapClick", "label": "EBONY SLAP", "knobStyle": "vintage", "size": 52},
+                                {"type": "knob", "param": "ActionHeight", "label": "ACTION (MM)", "knobStyle": "vintage", "size": 52},
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "type": "group",
+                    "label": "GUT/STEEL WAVEGUIDE & INHARMONIC DISPERSION",
+                    "accent": "#C49A45",
+                    "children": [
+                        {
+                            "type": "row",
+                            "children": [
+                                {"type": "knob", "param": "Dispersion", "label": "DISPERSION", "knobStyle": "vintage", "size": 52},
+                                {"type": "knob", "param": "StringDamp", "label": "GUT DAMP", "unit": "%", "knobStyle": "vintage", "size": 52},
+                                {"type": "knob", "param": "Sustain", "label": "SUSTAIN", "knobStyle": "vintage", "size": 52},
+                                {"type": "knob", "param": "SubWarmth", "label": "SUB (65Hz)", "unit": "dB", "knobStyle": "vintage", "size": 52},
+                                {"type": "knob", "param": "BodyPunch", "label": "160Hz PUNCH", "unit": "dB", "knobStyle": "vintage", "size": 52},
+                                {"type": "knob", "param": "WoodTone", "label": "WOOD TONE", "unit": "dB", "knobStyle": "vintage", "size": 52},
+                            ]
+                        }
+                    ]
+                }
+            ]
         }
-      }
     }
-  }
-end
 
-function UprightBass.rack()
-  return {
-    rows = {
-      {
-        { id = "gut_pull",      title = "GUT PULL EXCITOR",        hp = 16, row = 1, category = "VCO" },
-        { id = "upright_guide", title = "3/4 BASS WAVEGUIDE",      hp = 14, row = 1, category = "VCF" },
-      },
-      {
-        { id = "spruce_cavity", title = "SPRUCE CAVITY MODAL",     hp = 14, row = 2, category = "MOD" },
-        { id = "sub_air_eq",    title = "SUB WARMTH & BODY PUNCH", hp = 16, row = 2, category = "FX" },
-      },
-    },
-    cables = {
-      { from = "1:0:1", to = "1:1:0", color = "audio" },
-      { from = "1:1:1", to = "2:0:0", color = "audio" },
-      { from = "2:0:1", to = "2:1:0", color = "audio" },
-    }
-  }
-end
-
-return UprightBass
+UprightBass = True
 ''',
     ),
 
@@ -10978,24 +10982,33 @@ def run(project, params):
       id: 'action_procedural_song',
       name: 'Procedural Multi-Track Song Generator',
       category: LuaScriptCategory.projectAction,
-      description: 'Procedurally generates a full arrangement (Drums, Acid Bass, Chords, Lead Arp) based on genre style.',
+      description: 'Procedurally generates a complete multi-track arrangement (GM Standard Drums, Bass, Chords, Lead/Hook) with authentic genre styles, seeded determinism, and loop alignment.',
+      tags: ['PROCGEN', 'SONG', 'LOFI', 'SYNTHWAVE', 'ARRANGER', 'DRUMS'],
       code: '''# @name: Procedural Multi-Track Song Generator
 # @author: Eatsbeats
 # @category: project_action
-# @description: Procedurally generates a full arrangement (Drums, Acid Bass, Chords, Lead Arp) based on genre style.
+# @description: Procedurally generates a complete multi-track arrangement (GM Standard Drums, Bass, Chords, Lead/Hook) with authentic genre styles, seeded determinism, and loop alignment.
 
 def init():
     return {
-        "Style": eat.param("Style", 0, 3, 0, options=["Synthwave / Retro", "Deep House", "Cyberpunk Acid", "Lo-Fi Hip Hop"]),
-        "Bpm": eat.param("Bpm", 80, 175, 124, step=1),
-        "Bars": eat.param("Bars", 4, 16, 8, step=4),
+        "Style": eat.param("Style", 0, 5, 0, options=["Lo-Fi Hip Hop", "Synthwave / Retrowave", "Deep House", "Cyberpunk Acid", "Neo-Soul / R&B", "Pop / Funk Anthem"]),
+        "Root": eat.param("Root", 0, 12, 0, options=["Auto / From Key", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]),
+        "Structure": eat.param("Structure", 0, 2, 0, options=["Full Arrangement (Intro-Verse-Chorus-Outro)", "Groove Loop (Verse-Chorus)", "Seamless Loop"]),
+        "Bars": eat.param("Bars", 4, 32, 16, step=4),
+        "Seed": eat.param("Seed", 1, 999999, 42, step=1),
+        "Swing": eat.param("Swing", 0.0, 1.0, 0.25, step=0.05),
+        "Humanize": eat.param("Humanize", 0.0, 1.0, 0.25, step=0.05),
     }
 
 def run(project, params):
     return {
         "style": params.get("Style", 0),
-        "bpm": params.get("Bpm", 124),
-        "bars": params.get("Bars", 8),
+        "root": params.get("Root", 0),
+        "structure": params.get("Structure", 0),
+        "bars": params.get("Bars", 16),
+        "seed": params.get("Seed", 42),
+        "swing": params.get("Swing", 0.25),
+        "humanize": params.get("Humanize", 0.25),
     }
 ''',
     ),

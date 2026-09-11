@@ -552,6 +552,7 @@ class _PianoRollViewState extends State<PianoRollView> {
         n.velocity = (n.velocity + delta).clamp(0.10, 1.0);
       }
     }
+    widget.dawState.syncActiveTrackNotesToClip();
     widget.dawState.commitHistoryTransaction();
     widget.dawState.notifyListeners();
     setState(() {});
@@ -565,6 +566,7 @@ class _PianoRollViewState extends State<PianoRollView> {
         n.startStep = (n.startStep / snap).round() * snap;
       }
     }
+    widget.dawState.syncActiveTrackNotesToClip();
     widget.dawState.commitHistoryTransaction();
     widget.dawState.notifyListeners();
     setState(() {});
@@ -2689,6 +2691,7 @@ child: ScrollConfiguration(
                                               _moveStartPos = null;
                                               _batchStartSteps.clear();
                                               _batchStartPitches.clear();
+                                              widget.dawState.syncActiveTrackNotesToClip();
                                               widget.dawState.commitHistoryTransaction();
                                               widget.dawState.audioEngine.playNoteOrSample(
                                                 track: track,
@@ -2703,6 +2706,7 @@ child: ScrollConfiguration(
                                             _moveStartPos = null;
                                             _batchStartSteps.clear();
                                             _batchStartPitches.clear();
+                                            widget.dawState.syncActiveTrackNotesToClip();
                                             widget.dawState.commitHistoryTransaction();
                                           },
                                           child: Container(
@@ -2838,11 +2842,13 @@ child: ScrollConfiguration(
                                             onPanEnd: (_) {
                                               _activeResizeNoteId = null;
                                               _batchStartDurations.clear();
+                                              widget.dawState.syncActiveTrackNotesToClip();
                                               widget.dawState.commitHistoryTransaction();
                                             },
                                             onPanCancel: () {
                                               _activeResizeNoteId = null;
                                               _batchStartDurations.clear();
+                                              widget.dawState.syncActiveTrackNotesToClip();
                                               widget.dawState.commitHistoryTransaction();
                                             },
                                             child: Tooltip(

@@ -1,0 +1,248 @@
+{
+  "mean_loss_percent": 74.17,
+  "converged": false,
+  "results": {
+    "C1_ff": {
+      "candidate": {
+        "f0_hz": 32.7,
+        "rise_time_ms": 7.98,
+        "crest_factor": 2.91,
+        "slap_ratio": 0.0003,
+        "spectral_centroid_hz": 560.23,
+        "inharmonicity_b": 0.001987,
+        "t60_sec": 1.66
+      },
+      "target": {
+        "f0_hz": 32.7,
+        "t60_sec": 1.72,
+        "spectral_centroid_hz": 200.3,
+        "inharmonicity_b": 0.000977,
+        "rise_time_ms": 11.14,
+        "crest_factor": 2.51,
+        "slap_ratio": 0.0
+      },
+      "error_percent": 99.64,
+      "errors": {
+        "t60": 3.49,
+        "centroid": 179.7,
+        "inharmonicity": 103.27,
+        "rise_time": 28.37,
+        "slap_ratio": 300.0
+      }
+    },
+    "C1_mf": {
+      "candidate": {
+        "f0_hz": 32.7,
+        "rise_time_ms": 8.96,
+        "crest_factor": 3.24,
+        "slap_ratio": 0.0001,
+        "spectral_centroid_hz": 423.18,
+        "inharmonicity_b": 0.001987,
+        "t60_sec": 1.66
+      },
+      "target": {
+        "f0_hz": 32.7,
+        "t60_sec": 1.59,
+        "spectral_centroid_hz": 160.24,
+        "inharmonicity_b": 0.000977,
+        "rise_time_ms": 13.11,
+        "crest_factor": 2.18,
+        "slap_ratio": 0.0
+      },
+      "error_percent": 76.38,
+      "errors": {
+        "t60": 4.4,
+        "centroid": 164.09,
+        "inharmonicity": 103.27,
+        "rise_time": 31.66,
+        "slap_ratio": 100.0
+      }
+    },
+    "C2_ff": {
+      "candidate": {
+        "f0_hz": 65.41,
+        "rise_time_ms": 8.05,
+        "crest_factor": 2.89,
+        "slap_ratio": 0.0003,
+        "spectral_centroid_hz": 98.87,
+        "inharmonicity_b": 0.00035,
+        "t60_sec": 1.64
+      },
+      "target": {
+        "f0_hz": 65.41,
+        "t60_sec": 1.54,
+        "spectral_centroid_hz": 218.8,
+        "inharmonicity_b": 0.000957,
+        "rise_time_ms": 33.01,
+        "crest_factor": 2.83,
+        "slap_ratio": 0.0003
+      },
+      "error_percent": 36.21,
+      "errors": {
+        "t60": 6.49,
+        "centroid": 54.81,
+        "inharmonicity": 63.36,
+        "rise_time": 75.61,
+        "slap_ratio": 0.0
+      }
+    },
+    "C2_mf": {
+      "candidate": {
+        "f0_hz": 65.41,
+        "rise_time_ms": 9.02,
+        "crest_factor": 3.18,
+        "slap_ratio": 0.0001,
+        "spectral_centroid_hz": 106.84,
+        "inharmonicity_b": 0.00035,
+        "t60_sec": 1.65
+      },
+      "target": {
+        "f0_hz": 65.41,
+        "t60_sec": 1.43,
+        "spectral_centroid_hz": 175.01,
+        "inharmonicity_b": 0.000957,
+        "rise_time_ms": 38.84,
+        "crest_factor": 2.46,
+        "slap_ratio": 0.0001
+      },
+      "error_percent": 35.47,
+      "errors": {
+        "t60": 15.38,
+        "centroid": 38.95,
+        "inharmonicity": 63.36,
+        "rise_time": 76.78,
+        "slap_ratio": 0.0
+      }
+    },
+    "C3_ff": {
+      "candidate": {
+        "f0_hz": 130.81,
+        "rise_time_ms": 7.66,
+        "crest_factor": 3.0,
+        "slap_ratio": 0.0002,
+        "spectral_centroid_hz": 95.18,
+        "inharmonicity_b": 0.00035,
+        "t60_sec": 1.62
+      },
+      "target": {
+        "f0_hz": 130.81,
+        "t60_sec": 1.72,
+        "spectral_centroid_hz": 336.5,
+        "inharmonicity_b": 0.000243,
+        "rise_time_ms": 8.85,
+        "crest_factor": 4.29,
+        "slap_ratio": 0.0119
+      },
+      "error_percent": 39.83,
+      "errors": {
+        "t60": 5.81,
+        "centroid": 71.71,
+        "inharmonicity": 43.85,
+        "rise_time": 13.45,
+        "slap_ratio": 97.5
+      }
+    },
+    "C3_mf": {
+      "candidate": {
+        "f0_hz": 130.81,
+        "rise_time_ms": 8.23,
+        "crest_factor": 3.34,
+        "slap_ratio": 0.0001,
+        "spectral_centroid_hz": 93.46,
+        "inharmonicity_b": 0.00035,
+        "t60_sec": 1.62
+      },
+      "target": {
+        "f0_hz": 130.81,
+        "t60_sec": 1.59,
+        "spectral_centroid_hz": 269.23,
+        "inharmonicity_b": 0.000243,
+        "rise_time_ms": 10.41,
+        "crest_factor": 3.73,
+        "slap_ratio": 0.0034
+      },
+      "error_percent": 37.28,
+      "errors": {
+        "t60": 1.89,
+        "centroid": 65.29,
+        "inharmonicity": 43.85,
+        "rise_time": 20.94,
+        "slap_ratio": 94.29
+      }
+    },
+    "C4_ff": {
+      "candidate": {
+        "f0_hz": 261.63,
+        "rise_time_ms": 7.23,
+        "crest_factor": 2.92,
+        "slap_ratio": 0.0002,
+        "spectral_centroid_hz": 93.91,
+        "inharmonicity_b": 0.00035,
+        "t60_sec": 1.59
+      },
+      "target": {
+        "f0_hz": 261.63,
+        "t60_sec": 1.86,
+        "spectral_centroid_hz": 567.1,
+        "inharmonicity_b": 5.8e-05,
+        "rise_time_ms": 12.94,
+        "crest_factor": 3.29,
+        "slap_ratio": 0.0007
+      },
+      "error_percent": 135.59,
+      "errors": {
+        "t60": 14.52,
+        "centroid": 83.44,
+        "inharmonicity": 494.92,
+        "rise_time": 44.13,
+        "slap_ratio": 62.5
+      }
+    },
+    "C4_mf": {
+      "candidate": {
+        "f0_hz": 261.63,
+        "rise_time_ms": 8.07,
+        "crest_factor": 3.25,
+        "slap_ratio": 0.0,
+        "spectral_centroid_hz": 91.03,
+        "inharmonicity_b": 0.00035,
+        "t60_sec": 1.59
+      },
+      "target": {
+        "f0_hz": 261.63,
+        "t60_sec": 1.72,
+        "spectral_centroid_hz": 453.71,
+        "inharmonicity_b": 5.8e-05,
+        "rise_time_ms": 15.22,
+        "crest_factor": 2.86,
+        "slap_ratio": 0.0002
+      },
+      "error_percent": 132.98,
+      "errors": {
+        "t60": 7.56,
+        "centroid": 79.94,
+        "inharmonicity": 494.92,
+        "rise_time": 46.98,
+        "slap_ratio": 66.67
+      }
+    }
+  },
+  "diagnostics": [
+    "[C1_ff] Timbre is too bright (560.23Hz vs 200.3Hz). Recommendation: Decrease WoodTone or increase StringDamp.",
+    "[C1_ff] Partial spreading / inharmonicity is off. Recommendation: Decrease Dispersion parameter.",
+    "[C1_mf] Timbre is too bright (423.18Hz vs 160.24Hz). Recommendation: Decrease WoodTone or increase StringDamp.",
+    "[C1_mf] Partial spreading / inharmonicity is off. Recommendation: Decrease Dispersion parameter.",
+    "[C2_ff] Timbre is too dark (98.87Hz vs 218.8Hz). Recommendation: Increase BodyPunch/WoodTone or increase FingerMass.",
+    "[C2_ff] Partial spreading / inharmonicity is off. Recommendation: Increase Dispersion allpass parameter.",
+    "[C2_mf] Timbre is too dark (106.84Hz vs 175.01Hz). Recommendation: Increase BodyPunch/WoodTone or increase FingerMass.",
+    "[C2_mf] Partial spreading / inharmonicity is off. Recommendation: Increase Dispersion allpass parameter.",
+    "[C3_ff] Timbre is too dark (95.18Hz vs 336.5Hz). Recommendation: Increase BodyPunch/WoodTone or increase FingerMass.",
+    "[C3_ff] Partial spreading / inharmonicity is off. Recommendation: Decrease Dispersion parameter.",
+    "[C3_mf] Timbre is too dark (93.46Hz vs 269.23Hz). Recommendation: Increase BodyPunch/WoodTone or increase FingerMass.",
+    "[C3_mf] Partial spreading / inharmonicity is off. Recommendation: Decrease Dispersion parameter.",
+    "[C4_ff] Timbre is too dark (93.91Hz vs 567.1Hz). Recommendation: Increase BodyPunch/WoodTone or increase FingerMass.",
+    "[C4_ff] Partial spreading / inharmonicity is off. Recommendation: Decrease Dispersion parameter.",
+    "[C4_mf] Timbre is too dark (91.03Hz vs 453.71Hz). Recommendation: Increase BodyPunch/WoodTone or increase FingerMass.",
+    "[C4_mf] Partial spreading / inharmonicity is off. Recommendation: Decrease Dispersion parameter."
+  ]
+}

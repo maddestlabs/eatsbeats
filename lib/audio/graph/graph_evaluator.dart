@@ -1737,72 +1737,88 @@ class GraphEvaluator {
   // ───────────────────────────────────────────────────────────────────────────
 
   /// Authentic 3/4 Acoustic Upright Double Bass Model (Jazz Pizzicato, Warm Gut String & Ebony Slap)
+  /// Authentic Acoustic 3/4 Upright Double Bass Physical Model
   /// Architecture:
-  /// - Heavy gut string side-finger flesh displacement exciter + tactile fingerboard wood slap
-  /// - Acoustic string waveguide with frequency-dependent gut damping (damping = 0.26)
-  /// - 3/4 Double Bass carved spruce & maple modal body cavity resonator (58Hz air / 98Hz wood)
-  /// - Natural body punch (+3.0 dB @ 160 Hz) & smooth woody treble softening
+  /// - Side-finger flesh contact exciter with Hunt-Crossley elastodynamic release (FingerFlesh & FingerMass)
+  /// - Acoustic string waveguide with 4-point Hermite cubic interpolation
+  /// - 1st-order allpass dispersion filter simulating heavy gut/steel core stiffness & inharmonicity B
+  /// - Non-linear ebony fingerboard collision solver (FingerboardSlap & ActionHeight) modeling "growl" & fretless slap
+  /// - 3/4 Double Bass carved spruce & maple modal body cavity resonator (58Hz air cavity / 98Hz wood plate)
+  /// - Acoustic wood body punch & sub warmth EQ stack
   static GraphNode buildUprightBass() {
     const exciter = UprightPluckSlapExciterNode(
       pluckMass: 2.2,
       pluckMassParam: 'FingerMass',
       slapClick: 0.35,
       slapClickParam: 'SlapClick',
+      fingerFlesh: 0.70,
+      fingerFleshParam: 'FingerFlesh',
     );
 
-    const waveguide = WaveguideNode(
+    const waveguide = UprightBassWaveguideNode(
       exciter: exciter,
-      feedback: 0.9945,
-      feedbackParam: 'Sustain',
-      damping: 0.26, // Warm gut string damping that sustains 80-600Hz body resonance
-      dampingParam: 'StringDamp',
+      sustain: 0.988,
+      sustainParam: 'Sustain',
+      stringDamping: 0.20,
+      stringDampingParam: 'StringDamp',
+      dispersion: 0.28,
+      dispersionParam: 'Dispersion',
+      actionHeight: 3.2,
+      actionHeightParam: 'ActionHeight',
+      fingerboardSlap: 0.40,
+      fingerboardSlapParam: 'SlapClick',
     );
 
     const bodyResonator = ViolinFamilyBodyResonatorNode(
       input: waveguide,
       instrumentType: 3, // Double Bass body cavity (58Hz air, 98Hz wood top)
       instrumentTypeParam: 'BodyType',
-      woodWarmth: 0.70,
+      woodWarmth: 0.75,
       woodWarmthParam: 'BodyWarmth',
       conSordino: 0.0,
       conSordinoParam: 'ConSordino',
     );
 
-    // Direct tactile exciter blend for natural acoustic fingerboard snap contact
+    // Direct tactile string blend for natural acoustic presence & body coupling
     const mixer = MixerNode(
-      [bodyResonator, exciter],
-      [0.90, 0.25],
+      [bodyResonator, waveguide],
+      [0.65, 0.35],
     );
 
-    // Acoustic Wood Body Punch (+3.0 dB @ 160 Hz)
+    // Acoustic Wood Body Punch (calibrated to real 145Hz spruce top plate mode)
     const bodyPunch = BiquadFilterNode(
       input: mixer,
       type: BiquadType.peaking,
-      frequency: 160.0,
-      gainDb: 3.0,
+      frequency: 145.0,
+      gainDb: 5.5,
       gainDbParam: 'BodyPunch',
-      q: 1.2,
+      q: 1.3,
     );
 
-    // Balanced Low-End Warmth (+1.5 dB @ 75 Hz, clean acoustic foundation without muddy sub-boom)
+    // Balanced Low-End Warmth (calibrated to real 70Hz Helmholtz cavity mode)
     const subWarmth = BiquadFilterNode(
       input: bodyPunch,
       type: BiquadType.lowshelf,
-      frequency: 75.0,
-      gainDb: 1.5,
+      frequency: 70.0,
+      gainDb: 3.0,
       gainDbParam: 'SubWarmth',
     );
 
-    // Smooth Woody Treble Softening (-3.5 dB @ 3.5 kHz)
+    // Woody Treble Presence (-1.5 dB @ 3.5 kHz)
     const woodTone = BiquadFilterNode(
       input: subWarmth,
       type: BiquadType.highshelf,
       frequency: 3500.0,
-      gainDb: -3.5,
+      gainDb: -1.5,
       gainDbParam: 'WoodTone',
     );
 
-    return woodTone;
+    const masterOutput = GainNode(
+      input: woodTone,
+      staticGain: 2.2,
+    );
+
+    return masterOutput;
   }
 
   // ───────────────────────────────────────────────────────────────────────────

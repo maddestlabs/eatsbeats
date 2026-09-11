@@ -1,0 +1,78 @@
+{
+  "instrument": "Acoustic Upright Double Bass (Empirical Ground Truth: FL Studio Flex Studio Multi-Samples)",
+  "source_recording": "upright-double-bass\\flstudio-upright_bass-c6-c2.wav",
+  "targets": {
+    "C4_mf": {
+      "f0_hz": 261.63,
+      "t60_sec": 1.72,
+      "spectral_centroid_hz": 453.71,
+      "inharmonicity_b": 5.8e-05,
+      "rise_time_ms": 15.22,
+      "crest_factor": 2.86,
+      "slap_ratio": 0.0002
+    },
+    "C4_ff": {
+      "f0_hz": 261.63,
+      "t60_sec": 1.86,
+      "spectral_centroid_hz": 567.1,
+      "inharmonicity_b": 5.8e-05,
+      "rise_time_ms": 12.94,
+      "crest_factor": 3.29,
+      "slap_ratio": 0.0007
+    },
+    "C3_mf": {
+      "f0_hz": 130.81,
+      "t60_sec": 1.59,
+      "spectral_centroid_hz": 269.23,
+      "inharmonicity_b": 0.000243,
+      "rise_time_ms": 10.41,
+      "crest_factor": 3.73,
+      "slap_ratio": 0.0034
+    },
+    "C3_ff": {
+      "f0_hz": 130.81,
+      "t60_sec": 1.72,
+      "spectral_centroid_hz": 336.5,
+      "inharmonicity_b": 0.000243,
+      "rise_time_ms": 8.85,
+      "crest_factor": 4.29,
+      "slap_ratio": 0.0119
+    },
+    "C2_mf": {
+      "f0_hz": 65.41,
+      "t60_sec": 1.43,
+      "spectral_centroid_hz": 175.01,
+      "inharmonicity_b": 0.000957,
+      "rise_time_ms": 38.84,
+      "crest_factor": 2.46,
+      "slap_ratio": 0.0001
+    },
+    "C2_ff": {
+      "f0_hz": 65.41,
+      "t60_sec": 1.54,
+      "spectral_centroid_hz": 218.8,
+      "inharmonicity_b": 0.000957,
+      "rise_time_ms": 33.01,
+      "crest_factor": 2.83,
+      "slap_ratio": 0.0003
+    },
+    "C1_mf": {
+      "f0_hz": 32.7,
+      "t60_sec": 1.59,
+      "spectral_centroid_hz": 160.24,
+      "inharmonicity_b": 0.000977,
+      "rise_time_ms": 13.11,
+      "crest_factor": 2.18,
+      "slap_ratio": 0.0
+    },
+    "C1_ff": {
+      "f0_hz": 32.7,
+      "t60_sec": 1.72,
+      "spectral_centroid_hz": 200.3,
+      "inharmonicity_b": 0.000977,
+      "rise_time_ms": 11.14,
+      "crest_factor": 2.51,
+      "slap_ratio": 0.0
+    }
+  }
+}

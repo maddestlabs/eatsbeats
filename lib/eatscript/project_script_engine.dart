@@ -7,6 +7,7 @@ import 'eat_script_library.dart';
 import 'eat_script_engine.dart';
 import '../audio/procgen/procedural_piano_engine.dart';
 import '../audio/procgen/procedural_drum_engine.dart';
+import '../audio/procgen/procedural_song_engine.dart';
 
 /// Result of executing a project script.
 class ProjectScriptResult {
@@ -133,6 +134,14 @@ class ProjectScriptHelpers {
           (5, ChordQuality.major, 2.0),
         ];
       }
+    } else if (g.contains('lofi') || g.contains('lo-fi') || g.contains('chill')) {
+      // Lo-Fi Hip Hop: ii9 - V13 - Imaj7 - vi7 (or i9 - iv9 - bVImaj7 - V7alt)
+      formula = [
+        (2, ChordQuality.min9, 2.0),
+        (7, ChordQuality.dom9, 2.0),
+        (0, ChordQuality.maj9, 2.0),
+        (9, ChordQuality.minor7, 2.0),
+      ];
     } else if (g.contains('synthwave') || g.contains('retrowave') || g.contains('cyberpunk')) {
       // Synthwave: i - VI - iv - v (or i - VII - VI - VII)
       formula = [
@@ -389,205 +398,9 @@ class ProjectScriptEngine {
     );
   }
 
-  /// Procedurally generates a full multi-track song structure (Drums, Bass, Chords, Lead Arp).
+  /// Procedurally generates a full multi-track song structure (Drums, Bass, Chords, Lead/Hook).
   static ProjectScriptResult _runProceduralSongGenerator(DawState dawState, Map<String, dynamic> params) {
-    final num rawStyle = (params['Style'] ?? params['style'] ?? 0) as num;
-    final int styleIdx = rawStyle.toInt();
-    final num rawBpm = (params['Bpm'] ?? params['bpm'] ?? 124.0) as num;
-    final double bpm = rawBpm.toDouble();
-    final num rawBars = (params['Bars'] ?? params['bars'] ?? 8) as num;
-    final int numBars = rawBars.toInt();
-
-    const styles = ['Synthwave / Retro', 'Deep House', 'Cyberpunk Acid', 'Lo-Fi Hip Hop'];
-    final style = styleIdx >= 0 && styleIdx < styles.length ? styles[styleIdx] : 'Synthwave / Retro';
-
-    // 1. Set Song Properties
-    dawState.setBpm(bpm);
-    dawState.projectName = 'Procedural $style';
-
-    // 2. Generate Chords for the song
-    final chords = ProjectScriptHelpers.generateChordProgression(
-      rootPitchClass: dawState.songKeyRoot,
-      isMinor: true, // Procedural electronic styles default to minor
-      genre: style,
-      lengthBars: numBars,
-    );
-    dawState.chordTrack = chords;
-
-    final pattern = dawState.activePattern;
-    pattern.tracks.clear(); // Clear existing tracks to populate procedural setup
-    pattern.lengthSteps = (numBars * 16).clamp(16, 128);
-
-    // Track 1: Drums (Kick, Snare/Clap, Hi-Hats)
-    final drumTrack = TrackChannel(
-      id: 'proc_track_drums',
-      name: 'Procedural Drums',
-      color: const Color(0xFFFF3366),
-      type: TrackType.synth,
-      volume: 0.85,
-    );
-    final drumClip = TrackClip(
-      id: 'proc_clip_drums',
-      name: 'Drum Loop',
-      trackId: drumTrack.id,
-      startBar: 0,
-      barLength: numBars,
-    );
-
-    // Populate drum pattern (4-on-the-floor kick, backbeat snare, Euclidean 16th hats)
-    final totalSteps = numBars * 16;
-    for (int step = 0; step < totalSteps; step++) {
-      // Four on the floor kick (every 4 steps)
-      if (step % 4 == 0) {
-        drumClip.notes.add(Note(
-          id: 'k_$step',
-          pitch: 36, // Bass Drum
-          startStep: step.toDouble(),
-          durationSteps: 1.0,
-          velocity: 0.95,
-        ));
-      }
-      // Snare on beats 2 & 4 (steps 4, 12, 20, 28...)
-      if (step % 8 == 4) {
-        drumClip.notes.add(Note(
-          id: 'sn_$step',
-          pitch: 38, // Snare
-          startStep: step.toDouble(),
-          durationSteps: 1.0,
-          velocity: 0.90,
-        ));
-      }
-      // Hi-Hats (every 2 steps with slight offbeat velocity boost)
-      if (step % 2 == 0) {
-        final isOffbeat = (step % 4) == 2;
-        drumClip.notes.add(Note(
-          id: 'hh_$step',
-          pitch: 42, // Closed Hat
-          startStep: step.toDouble(),
-          durationSteps: 0.8,
-          velocity: isOffbeat ? 0.85 : 0.65,
-        ));
-      }
-    }
-    drumTrack.clips.add(drumClip);
-    pattern.tracks.add(drumTrack);
-
-    // Track 2: Bassline (Follows chord roots with rolling 16th rhythm)
-    final bassTrack = TrackChannel(
-      id: 'proc_track_bass',
-      name: 'Acid Bassline',
-      color: const Color(0xFF00FF66),
-      type: TrackType.synth,
-      volume: 0.80,
-    );
-    final bassClip = TrackClip(
-      id: 'proc_clip_bass',
-      name: 'Bassline',
-      trackId: bassTrack.id,
-      startBar: 0,
-      barLength: numBars,
-    );
-
-    for (int step = 0; step < totalSteps; step += 2) {
-      final chord = dawState.getActiveChordAtStep(step) ?? (chords.isNotEmpty ? chords.first : null);
-      final rootClass = chord?.bassPitchClass ?? chord?.rootPitchClass ?? dawState.songKeyRoot;
-      final bassPitch = 36 + rootClass; // Low register C2 (36) + root
-
-      final isAccent = (step % 8 == 0) || (step % 8 == 6);
-      bassClip.notes.add(Note(
-        id: 'bass_$step',
-        pitch: bassPitch,
-        startStep: step.toDouble(),
-        durationSteps: 1.5,
-        velocity: isAccent ? 0.95 : 0.70,
-        isSlide: (step % 8 == 6),
-      ));
-    }
-    bassTrack.clips.add(bassClip);
-    pattern.tracks.add(bassTrack);
-
-    // Track 3: Chord Stabs / Pad (Sustained voicings following chord track)
-    final chordTrackChannel = TrackChannel(
-      id: 'proc_track_chords',
-      name: 'Harmonic Stabs',
-      color: const Color(0xFF21F4E8),
-      type: TrackType.synth,
-      volume: 0.75,
-    );
-    final chordClip = TrackClip(
-      id: 'proc_clip_chords',
-      name: 'Chord Stabs',
-      trackId: chordTrackChannel.id,
-      startBar: 0,
-      barLength: numBars,
-    );
-
-    for (final chord in chords) {
-      final chordStartStep = (chord.startBar * 16).toDouble();
-      final chordDurSteps = (chord.barLength * 16).toDouble();
-      final pitchClasses = chord.pitchClasses;
-
-      for (int i = 0; i < pitchClasses.length; i++) {
-        final pc = pitchClasses[i];
-        final pitch = 60 + pc; // Middle register C4 (60)
-        chordClip.notes.add(Note(
-          id: 'chord_${chord.id}_$i',
-          pitch: pitch,
-          startStep: chordStartStep,
-          durationSteps: chordDurSteps * 0.9,
-          velocity: 0.80,
-        ));
-      }
-    }
-    chordTrackChannel.clips.add(chordClip);
-    pattern.tracks.add(chordTrackChannel);
-
-    // Track 4: Lead Arpeggio (Melodic arp moving across chord tones)
-    final leadTrack = TrackChannel(
-      id: 'proc_track_lead',
-      name: 'Neon Lead Arp',
-      color: const Color(0xFFFF8C00),
-      type: TrackType.synth,
-      volume: 0.78,
-    );
-    final leadClip = TrackClip(
-      id: 'proc_clip_lead',
-      name: 'Lead Arp',
-      trackId: leadTrack.id,
-      startBar: 0,
-      barLength: numBars,
-    );
-
-    for (int step = 0; step < totalSteps; step++) {
-      final chord = dawState.getActiveChordAtStep(step) ?? (chords.isNotEmpty ? chords.first : null);
-      final pitches = chord?.pitchClasses ?? [0, 3, 7];
-      final pitchIndex = step % pitches.length;
-      final octaveOffset = (step ~/ pitches.length) % 2; // Cycle through 2 octaves
-      final arpPitch = 72 + pitches[pitchIndex] + (octaveOffset * 12); // C5 (72)
-
-      leadClip.notes.add(Note(
-        id: 'lead_$step',
-        pitch: arpPitch,
-        startStep: step.toDouble(),
-        durationSteps: 0.75,
-        velocity: 0.82,
-      ));
-    }
-    leadTrack.clips.add(leadClip);
-    pattern.tracks.add(leadTrack);
-
-    int totalNotes = drumClip.notes.length + bassClip.notes.length + chordClip.notes.length + leadClip.notes.length;
-
-    dawState.triggerAutoSave();
-    dawState.notifyListeners();
-
-    return ProjectScriptResult(
-      isSuccess: true,
-      message: 'Generated $style multi-track song (${pattern.tracks.length} tracks, $totalNotes notes, ${chords.length} chords).',
-      affectedTracksCount: pattern.tracks.length,
-      affectedNotesCount: totalNotes,
-      affectedChordsCount: chords.length,
-    );
+    return ProceduralSongEngine.generateToDawState(dawState, params);
   }
 
   /// Humanizes groove micro-timing and note velocities.

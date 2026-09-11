@@ -500,12 +500,14 @@ class _ArrangerViewState extends State<ArrangerView> {
                                      onLongPress: () {
                                        setState(() => _isPropertiesExpanded = true);
                                        if (allIdx != -1) widget.dawState.activeTrackIndex = allIdx;
-                                       widget.dawState.selectClip(null);
+                                       final targetClip = widget.dawState.getClipAtBar(track, widget.dawState.arrangerStep ~/ 16) ?? (track.clips.isNotEmpty ? track.clips.first : null);
+                                       widget.dawState.selectClip(targetClip);
                                      },
                                      onSecondaryTap: () {
                                        setState(() => _isPropertiesExpanded = true);
                                        if (allIdx != -1) widget.dawState.activeTrackIndex = allIdx;
-                                       widget.dawState.selectClip(null);
+                                       final targetClip = widget.dawState.getClipAtBar(track, widget.dawState.arrangerStep ~/ 16) ?? (track.clips.isNotEmpty ? track.clips.first : null);
+                                       widget.dawState.selectClip(targetClip);
                                      },
                                      onTapDown: (_) {
                                        final now = DateTime.now();
@@ -516,7 +518,8 @@ class _ArrangerViewState extends State<ArrangerView> {
                                        _lastHeaderTapTrackIdx = trackIdx;
 
                                        if (allIdx != -1) widget.dawState.activeTrackIndex = allIdx;
-                                       widget.dawState.selectClip(null);
+                                       final targetClip = widget.dawState.getClipAtBar(track, widget.dawState.arrangerStep ~/ 16) ?? (track.clips.isNotEmpty ? track.clips.first : null);
+                                       widget.dawState.selectClip(targetClip);
                                         if (isDoubleTap) {
                                           if (track.isFolder) {
                                             widget.dawState.toggleFolderCollapsed(track);

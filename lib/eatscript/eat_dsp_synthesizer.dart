@@ -1155,11 +1155,15 @@ class EatDspSynthesizer {
       );
     }
 
-    if (code.contains('DoubleBass') ||
+    if ((code.contains('DoubleBass') ||
         code.contains('double_bass') ||
         code.contains('Orchestral Double Bass') ||
         code.contains('Contrabass') ||
-        (code.contains('BowPressure') && code.contains('SubPunch'))) {
+        (code.contains('BowPressure') && code.contains('SubPunch'))) &&
+        !code.contains('upright_bass') &&
+        !code.contains('UprightBass') &&
+        !code.contains('Upright Double Bass') &&
+        !code.contains('FingerMass')) {
       return GraphEvaluator.evaluate(
         root: GraphEvaluator.buildDoubleBass(),
         durationSec: durationSec,
@@ -1470,10 +1474,12 @@ class EatDspSynthesizer {
         code.contains('upright_bass') ||
         code.contains('DoubleBass') ||
         code.contains('Upright Bass') ||
-        (code.contains('FingerMass') && code.contains('SlapClick'))) {
+        code.contains('acoustic_upright_bass') ||
+        (code.contains('FingerMass') && (code.contains('SlapClick') || code.contains('FingerFlesh')))) {
+      final double effDurationSec = math.max(durationSec, 1.8);
       return GraphEvaluator.evaluate(
         root: GraphEvaluator.buildUprightBass(),
-        durationSec: durationSec,
+        durationSec: effDurationSec,
         freq: freq,
         note: note,
         params: params,
