@@ -43,8 +43,8 @@ class SineOscNode extends GraphNode {
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
     final int len = outBuffer.length;
-    final Float32List? freqBuf = freqSource != null ? Float32List(len) : null;
-    final Float32List? fmBuf = fmModSource != null ? Float32List(len) : null;
+    final Float32List? freqBuf = freqSource != null ? ctx.acquireScratch(len) : null;
+    final Float32List? fmBuf = fmModSource != null ? ctx.acquireScratch(len) : null;
 
     if (freqSource != null) freqSource!.process(ctx, freqBuf!);
     if (fmModSource != null) fmModSource!.process(ctx, fmBuf!);
@@ -63,6 +63,9 @@ class SineOscNode extends GraphNode {
       phase += (instantaneousFreq / sr) * twoPi;
       if (phase >= twoPi) phase -= twoPi;
     }
+
+    if (fmBuf != null) ctx.releaseScratch();
+    if (freqBuf != null) ctx.releaseScratch();
   }
 }
 
@@ -76,7 +79,7 @@ class SawOscNode extends GraphNode {
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
     final int len = outBuffer.length;
-    final Float32List? freqBuf = freqSource != null ? Float32List(len) : null;
+    final Float32List? freqBuf = freqSource != null ? ctx.acquireScratch(len) : null;
     if (freqSource != null) freqSource!.process(ctx, freqBuf!);
 
     final double sr = ctx.sampleRate;
@@ -88,6 +91,8 @@ class SawOscNode extends GraphNode {
       outBuffer[i] = 2.0 * phase - 1.0;
       phase = (phase + (curF / sr)) % 1.0;
     }
+
+    if (freqBuf != null) ctx.releaseScratch();
   }
 }
 
@@ -106,7 +111,7 @@ class SquareOscNode extends GraphNode {
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
     final int len = outBuffer.length;
-    final Float32List? freqBuf = freqSource != null ? Float32List(len) : null;
+    final Float32List? freqBuf = freqSource != null ? ctx.acquireScratch(len) : null;
     if (freqSource != null) freqSource!.process(ctx, freqBuf!);
 
     final double sr = ctx.sampleRate;
@@ -118,6 +123,8 @@ class SquareOscNode extends GraphNode {
       outBuffer[i] = phase < pulseWidth ? 0.75 : -0.75;
       phase = (phase + (curF / sr)) % 1.0;
     }
+
+    if (freqBuf != null) ctx.releaseScratch();
   }
 }
 
@@ -781,7 +788,7 @@ class DelayNode extends GraphNode {
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
     final int len = outBuffer.length;
-    final Float32List inBuf = Float32List(len);
+    final Float32List inBuf = ctx.acquireScratch(len);
     input.process(ctx, inBuf);
 
     final double dSec = (delayParam != null ? ctx.getParam(delayParam!, delaySec) : delaySec).clamp(0.0, 1.0);
@@ -791,6 +798,7 @@ class DelayNode extends GraphNode {
       final int readIdx = i - delaySamples;
       outBuffer[i] = readIdx >= 0 ? inBuf[readIdx] : 0.0;
     }
+    ctx.releaseScratch();
   }
 }
 
@@ -1061,7 +1069,7 @@ class ModalResonatorBankNode extends GraphNode {
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
     final int len = outBuffer.length;
-    final Float32List inBuf = Float32List(len);
+    final Float32List inBuf = ctx.acquireScratch(len);
     input.process(ctx, inBuf);
     outBuffer.fillRange(0, len, 0.0);
 
@@ -1101,6 +1109,7 @@ class ModalResonatorBankNode extends GraphNode {
         outBuffer[i] += outSample;
       }
     }
+    ctx.releaseScratch();
   }
 }
 
@@ -1265,7 +1274,7 @@ class PlasmaArcOscNode extends GraphNode {
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
     final int len = outBuffer.length;
-    final Float32List? freqBuf = freqSource != null ? Float32List(len) : null;
+    final Float32List? freqBuf = freqSource != null ? ctx.acquireScratch(len) : null;
     if (freqSource != null) freqSource!.process(ctx, freqBuf!);
 
     final double sr = ctx.sampleRate;
@@ -1316,6 +1325,7 @@ class PlasmaArcOscNode extends GraphNode {
       subPhase += (fInst * 0.5) / sr;
       if (subPhase >= 1.0) subPhase -= 1.0;
     }
+    if (freqBuf != null) ctx.releaseScratch();
   }
 }
 
@@ -1589,7 +1599,7 @@ class ThermoacousticFlameOscNode extends GraphNode {
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
     final int len = outBuffer.length;
-    final Float32List? freqBuf = freqSource != null ? Float32List(len) : null;
+    final Float32List? freqBuf = freqSource != null ? ctx.acquireScratch(len) : null;
     if (freqSource != null) freqSource!.process(ctx, freqBuf!);
 
     final double sr = ctx.sampleRate;
@@ -1635,6 +1645,7 @@ class ThermoacousticFlameOscNode extends GraphNode {
       lfoPhase += 3.2 / sr;
       if (lfoPhase >= 1.0) lfoPhase -= 1.0;
     }
+    if (freqBuf != null) ctx.releaseScratch();
   }
 }
 
@@ -1884,7 +1895,7 @@ class HydraulophoneOscNode extends GraphNode {
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
     final int len = outBuffer.length;
-    final Float32List? freqBuf = freqSource != null ? Float32List(len) : null;
+    final Float32List? freqBuf = freqSource != null ? ctx.acquireScratch(len) : null;
     if (freqSource != null) freqSource!.process(ctx, freqBuf!);
 
     final double sr = ctx.sampleRate;
@@ -1928,6 +1939,7 @@ class HydraulophoneOscNode extends GraphNode {
       lfoPhase += 2.4 / sr;
       if (lfoPhase >= 1.0) lfoPhase -= 1.0;
     }
+    if (freqBuf != null) ctx.releaseScratch();
   }
 }
 
@@ -3358,7 +3370,7 @@ class MorphableAcousticBodyNode extends GraphNode {
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
     final int len = outBuffer.length;
-    final Float32List inBuf = Float32List(len);
+    final Float32List inBuf = ctx.acquireScratch(len);
     input.process(ctx, inBuf);
     outBuffer.fillRange(0, len, 0.0);
 
@@ -3409,6 +3421,7 @@ class MorphableAcousticBodyNode extends GraphNode {
         outBuffer[i] += outSample;
       }
     }
+    ctx.releaseScratch();
   }
 }
 
@@ -3432,7 +3445,7 @@ class AluminumConeResonatorNode extends GraphNode {
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
     final int len = outBuffer.length;
-    final Float32List inBuf = Float32List(len);
+    final Float32List inBuf = ctx.acquireScratch(len);
     input.process(ctx, inBuf);
     outBuffer.fillRange(0, len, 0.0);
 
@@ -3480,6 +3493,7 @@ class AluminumConeResonatorNode extends GraphNode {
         outBuffer[i] += outSample + 0.12 * DistortionNode._tanh(outSample * outSample * bark);
       }
     }
+    ctx.releaseScratch();
   }
 }
 
@@ -3767,7 +3781,7 @@ class ViolinFamilyBodyResonatorNode extends GraphNode {
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
     final int len = outBuffer.length;
-    final Float32List inBuf = Float32List(len);
+    final Float32List inBuf = ctx.acquireScratch(len);
     input.process(ctx, inBuf);
     outBuffer.fillRange(0, len, 0.0);
 
@@ -3850,6 +3864,7 @@ class ViolinFamilyBodyResonatorNode extends GraphNode {
     for (int i = 0; i < len; i++) {
       outBuffer[i] += inBuf[i] * directGain;
     }
+    ctx.releaseScratch();
   }
 }
 
@@ -6703,7 +6718,7 @@ class ModalCavityBankNode extends GraphNode {
   @override
   void process(GraphContext ctx, Float32List outBuffer) {
     final int len = outBuffer.length;
-    final Float32List inBuf = Float32List(len);
+    final Float32List inBuf = ctx.acquireScratch(len);
     input.process(ctx, inBuf);
 
     final double reso = (resonanceParam != null ? ctx.getParam(resonanceParam!, resonance) : resonance).clamp(0.1, 0.98);
@@ -6784,6 +6799,7 @@ class ModalCavityBankNode extends GraphNode {
       final double modalSum = y1 * modalGains[0] + y2 * modalGains[1] + y3 * modalGains[2] + y4 * modalGains[3];
       outBuffer[i] = (x * 0.35 + modalSum * 0.65).clamp(-1.0, 1.0);
     }
+    ctx.releaseScratch();
   }
 }
 

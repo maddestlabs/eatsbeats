@@ -38,10 +38,17 @@ class StereoMeterWidget extends StatelessWidget {
           borderRadius: BorderRadius.circular(3),
           child: Stack(
             children: [
-              // Inner Inset Bevel & Shadow
+              // Static Background & Centered dB Scale (Painted once, zero repaint churn)
+              const Positioned.fill(
+                child: CustomPaint(
+                  painter: _MeterScaleBackgroundPainter(),
+                ),
+              ),
+
+              // Dynamic LED Columns (Repaints only when LED level changes visibly)
               Positioned.fill(
                 child: CustomPaint(
-                  painter: _GlassMeterPainter(
+                  painter: _LedBarsPainter(
                     leftLevel: leftLevel.clamp(0.0, 1.2),
                     rightLevel: rightLevel.clamp(0.0, 1.2),
                     accentColor: accentColor ?? EatsTheme.accentGreen,
@@ -63,34 +70,16 @@ class StereoMeterWidget extends StatelessWidget {
   }
 }
 
-class _GlassMeterPainter extends CustomPainter {
-  final double leftLevel;
-  final double rightLevel;
-  final Color accentColor;
-
-  _GlassMeterPainter({
-    required this.leftLevel,
-    required this.rightLevel,
-    required this.accentColor,
-  });
+/// Static background, inner shadow, and printed dB scale text.
+/// Uses shouldRepaint => false to avoid re-rendering 11 TextPainters every animation frame.
+class _MeterScaleBackgroundPainter extends CustomPainter {
+  const _MeterScaleBackgroundPainter();
 
   static final Paint _bgPaint = Paint()..color = const Color(0xFF0C0D12);
   static final Paint _shadowPaint = Paint()
     ..color = const Color(0xCC000000)
     ..style = PaintingStyle.stroke
     ..strokeWidth = 2.0;
-
-  // Pre-allocated zero-allocation LED segment paints
-  static final Paint _ledLitGreen = Paint()..color = const Color(0xFF00E676);
-  static final Paint _ledUnlitGreen = Paint()..color = const Color(0xFF082212);
-  static final Paint _ledLitAmber = Paint()..color = const Color(0xFFFFC107);
-  static final Paint _ledUnlitAmber = Paint()..color = const Color(0xFF281C08);
-  static final Paint _ledLitRed = Paint()..color = const Color(0xFFFF1744);
-  static final Paint _ledUnlitRed = Paint()..color = const Color(0xFF2B080E);
-  static final Paint _ledPeakGlow = Paint()
-    ..color = const Color(0x99FF1744)
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
-  static final Paint _ledClipPeak = Paint()..color = const Color(0xFFFF0055);
 
   static const List<String> dbLabels = [
     '-inf',
@@ -126,18 +115,60 @@ class _GlassMeterPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const totalSegments = 22;
-    const segmentGap = 1.0;
     final totalHeight = size.height;
 
     // Outer dark background & inner recessed shadow
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, totalHeight), _bgPaint);
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, totalHeight), _shadowPaint);
 
+    // Draw Centered dB Scale Labels using pre-cached painters
+    for (int i = 0; i < _cachedDbPainters.length; i++) {
+      final fraction = i / (_cachedDbPainters.length - 1);
+      final yPos = fraction * (totalHeight - 12.0) + 6.0;
+      final tp = _cachedDbPainters[i];
+
+      final textX = (size.width - tp.width) / 2.0;
+      final textY = yPos - (tp.height / 2.0);
+      tp.paint(canvas, Offset(textX, textY));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _LedBarsPainter extends CustomPainter {
+  final double leftLevel;
+  final double rightLevel;
+  final Color accentColor;
+
+  _LedBarsPainter({
+    required this.leftLevel,
+    required this.rightLevel,
+    required this.accentColor,
+  });
+
+  // Pre-allocated zero-allocation LED segment paints
+  static final Paint _ledLitGreen = Paint()..color = const Color(0xFF00E676);
+  static final Paint _ledUnlitGreen = Paint()..color = const Color(0xFF082212);
+  static final Paint _ledLitAmber = Paint()..color = const Color(0xFFFFC107);
+  static final Paint _ledUnlitAmber = Paint()..color = const Color(0xFF281C08);
+  static final Paint _ledLitRed = Paint()..color = const Color(0xFFFF1744);
+  static final Paint _ledUnlitRed = Paint()..color = const Color(0xFF2B080E);
+  static final Paint _ledPeakGlow = Paint()
+    ..color = const Color(0x99FF1744)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
+  static final Paint _ledClipPeak = Paint()..color = const Color(0xFFFF0055);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const totalSegments = 22;
+    const segmentGap = 1.0;
+    final totalHeight = size.height;
+
     // Meter Layout:
     // Left LED column width: 4.5px, Left pos: 3.5px
     // Right LED column width: 4.5px, Right pos: size.width - 8px
-    // Central dB Scale text in between
     const ledWidth = 4.5;
     const leftX = 3.5;
     final rightX = size.width - 3.5 - ledWidth;
@@ -163,17 +194,6 @@ class _GlassMeterPainter extends CustomPainter {
       totalSegments: totalSegments,
       segmentGap: segmentGap,
     );
-
-    // Draw Centered dB Scale Labels using pre-cached painters
-    for (int i = 0; i < _cachedDbPainters.length; i++) {
-      final fraction = i / (_cachedDbPainters.length - 1);
-      final yPos = fraction * (totalHeight - 12.0) + 6.0;
-      final tp = _cachedDbPainters[i];
-
-      final textX = (size.width - tp.width) / 2.0;
-      final textY = yPos - (tp.height / 2.0);
-      tp.paint(canvas, Offset(textX, textY));
-    }
   }
 
   void _drawLedBar({
@@ -225,8 +245,11 @@ class _GlassMeterPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _GlassMeterPainter oldDelegate) {
-    return oldDelegate.leftLevel != leftLevel || oldDelegate.rightLevel != rightLevel;
+  bool shouldRepaint(covariant _LedBarsPainter oldDelegate) {
+    if ((oldDelegate.leftLevel >= 0.95) != (leftLevel >= 0.95)) return true;
+    if ((oldDelegate.rightLevel >= 0.95) != (rightLevel >= 0.95)) return true;
+    return (oldDelegate.leftLevel - leftLevel).abs() > 0.004 ||
+        (oldDelegate.rightLevel - rightLevel).abs() > 0.004;
   }
 }
 

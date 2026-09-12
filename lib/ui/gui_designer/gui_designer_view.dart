@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../services/github_tweak_submission_service.dart';
+import '../widgets/submit_gui_tweak_dialog.dart';
 import '../../eatscript/eat_script_engine.dart';
 import '../../eatscript/eat_param_model.dart';
 import '../../eatscript/eat_gui_model.dart';
@@ -462,6 +464,30 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
                       ),
                       Row(
                         children: [
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.merge_type, size: 14),
+                            label: const Text('SUBMIT PR'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: EatsTheme.primaryCyan.withOpacity(0.15),
+                              foregroundColor: EatsTheme.primaryCyan,
+                              side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.4)),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                            onPressed: () {
+                              final info = GithubTweakSubmissionService.inferPresetInfo(
+                                code: widget.scriptCode,
+                                fallbackName: widget.target.title,
+                              );
+                              SubmitGuiTweakDialog.show(
+                                context,
+                                presetId: info.id,
+                                presetName: info.name,
+                                eatCode: widget.scriptCode,
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 8),
                           ElevatedButton.icon(
                             icon: const Icon(Icons.add, size: 14),
                             label: const Text('ADD ROW'),

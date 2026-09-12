@@ -1884,7 +1884,8 @@ class WajuceAudioBackend {
 
       WABuffer buf;
       if (bufferCacheKey != null && _bufferCache.containsKey(bufferCacheKey)) {
-        buf = _bufferCache[bufferCacheKey]!;
+        buf = _bufferCache.remove(bufferCacheKey)!;
+        _bufferCache[bufferCacheKey] = buf; // Move to most recently used
       } else {
         buf = WABuffer(
           numberOfChannels: 1,
@@ -1893,7 +1894,7 @@ class WajuceAudioBackend {
           channels: [samples],
         );
         if (bufferCacheKey != null) {
-          if (_bufferCache.length >= 128) {
+          if (_bufferCache.length >= 512) {
             _bufferCache.remove(_bufferCache.keys.first);
           }
           _bufferCache[bufferCacheKey] = buf;
@@ -1995,7 +1996,8 @@ class WajuceAudioBackend {
 
       WABuffer buf;
       if (bufferCacheKey != null && _bufferCache.containsKey(bufferCacheKey)) {
-        buf = _bufferCache[bufferCacheKey]!;
+        buf = _bufferCache.remove(bufferCacheKey)!;
+        _bufferCache[bufferCacheKey] = buf; // Move to most recently used
       } else {
         buf = WABuffer(
           numberOfChannels: 1,
@@ -2004,7 +2006,7 @@ class WajuceAudioBackend {
           channels: [samples],
         );
         if (bufferCacheKey != null) {
-          if (_bufferCache.length >= 128) {
+          if (_bufferCache.length >= 512) {
             _bufferCache.remove(_bufferCache.keys.first);
           }
           _bufferCache[bufferCacheKey] = buf;

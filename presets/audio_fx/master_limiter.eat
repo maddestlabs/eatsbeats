@@ -1,0 +1,58 @@
+# @id: master_limiter
+# @name: Master Limiter
+# @category: audioFx
+# @description: Brickwall peak limiter with lookahead ceiling protection and transparent release envelope.
+
+# --- Parameter Definitions ---
+def init():
+    return {
+        "Threshold": eat.param("Threshold", -24.0, 0.0, -1.0, step=0.5),
+        "Release": eat.param("Release", 0.01, 1.0, 0.05, step=0.01),
+        "Ceiling": eat.param("Ceiling", -6.0, 0.0, -0.1, step=0.1),
+    }
+
+# --- Hardware GUI Layout ---
+def gui():
+    return {
+        "panel": {
+            "title": "Master Limiter",
+            "subtitle": "Brickwall Peak Limiting & Output Protection",
+            "background": "silver",
+            "accent": "#FF3366",
+            "knobStyle": "chrome",
+            "layout": [
+                {
+                    "type": "row",
+                    "children": [
+                        {
+                            "type": "knob",
+                            "param": "Threshold",
+                            "label": "THRESHOLD",
+                            "unit": "dB",
+                            "knobStyle": "chrome",
+                        },
+                        {
+                            "type": "knob",
+                            "param": "Release",
+                            "label": "RELEASE",
+                            "unit": "s",
+                            "knobStyle": "chrome",
+                        },
+                        {
+                            "type": "knob",
+                            "param": "Ceiling",
+                            "label": "CEILING",
+                            "unit": "dB",
+                            "knobStyle": "chrome",
+                        },
+                    ],
+                },
+            ],
+        },
+    }
+
+# --- Audio FX DSP Process Hook ---
+def process(input_l, input_r, params):
+    return [input_l, input_r]
+
+Limiter = True

@@ -127,6 +127,8 @@ class _PianoRollViewState extends State<PianoRollView> {
     if (mounted) setState(() {});
   }
 
+  int _lastPlayheadFollowTime = 0;
+
   void _onContinuousPlayheadFollow() {
     if (!mounted) return;
     if (widget.dawState.activeTabIndex != 1) return;
@@ -139,21 +141,25 @@ class _PianoRollViewState extends State<PianoRollView> {
         final clipStartStep = (activeClip.startBar * 16).toDouble();
         final clipEndStep = clipStartStep + (activeClip.barLength * 16).toDouble();
 
+        double? targetX;
         if (continuousStep >= clipStartStep && continuousStep <= clipEndStep) {
           final stepInClip = continuousStep - clipStartStep;
           final playheadX = stepInClip * _stepWidth;
           final viewportW = _horizontalScroll.position.viewportDimension;
-          final targetX = (playheadX - (viewportW / 2.0)).clamp(0.0, _horizontalScroll.position.maxScrollExtent);
-          if ((_horizontalScroll.offset - targetX).abs() > 0.5) {
-            _horizontalScroll.jumpTo(targetX);
-          }
+          targetX = (playheadX - (viewportW / 2.0)).clamp(0.0, _horizontalScroll.position.maxScrollExtent);
         } else if (widget.dawState.activeTrack.clips.isEmpty) {
           final patternSteps = widget.dawState.activePattern.lengthSteps > 0 ? widget.dawState.activePattern.lengthSteps.toDouble() : 16.0;
           final stepInClip = continuousStep % patternSteps;
           final playheadX = stepInClip * _stepWidth;
           final viewportW = _horizontalScroll.position.viewportDimension;
-          final targetX = (playheadX - (viewportW / 2.0)).clamp(0.0, _horizontalScroll.position.maxScrollExtent);
-          if ((_horizontalScroll.offset - targetX).abs() > 0.5) {
+          targetX = (playheadX - (viewportW / 2.0)).clamp(0.0, _horizontalScroll.position.maxScrollExtent);
+        }
+
+        if (targetX != null) {
+          final now = DateTime.now().millisecondsSinceEpoch;
+          final delta = (_horizontalScroll.offset - targetX).abs();
+          if (delta > 1.5 && (now - _lastPlayheadFollowTime > 25 || delta > 30.0)) {
+            _lastPlayheadFollowTime = now;
             _horizontalScroll.jumpTo(targetX);
           }
         }
@@ -2482,58 +2488,59 @@ child: ScrollConfiguration(
                                       ),
                                     );
                                   },
-                                ),
-
-                                // Render Real-Time MIDI FX Ghost / Arpeggiator Notes Layer
+                                ),                                // Render Real-Time MIDI FX Ghost / Arpeggiator Notes Layer
                                 if (track.midiFXRack.any((fx) => fx.enabled))
-                                  ...widget.dawState.getEvaluatedClipNotes(activeClip, track)
-                                      .where((gn) => !track.notes.any((bn) => bn.id == gn.id))
-                                      .map((ghostNote) {
-                                    final keyIdx = maxPitch - ghostNote.pitch;
-                                    if (keyIdx < 0 || keyIdx >= totalKeys) return const SizedBox();
+                                  ...(() {
+                                    final baseNoteIds = track.notes.map((bn) => bn.id).toSet();
+                                    return widget.dawState.getEvaluatedClipNotes(activeClip, track)
+                                        .where((gn) => !baseNoteIds.contains(gn.id))
+                                        .map((ghostNote) {
+                                      final keyIdx = maxPitch - ghostNote.pitch;
+                                      if (keyIdx < 0 || keyIdx >= totalKeys) return const SizedBox();
 
-                                    final noteLeft = ghostNote.startStep * _stepWidth + 1;
-                                    final noteTop = keyIdx * _keyHeight + 1;
-                                    final noteWidth = ((ghostNote.durationSteps * _stepWidth) - 2).clamp(4.0, double.infinity);
-                                    final noteHeight = _keyHeight - 2;
+                                      final noteLeft = ghostNote.startStep * _stepWidth + 1;
+                                      final noteTop = keyIdx * _keyHeight + 1;
+                                      final noteWidth = ((ghostNote.durationSteps * _stepWidth) - 2).clamp(4.0, double.infinity);
+                                      final noteHeight = _keyHeight - 2;
 
-                                    return Positioned(
-                                      left: noteLeft,
-                                      top: noteTop,
-                                      width: noteWidth,
-                                      height: noteHeight,
-                                      child: IgnorePointer(
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: EatsTheme.primaryCyan.withOpacity(0.20),
-                                            borderRadius: BorderRadius.circular(3),
-                                            border: Border.all(
-                                              color: EatsTheme.primaryCyan.withOpacity(0.65),
-                                              width: 1.0,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: EatsTheme.primaryCyan.withOpacity(0.2),
-                                                blurRadius: 4,
+                                      return Positioned(
+                                        left: noteLeft,
+                                        top: noteTop,
+                                        width: noteWidth,
+                                        height: noteHeight,
+                                        child: IgnorePointer(
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: EatsTheme.primaryCyan.withOpacity(0.20),
+                                              borderRadius: BorderRadius.circular(3),
+                                              border: Border.all(
+                                                color: EatsTheme.primaryCyan.withOpacity(0.65),
+                                                width: 1.0,
                                               ),
-                                            ],
-                                          ),
-                                          child: Center(
-                                            child: Text(
-                                              _getNoteName(ghostNote.pitch),
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: EatsTheme.primaryCyan,
-                                                fontSize: (_keyHeight * 0.32).clamp(7.0, 9.5),
-                                                fontStyle: FontStyle.italic,
-                                                fontWeight: FontWeight.bold,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: EatsTheme.primaryCyan.withOpacity(0.2),
+                                                  blurRadius: 4,
+                                                ),
+                                              ],
+                                            ),
+                                            child: Center(
+                                              child: Text(
+                                                _getNoteName(ghostNote.pitch),
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: EatsTheme.primaryCyan,
+                                                  fontSize: (_keyHeight * 0.32).clamp(7.0, 9.5),
+                                                  fontStyle: FontStyle.italic,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                               ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    );
-                                  }),
+                                      );
+                                    });
+                                  })(),
 
                                 // Render Note Events Blocks
                                 ...track.notes.map((note) {
@@ -2623,10 +2630,12 @@ child: ScrollConfiguration(
                                             _moveStartPos = details.globalPosition;
                                             _batchStartSteps.clear();
                                             _batchStartPitches.clear();
+                                            _batchStartDurations.clear();
                                             for (final n in track.notes) {
                                               if (_selectedNoteIds.contains(n.id)) {
                                                 _batchStartSteps[n.id] = n.startStep;
                                                 _batchStartPitches[n.id] = n.pitch;
+                                                _batchStartDurations[n.id] = n.durationSteps;
                                               }
                                             }
                                             widget.dawState.beginHistoryTransaction(
@@ -2653,7 +2662,7 @@ child: ScrollConfiguration(
 
                                             for (final entry in _batchStartSteps.entries) {
                                               final startS = entry.value;
-                                              final dur = track.notes.firstWhere((n) => n.id == entry.key, orElse: () => note).durationSteps;
+                                              final dur = _batchStartDurations[entry.key] ?? note.durationSteps;
                                               final minDx = -startS;
                                               final maxDx = (totalSteps - dur) - startS;
                                               if (minDx > minAllowedDx) minAllowedDx = minDx;
@@ -2691,6 +2700,7 @@ child: ScrollConfiguration(
                                               _moveStartPos = null;
                                               _batchStartSteps.clear();
                                               _batchStartPitches.clear();
+                                              _batchStartDurations.clear();
                                               widget.dawState.syncActiveTrackNotesToClip();
                                               widget.dawState.commitHistoryTransaction();
                                               widget.dawState.audioEngine.playNoteOrSample(
@@ -2706,6 +2716,7 @@ child: ScrollConfiguration(
                                             _moveStartPos = null;
                                             _batchStartSteps.clear();
                                             _batchStartPitches.clear();
+                                            _batchStartDurations.clear();
                                             widget.dawState.syncActiveTrackNotesToClip();
                                             widget.dawState.commitHistoryTransaction();
                                           },

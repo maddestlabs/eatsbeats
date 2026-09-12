@@ -803,13 +803,41 @@ class TrackChannel {
   String eatScriptCode;
   Map<String, double> eatScriptParams;
 
+  int? _cachedParamsHash;
+
+  /// Invalidates the pre-calculated parameter hash when values or code mutate.
+  void invalidateParamsHash() {
+    _cachedParamsHash = null;
+  }
+
+  /// Cached deterministic hash of track synthesis parameters and script source.
+  int get paramsHash {
+    if (_cachedParamsHash != null) return _cachedParamsHash!;
+    int h = type.hashCode ^ sampleName.hashCode ^ synthWaveform.hashCode ^ eatScriptCode.hashCode;
+    final sortedKeys = eatScriptParams.keys.toList()..sort();
+    for (final k in sortedKeys) {
+      final v = eatScriptParams[k] ?? 0.0;
+      h = (h * 31) ^ (k.hashCode ^ (v * 100).round());
+    }
+    _cachedParamsHash = h;
+    return h;
+  }
+
   @Deprecated('Use eatScriptCode')
   String get luaScriptCode => eatScriptCode;
-  set luaScriptCode(String val) => eatScriptCode = val;
+  set luaScriptCode(String val) {
+    if (eatScriptCode != val) {
+      eatScriptCode = val;
+      _cachedParamsHash = null;
+    }
+  }
 
   @Deprecated('Use eatScriptParams')
   Map<String, double> get luaParams => eatScriptParams;
-  set luaParams(Map<String, double> val) => eatScriptParams = val;
+  set luaParams(Map<String, double> val) {
+    eatScriptParams = val;
+    _cachedParamsHash = null;
+  }
 
   // Pattern steps & Piano Roll notes & Per-track clips
   List<StepEvent> steps; // 16 or 32 step grid

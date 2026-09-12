@@ -1,0 +1,80 @@
+name: Process GUI Tweak Submission
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  convert-issue-to-pr:
+    name: Process GUI Tweak & Create PR
+    if: contains(github.event.issue.labels.*.name, 'gui-patch') || contains(github.event.issue.title, '[GUI Tweak]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+
+      - name: Write Issue Body to Temporary File
+        run: |
+          cat << 'EOF' > /tmp/issue_body.md
+          ${{ github.event.issue.body }}
+          EOF
+
+      - name: Apply GUI Patch & Rebundle Presets
+        id: patch
+        run: |
+          OUTPUT=$(dart run tool/apply_gui_patch.dart /tmp/issue_body.md)
+          echo "$OUTPUT"
+          
+          # Extract variables
+          PRESET_ID=$(echo "$OUTPUT" | grep '^RESULT_PRESET_ID=' | cut -d '=' -f2)
+          PRESET_NAME=$(echo "$OUTPUT" | grep '^RESULT_PRESET_NAME=' | cut -d '=' -f2)
+          TARGET_FILE=$(echo "$OUTPUT" | grep '^RESULT_TARGET_FILE=' | cut -d '=' -f2)
+          
+          echo "preset_id=$PRESET_ID" >> $GITHUB_OUTPUT
+          echo "preset_name=$PRESET_NAME" >> $GITHUB_OUTPUT
+          echo "target_file=$TARGET_FILE" >> $GITHUB_OUTPUT
+
+      - name: Handle Validation Failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "⚠️ **Could not process GUI submission**: The submitted Eatscript or GUI layout could not be validated. Please check your syntax in the Visual Design Studio and try again."
+
+      - name: Create Branch, Commit & Open Pull Request
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="patch/gui-${{ github.event.issue.number }}-${{ steps.patch.outputs.preset_id }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git checkout -b "$BRANCH"
+          git add "${{ steps.patch.outputs.target_file }}" lib/eatscript/eat_builtin_presets.g.dart
+          git commit -m "feat(gui): update ${{ steps.patch.outputs.preset_name }} (${{ steps.patch.outputs.preset_id }}) layout (closes #${{ github.event.issue.number }})"
+          git push origin "$BRANCH"
+          
+          PR_URL=$(gh pr create \
+            --title "[GUI Tweak] ${{ steps.patch.outputs.preset_name }} (#${{ github.event.issue.number }})" \
+            --body "Automated pull request generated from mobile GUI submission in #${{ github.event.issue.number }}.
+
+### Changes
+* Updated preset: \`${{ steps.patch.outputs.target_file }}\`
+* Regenerated \`lib/eatscript/eat_builtin_presets.g.dart\`
+
+Closes #${{ github.event.issue.number }}" \
+            --head "$BRANCH" \
+            --base "main")
+          
+          gh issue comment ${{ github.event.issue.number }} --body "🚀 **Pull Request opened!** Your GUI tweak has been validated and submitted as a pull request for review: $PR_URL"

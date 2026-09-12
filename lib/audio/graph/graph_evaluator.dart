@@ -46,6 +46,7 @@ class GraphEvaluator {
 
     final buffer = Float32List(ctx.totalSamples);
     root.process(ctx, buffer);
+    ctx.resetScratch();
 
     if (applyEdgeFade && ctx.totalSamples > 64) {
       final fadeSamples = (sampleRate * 0.03).toInt().clamp(32, ctx.totalSamples ~/ 4);

@@ -20,28 +20,32 @@ class GraphContext {
   final List<List<double>>? pressurePoints;
   final List<List<double>>? timbrePoints;
 
-  // Reusable scratch buffer pool (zero-allocation DSP)
-  final List<Float32List> _scratchPool = [];
+  // Persistent reusable scratch buffer pool (zero-allocation DSP across notes)
+  static final List<Float32List> _sharedScratchPool = [];
   int _scratchIdx = 0;
 
   Float32List acquireScratch(int length) {
-    if (_scratchIdx < _scratchPool.length) {
-      var buf = _scratchPool[_scratchIdx];
+    if (_scratchIdx < _sharedScratchPool.length) {
+      var buf = _sharedScratchPool[_scratchIdx];
       if (buf.length < length) {
         buf = Float32List(length);
-        _scratchPool[_scratchIdx] = buf;
+        _sharedScratchPool[_scratchIdx] = buf;
       }
       _scratchIdx++;
       return buf;
     }
     final buf = Float32List(length);
-    _scratchPool.add(buf);
+    _sharedScratchPool.add(buf);
     _scratchIdx++;
     return buf;
   }
 
   void releaseScratch() {
     if (_scratchIdx > 0) _scratchIdx--;
+  }
+
+  void resetScratch() {
+    _scratchIdx = 0;
   }
 
   GraphContext({

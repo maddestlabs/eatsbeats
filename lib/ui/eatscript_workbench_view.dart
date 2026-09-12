@@ -20,6 +20,8 @@ import 'widgets/eatsbeats_slider.dart';
 import 'widgets/live_track_visualizer_widget.dart';
 import 'widgets/project_script_runner_dialog.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
+import 'widgets/submit_gui_tweak_dialog.dart';
+import '../services/github_tweak_submission_service.dart';
 
 enum DesignStudioViewMode {
   code,
@@ -488,6 +490,44 @@ class _EatscriptWorkbenchViewState extends State<EatscriptWorkbenchView> {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: () {
+                            final info = GithubTweakSubmissionService.inferPresetInfo(
+                              code: _codeController.text,
+                              fallbackName: activeTarget.title,
+                            );
+                            SubmitGuiTweakDialog.show(
+                              context,
+                              presetId: info.id,
+                              presetName: info.name,
+                              eatCode: _codeController.text,
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: EatsTheme.primaryCyan.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.4)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.merge_type, size: 13, color: EatsTheme.primaryCyan),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'SUBMIT PR',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: EatsTheme.primaryCyan,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -731,6 +771,40 @@ class _EatscriptWorkbenchViewState extends State<EatscriptWorkbenchView> {
                                         'COPY',
                                         style: EatsTheme.getPrimaryFontStyle(
                                           color: EatsTheme.textSecondary,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              InkWell(
+                                onTap: () {
+                                  final info = GithubTweakSubmissionService.inferPresetInfo(
+                                    code: _codeController.text,
+                                    fallbackName: activeTarget.title,
+                                  );
+                                  SubmitGuiTweakDialog.show(
+                                    context,
+                                    presetId: info.id,
+                                    presetName: info.name,
+                                    eatCode: _codeController.text,
+                                  );
+                                },
+                                borderRadius: BorderRadius.circular(4),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.merge_type, size: 12, color: EatsTheme.primaryCyan),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'SUBMIT PR',
+                                        style: EatsTheme.getPrimaryFontStyle(
+                                          color: EatsTheme.primaryCyan,
                                           fontSize: 9.5,
                                           fontWeight: FontWeight.bold,
                                         ),

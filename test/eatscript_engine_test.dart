@@ -1045,21 +1045,21 @@ end
     });
 
     test('isUpgradeAvailable correctly identifies when presets are already up to date', () {
-      final clavinet = LuaPresetLibrary.getPresetById('clavinet_d6')!;
+      final piccolo = LuaPresetLibrary.getPresetById('concert_piccolo')!;
       // Eatscript version is already up to date: should NOT need upgrade
-      expect(LuaPresetLibrary.isUpgradeAvailable(clavinet.eatCode), isFalse);
+      expect(LuaPresetLibrary.isUpgradeAvailable(piccolo.eatCode), isFalse);
 
-      // Legacy Lua version: should offer upgrade
-      expect(LuaPresetLibrary.isUpgradeAvailable(clavinet.code), isTrue);
+      // Legacy version: should offer upgrade
+      expect(LuaPresetLibrary.isUpgradeAvailable(piccolo.code), isTrue);
 
       // Test DawState upgrade flow
       final state = DawState();
       final track = state.tracks.first;
-      track.luaScriptCode = clavinet.code;
+      track.luaScriptCode = piccolo.code;
       expect(state.isPresetUpgradeAvailable(track), isTrue);
 
       state.upgradeTrackPreset(track);
-      expect(track.luaScriptCode, equals(clavinet.eatCode));
+      expect(track.luaScriptCode, equals(piccolo.eatCode));
       expect(state.isPresetUpgradeAvailable(track), isFalse);
     });
   });

@@ -77,6 +77,8 @@ class _ArrangerViewState extends State<ArrangerView> {
     if (mounted) setState(() {});
   }
 
+  int _lastArrangerPlayheadScrollTime = 0;
+
   void _onContinuousPlayheadChanged() {
     if (!mounted) return;
     if (widget.dawState.isFollowPlayback && widget.dawState.isPlaying) {
@@ -85,7 +87,10 @@ class _ArrangerViewState extends State<ArrangerView> {
         final curPlayheadX = (continuousStep / 16.0) * barWidth;
         final viewportW = _horizontalScroll.position.viewportDimension;
         final targetOffset = (curPlayheadX - (viewportW / 2.0)).clamp(0.0, _horizontalScroll.position.maxScrollExtent);
-        if ((_horizontalScroll.offset - targetOffset).abs() > 0.5) {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final delta = (_horizontalScroll.offset - targetOffset).abs();
+        if (delta > 1.5 && (now - _lastArrangerPlayheadScrollTime > 25 || delta > 30.0)) {
+          _lastArrangerPlayheadScrollTime = now;
           _horizontalScroll.jumpTo(targetOffset);
         }
       }

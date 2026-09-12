@@ -215,7 +215,8 @@ class AudioEngine {
   }
 
   /// Clears cached PCM audio buffers for a track whose parameters or script changed.
-  void invalidateLuaCache(String trackId) {
+  void invalidateLuaCache(String trackId, [TrackChannel? track]) {
+    track?.invalidateParamsHash();
     _pcmCache.removeWhere((key, _) => key.startsWith('${trackId}_'));
   }
 
@@ -752,7 +753,7 @@ class AudioEngine {
     recordDspExecution(sw.elapsedMicroseconds, durationSec);
 
     if (cacheKey != null) {
-      if (_pcmCache.length >= 256) {
+      if (_pcmCache.length >= 512) {
         _pcmCache.remove(_pcmCache.keys.first);
       }
       _pcmCache[cacheKey] = buffer;
@@ -853,13 +854,7 @@ class AudioEngine {
   }
 
   static int _computeParamsHash(TrackChannel track) {
-    int h = track.type.hashCode ^ track.sampleName.hashCode ^ track.synthWaveform.hashCode ^ track.luaScriptCode.hashCode;
-    final sortedKeys = track.luaParams.keys.toList()..sort();
-    for (final k in sortedKeys) {
-      final v = track.luaParams[k] ?? 0.0;
-      h = (h * 31) ^ (k.hashCode ^ (v * 100).round());
-    }
-    return h;
+    return track.paramsHash;
   }
 
   void stopNote(TrackChannel track, [int? pitch]) {
@@ -1042,16 +1037,23 @@ class AudioEngine {
           }
 
           int? targetPitch;
+          final double slideMaxStep = note.startStep + math.max(1.5, note.durationSteps + 0.5);
           if (track.isMonophonicTrack) {
-            final nextNotes = notes.where((n) => n.startStep > note.startStep && n.startStep <= (note.startStep + math.max(1.5, note.durationSteps + 0.5))).toList();
-            if (nextNotes.isNotEmpty) {
-              targetPitch = nextNotes.first.pitch;
+            for (int k = 0; k < notes.length; k++) {
+              final n = notes[k];
+              if (n.startStep > note.startStep && n.startStep <= slideMaxStep) {
+                targetPitch = n.pitch;
+                break;
+              }
             }
           } else {
             // Polyphonic track: match slide target on the same tracker column
-            final nextColNotes = notes.where((n) => n.column == note.column && n.startStep > note.startStep && n.startStep <= (note.startStep + math.max(1.5, note.durationSteps + 0.5))).toList();
-            if (nextColNotes.isNotEmpty && nextColNotes.first.isSlide) {
-              targetPitch = nextColNotes.first.pitch;
+            for (int k = 0; k < notes.length; k++) {
+              final n = notes[k];
+              if (n.column == note.column && n.startStep > note.startStep && n.startStep <= slideMaxStep) {
+                if (n.isSlide) targetPitch = n.pitch;
+                break;
+              }
             }
           }
 

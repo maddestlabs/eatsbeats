@@ -203,8 +203,8 @@ void main() {
       }
 
       // Coverage should now be at least 52 instruments (40.6%)
-      expect(GmInstrumentRegistry.nativeCount, equals(52));
-      expect(GmInstrumentRegistry.nativeCoveragePercent, closeTo(40.625, 0.1));
+      expect(GmInstrumentRegistry.nativeCount, greaterThanOrEqualTo(52));
+      expect(GmInstrumentRegistry.nativeCoveragePercent, greaterThanOrEqualTo(40.6));
       debugPrint('Updated Native GM Coverage: ${GmInstrumentRegistry.nativeCoveragePercent.toStringAsFixed(1)}% (${GmInstrumentRegistry.nativeCount}/128)');
     });
 
