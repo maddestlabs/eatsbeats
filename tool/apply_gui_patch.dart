@@ -1,24 +1,23 @@
+import 'dart:convert';
 import 'dart:io';
 
 /// Automated CLI tool for parsing a GitHub Issue body from an Eatsbeats GUI tweak
 /// submission, locating the target `.eat` file, validating the payload, and updating the bundle.
 ///
 /// Usage:
-///   dart run tool/apply_gui_patch.dart <path_to_issue_body.md>
-void main(List<String> args) {
+///   dart run tool/apply_gui_patch.dart <issue_number | issue_url | path_to_issue_body.md>
+/// Examples:
+///   dart run tool/apply_gui_patch.dart 2
+///   dart run tool/apply_gui_patch.dart https://github.com/maddestlabs/eatsbeats/issues/2
+///   dart run tool/apply_gui_patch.dart /tmp/issue_body.md
+Future<void> main(List<String> args) async {
   if (args.isEmpty) {
-    stderr.writeln('Usage: dart run tool/apply_gui_patch.dart <path_to_issue_body.md>');
+    stderr.writeln('Usage: dart run tool/apply_gui_patch.dart <issue_number | issue_url | path_to_issue_body.md>');
     exit(1);
   }
 
-  final issueFile = File(args[0]);
-  if (!issueFile.existsSync()) {
-    stderr.writeln('Error: Issue body file not found: ${args[0]}');
-    exit(1);
-  }
-
-  final content = issueFile.readAsStringSync();
-  print('Processing GUI tweak submission from ${args[0]}...');
+  final content = await resolveContent(args[0]);
+  print('Processing GUI tweak submission from "${args[0]}"...');
 
   final payload = extractPayload(content);
   if (payload == null) {
@@ -128,4 +127,49 @@ ExtractedPayload? extractPayload(String rawText) {
     presetName: presetName,
     code: code,
   );
+}
+
+Future<String> resolveContent(String input) async {
+  final trimmed = input.trim();
+  final isNumber = RegExp(r'^\d+$').hasMatch(trimmed);
+  final isUrl = trimmed.startsWith('http://') || trimmed.startsWith('https://');
+
+  if (isNumber || isUrl) {
+    String issueNumber = trimmed;
+    if (isUrl) {
+      final match = RegExp(r'/issues/(\d+)').firstMatch(trimmed);
+      if (match != null) {
+        issueNumber = match.group(1)!;
+      }
+    }
+
+    final apiUrl = 'https://api.github.com/repos/maddestlabs/eatsbeats/issues/$issueNumber';
+    print('Fetching issue #$issueNumber from GitHub ($apiUrl)...');
+
+    final client = HttpClient();
+    client.userAgent = 'Eatsbeats-CLI';
+    final request = await client.getUrl(Uri.parse(apiUrl));
+    final response = await request.close();
+
+    if (response.statusCode != 200) {
+      stderr.writeln('Error: Failed to fetch issue #$issueNumber (HTTP ${response.statusCode})');
+      exit(1);
+    }
+
+    final body = await response.transform(utf8.decoder).join();
+    final json = jsonDecode(body) as Map<String, dynamic>;
+    final issueBody = json['body'] as String?;
+    if (issueBody == null || issueBody.isEmpty) {
+      stderr.writeln('Error: Issue #$issueNumber has no body content.');
+      exit(1);
+    }
+    return issueBody;
+  }
+
+  final issueFile = File(input);
+  if (!issueFile.existsSync()) {
+    stderr.writeln('Error: Input file or issue not found: $input');
+    exit(1);
+  }
+  return issueFile.readAsStringSync();
 }
