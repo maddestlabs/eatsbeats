@@ -162,8 +162,17 @@ ParsedPreset parsePreset(String rawContent, String filePath) {
     categoryEnum = 'instrument';
   }
 
+  // Clean any accidental markdown code fences or backticks
+  var safeCode = rawContent.trim();
+  while (safeCode.startsWith('```')) {
+    safeCode = safeCode.replaceFirst(RegExp(r'^```[a-zA-Z]*\s*\r?\n?'), '').trim();
+  }
+  while (safeCode.endsWith('```')) {
+    safeCode = safeCode.replaceFirst(RegExp(r'\r?\n?```\s*$'), '').trim();
+  }
+
   // Safely escape any triple single-quotes in the code
-  var safeCode = rawContent.replaceAll("'''", r"'\''");
+  safeCode = safeCode.replaceAll("'''", r"'\''");
 
   return ParsedPreset(
     id: id,

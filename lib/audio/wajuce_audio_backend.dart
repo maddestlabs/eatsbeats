@@ -469,10 +469,13 @@ class TrackChannelStrip {
           current = _addConvReverb(current, fx, mix, irCache, loadIrAsync);
         case FXType.vintageTape:
           current = _addVintageDegrader(current, fx, mix);
-        case FXType.luaFX:
+        case FXType.eatScriptFX:
           if (fx.presetId == 'vintage_era_degrader' ||
-              (fx.luaScriptCode != null && fx.luaScriptCode!.contains('vintage_era_degrader'))) {
+              (fx.eatScriptCode != null && fx.eatScriptCode!.contains('vintage_era_degrader'))) {
             current = _addVintageDegrader(current, fx, mix);
+          } else if (fx.presetId == 'snes_downsampler' ||
+              (fx.eatScriptCode != null && fx.eatScriptCode!.contains('snes_downsampler'))) {
+            current = _addSnesDownsampler(current, fx, mix);
           }
           break;
       }
@@ -650,6 +653,60 @@ class TrackChannelStrip {
       wetGainNode: wet,
       preGainNode: driveGain,
       shaperNode: shaper,
+    ));
+    return bus;
+  }
+
+  WANode _addSnesDownsampler(WANode input, FXInsert fx, double mix) {
+    final params = fx.eatScriptParams.isNotEmpty ? fx.eatScriptParams : fx.params;
+    final rawRateIdx = (params['SampleRate'] ?? 2.0).toInt().clamp(0, 4);
+    final targetRates = [32000.0, 22050.0, 16000.0, 11025.0, 8000.0];
+    final targetRate = targetRates[rawRateIdx];
+    final bits = (params['BRRBits'] ?? 4.0).clamp(2.0, 8.0);
+    final drive = (params['Drive'] ?? 1.0).clamp(0.5, 4.0);
+
+    final shaper = ctx.createWaveShaper();
+    shaper.curve = _buildSnesDownsamplerCurve(bits);
+    shaper.oversample = WAOverSampleType.none;
+    _fxNodes.add(shaper);
+
+    WAGainNode? driveGain;
+    WANode source = input;
+    if (drive != 1.0) {
+      driveGain = ctx.createGain()..gain.value = drive;
+      _fxNodes.add(driveGain);
+      input.connect(driveGain);
+      source = driveGain;
+    }
+    source.connect(shaper);
+
+    // 4-point Gaussian roll-off filter simulation: lowpass at 0.44 * targetRate
+    final filter = ctx.createBiquadFilter();
+    filter.type = WABiquadFilterType.lowpass;
+    filter.frequency.value = (targetRate * 0.44).clamp(200.0, 14000.0);
+    filter.Q.value = 0.54;
+    _fxNodes.add(filter);
+    shaper.connect(filter);
+
+    if (mix >= 0.98 && drive == 1.0) {
+      _fxBindings.add(_FxNodeBinding(fx: fx, outputNode: filter, shaperNode: shaper, filterNode: filter));
+      return filter;
+    }
+    final bus = ctx.createGain();
+    final dry = ctx.createGain()..gain.value = 1.0 - mix;
+    final wet = ctx.createGain()..gain.value = mix;
+    _fxNodes.addAll([bus, dry, wet]);
+
+    input.connect(dry)..connect(bus);
+    filter.connect(wet)..connect(bus);
+    _fxBindings.add(_FxNodeBinding(
+      fx: fx,
+      outputNode: bus,
+      dryGainNode: dry,
+      wetGainNode: wet,
+      preGainNode: driveGain,
+      shaperNode: shaper,
+      filterNode: filter,
     ));
     return bus;
   }
@@ -1389,6 +1446,20 @@ class TrackChannelStrip {
     for (int i = 0; i < n; i++) {
       final x = (2.0 * i / (n - 1)) - 1.0;
       final quantized = (x * steps).roundToDouble() / steps;
+      curve[i] = quantized.clamp(-1.0, 1.0);
+    }
+    return curve;
+  }
+
+  static Float32List _buildSnesDownsamplerCurve(double bits) {
+    const n = 1024;
+    final curve = Float32List(n);
+    final b = bits.clamp(2.0, 8.0);
+    final steps = math.pow(2.0, b - 1.0).toDouble();
+    for (int i = 0; i < n; i++) {
+      final x = (2.0 * i / (n - 1)) - 1.0;
+      final companded = math.sin(x.clamp(-1.0, 1.0) * (math.pi * 0.5));
+      final quantized = (companded * steps).roundToDouble() / steps;
       curve[i] = quantized.clamp(-1.0, 1.0);
     }
     return curve;

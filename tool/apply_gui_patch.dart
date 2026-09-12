@@ -118,14 +118,42 @@ ExtractedPayload? extractPayload(String rawText) {
   }
 
   // Extract python/eatscript code block
-  final codeMatch = RegExp(r'```(?:python|eatscript)?\s*\n([\s\S]*?)\n```').firstMatch(scanText);
-  if (codeMatch == null) return null;
-  final code = codeMatch.group(1)!.trim();
+  // 1. Explicitly match ```python or ```eatscript
+  final codeMatch = RegExp(r'```(?:python|eatscript)\s*\r?\n([\s\S]*?)\r?\n```').firstMatch(scanText);
+
+  String? rawCode;
+  if (codeMatch != null) {
+    rawCode = codeMatch.group(1);
+  } else {
+    // 2. Fallback: match any code block that contains Eatscript keywords
+    final allBlocks = RegExp(r'```[a-zA-Z]*\s*\r?\n([\s\S]*?)\r?\n```').allMatches(scanText).toList();
+    if (allBlocks.isNotEmpty) {
+      for (final block in allBlocks.reversed) {
+        final candidate = block.group(1) ?? '';
+        if (candidate.contains('def gui') || candidate.contains('def init') || candidate.contains('# @name:')) {
+          rawCode = candidate;
+          break;
+        }
+      }
+      rawCode ??= allBlocks.last.group(1);
+    }
+  }
+
+  if (rawCode == null) return null;
+
+  // Clean any accidental markdown code fences or backticks that might have leaked in
+  var cleanCode = rawCode.trim();
+  while (cleanCode.startsWith('```')) {
+    cleanCode = cleanCode.replaceFirst(RegExp(r'^```[a-zA-Z]*\s*\r?\n?'), '').trim();
+  }
+  while (cleanCode.endsWith('```')) {
+    cleanCode = cleanCode.replaceFirst(RegExp(r'\r?\n?```\s*$'), '').trim();
+  }
 
   return ExtractedPayload(
     presetId: presetId,
     presetName: presetName,
-    code: code,
+    code: cleanCode,
   );
 }
 

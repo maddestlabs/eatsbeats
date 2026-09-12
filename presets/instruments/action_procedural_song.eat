@@ -10,7 +10,7 @@
 
 def init():
     return {
-        "Style": eat.param("Style", 0, 5, 0, options=["Lo-Fi Hip Hop", "Synthwave / Retrowave", "Deep House", "Cyberpunk Acid", "Neo-Soul / R&B", "Pop / Funk Anthem"]),
+        "Style": eat.param("Style", 0, 6, 0, options=["Lo-Fi Hip Hop", "Synthwave / Retrowave", "Deep House", "Cyberpunk Acid", "Neo-Soul / R&B", "Pop / Funk Anthem", "SNES 16-Bit Adventure"]),
         "Root": eat.param("Root", 0, 12, 0, options=["Auto / From Key", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]),
         "Structure": eat.param("Structure", 0, 2, 0, options=["Full Arrangement (Intro-Verse-Chorus-Outro)", "Groove Loop (Verse-Chorus)", "Seamless Loop"]),
         "Bars": eat.param("Bars", 4, 32, 16, step=4),

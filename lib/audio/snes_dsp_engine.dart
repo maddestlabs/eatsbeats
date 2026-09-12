@@ -1115,3 +1115,467 @@ class SNESSFXRGenerator {
     return mutated;
   }
 }
+
+/// Pure-Dart DSP Synthesis Engine for the 16-Bit S-DSP Console Drum Kit (Notes 35–81).
+///
+/// Synthesizes authentic retro drum sounds on the Sony SPC700 / S-DSP architecture:
+/// - Kick Drums (35, 36): Rapid downward pitch sweep on low-frequency Triangle / Sine with transient click.
+/// - Snare Drums (38, 40): Tuned resonant pulse body + 15-bit S-DSP LFSR noise burst.
+/// - Side Stick & Rimshot (37): High-tuned wood click with fast decay.
+/// - Hand Clap (39): Multi-impulse staggered noise strikes.
+/// - Hi-Hats (42 Closed, 44 Pedal, 46 Open): High-clock LFSR noise with ADSR shaping.
+/// - Toms (41, 43, 45, 47, 48, 50): Pitched downward sweeps across 6 GM tom registers.
+/// - Cymbals (49/57 Crash, 51/59 Ride, 52/55 Splash/China): Metallic inharmonic chime wave + filtered noise wash + FIR echo.
+/// - Percussion (54 Tambourine, 56 Cowbell, 58 Vibraslap, 75 Claves, 76/77 Woodblocks, 80/81 Triangles): Dual-pulse intervals and retro metallic chimes.
+class SNESDrumKitEngine {
+  /// Synthesizes a mono Float32List audio buffer for a given General MIDI [note] (35–81).
+  static Float32List synthesizeBuffer({
+    required int note,
+    required double durationSec,
+    double velocity = 0.9,
+    Map<String, double>? params,
+    bool isAccent = false,
+  }) {
+    final double vel = (isAccent ? 1.0 : velocity).clamp(0.05, 1.0);
+    final double tune = params?['MasterTune'] ?? 0.0;
+    final double pitchMult = math.pow(2.0, tune / 12.0).toDouble();
+
+    final double kickPunch = params?['KickPunch'] ?? 130.0;
+    final double snareNoise = params?['SnareNoise'] ?? 0.65;
+    final double tomDecayMult = params?['TomDecay'] ?? 0.35;
+    final double cymbalDecayMult = params?['CymbalDecay'] ?? 0.80;
+    final double warmth = params?['GaussianWarmth'] ?? 0.70;
+
+    final double echoDelay = params?['EchoDelay'] ?? 128.0;
+    final double echoFeedback = params?['EchoFeedback'] ?? 0.35;
+    final double echoVolume = params?['EchoVolume'] ?? 0.25;
+
+    // Allocate S-DSP engine for this drum hit
+    final dsp = SNESDSPEngine(seed: 42 + note);
+    dsp.masterVolume = 0.95;
+    dsp.echo.enabled = echoVolume > 0.01;
+    dsp.echo.delayMs = echoDelay.toInt().clamp(16, 480);
+    dsp.echo.feedback = echoFeedback.clamp(0.0, 0.95);
+    dsp.echo.volume = echoVolume.clamp(0.0, 1.0);
+
+    double soundDuration = 0.25;
+    final v0 = dsp.voices[0];
+    final v1 = dsp.voices[1];
+    v1.enabled = false;
+
+    switch (note) {
+      // 1. Kick Drums (Acoustic 35, Electric/Standard 36)
+      case 35:
+      case 36:
+        soundDuration = 0.22;
+        v0.waveform = SNESWaveform.triangle;
+        v0.basePitchHz = (note == 35 ? 46.0 : 52.0) * pitchMult;
+        v0.startFreqMult = (kickPunch / v0.basePitchHz).clamp(1.5, 4.5);
+        v0.endFreqMult = 0.75;
+        v0.sweepDuration = 0.075;
+        v0.attack = 0.0005;
+        v0.decay = 0.16;
+        v0.sustain = 0.0;
+        v0.release = 0.02;
+        v0.noiseMix = 0.06; // Subtle click transient
+        dsp.echo.enabled = false; // Keep kick punchy & dry
+        break;
+
+      // 2. Snare Drums (Acoustic 38, Electric 40)
+      case 38:
+      case 40:
+        soundDuration = 0.26;
+        // Voice 0: Tone body (Pulse 25%)
+        v0.waveform = SNESWaveform.pulse25;
+        v0.basePitchHz = (note == 38 ? 185.0 : 210.0) * pitchMult;
+        v0.startFreqMult = 1.4;
+        v0.endFreqMult = 0.85;
+        v0.sweepDuration = 0.04;
+        v0.attack = 0.0005;
+        v0.decay = 0.12;
+        v0.sustain = 0.0;
+        v0.release = 0.02;
+        v0.volumeLeft = 0.6;
+        v0.volumeRight = 0.6;
+
+        // Voice 1: Crunchy LFSR noise snare wires
+        v1.enabled = true;
+        v1.noiseEnabled = true;
+        v1.noiseRate = 9; // Authentic mid-range crunch
+        v1.attack = 0.001;
+        v1.decay = (0.16 * (0.5 + snareNoise * 0.7)).clamp(0.06, 0.35);
+        v1.sustain = 0.0;
+        v1.release = 0.03;
+        v1.volumeLeft = 0.7 * snareNoise;
+        v1.volumeRight = 0.7 * snareNoise;
+        dsp.echo.volume = echoVolume * 0.5;
+        break;
+
+      // 3. Side Stick / Rimshot (37)
+      case 37:
+        soundDuration = 0.08;
+        v0.waveform = SNESWaveform.pulse12;
+        v0.basePitchHz = 420.0 * pitchMult;
+        v0.startFreqMult = 1.5;
+        v0.endFreqMult = 0.8;
+        v0.sweepDuration = 0.015;
+        v0.attack = 0.0002;
+        v0.decay = 0.045;
+        v0.sustain = 0.0;
+        v0.release = 0.01;
+        v0.noiseMix = 0.15;
+        dsp.echo.enabled = false;
+        break;
+
+      // 4. Hand Clap (39)
+      case 39:
+        soundDuration = 0.30;
+        v0.waveform = SNESWaveform.noise;
+        v0.noiseEnabled = true;
+        v0.noiseRate = 11;
+        v0.arpeggioNotes = [0, 4, 7]; // Staggered transient
+        v0.arpeggioSpeed = 0.018;
+        v0.attack = 0.001;
+        v0.decay = 0.18;
+        v0.sustain = 0.0;
+        v0.release = 0.04;
+        dsp.echo.setFIRProfile('slapback');
+        dsp.echo.volume = math.max(0.2, echoVolume);
+        break;
+
+      // 5. Closed Hi-Hat (42) & Pedal Hi-Hat (44)
+      case 42:
+      case 44:
+        soundDuration = 0.09;
+        v0.waveform = SNESWaveform.noise;
+        v0.noiseEnabled = true;
+        v0.noiseRate = 13; // Crisp high-frequency sizzle
+        v0.attack = 0.0005;
+        v0.decay = (note == 42 ? 0.038 : 0.048) * cymbalDecayMult;
+        v0.sustain = 0.0;
+        v0.release = 0.01;
+        dsp.echo.enabled = false;
+        break;
+
+      // 6. Open Hi-Hat (46)
+      case 46:
+        soundDuration = 0.45;
+        v0.waveform = SNESWaveform.noise;
+        v0.noiseEnabled = true;
+        v0.noiseRate = 12;
+        v0.attack = 0.001;
+        v0.decay = (0.28 * cymbalDecayMult).clamp(0.08, 0.8);
+        v0.sustain = 0.0;
+        v0.release = 0.05;
+        dsp.echo.volume = echoVolume * 0.4;
+        break;
+
+      // 7. Toms (41 Floor Low, 43 Floor High, 45 Low, 47 Low-Mid, 48 Hi-Mid, 50 High)
+      case 41:
+      case 43:
+      case 45:
+      case 47:
+      case 48:
+      case 50:
+        final tomPitches = {41: 75.0, 43: 95.0, 45: 120.0, 47: 150.0, 48: 185.0, 50: 230.0};
+        final baseTomHz = (tomPitches[note] ?? 130.0) * pitchMult;
+        soundDuration = (0.35 * tomDecayMult).clamp(0.12, 0.7);
+        v0.waveform = SNESWaveform.triangle;
+        v0.basePitchHz = baseTomHz;
+        v0.startFreqMult = 1.6;
+        v0.endFreqMult = 0.9;
+        v0.sweepDuration = 0.06;
+        v0.attack = 0.001;
+        v0.decay = soundDuration * 0.85;
+        v0.sustain = 0.0;
+        v0.release = 0.03;
+        v0.noiseMix = 0.08;
+        dsp.echo.setFIRProfile('surround_reverb');
+        dsp.echo.volume = echoVolume * 0.4;
+        break;
+
+      // 8. Crash Cymbals (Crash 1: 49, Splash: 55, Crash 2: 57, China: 52)
+      case 49:
+      case 52:
+      case 55:
+      case 57:
+        soundDuration = (0.9 * cymbalDecayMult).clamp(0.3, 2.0);
+        // Voice 0: Inharmonic Chime wavetable ring
+        v0.waveform = SNESWaveform.chime;
+        v0.basePitchHz = (note == 55 ? 580.0 : 440.0) * pitchMult;
+        v0.attack = 0.001;
+        v0.decay = soundDuration * 0.6;
+        v0.sustain = 0.0;
+        v0.release = 0.1;
+        v0.volumeLeft = 0.55;
+        v0.volumeRight = 0.55;
+
+        // Voice 1: Shimmering noise wash
+        v1.enabled = true;
+        v1.noiseEnabled = true;
+        v1.noiseRate = 12;
+        v1.attack = 0.002;
+        v1.decay = soundDuration * 0.8;
+        v1.sustain = 0.0;
+        v1.release = 0.15;
+        v1.volumeLeft = 0.65;
+        v1.volumeRight = 0.65;
+
+        dsp.echo.setFIRProfile('dark_hall');
+        dsp.echo.volume = math.max(0.35, echoVolume);
+        dsp.echo.delayMs = 160;
+        break;
+
+      // 9. Ride Cymbals (Ride 1: 51, Ride Bell: 53, Ride 2: 59)
+      case 51:
+      case 53:
+      case 59:
+        soundDuration = (0.55 * cymbalDecayMult).clamp(0.2, 1.2);
+        v0.waveform = SNESWaveform.chime;
+        v0.basePitchHz = (note == 53 ? 620.0 : 490.0) * pitchMult;
+        v0.attack = 0.0005;
+        v0.decay = soundDuration * 0.7;
+        v0.sustain = 0.0;
+        v0.release = 0.08;
+        v0.noiseMix = 0.22;
+        dsp.echo.volume = echoVolume * 0.35;
+        break;
+
+      // 10. Tambourine (54) & Shakers / Maracas (69, 70)
+      case 54:
+      case 69:
+      case 70:
+        soundDuration = 0.14;
+        v0.waveform = SNESWaveform.noise;
+        v0.noiseEnabled = true;
+        v0.noiseRate = 14;
+        v0.arpeggioNotes = [0, 5];
+        v0.arpeggioSpeed = 0.022;
+        v0.attack = 0.001;
+        v0.decay = 0.08;
+        v0.sustain = 0.0;
+        v0.release = 0.02;
+        dsp.echo.volume = echoVolume * 0.3;
+        break;
+
+      // 11. Cowbell (56)
+      case 56:
+        soundDuration = 0.22;
+        v0.waveform = SNESWaveform.pulse12;
+        v0.basePitchHz = 560.0 * pitchMult;
+        v0.attack = 0.0005;
+        v0.decay = 0.14;
+        v0.sustain = 0.0;
+        v0.release = 0.02;
+
+        v1.enabled = true;
+        v1.waveform = SNESWaveform.pulse25;
+        v1.basePitchHz = 840.0 * pitchMult;
+        v1.attack = 0.0005;
+        v1.decay = 0.09;
+        v1.sustain = 0.0;
+        v1.release = 0.02;
+        v1.volumeLeft = 0.6;
+        v1.volumeRight = 0.6;
+        dsp.echo.volume = echoVolume * 0.25;
+        break;
+
+      // 12. Claves (75) & Woodblocks (76 Hi, 77 Low)
+      case 75:
+      case 76:
+      case 77:
+        soundDuration = 0.09;
+        v0.waveform = SNESWaveform.triangle;
+        v0.basePitchHz = (note == 75 ? 980.0 : (note == 76 ? 740.0 : 540.0)) * pitchMult;
+        v0.attack = 0.0002;
+        v0.decay = 0.055;
+        v0.sustain = 0.0;
+        v0.release = 0.01;
+        v0.noiseMix = 0.12;
+        dsp.echo.enabled = false;
+        break;
+
+      // 13. Triangles (Open 80, Mute 81)
+      case 80:
+      case 81:
+        soundDuration = note == 80 ? 0.6 : 0.06;
+        v0.waveform = SNESWaveform.sine;
+        v0.basePitchHz = 1480.0 * pitchMult;
+        v0.attack = 0.0005;
+        v0.decay = soundDuration * 0.8;
+        v0.sustain = 0.0;
+        v0.release = 0.04;
+
+        v1.enabled = true;
+        v1.waveform = SNESWaveform.chime;
+        v1.basePitchHz = 2960.0 * pitchMult;
+        v1.attack = 0.0005;
+        v1.decay = soundDuration * 0.4;
+        v1.sustain = 0.0;
+        v1.release = 0.02;
+        v1.volumeLeft = 0.4;
+        v1.volumeRight = 0.4;
+        dsp.echo.volume = echoVolume * 0.4;
+        break;
+
+      default:
+        // Generic S-DSP Percussion Transient
+        soundDuration = 0.18;
+        v0.waveform = SNESWaveform.triangle;
+        v0.basePitchHz = (120.0 + (note % 24) * 15.0) * pitchMult;
+        v0.startFreqMult = 1.3;
+        v0.endFreqMult = 0.8;
+        v0.sweepDuration = 0.04;
+        v0.attack = 0.001;
+        v0.decay = 0.12;
+        v0.sustain = 0.0;
+        v0.release = 0.02;
+        v0.noiseMix = 0.25;
+        break;
+    }
+
+    final int numSamples = (44100 * soundDuration).toInt().clamp(1, 441000);
+    final buffer = Float32List(numSamples);
+
+    for (final v in dsp.voices) {
+      v.phase = 0.0;
+      v.lastOutput = 0.0;
+    }
+
+    for (int i = 0; i < numSamples; i++) {
+      final t = i / 44100.0;
+      final stereo = dsp.evaluateStereoSample(
+        time: t,
+        baseFreq: v0.basePitchHz,
+        duration: soundDuration,
+        sampleIndex: i,
+      );
+      // Mono mixdown with velocity
+      buffer[i] = ((stereo[0] + stereo[1]) * 0.5 * vel).clamp(-1.0, 1.0);
+    }
+
+    // Apply optional 4-point Gaussian warmth roll-off
+    if (warmth > 0.05) {
+      _applyGaussianWarmth(buffer, warmth);
+    }
+
+    return buffer;
+  }
+
+  /// 4-point Gaussian FIR smoothing kernel [0.0625, 0.4375, 0.4375, 0.0625]
+  static void _applyGaussianWarmth(Float32List buffer, double intensity) {
+    if (buffer.length < 4) return;
+    final kAmount = intensity.clamp(0.0, 1.0);
+    double s0 = buffer[0], s1 = buffer[0], s2 = buffer[1], s3 = buffer[2];
+    for (int i = 0; i < buffer.length - 3; i++) {
+      s0 = s1;
+      s1 = s2;
+      s2 = s3;
+      s3 = buffer[i + 3];
+      final smoothed = s0 * 0.0625 + s1 * 0.4375 + s2 * 0.4375 + s3 * 0.0625;
+      buffer[i] = buffer[i] * (1.0 - kAmount) + smoothed * kAmount;
+    }
+  }
+}
+
+/// Pure-Dart DSP Engine for the SNES Downsampler / BRR Audio Degrader.
+///
+/// Accurately emulates SPC700 hardware characteristics:
+/// - Selectable sample rates: 32 kHz, 22.05 kHz, 16 kHz, 11.025 kHz, 8 kHz.
+/// - 4-bit BRR block non-linear delta quantization.
+/// - 4-point Gaussian low-pass smoothing ("The SNES Blanket").
+class SNESDownsamplerEngine {
+  static const List<double> supportedRates = [
+    32000.0, // 0: Native SPC700 DAC
+    22050.0, // 1: Hi-Fi SNES sample
+    16000.0, // 2: Standard SNES sample
+    11025.0, // 3: Budget SNES rhythm/bass
+    8000.0,  // 4: Lo-Fi voice/SFX
+  ];
+
+  /// Processes an audio buffer in-place.
+  static void processBuffer(
+    Float32List buffer, {
+    int rateIndex = 2,
+    double brrBits = 4.0,
+    double gaussianFilter = 0.85,
+    double drive = 1.0,
+    double mix = 1.0,
+    int hostSampleRate = 44100,
+  }) {
+    if (buffer.isEmpty) return;
+    final rIdx = rateIndex.clamp(0, supportedRates.length - 1);
+    final targetRate = supportedRates[rIdx];
+    final double stepInterval = hostSampleRate / targetRate;
+    final int stepInt = math.max(1, stepInterval.round());
+
+    final double bits = brrBits.clamp(2.0, 8.0);
+    final double steps = math.pow(2.0, bits).toDouble();
+    final double drv = drive.clamp(0.5, 4.0);
+    final double kMix = mix.clamp(0.0, 1.0);
+    final double gFilter = gaussianFilter.clamp(0.0, 1.0);
+
+    final dry = Float32List.fromList(buffer);
+    double heldSample = 0.0;
+
+    // 1. Pre-drive, sample-and-hold downsampling, and non-linear BRR quantization
+    for (int i = 0; i < buffer.length; i++) {
+      if (i % stepInt == 0) {
+        final driven = (dry[i] * drv).clamp(-1.5, 1.5);
+        // Non-linear companding resembling 4-bit BRR block ADPCM range scaling
+        final companded = math.sin(driven.clamp(-1.0, 1.0) * (math.pi * 0.5));
+        heldSample = (companded * steps).roundToDouble() / steps;
+      }
+      buffer[i] = heldSample;
+    }
+
+    // 2. Hardware 4-point Gaussian filter smoothing kernel
+    if (gFilter > 0.01 && buffer.length > 4) {
+      double s0 = buffer[0], s1 = buffer[0], s2 = buffer[1], s3 = buffer[2];
+      for (int i = 0; i < buffer.length - 3; i++) {
+        s0 = s1;
+        s1 = s2;
+        s2 = s3;
+        s3 = buffer[i + 3];
+        final smoothed = s0 * 0.0625 + s1 * 0.4375 + s2 * 0.4375 + s3 * 0.0625;
+        buffer[i] = buffer[i] * (1.0 - gFilter) + smoothed * gFilter;
+      }
+    }
+
+    // 3. Dry/Wet Mix
+    if (kMix < 0.999) {
+      for (int i = 0; i < buffer.length; i++) {
+        buffer[i] = dry[i] * (1.0 - kMix) + buffer[i] * kMix;
+      }
+    }
+  }
+
+  /// Evaluates single sample for real-time streaming FX.
+  static double evaluateSample({
+    required double inputSample,
+    required double time,
+    required Map<String, double> params,
+    int hostSampleRate = 44100,
+  }) {
+    final rawRateIdx = (params['SampleRate'] ?? 2.0).toInt().clamp(0, supportedRates.length - 1);
+    final targetRate = supportedRates[rawRateIdx];
+    final double stepInterval = hostSampleRate / targetRate;
+
+    final double bits = (params['BRRBits'] ?? 4.0).clamp(2.0, 8.0);
+    final double steps = math.pow(2.0, bits).toDouble();
+    final double drv = (params['Drive'] ?? 1.0).clamp(0.5, 4.0);
+    final double mix = (params['Mix'] ?? 1.0).clamp(0.0, 1.0);
+    final double gFilter = (params['GaussianFilter'] ?? 0.85).clamp(0.0, 1.0);
+
+    final driven = (inputSample * drv).clamp(-1.5, 1.5);
+    final companded = math.sin(driven.clamp(-1.0, 1.0) * (math.pi * 0.5));
+    final quantized = (companded * steps).roundToDouble() / steps;
+
+    // Simulate S-DSP sample hold & Gaussian smoothing
+    final samplePos = (time * hostSampleRate) % stepInterval;
+    final holdSample = samplePos < 1.0 ? quantized : quantized * (1.0 - gFilter * 0.1);
+
+    return (inputSample * (1.0 - mix)) + (holdSample * mix);
+  }
+}
+

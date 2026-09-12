@@ -1,7 +1,5 @@
-# @id: snes_console_synth
 # @name: SNES Synth
 # @category: instrument
-# @description: Polyphonic 16-bit console sound processor emulation with Gaussian BRR wavetables, pitch modulation (PMOD), and 8-tap FIR echo reverb.
 
 # --- Parameter Definitions ---
 def init():
@@ -30,73 +28,28 @@ def gui():
             "layout": [
                 {
                     "type": "row",
+                    "orientation": "vertical",
+                    "align": "space_around",
+                    "crossAlign": "center",
                     "children": [
-                        {
-                            "type": "listbox",
-                            "param": "Waveform",
-                            "label": "Wavetable",
-                            "width": 180,
-                            "height": 90,
-                        },
-                        {
-                            "type": "knob",
-                            "param": "Attack",
-                            "label": "ATTACK",
-                            "size": 48,
-                        },
-                        {
-                            "type": "knob",
-                            "param": "Decay",
-                            "label": "DECAY",
-                            "size": 48,
-                        },
-                        {
-                            "type": "knob",
-                            "param": "Sustain",
-                            "label": "SUSTAIN",
-                            "size": 48,
-                        },
-                        {
-                            "type": "knob",
-                            "param": "Release",
-                            "label": "RELEASE",
-                            "size": 48,
-                        },
+                        {"type": "listbox", "param": "Waveform", "label": "Wavetable", "width": 180, "height": 90},
+                        {"type": "knob", "param": "Attack", "label": "ATTACK", "size": 44, "knobStyle": "hardware", "style": "two_tone_stepped", "hardware": "two_tone_stepped", "showValue": False, "capColor": "#CCC3CF", "bodyColor": "#DCDFE5", "indicatorColor": "#90939A", "dialColor": "#777777", "capSize": 0.98, "bodySize": 1.0, "indicatorLength": 0.95, "indicatorWidth": 1.0, "scale": "clean_ticks"},
+                        {"type": "knob", "param": "Decay", "label": "DECAY", "size": 44, "knobStyle": "hardware", "style": "two_tone_stepped", "hardware": "two_tone_stepped", "showValue": False, "capColor": "#CCC3CF", "bodyColor": "#DCDFE5", "indicatorColor": "#90939A", "dialColor": "#777777", "capSize": 0.98, "bodySize": 1.0, "indicatorLength": 0.95, "indicatorWidth": 1.0, "scale": "clean_ticks"},
+                        {"type": "knob", "param": "Sustain", "label": "SUSTAIN", "size": 44, "knobStyle": "hardware", "style": "two_tone_stepped", "hardware": "two_tone_stepped", "showValue": False, "capColor": "#CCC3CF", "bodyColor": "#DCDFE5", "indicatorColor": "#90939A", "dialColor": "#777777", "capSize": 0.98, "bodySize": 1.0, "indicatorLength": 0.95, "indicatorWidth": 1.0, "scale": "clean_ticks"},
+                        {"type": "knob", "param": "Release", "label": "RELEASE", "size": 44, "knobStyle": "hardware", "style": "two_tone_stepped", "hardware": "two_tone_stepped", "showValue": False, "capColor": "#CCC3CF", "bodyColor": "#DCDFE5", "indicatorColor": "#90939A", "dialColor": "#777777", "capSize": 0.98, "bodySize": 1.0, "indicatorLength": 0.95, "indicatorWidth": 1.0, "scale": "clean_ticks"},
                     ],
                 },
                 {
                     "type": "row",
+                    "orientation": "vertical",
+                    "align": "space_around",
+                    "crossAlign": "center",
                     "children": [
-                        {
-                            "type": "knob",
-                            "param": "VibratoRate",
-                            "label": "VIB RATE",
-                            "size": 48,
-                        },
-                        {
-                            "type": "knob",
-                            "param": "VibratoDepth",
-                            "label": "VIB DEPTH",
-                            "size": 48,
-                        },
-                        {
-                            "type": "knob",
-                            "param": "EchoDelay",
-                            "label": "ECHO MS",
-                            "size": 48,
-                        },
-                        {
-                            "type": "knob",
-                            "param": "EchoFeedback",
-                            "label": "ECHO FDBK",
-                            "size": 48,
-                        },
-                        {
-                            "type": "knob",
-                            "param": "EchoVolume",
-                            "label": "ECHO VOL",
-                            "size": 48,
-                        },
+                        {"type": "knob", "param": "VibratoRate", "label": "VIB RATE", "size": 44, "knobStyle": "hardware", "style": "two_tone_stepped", "hardware": "two_tone_stepped", "showValue": False, "capColor": "#CCC3CF", "bodyColor": "#DCDFE5", "indicatorColor": "#90939A", "dialColor": "#777777", "capSize": 0.98, "bodySize": 1.0, "indicatorLength": 0.95, "indicatorWidth": 1.0, "scale": "clean_ticks"},
+                        {"type": "knob", "param": "VibratoDepth", "label": "VIB DEPTH", "size": 44, "knobStyle": "hardware", "style": "two_tone_stepped", "hardware": "two_tone_stepped", "showValue": False, "capColor": "#CCC3CF", "bodyColor": "#DCDFE5", "indicatorColor": "#90939A", "dialColor": "#777777", "capSize": 0.98, "bodySize": 1.0, "indicatorLength": 0.95, "indicatorWidth": 1.0, "scale": "clean_ticks"},
+                        {"type": "knob", "param": "EchoDelay", "label": "ECHO MS", "size": 44, "knobStyle": "hardware", "style": "two_tone_stepped", "hardware": "two_tone_stepped", "showValue": False, "capColor": "#CCC3CF", "bodyColor": "#DCDFE5", "indicatorColor": "#90939A", "dialColor": "#777777", "capSize": 0.98, "bodySize": 1.0, "indicatorLength": 0.95, "indicatorWidth": 1.0, "scale": "clean_ticks"},
+                        {"type": "knob", "param": "EchoFeedback", "label": "ECHO FDBK", "size": 44, "knobStyle": "hardware", "style": "two_tone_stepped", "hardware": "two_tone_stepped", "showValue": False, "capColor": "#CCC3CF", "bodyColor": "#DCDFE5", "indicatorColor": "#90939A", "dialColor": "#777777", "capSize": 0.98, "bodySize": 1.0, "indicatorLength": 0.95, "indicatorWidth": 1.0, "scale": "clean_ticks"},
+                        {"type": "knob", "param": "EchoVolume", "label": "ECHO VOL", "size": 44, "knobStyle": "hardware", "style": "two_tone_stepped", "hardware": "two_tone_stepped", "showValue": False, "capColor": "#CCC3CF", "bodyColor": "#DCDFE5", "indicatorColor": "#90939A", "dialColor": "#777777", "capSize": 0.98, "bodySize": 1.0, "indicatorLength": 0.95, "indicatorWidth": 1.0, "scale": "clean_ticks"},
                     ],
                 },
             ],

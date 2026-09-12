@@ -41,8 +41,18 @@ class GithubTweakSubmissionService {
     buffer.writeln('timestamp: ${DateTime.now().millisecondsSinceEpoch}');
     buffer.writeln('```');
     buffer.writeln();
+
+    // Sanitize any accidental leading or trailing markdown fences in eatCode
+    var cleanCode = eatCode.trim();
+    while (cleanCode.startsWith('```')) {
+      cleanCode = cleanCode.replaceFirst(RegExp(r'^```[a-zA-Z]*\s*\r?\n?'), '').trim();
+    }
+    while (cleanCode.endsWith('```')) {
+      cleanCode = cleanCode.replaceFirst(RegExp(r'\r?\n?```\s*$'), '').trim();
+    }
+
     buffer.writeln('```python');
-    buffer.writeln(eatCode.trim());
+    buffer.writeln(cleanCode);
     buffer.writeln('```');
     buffer.writeln('<!-- EATSBEATS_PAYLOAD_END -->');
     buffer.writeln();

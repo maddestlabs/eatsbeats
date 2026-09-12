@@ -20,12 +20,12 @@ void main() {
       final sfxr = LuaPresetLibrary.getPresetById('eats_sfxr');
       expect(sfxr, isNotNull);
       expect(sfxr!.name, equals('SNES Sfxr'));
-      expect(sfxr.code, contains('-- @name: SNES Sfxr'));
+      expect(sfxr.code, anyOf(contains('# @name: SNES Sfxr'), contains('-- @name: SNES Sfxr')));
 
       final synth = LuaPresetLibrary.getPresetById('snes_console_synth');
       expect(synth, isNotNull);
       expect(synth!.name, equals('SNES Synth'));
-      expect(synth.code, contains('-- @name: SNES Synth'));
+      expect(synth.code, anyOf(contains('# @name: SNES Synth'), contains('-- @name: SNES Synth')));
     });
 
     test('SNES Sfxr GUI title, labels, and removed LCD match specification', () {

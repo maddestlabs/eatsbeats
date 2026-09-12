@@ -5,6 +5,7 @@ import '../models/track_model.dart';
 import '../eatscript/eat_dsp_synthesizer.dart';
 import 'convolver_engine.dart';
 import 'procedural_ir_generator.dart';
+import 'snes_dsp_engine.dart';
 
 /// Pure-Dart offline DSP processor that executes Track and Master FX racks,
 /// including parametric EQ, dynamic filters, delays, distortion, bitcrushers,
@@ -157,7 +158,23 @@ class OfflineDspFxProcessor {
 
       case FXType.eatScriptFX:
         if (fx.eatScriptCode != null && fx.eatScriptCode!.isNotEmpty) {
-          _applyEatScriptDsp(buffer, code: fx.eatScriptCode!, params: fx.eatScriptParams, mix: mix, sampleRate: sampleRate);
+          if (fx.presetId == 'snes_downsampler' || fx.eatScriptCode!.contains('SNESDownsampler')) {
+            final rateIdx = (fx.eatScriptParams['SampleRate'] ?? 2.0).toInt();
+            final brrBits = fx.eatScriptParams['BRRBits'] ?? 4.0;
+            final gFilter = fx.eatScriptParams['GaussianFilter'] ?? 0.85;
+            final drive = fx.eatScriptParams['Drive'] ?? 1.0;
+            SNESDownsamplerEngine.processBuffer(
+              buffer,
+              rateIndex: rateIdx,
+              brrBits: brrBits,
+              gaussianFilter: gFilter,
+              drive: drive,
+              mix: mix,
+              hostSampleRate: sampleRate,
+            );
+          } else {
+            _applyEatScriptDsp(buffer, code: fx.eatScriptCode!, params: fx.eatScriptParams, mix: mix, sampleRate: sampleRate);
+          }
         }
         break;
     }

@@ -73,6 +73,7 @@ class ProceduralSongEngine {
     'Cyberpunk Acid',
     'Neo-Soul / R&B',
     'Pop / Funk Anthem',
+    'SNES 16-Bit Adventure',
   ];
 
   static const List<String> availableStructures = [
@@ -481,6 +482,99 @@ class ProceduralSongEngine {
         ],
       ],
     ),
+
+    // 7. SNES 16-Bit Adventure
+    'SNES 16-Bit Adventure': const SongGenreConfig(
+      id: 'snes_adventure',
+      name: 'SNES 16-Bit Adventure',
+      defaultBpm: 134.0,
+      defaultMinor: false,
+      drumStyle: '16-Bit Console Action',
+      defaultSwing: 0.05,
+      defaultGhostProb: 0.22,
+      defaultFillDensity: 0.45,
+      drumPresetId: 'snes_drum_kit',
+      drumParams: {
+        'MasterTune': 0.0,
+        'KickPunch': 140.0,
+        'SnareNoise': 0.65,
+        'TomDecay': 0.35,
+        'CymbalDecay': 0.80,
+        'GaussianWarmth': 0.75,
+        'EchoDelay': 128.0,
+        'EchoFeedback': 0.35,
+        'EchoVolume': 0.25,
+      },
+      bassPresetId: 'snes_console_synth',
+      bassName: 'SNES Slap Bass',
+      bassColor: const Color(0xFFE52521),
+      bassParams: {
+        'Waveform': 9.0, // Slap Bass
+        'Attack': 0.002,
+        'Decay': 0.28,
+        'Sustain': 0.25,
+        'Release': 0.15,
+        'EchoVolume': 0.0,
+      },
+      chordPresetId: 'snes_console_synth',
+      chordName: 'SNES Strings Pad',
+      chordColor: const Color(0xFF6C5CE7),
+      chordParams: {
+        'Waveform': 7.0, // Strings
+        'Attack': 0.04,
+        'Decay': 0.45,
+        'Sustain': 0.75,
+        'Release': 0.35,
+        'EchoDelay': 160.0,
+        'EchoFeedback': 0.55,
+        'EchoVolume': 0.45,
+      },
+      leadPresetId: 'snes_console_synth',
+      leadName: 'SNES Hero Lead',
+      leadColor: const Color(0xFF00CEC9),
+      leadParams: {
+        'Waveform': 8.0, // Flute
+        'Attack': 0.005,
+        'Decay': 0.35,
+        'Sustain': 0.60,
+        'Release': 0.20,
+        'VibratoRate': 6.0,
+        'VibratoDepth': 0.15,
+        'EchoDelay': 128.0,
+        'EchoFeedback': 0.40,
+        'EchoVolume': 0.35,
+      },
+      chordProgressions: [
+        // Progression 1: I - V - vi - IV (Chrono / Mana Overworld Hero Theme)
+        [
+          (0, ChordQuality.major, 2.0),
+          (7, ChordQuality.major, 2.0),
+          (9, ChordQuality.minor, 2.0),
+          (5, ChordQuality.major, 2.0),
+        ],
+        // Progression 2: ii7 - V7 - Imaj7 - vi7 (JRPG Town / Peaceful Journey)
+        [
+          (2, ChordQuality.minor7, 2.0),
+          (7, ChordQuality.dominant7, 2.0),
+          (0, ChordQuality.major7, 2.0),
+          (9, ChordQuality.minor7, 2.0),
+        ],
+        // Progression 3: i - bVII - bVI - bVII (Action Stage / Dungeon Tension)
+        [
+          (0, ChordQuality.minor, 2.0),
+          (10, ChordQuality.major, 2.0),
+          (8, ChordQuality.major, 2.0),
+          (10, ChordQuality.major, 2.0),
+        ],
+        // Progression 4: i - IV - i - IV (Dorian Forest / Mystic Cavern)
+        [
+          (0, ChordQuality.minor, 2.0),
+          (5, ChordQuality.major, 2.0),
+          (0, ChordQuality.minor, 2.0),
+          (5, ChordQuality.major, 2.0),
+        ],
+      ],
+    ),
   };
 
   /// Main execution method for generating a song into [DawState].
@@ -524,7 +618,11 @@ class ProceduralSongEngine {
       // Pick a favorable root key deterministically from seed
       final candidateRoots = config.id == 'lofi'
           ? [0, 2, 5, 7, 9] // C, D, F, G, A
-          : (config.id == 'synthwave' ? [9, 2, 0, 4] : [0, 2, 3, 5, 7, 9, 10]);
+          : (config.id == 'synthwave'
+              ? [9, 2, 0, 4]
+              : (config.id == 'snes_adventure'
+                  ? [0, 5, 7, 2, 9] // C, F, G, D, A
+                  : [0, 2, 3, 5, 7, 9, 10]));
       rootPitchClass = candidateRoots[rng.pick([0, 1, 2, 3, 4].sublist(0, math.min(5, candidateRoots.length)))];
     } else if (rawRoot is num) {
       rootPitchClass = (rawRoot.toInt() - 1).clamp(0, 11);
@@ -725,8 +823,8 @@ class ProceduralSongEngine {
 
     final track = TrackChannel(
       id: 'proc_track_drums',
-      name: 'Drums (GM Standard Kit)',
-      color: const Color(0xFFFF4081),
+      name: config.drumPresetId == 'snes_drum_kit' ? 'SNES Drum Kit' : 'Drums (GM Standard Kit)',
+      color: config.drumPresetId == 'snes_drum_kit' ? const Color(0xFFE52521) : const Color(0xFFFF4081),
       type: TrackType.eatScript,
       volume: 0.90,
       pan: 0.0,
@@ -810,7 +908,7 @@ class ProceduralSongEngine {
         trackId: track.id,
         startBar: section.startBar,
         barLength: section.lengthBars,
-        notes: timelineNotes,
+        notes: sectionNotes.map((n) => n.copyWith(id: 'drum_${section.name}_${n.id}')).toList(),
       );
       track.clips.add(clip);
       allNotes.addAll(timelineNotes);
@@ -866,7 +964,7 @@ class ProceduralSongEngine {
           sectionNotes.add(Note(
             id: 'bass_intro_drone',
             pitch: bassPitch,
-            startStep: (startBar + 2) * 16.0,
+            startStep: 2 * 16.0,
             durationSteps: 30.0,
             velocity: 0.60,
           ));
@@ -876,7 +974,8 @@ class ProceduralSongEngine {
           final chord = _getChordAtBar(chords, bar);
           final chRoot = chord?.bassPitchClass ?? chord?.rootPitchClass ?? rootPitchClass;
           final bassRoot = 36 + chRoot; // C2 (36) + root
-          final barStartStep = bar * 16.0;
+          final int barInClip = bar - startBar;
+          final double barStartStep = barInClip * 16.0;
 
           if (config.id == 'lofi') {
             // Lo-Fi Hip Hop: Laid-back swung walking bassline
@@ -966,6 +1065,60 @@ class ProceduralSongEngine {
                 velocity: s == 0 ? 0.95 : 0.80,
               ));
             }
+          } else if (config.id == 'snes_adventure') {
+            // SNES 16-Bit Slap Bass: Driving syncopated root, 5th, and octave slap pops
+            sectionNotes.add(Note(
+              id: 'bass_snes_${bar}_0',
+              pitch: bassRoot,
+              startStep: barStartStep + 0.0,
+              durationSteps: 2.5,
+              velocity: 0.95,
+            ));
+            // Step 4: Staccato Octave Slap Pop
+            sectionNotes.add(Note(
+              id: 'bass_snes_${bar}_4',
+              pitch: bassRoot + 12,
+              startStep: barStartStep + 4.0,
+              durationSteps: 1.5,
+              velocity: 0.88,
+            ));
+            // Step 6: Fifth bounce
+            sectionNotes.add(Note(
+              id: 'bass_snes_${bar}_6',
+              pitch: bassRoot + 7,
+              startStep: barStartStep + 6.0,
+              durationSteps: 1.5,
+              velocity: 0.82,
+            ));
+            // Step 8: Mid-bar root
+            sectionNotes.add(Note(
+              id: 'bass_snes_${bar}_8',
+              pitch: bassRoot,
+              startStep: barStartStep + 8.0,
+              durationSteps: 2.0,
+              velocity: 0.90,
+            ));
+            // Step 12: High octave pop or 7th
+            sectionNotes.add(Note(
+              id: 'bass_snes_${bar}_12',
+              pitch: rng.chance(0.6) ? bassRoot + 12 : bassRoot + 10,
+              startStep: barStartStep + 12.0,
+              durationSteps: 1.5,
+              velocity: 0.85,
+            ));
+            // Step 14: Chromatic walking approach to next bar
+            if (rng.chance(0.7)) {
+              final nextCh = _getChordAtBar(chords, bar + 1);
+              final nextRoot = 36 + (nextCh?.rootPitchClass ?? rootPitchClass);
+              final approach = nextRoot > bassRoot ? nextRoot - 1 : nextRoot + 1;
+              sectionNotes.add(Note(
+                id: 'bass_snes_${bar}_14',
+                pitch: approach.clamp(28, 55),
+                startStep: barStartStep + 14.0,
+                durationSteps: 1.8,
+                velocity: 0.75,
+              ));
+            }
           } else {
             // Neo-Soul / Pop: Syncopated groove with 5th and octave
             final steps = [0, 4, 7, 10, 12];
@@ -983,16 +1136,23 @@ class ProceduralSongEngine {
         }
       }
 
+      final double startStepOffset = section.startBar * 16.0;
+      final List<Note> timelineNotes = sectionNotes.map((n) {
+        return n.copyWith(
+          startStep: n.startStep + startStepOffset,
+        );
+      }).toList();
+
       final clip = TrackClip(
         id: 'clip_bass_${section.name}_${section.startBar}',
         name: '${section.name} (Bass)',
         trackId: track.id,
         startBar: section.startBar,
         barLength: section.lengthBars,
-        notes: sectionNotes,
+        notes: sectionNotes.map((n) => n.copyWith()).toList(),
       );
       track.clips.add(clip);
-      allNotes.addAll(sectionNotes);
+      allNotes.addAll(timelineNotes);
     }
 
     track.notes = allNotes.map((n) => n.copyWith()).toList();
@@ -1033,7 +1193,8 @@ class ProceduralSongEngine {
       for (int bar = startBar; bar < endBar; bar += 2) {
         final chord = _getChordAtBar(chords, bar) ?? chords.first;
         final pitches = chord.pitchClasses;
-        final barStartStep = bar * 16.0;
+        final int barInClip = bar - startBar;
+        final double barStartStep = barInClip * 16.0;
 
         // Construct 4-note voicing in mid-register (C3..C5 / 48..72)
         final voicing = <int>[];
@@ -1100,6 +1261,18 @@ class ProceduralSongEngine {
               ));
             }
           }
+        } else if (config.id == 'snes_adventure') {
+          // SNES 16-Bit Strings Pad: 2-3 voice smooth chord pads with FIR hall echo
+          const double chordDur = 31.0;
+          for (int vi = 0; vi < math.min(3, voicing.length); vi++) {
+            sectionNotes.add(Note(
+              id: 'chord_snes_${bar}_$vi',
+              pitch: voicing[vi],
+              startStep: barStartStep + (vi * 0.02),
+              durationSteps: chordDur,
+              velocity: 0.72,
+            ));
+          }
         } else {
           // Default sustained comping
           for (int vi = 0; vi < voicing.length; vi++) {
@@ -1114,16 +1287,23 @@ class ProceduralSongEngine {
         }
       }
 
+      final double startStepOffset = section.startBar * 16.0;
+      final List<Note> timelineNotes = sectionNotes.map((n) {
+        return n.copyWith(
+          startStep: n.startStep + startStepOffset,
+        );
+      }).toList();
+
       final clip = TrackClip(
         id: 'clip_chords_${section.name}_${section.startBar}',
         name: '${section.name} (Chords)',
         trackId: track.id,
         startBar: section.startBar,
         barLength: section.lengthBars,
-        notes: sectionNotes,
+        notes: sectionNotes.map((n) => n.copyWith()).toList(),
       );
       track.clips.add(clip);
-      allNotes.addAll(sectionNotes);
+      allNotes.addAll(timelineNotes);
     }
 
     track.notes = allNotes.map((n) => n.copyWith()).toList();
@@ -1178,14 +1358,14 @@ class ProceduralSongEngine {
         sectionNotes.add(Note(
           id: 'lead_intro_1',
           pitch: 72 + pRoot + 7, // High 5th
-          startStep: (startBar + 1) * 16.0 + 8.0,
+          startStep: 1 * 16.0 + 8.0,
           durationSteps: 6.0,
           velocity: 0.70,
         ));
         sectionNotes.add(Note(
           id: 'lead_intro_2',
           pitch: 72 + pRoot + (isMinor ? 3 : 4), // 3rd
-          startStep: (startBar + 2) * 16.0 + 0.0,
+          startStep: 2 * 16.0 + 0.0,
           durationSteps: 12.0,
           velocity: 0.65,
         ));
@@ -1194,7 +1374,8 @@ class ProceduralSongEngine {
         for (int bar = startBar; bar < endBar; bar++) {
           final chord = _getChordAtBar(chords, bar) ?? chords.first;
           final pitches = chord.pitchClasses;
-          final barStartStep = bar * 16.0;
+          final int barInClip = bar - startBar;
+          final double barStartStep = barInClip * 16.0;
 
           for (int s = 0; s < 16; s++) {
             // 16th arp cycling up and down
@@ -1212,11 +1393,45 @@ class ProceduralSongEngine {
             ));
           }
         }
+      } else if (config.id == 'snes_adventure') {
+        // SNES 16-Bit Hero Lead: Lyrical melodic phrasing with arpeggiated motif and held climax
+        for (int bar = startBar; bar < endBar; bar += 2) {
+          final chord = _getChordAtBar(chords, bar) ?? chords.first;
+          final pRoot = chord.rootPitchClass;
+          final int barInClip = bar - startBar;
+          final double barStartStep = barInClip * 16.0;
+
+          // Heroic motif across bar 1
+          final motifSteps = [0.0, 4.0, 7.0, 10.0];
+          final intervals = [0, 4, 7, 12];
+          for (int mi = 0; mi < motifSteps.length; mi++) {
+            final interval = intervals[mi % intervals.length];
+            final pitch = 72 + pRoot + interval;
+            final dur = (mi == motifSteps.length - 1) ? 5.0 : 2.5;
+            sectionNotes.add(Note(
+              id: 'lead_snes_${bar}_$mi',
+              pitch: pitch.clamp(60, 96),
+              startStep: barStartStep + motifSteps[mi],
+              durationSteps: dur,
+              velocity: 0.88,
+            ));
+          }
+
+          // Bar 2 answer / cadence note
+          sectionNotes.add(Note(
+            id: 'lead_snes_${bar}_ans',
+            pitch: 72 + pRoot + 7, // Held 5th
+            startStep: barStartStep + 16.0 + 2.0,
+            durationSteps: 10.0,
+            velocity: 0.85,
+          ));
+        }
       } else {
         // Lo-Fi Hip Hop / Neo-Soul: Lyrical phrased hook with space / breath!
         for (int bar = startBar; bar < endBar; bar += 2) {
           final chord = _getChordAtBar(chords, bar) ?? chords.first;
-          final barStartStep = bar * 16.0;
+          final int barInClip = bar - startBar;
+          final double barStartStep = barInClip * 16.0;
 
           // Phrase Motif: 3-5 notes spanning first bar, then resting on second bar
           final phraseSteps = [2.0, 5.0, 8.0, 11.0, 14.0];
@@ -1250,16 +1465,23 @@ class ProceduralSongEngine {
         }
       }
 
+      final double startStepOffset = section.startBar * 16.0;
+      final List<Note> timelineNotes = sectionNotes.map((n) {
+        return n.copyWith(
+          startStep: n.startStep + startStepOffset,
+        );
+      }).toList();
+
       final clip = TrackClip(
         id: 'clip_lead_${section.name}_${section.startBar}',
         name: '${section.name} (Lead)',
         trackId: track.id,
         startBar: section.startBar,
         barLength: section.lengthBars,
-        notes: sectionNotes,
+        notes: sectionNotes.map((n) => n.copyWith()).toList(),
       );
       track.clips.add(clip);
-      allNotes.addAll(sectionNotes);
+      allNotes.addAll(timelineNotes);
     }
 
     track.notes = allNotes.map((n) => n.copyWith()).toList();

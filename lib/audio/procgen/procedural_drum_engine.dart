@@ -18,6 +18,7 @@ class ProceduralDrumEngine {
     'Latin / Afro-Cuban',
     'House / Disco (4-on-Floor)',
     'Trap / Halftime',
+    '16-Bit Console Action',
   ];
 
   static void _addNote(
@@ -95,6 +96,9 @@ class ProceduralDrumEngine {
             break;
           case 'House / Disco (4-on-Floor)':
             _generateFourOnFloorStep(notes, stepInBar, noteStart, density, ghostProb, humanize, rng);
+            break;
+          case '16-Bit Console Action':
+            _generateSnesStep(notes, stepInBar, noteStart, density, ghostProb, humanize, rng);
             break;
           case 'Trap / Halftime':
           default:
@@ -451,6 +455,78 @@ class ProceduralDrumEngine {
       durationSteps: 0.25,
       velocity: _humanizeVel(stepInBar % 2 == 0 ? 0.70 : 0.45, humanize, rng),
     );
+  }
+
+  static void _generateSnesStep(
+    List<Note> notes,
+    int stepInBar,
+    double noteStart,
+    double density,
+    double ghostProb,
+    double humanize,
+    Mulberry32Rng rng,
+  ) {
+    // 16-Bit Action Console Groove:
+    // Driving punchy kick on 0, 8, with syncopated pushes on 6, 10
+    if (stepInBar == 0 || stepInBar == 8 || (stepInBar == 6 && rng.chance(density)) || (stepInBar == 10 && rng.chance(density * 0.85))) {
+      _addNote(
+        notes,
+        pitch: 36, // Kick 1
+        startStep: noteStart,
+        durationSteps: 1.0,
+        velocity: _humanizeVel(0.92, humanize, rng),
+      );
+    }
+
+    // Snare: Solid backbeat on 4, 12 + ghost hits on 7, 15
+    if (stepInBar == 4 || stepInBar == 12) {
+      _addNote(
+        notes,
+        pitch: 38, // Snare
+        startStep: noteStart,
+        durationSteps: 1.0,
+        velocity: _humanizeVel(0.95, humanize, rng),
+      );
+    } else if (rng.chance(ghostProb) && (stepInBar == 7 || stepInBar == 15)) {
+      _addNote(
+        notes,
+        pitch: 38,
+        startStep: noteStart,
+        durationSteps: 0.5,
+        velocity: _humanizeVel(0.40, humanize, rng),
+      );
+    }
+
+    // Hi-Hats: Driving 16ths with open hat sizzle on 14 or 6
+    if ((stepInBar == 14 && rng.chance(0.6)) || (stepInBar == 6 && rng.chance(0.35))) {
+      _addNote(
+        notes,
+        pitch: 46, // Open Hat
+        startStep: noteStart,
+        durationSteps: 1.5,
+        velocity: _humanizeVel(0.78, humanize, rng),
+      );
+    } else {
+      final double vel = (stepInBar % 4 == 0) ? 0.78 : (stepInBar % 2 == 0 ? 0.62 : 0.45);
+      _addNote(
+        notes,
+        pitch: 42, // Closed Hat
+        startStep: noteStart,
+        durationSteps: 0.5,
+        velocity: _humanizeVel(vel, humanize, rng),
+      );
+    }
+
+    // Auxiliary 16-bit percussion: subtle tambourine or cowbell on upbeat 2, 10
+    if ((stepInBar == 2 || stepInBar == 10) && rng.chance(0.25)) {
+      _addNote(
+        notes,
+        pitch: 54, // Tambourine
+        startStep: noteStart,
+        durationSteps: 0.5,
+        velocity: _humanizeVel(0.45, humanize, rng),
+      );
+    }
   }
 
   static void _generateFillStep(

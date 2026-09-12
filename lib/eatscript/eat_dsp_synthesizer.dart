@@ -127,6 +127,19 @@ class EatDspSynthesizer {
       );
     }
 
+    // 0a-2. 16-Bit S-DSP Console Drum Kit (Notes 35–81)
+    if (code.contains('snes_drum_kit') ||
+        code.contains('SNESDrumKit') ||
+        code.contains('SNES Drum Kit')) {
+      return SNESDrumKitEngine.synthesizeBuffer(
+        note: note,
+        durationSec: durationSec,
+        velocity: isAccent ? 1.0 : velocity,
+        params: params,
+        isAccent: isAccent,
+      );
+    }
+
     // 0. Physical Acoustic & Analog 808 Graph Synthesis
     if (code.contains('FmAcousticKick') ||
         code.contains('NearPitchStart') ||
@@ -3043,6 +3056,12 @@ class EatDspSynthesizer {
       final wet = inputSample * (0.8 + lfo * 0.2);
 
       return (inputSample * (1.0 - mix)) + (wet * mix);
+    } else if (lower.contains('snesdownsample') || lower.contains('snesdownsampler') || lower.contains('brr')) {
+      return SNESDownsamplerEngine.evaluateSample(
+        inputSample: inputSample,
+        time: time,
+        params: params,
+      );
     } else if (lower.contains('bitcrush') || lower.contains('downsample')) {
       final bits = params['Bits'] ?? 8.0;
       final downsample = params['Downsample'] ?? 4.0;

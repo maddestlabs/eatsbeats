@@ -94,5 +94,18 @@ void main() {
       expect(safeUri.queryParameters['title'], contains('Large Preset'));
       expect(safeUri.queryParameters['body'], contains('Paste the copied'));
     });
+
+    test('buildIssueBody sanitizes pre-existing markdown fences from eatCode', () {
+      final codeWithFences = '```python\n# @name: Test\ndef gui(): pass\n```';
+      final body = GithubTweakSubmissionService.buildIssueBody(
+        presetId: 'test_preset',
+        presetName: 'Test Preset',
+        eatCode: codeWithFences,
+      );
+
+      // Verify there are no duplicate nested ```python markers
+      expect('```python'.allMatches(body).length, equals(1));
+      expect(body, contains('# @name: Test'));
+    });
   });
 }
