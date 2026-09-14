@@ -1,7 +1,9 @@
+import 'dart:collection';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'automation_model.dart';
 import 'lyric_model.dart';
+import '../eatscript/eat_synth_type.dart';
 
 enum MusicViewType { pianoRoll, tracker, script, score }
 enum TrackType {
@@ -773,23 +775,125 @@ class TrackClip {
   );
 }
 
+/// A zero-allocation mutating map wrapper for track parameters that notifies
+/// the track to invalidate its cached synthesis parameter hash when any value changes.
+class _TrackParamMap with MapMixin<String, double> {
+  final Map<String, double> _inner;
+  final VoidCallback _onMutated;
+
+  _TrackParamMap(this._inner, this._onMutated);
+
+  @override
+  double? operator [](Object? key) => _inner[key];
+
+  @override
+  void operator []=(String key, double value) {
+    if (_inner[key] != value) {
+      _inner[key] = value;
+      _onMutated();
+    }
+  }
+
+  @override
+  void clear() {
+    if (_inner.isNotEmpty) {
+      _inner.clear();
+      _onMutated();
+    }
+  }
+
+  @override
+  Iterable<String> get keys => _inner.keys;
+
+  @override
+  double? remove(Object? key) {
+    final removed = _inner.remove(key);
+    if (removed != null) {
+      _onMutated();
+    }
+    return removed;
+  }
+
+  @override
+  void addAll(Map<String, double> other) {
+    bool changed = false;
+    for (final entry in other.entries) {
+      if (_inner[entry.key] != entry.value) {
+        _inner[entry.key] = entry.value;
+        changed = true;
+      }
+    }
+    if (changed) {
+      _onMutated();
+    }
+  }
+}
+
 class TrackChannel {
   String id;
   String name;
   Color color;
-  TrackType type;
+  TrackType _type;
+  TrackType get type => _type;
+  set type(TrackType val) {
+    if (_type != val) {
+      _type = val;
+      invalidateParamsHash();
+    }
+  }
+
   double volume; // 0.0 to 1.5
   double pan; // -1.0 to 1.0
   bool isMuted;
   bool isSoloed;
   
   // Instrument config
-  String sampleName; // For sampler (kick, snare, hihat, clap, bass, synth)
-  String synthWaveform; // sine, square, sawtooth, triangle
-  double cutoff;
+  String _sampleName;
+  String get sampleName => _sampleName;
+  set sampleName(String val) {
+    if (_sampleName != val) {
+      _sampleName = val;
+      invalidateParamsHash();
+    }
+  }
+
+  String _synthWaveform;
+  String get synthWaveform => _synthWaveform;
+  set synthWaveform(String val) {
+    if (_synthWaveform != val) {
+      _synthWaveform = val;
+      invalidateParamsHash();
+    }
+  }
+
+  double _cutoff;
+  double get cutoff => _cutoff;
+  set cutoff(double val) {
+    if (_cutoff != val) {
+      _cutoff = val;
+      invalidateParamsHash();
+    }
+  }
+
   double resonance;
-  double attack;
-  double release;
+
+  double _attack;
+  double get attack => _attack;
+  set attack(double val) {
+    if (_attack != val) {
+      _attack = val;
+      invalidateParamsHash();
+    }
+  }
+
+  double _release;
+  double get release => _release;
+  set release(double val) {
+    if (_release != val) {
+      _release = val;
+      invalidateParamsHash();
+    }
+  }
 
   // TTS & Lyrics Config
   bool enableTts;
@@ -800,44 +904,67 @@ class TrackChannel {
   List<LyricCue> lyrics;
 
   // EatScript engine plugin integration
-  String eatScriptCode;
-  Map<String, double> eatScriptParams;
+  String _eatScriptCode;
+  late Map<String, double> _eatScriptParams;
 
   int? _cachedParamsHash;
+  EatSynthType? _resolvedSynthType;
 
   /// Invalidates the pre-calculated parameter hash when values or code mutate.
   void invalidateParamsHash() {
     _cachedParamsHash = null;
+    _resolvedSynthType = null;
   }
+
+  /// Cached resolved synth engine type to bypass script inspection on synthesis.
+  EatSynthType? get resolvedSynthType => _resolvedSynthType;
+  set resolvedSynthType(EatSynthType? type) => _resolvedSynthType = type;
 
   /// Cached deterministic hash of track synthesis parameters and script source.
   int get paramsHash {
     if (_cachedParamsHash != null) return _cachedParamsHash!;
-    int h = type.hashCode ^ sampleName.hashCode ^ synthWaveform.hashCode ^ eatScriptCode.hashCode;
-    final sortedKeys = eatScriptParams.keys.toList()..sort();
+    int h = _type.hashCode ^
+        _sampleName.hashCode ^
+        _synthWaveform.hashCode ^
+        _eatScriptCode.hashCode ^
+        (_cutoff * 100).round() ^
+        (_attack * 10000).round() ^
+        (_release * 10000).round();
+    final sortedKeys = _eatScriptParams.keys.toList()..sort();
     for (final k in sortedKeys) {
-      final v = eatScriptParams[k] ?? 0.0;
-      h = (h * 31) ^ (k.hashCode ^ (v * 100).round());
+      final v = _eatScriptParams[k] ?? 0.0;
+      h = (h * 31) ^ (k.hashCode ^ (v * 10000).round());
     }
     _cachedParamsHash = h;
     return h;
   }
 
-  @Deprecated('Use eatScriptCode')
-  String get luaScriptCode => eatScriptCode;
-  set luaScriptCode(String val) {
-    if (eatScriptCode != val) {
-      eatScriptCode = val;
-      _cachedParamsHash = null;
+  String get eatScriptCode => _eatScriptCode;
+  set eatScriptCode(String val) {
+    if (_eatScriptCode != val) {
+      _eatScriptCode = val;
+      invalidateParamsHash();
     }
   }
 
+  Map<String, double> get eatScriptParams => _eatScriptParams;
+  set eatScriptParams(Map<String, double> val) {
+    _eatScriptParams = _TrackParamMap(Map.from(val), invalidateParamsHash);
+    invalidateParamsHash();
+  }
+
+  /// Sets or updates a single synthesis parameter and invalidates the cached parameter hash.
+  void setParam(String key, double value) {
+    _eatScriptParams[key] = value;
+  }
+
+  @Deprecated('Use eatScriptCode')
+  String get luaScriptCode => eatScriptCode;
+  set luaScriptCode(String val) => eatScriptCode = val;
+
   @Deprecated('Use eatScriptParams')
   Map<String, double> get luaParams => eatScriptParams;
-  set luaParams(Map<String, double> val) {
-    eatScriptParams = val;
-    _cachedParamsHash = null;
-  }
+  set luaParams(Map<String, double> val) => eatScriptParams = val;
 
   // Pattern steps & Piano Roll notes & Per-track clips
   List<StepEvent> steps; // 16 or 32 step grid
@@ -1055,17 +1182,17 @@ class TrackChannel {
     required this.id,
     required this.name,
     required this.color,
-    required this.type,
+    TrackType type = TrackType.synth,
     this.volume = 0.8,
     this.pan = 0.0,
     this.isMuted = false,
     this.isSoloed = false,
-    this.sampleName = 'kick',
-    this.synthWaveform = 'sawtooth',
-    this.cutoff = 3000.0,
+    String sampleName = 'kick',
+    String synthWaveform = 'sawtooth',
+    double cutoff = 3000.0,
     this.resonance = 1.0,
-    this.attack = 0.01,
-    this.release = 0.3,
+    double attack = 0.01,
+    double release = 0.3,
     this.eqEnabled = false,
     this.eqHpf = 20.0,
     this.eqLowGain = 0.0,
@@ -1106,19 +1233,27 @@ class TrackChannel {
     List<FXInsert>? fxRack,
     List<MidiFXInsert>? midiFXRack,
     Set<String>? selectedNoteIds,
-  })  : tags = tags ?? [],
+  })  : _type = type,
+        _sampleName = sampleName,
+        _synthWaveform = synthWaveform,
+        _cutoff = cutoff,
+        _attack = attack,
+        _release = release,
+        tags = tags ?? [],
         enableTts = enableTts ?? (type == TrackType.tts),
         lyrics = lyrics ?? [],
         iconName = iconName ?? _defaultIconForType(type),
-        eatScriptCode = eatScriptCode ?? luaScriptCode ?? '',
-        eatScriptParams = eatScriptParams ?? luaParams ?? {},
+        _eatScriptCode = eatScriptCode ?? luaScriptCode ?? '',
         steps = steps ?? List.generate(32, (_) => StepEvent()),
         notes = notes ?? [],
         clips = clips ?? [],
         selectedNoteIds = selectedNoteIds ?? {},
         automationLanes = automationLanes ?? [],
         fxRack = fxRack ?? [],
-        midiFXRack = midiFXRack ?? [];
+        midiFXRack = midiFXRack ?? [] {
+    final initialMap = Map<String, double>.from(eatScriptParams ?? luaParams ?? {});
+    _eatScriptParams = _TrackParamMap(initialMap, invalidateParamsHash);
+  }
 
   static String _defaultIconForType(TrackType type) {
     switch (type) {

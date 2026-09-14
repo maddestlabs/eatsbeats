@@ -6,6 +6,7 @@ import '../models/automation_model.dart';
 import 'eat_dsp_synthesizer.dart';
 import 'eat_script_engine.dart';
 import 'eat_param_model.dart';
+import 'eat_synth_type.dart';
 
 export 'eat_param_model.dart';
 
@@ -86,6 +87,7 @@ class EatEngine {
     List<List<double>>? pressurePoints,
     List<List<double>>? timbrePoints,
     double velocity = 0.9,
+    EatSynthType? synthType,
   }) => EatDspSynthesizer.synthesizeBuffer(
     code: code,
     durationSec: durationSec,
@@ -102,6 +104,7 @@ class EatEngine {
     pressurePoints: pressurePoints,
     timbrePoints: timbrePoints,
     velocity: velocity,
+    synthType: synthType,
   );
 
   // DSP Math & Synthesis Evaluator for custom synths and drum engines
@@ -117,6 +120,7 @@ class EatEngine {
     String? trackId,
     int sampleIndex = 0,
     int totalSamples = 1,
+    EatSynthType? synthType,
   }) => EatDspSynthesizer.evaluateSynth(
     code: code,
     time: time,
@@ -129,6 +133,7 @@ class EatEngine {
     trackId: trackId,
     sampleIndex: sampleIndex,
     totalSamples: totalSamples,
+    synthType: synthType,
   );
 
   /// Evaluates an automation lane at a specific step and time context.

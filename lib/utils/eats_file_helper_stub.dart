@@ -5,42 +5,72 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-void downloadWebZipImpl(Uint8List bytes, String fileName) {
-  saveEatsZipFileImpl(bytes, fileName);
-}
+Future<String?> downloadWebZipImpl(Uint8List bytes, String fileName) =>
+    saveEatsZipFileImpl(bytes, fileName);
 
-void downloadWebFileImpl(String content, String fileName) {
-  saveEatsLuaFileImpl(content, fileName);
-}
+Future<String?> downloadWebFileImpl(String content, String fileName) =>
+    saveEatScriptFileImpl(content, fileName);
 
-Future<void> saveEatsZipFileImpl(Uint8List zipBytes, String fileName) async {
+Future<String?> saveEatsZipFileImpl(Uint8List zipBytes, String fileName) async {
   try {
     final defaultName = fileName.endsWith('.eats.zip')
         ? fileName
         : (fileName.endsWith('.zip') ? fileName : '$fileName.eats.zip');
 
-    await FilePicker.saveFile(
+    final uri = await FilePicker.saveFile(
+      dialogTitle: 'Save Eatsbeats Project Archive (.eats.zip)',
       fileName: defaultName,
       bytes: zipBytes,
+      type: FileType.custom,
+      allowedExtensions: ['zip', 'eats'],
     );
+    if (uri != null) {
+      final path = uri.toFilePath();
+      final file = io.File(path);
+      if (!file.existsSync() || (await file.length()) == 0) {
+        await file.writeAsBytes(zipBytes, flush: true);
+      }
+      return path;
+    }
+    return null;
   } catch (e) {
     debugPrint('Native saveEatsZipFile failed: $e');
+    return null;
   }
 }
 
-Future<void> saveEatsLuaFileImpl(String content, String fileName) async {
+Future<String?> saveEatScriptFileImpl(String content, String fileName) async {
   try {
-    final defaultName = fileName.endsWith('.eats.lua') ? fileName : '$fileName.eats.lua';
+    final cleanName = fileName.endsWith('.eat') || fileName.endsWith('.eats')
+        ? fileName
+        : '$fileName.eat';
     final bytes = Uint8List.fromList(utf8.encode(content));
 
-    await FilePicker.saveFile(
-      fileName: defaultName,
+    final uri = await FilePicker.saveFile(
+      dialogTitle: 'Save Eatsbeats Project (.eat)',
+      fileName: cleanName,
       bytes: bytes,
+      type: FileType.custom,
+      allowedExtensions: ['eat', 'eats'],
     );
+    if (uri != null) {
+      final path = uri.toFilePath();
+      final file = io.File(path);
+      if (!file.existsSync() || (await file.length()) == 0) {
+        await file.writeAsBytes(bytes, flush: true);
+      }
+      return path;
+    }
+    return null;
   } catch (e) {
-    debugPrint('Native saveEatsLuaFile failed: $e');
+    debugPrint('Native saveEatScriptFile failed: $e');
     Clipboard.setData(ClipboardData(text: content));
+    return null;
   }
+}
+
+Future<String?> saveEatsLuaFileImpl(String content, String fileName) async {
+  return saveEatScriptFileImpl(content, fileName);
 }
 
 Future<void> pickEatsFileWebImpl(

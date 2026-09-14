@@ -6,4 +6,7 @@ import 'platform_env_helper_stub.dart'
 class PlatformEnvHelper {
   /// Returns true if currently running in a headless Flutter / Dart test environment.
   static bool get isFlutterTest => isFlutterTestImpl();
+
+  /// Safely reads environment variables without breaking Web compilation.
+  static String? getEnv(String key) => getEnvImpl(key);
 }

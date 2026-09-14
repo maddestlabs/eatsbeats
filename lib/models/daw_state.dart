@@ -48,6 +48,11 @@ import '../eatscript/eat_script_engine.dart';
 import '../eatscript/default_song_eat.dart';
 import '../eatscript/eat_transpiler.dart';
 import '../audio/procgen/procedural_song_engine.dart';
+import '../audio/procgen/ensemble_blueprint.dart';
+import '../audio/procgen/procedural_ensemble_engine.dart';
+import '../audio/procgen/song_archetype.dart';
+import '../audio/procgen/song_archetype_registry.dart';
+import '../services/gemini_service.dart';
 
 enum ArrangerViewMode { timeline, sequence }
 
@@ -63,6 +68,64 @@ class DawState extends ChangeNotifier {
 
   String projectName = 'Untitled Song';
   String authorName = 'Anonymous Producer';
+
+  // Procedural Song Architecture Blueprint & Generation Seed (for style sharing & variation re-seeding)
+  SongStructureBlueprint? _songBlueprint;
+  SongStructureBlueprint? get songBlueprint => _songBlueprint;
+
+  int? _songBlueprintSeed;
+  int? get songBlueprintSeed => _songBlueprintSeed;
+
+  void setSongBlueprint(SongStructureBlueprint? blueprint, {int? seed}) {
+    _songBlueprint = blueprint;
+    _songBlueprintSeed = seed;
+    if (blueprint != null && blueprint.archetypeId != null && blueprint.archetypeId!.isNotEmpty) {
+      final arch = SongArchetypeRegistry.getById(blueprint.archetypeId!);
+      if (arch != null) {
+        _songArchetype = arch;
+        _songProcgenMeta = arch.toProcgenMap();
+      }
+    }
+    notifyListeners();
+  }
+
+  // Song Procgen Metadata & Archetype Directives (for Exemplar-Based Generation)
+  SongArchetype? _songArchetype;
+  SongArchetype? get songArchetype => _songArchetype;
+
+  Map<String, dynamic>? _songProcgenMeta;
+  Map<String, dynamic>? get songProcgenMeta => _songProcgenMeta;
+
+  void setSongArchetype(SongArchetype? archetype) {
+    _songArchetype = archetype;
+    _songProcgenMeta = archetype?.toProcgenMap();
+    notifyListeners();
+  }
+
+  void setSongProcgenMeta(Map<String, dynamic>? meta) {
+    _songProcgenMeta = meta;
+    if (meta != null && meta.isNotEmpty) {
+      _songArchetype = SongArchetype.fromEatMap({
+        'meta': {'title': projectName, 'songKey': songKey, 'bpm': bpm},
+        'procgen': meta,
+      });
+    } else {
+      _songArchetype = null;
+    }
+    notifyListeners();
+  }
+
+  /// Regenerates a new procedural variation using the active song blueprint and a new seed.
+  ProjectScriptResult? regenerateFromSongBlueprint({int? newSeed}) {
+    if (_songBlueprint == null) return null;
+    final seedToUse = newSeed ?? (math.Random().nextInt(900000) + 100000);
+    beginHistoryTransaction('Regenerate Song from Blueprint (#$seedToUse)', icon: Icons.auto_awesome);
+    final result = ProceduralEnsembleEngine.renderBlueprint(this, _songBlueprint!, seed: seedToUse);
+    commitHistoryTransaction();
+    triggerAutoSave();
+    notifyListeners();
+    return result;
+  }
 
   // Global Harmonic & Chord Track State
   String _songKey = 'C Major';
@@ -881,6 +944,8 @@ class DawState extends ChangeNotifier {
         _guiAnimationsEnabled = animations;
       }
 
+      await GeminiService.loadPersistedApiKey();
+
       notifyListeners();
     } catch (e) {
       debugPrint('DawState: Error loading persisted settings: $e');
@@ -1390,6 +1455,8 @@ class DawState extends ChangeNotifier {
         _masterVolume.hashCode ^
         projectName.hashCode ^
         authorName.hashCode ^
+        (_songBlueprint?.title.hashCode ?? 0) ^
+        (_songBlueprintSeed ?? 0) ^
         (_masterSubCut * 10).round() ^
         (_masterLowGain * 10).round() ^
         (_masterMidFreq * 10).round() ^
@@ -1444,6 +1511,9 @@ class DawState extends ChangeNotifier {
     arrangerStepNotifier.value = 0;
     continuousArrangerStepNotifier.value = 0.0;
     currentBarNotifier.value = 0;
+
+    _songBlueprint = null;
+    _songBlueprintSeed = null;
 
     audioEngine.clearChannelStrips();
     EatScriptEngine.resetVoiceStates();
@@ -6033,19 +6103,24 @@ def gui():
     }
   }
 
-  void updateLuaParam(String paramName, double value) {
-    activeTrack.luaParams[paramName] = value;
-    final isEatsVinylTrack = activeTrack.luaScriptCode.contains('EatsVinyl') ||
-        activeTrack.luaScriptCode.contains('VintageDegrader') ||
-        activeTrack.luaScriptCode.contains('vintage_era_degrader');
+  void updateLuaParam(String paramName, double value, [TrackChannel? targetTrack]) {
+    final track = targetTrack ?? activeTrack;
+    track.luaParams[paramName] = value;
+    final isEatsVinylTrack = track.luaScriptCode.contains('EatsVinyl') ||
+        track.luaScriptCode.contains('VintageDegrader') ||
+        track.luaScriptCode.contains('vintage_era_degrader');
     if (isEatsVinylTrack && paramName == 'Medium') {
       final presetMap = getEatsVinylMediumPreset(value.toInt());
       for (final entry in presetMap.entries) {
-        activeTrack.luaParams[entry.key] = entry.value;
+        track.luaParams[entry.key] = entry.value;
       }
     }
+    track.invalidateParamsHash();
     notifyListeners();
   }
+
+  void updateEatScriptParam(String paramName, double value, [TrackChannel? targetTrack]) =>
+      updateLuaParam(paramName, value, targetTrack);
 
   void setPatternLength(Pattern pattern, int length) {
     pattern.lengthSteps = length;

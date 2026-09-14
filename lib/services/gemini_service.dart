@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import '../models/track_model.dart';
+import '../audio/procgen/ensemble_blueprint.dart';
+import '../audio/procgen/song_archetype_registry.dart';
+import 'secure_storage_service.dart';
 
 class ConnectionTestResult {
   final bool isSuccess;
@@ -25,9 +28,43 @@ class GeminiService {
 
   static String? _apiKey;
   static String get apiKey => _apiKey ?? '';
-  static set apiKey(String key) => _apiKey = key.trim();
+  static set apiKey(String key) {
+    _apiKey = key.trim();
+    if (_apiKey!.isNotEmpty && keySource == GeminiKeySource.none) {
+      keySource = GeminiKeySource.sessionOnly;
+    }
+  }
+
+  static GeminiKeySource keySource = GeminiKeySource.none;
 
   static bool get hasApiKey => _apiKey != null && _apiKey!.trim().isNotEmpty;
+
+  /// Loads the persisted key from secure vault or environment on startup
+  static Future<void> loadPersistedApiKey() async {
+    final result = await SecureStorageService.loadGeminiApiKey();
+    if (result.key != null && result.key!.isNotEmpty) {
+      _apiKey = result.key;
+      keySource = result.source;
+    }
+  }
+
+  /// Persists the API key to OS secure storage (or browser storage on Web)
+  static Future<void> persistApiKey(String key) async {
+    _apiKey = key.trim();
+    if (_apiKey!.isNotEmpty) {
+      await SecureStorageService.saveGeminiApiKey(_apiKey!);
+      keySource = kIsWeb ? GeminiKeySource.browserStorage : GeminiKeySource.settingsFile;
+    } else {
+      await deleteApiKey();
+    }
+  }
+
+  /// Deletes the API key from memory and persistent secure storage
+  static Future<void> deleteApiKey() async {
+    _apiKey = '';
+    keySource = GeminiKeySource.none;
+    await SecureStorageService.deleteGeminiApiKey();
+  }
 
   static String _activeModel = _defaultModel;
   static String get activeModel => _activeModel;
@@ -607,6 +644,153 @@ Create a complete $barLength-bar $genre song arrangement in $songKey at $bpm BPM
 
     final rawOutput = await _callGemini(systemInstruction: systemInstruction, userPrompt: promptText);
     return _extractCode(rawOutput);
+  }
+
+  /// Curated fallback bank of inspiring musical vision prompts if offline or key is missing.
+  static final List<String> curatedPromptBank = [
+    'RPG fireside tavern waltz with acoustic lute and wooden flute in 3/4 time, key of D Dorian',
+    'Evolving cyberpunk battle theme starting with solo cello and transitioning into heavy bass and analog synth drop',
+    'Ambient crystalline cavern in E minor with ethereal harp arpeggios, warm pad, and solo ocarina',
+    'Late-night neo-soul jazz trio with upright bass, warm Rhodes piano, and swung brush drums at 82 BPM',
+    'C64 8-bit European demo scene anthem in A minor with rapid 50Hz PWM arpeggio and singing pulse lead',
+    'Pastoral Studio Ghibli inspired anime town theme with acoustic guitar, accordion, and whistling lead in 6/8',
+    '90s Acid house rave anthem with syncopated 909 drums, squelchy resonant 303 bass, and euphoric chord stabs',
+    'Moody Nordic cinematic soundscape in B minor with bowed strings, low brass drone, and solitary high flute',
+    'Melodic chiptune boss battle with driving SNES slap bass, punchy 16-bit console drums, and heroic dual leads',
+    'Lo-fi study beat in F major with nostalgic felt piano, sub bass, vinyl crackle, and gentle vibraphone counterpoint',
+  ];
+
+  /// Generates an imaginative, production-ready musical prompt using Gemini (with instant curated fallback).
+  static Future<String> generateMagicPrompt() async {
+    if (!hasApiKey) {
+      final rng = math.Random();
+      return curatedPromptBank[rng.nextInt(curatedPromptBank.length)];
+    }
+
+    try {
+      const systemInstruction = '''
+You are an imaginative music composer and creative director.
+Generate a single, highly evocative, creative song arrangement prompt (1 to 2 sentences) for an algorithmic DAW ensemble.
+Specify mood, interesting instrumentation (e.g. lute, cello, flutes, synth, rhodes, harp, brass...), meter (e.g. 3/4 waltz, 6/8, 4/4), tempo/BPM, and a tonal center or key/mode.
+Output ONLY the plain prompt text without quotes, formatting, or prefixes.
+''';
+
+      final result = await _callGemini(
+        systemInstruction: systemInstruction,
+        userPrompt: 'Suggest an inspiring, creative song arrangement prompt with interesting instruments and meter.',
+      );
+
+      var clean = result.trim();
+      if ((clean.startsWith('"') && clean.endsWith('"')) || (clean.startsWith("'") && clean.endsWith("'"))) {
+        clean = clean.substring(1, clean.length - 1).trim();
+      }
+      if (clean.isNotEmpty) {
+        return clean;
+      }
+    } catch (e) {
+      debugPrint('[GeminiService] generateMagicPrompt fallback: $e');
+    }
+
+    final rng = math.Random();
+    return curatedPromptBank[rng.nextInt(curatedPromptBank.length)];
+  }
+
+  /// Generates a structured [SongStructureBlueprint] from a natural language prompt using Gemini as the Song Architect.
+  static Future<SongStructureBlueprint> generateEnsembleBlueprint({
+    required String prompt,
+    int? requestedBars,
+  }) async {
+    if (!hasApiKey) {
+      throw Exception('Gemini API key is required. Please set your key in AI Settings.');
+    }
+
+    await SongArchetypeRegistry.initialize();
+    final exemplarSummaries = SongArchetypeRegistry.generateAllExemplarSummaries();
+
+    final systemInstruction = '''
+You are an expert Music Arranger, Composer, and Song Architect for Eatsbeats DAW.
+Your mission is to design a complete, multi-track Ensemble Song Blueprint in clean JSON format.
+Do NOT output raw MIDI notes. Instead, output the macro-structural blueprint (instruments, roles, meter, chords, and section energy).
+
+AVAILABLE FACTORY INSTRUMENT PRESET IDs:
+- Drums/Percussion: "snes_drum_kit", "c64_sid_drum_kit", "gm_standard_drum_kit", "analog_909_kick", "analog_909_snare", "analog_909_closed_hihat"
+- Bass: "snes_synth", "c64_sid_synth", "acid_303", "analog_bass", "sub_bass_synth", "felt_piano" (upright), "acoustic_bass"
+- Chords/Pads/Keys: "felt_piano", "rhodes_epiano", "analog_pad", "vintage_keys", "snes_synth", "c64_sid_synth", "concert_grand_piano", "acoustic_steel_guitar", "spanish_guitar"
+- Leads/Melody: "snes_synth", "c64_sid_synth", "poly_lead", "ym2612_synth", "vintage_mono_lead", "felt_piano" (vibes), "vibraphone", "spanish_guitar", "wooden_flute"
+
+ROLES:
+- "rhythm": drums/percussion
+- "foundation": bass / root
+- "harmonicTexture": chords/pads/strums (textureType: "sustained", "strummed", "arpeggiated", "stabs")
+- "primaryMelody": main hook/solo/flute
+- "counterpoint": answering lines / brass stabs / secondary harmony
+
+MELODY DIRECTIVES (Empower high variety in leads & hooks):
+- "melodyStyle": Choose an evocative style per section matching the genre/vibe:
+  - "heroicAnthem": Bold triumphant leaps (4ths, 5ths, octaves), dotted figures, slides into held climaxes
+  - "lyrical": Expressive, soulful, singing vocal-like phrasing with natural breath/rests
+  - "syncopatedRiff": Funky, driving offbeat anticipations, punchy rhythmic hooks
+  - "cascadingRun": Rapid undulating scalar runs and arpeggio waves (chiptune / synthwave)
+  - "folkBallad": Pastoral lilting pentatonic, ornamental grace notes (3/4 or 4/4)
+  - "bluesy": Expressive blue notes (b3, b5, b7), bent slides, call-and-response
+  - "atmospheric": Spacious, floating, ethereal notes with long tails
+- "melodyMotif": Optional array of 3-6 scale degree offsets (e.g. [0, 2, 4, 7], [0, 3, 7, 10], [7, 5, 3, 0], [0, 4, 7, 11]) to define the hook's signature melodic DNA.
+- "melodyDensity": 0.1 to 1.0 (controlling note frequency vs space/rests).
+
+$exemplarSummaries
+
+INSTRUCTIONS FOR USING LOCAL ARCHETYPES & EXEMPLARS:
+- When the user's prompt matches an archetype (e.g. "fantasy", "RPG", "medieval", "acoustic adventure", "Ultima", "tavern journey", "midnight bites"), or any compatible style, you MUST set "archetypeId": "<id>" in the JSON response, and draw directly from the archetype's instrumentation, lead directives (phrasing style, ornamentation, glissando density), and section hints.
+- CONDITIONAL LEAD MELODY RULE: If an archetype does NOT have a lead melody track (or is an accompaniment, rhythm groove, or ambient texture), DO NOT force or include a "primaryMelody" track in the ensemble UNLESS the user explicitly asks for a lead, hook, or solo in their prompt!
+- You can cross-breed multiple archetypes or introduce fresh variations (modulating keys, shifting tempos, altering chords).
+
+RESPONSE FORMAT (JSON ONLY, NO MARKDOWN OUTSIDE JSON):
+{
+  "archetypeId": "fantasy_rpg_midnight_bites",
+  "title": "Short Descriptive Title",
+  "bpm": 120.0,
+  "meter": "4/4",
+  "rootPitchClass": 0,
+  "mode": "minor",
+  "ensemble": [
+    {
+      "trackId": "t1",
+      "name": "Instrument Name",
+      "presetId": "felt_piano",
+      "role": "harmonicTexture",
+      "textureType": "strummed",
+      "colorHex": 4282433016
+    }
+  ],
+  "sections": [
+    {
+      "name": "Intro",
+      "lengthBars": 4,
+      "chords": [
+        { "rootPitchClass": 0, "quality": "minor", "barLength": 2.0 },
+        { "rootPitchClass": 7, "quality": "minor", "barLength": 2.0 }
+      ],
+      "trackEnergy": { "t1": 0.8 },
+      "melodyBehavior": "themeA",
+      "melodyStyle": "lyrical",
+      "melodyMotif": [0, 3, 7, 10],
+      "melodyDensity": 0.70,
+      "transitionFill": "none"
+    }
+  ]
+}
+''';
+
+    final promptText = 'Create an ensemble song architecture blueprint for: "$prompt" ${requestedBars != null ? "targeting approximately $requestedBars bars." : ""}';
+    final rawOutput = await _callGemini(
+      systemInstruction: systemInstruction,
+      userPrompt: promptText,
+      responseMimeType: 'application/json',
+    );
+
+    final cleanJson = _cleanJsonResponse(rawOutput);
+    final decoded = jsonDecode(cleanJson) as Map<String, dynamic>;
+    return SongStructureBlueprint.fromJson(decoded);
   }
 
   /// Low-level Gemini REST API caller with automatic model fallback and timeout protection.

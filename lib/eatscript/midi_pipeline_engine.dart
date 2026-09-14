@@ -4,11 +4,79 @@ import '../models/chord_model.dart';
 import '../audio/time_context.dart';
 import 'eat_script_engine.dart';
 
+/// Resolved MIDI FX type for fast enum-based dispatch without string matching on each step.
+enum MidiFxType {
+  eatscript,
+  chordFollow,
+  chordArp,
+  scaleSnap,
+  arpeggiator,
+  humanize,
+  chordStabs,
+  transpose,
+  passthrough,
+}
+
 /// Evaluates clips and processes MIDI FX chains to produce scheduled Note events.
 /// Implements persistent Voice ID tracking to prevent stuck notes when parameters
 /// or pitch mappings are transformed dynamically.
 class MidiPipelineEngine {
   final Object? luaEngine;
+
+  static final Map<String, MidiFxType> _midiFxTypeCache = {};
+  static final Map<String, MidiFxType> _clipScriptTypeCache = {};
+
+  static void clearDispatchCaches() {
+    _midiFxTypeCache.clear();
+    _clipScriptTypeCache.clear();
+  }
+
+  static MidiFxType _detectClipScriptType(String script) {
+    if (script.contains('eat.') || script.contains('def ') || script.contains('for ')) {
+      return MidiFxType.eatscript;
+    }
+    if (script.contains('chord_follow') || script.contains('snap_to_chord') || script.contains('Chord.snap') || script.contains('Chord.conform')) {
+      return MidiFxType.chordFollow;
+    }
+    if (script.contains('chord_arp') || script.contains('Chord.arpeggiate')) {
+      return MidiFxType.chordArp;
+    }
+    if (script.contains('chord_stabs') || script.contains('Chord.generate_voicing')) {
+      return MidiFxType.chordStabs;
+    }
+    if (script.contains('Midi.arpeggiate') || script.toLowerCase().contains('arpeggiat') || script.toLowerCase().contains('arp')) {
+      return MidiFxType.arpeggiator;
+    }
+    if (script.contains('transpose')) {
+      return MidiFxType.transpose;
+    }
+    return MidiFxType.passthrough;
+  }
+
+  static MidiFxType _detectMidiFxType(String code, String nameLower) {
+    if (code.contains('eat.') || code.contains('def ') || code.contains('for ')) {
+      return MidiFxType.eatscript;
+    }
+    if (code.contains('chord_follower') || code.contains('chord_follow') || nameLower.contains('chord follow') || nameLower.contains('harmonic')) {
+      return MidiFxType.chordFollow;
+    }
+    if (code.contains('chord_arp') || nameLower.contains('chord arp')) {
+      return MidiFxType.chordArp;
+    }
+    if (code.contains('scale_snap') || nameLower.contains('scale')) {
+      return MidiFxType.scaleSnap;
+    }
+    if (code.contains('arpeggiator') || nameLower.contains('arpeggiator') || nameLower.contains('arp')) {
+      return MidiFxType.arpeggiator;
+    }
+    if (code.contains('humanize') || nameLower.contains('humanize')) {
+      return MidiFxType.humanize;
+    }
+    if (code.contains('chord_stabs') || code.contains('Chord.generate_voicing') || nameLower.contains('voicing') || nameLower.contains('stabs')) {
+      return MidiFxType.chordStabs;
+    }
+    return MidiFxType.passthrough;
+  }
 
   MidiPipelineEngine({this.luaEngine});
 
@@ -46,7 +114,7 @@ class MidiPipelineEngine {
     return activeNotes;
   }
 
-  static bool _isMidiTransformScript(String code) {
+  static bool isMidiTransformScript(String code) {
     final lower = code.toLowerCase();
     return lower.contains('transform_notes') ||
         lower.contains('function process') ||
@@ -61,81 +129,76 @@ class MidiPipelineEngine {
   }
 
   /// Evaluates an optional clip script transformation hook (e.g. process(notes, timeCtx)).
-  List<Note> _evaluateClipScript(
+  static List<Note> evaluateClipScript(
     TrackClip clip,
     List<Note> baseNotes,
     TimeContext timeContext,
   ) {
     final script = clip.luaScriptCode.trim();
+    final fxType = _clipScriptTypeCache.putIfAbsent(script, () => _detectClipScriptType(script));
 
-    // 0. Eatscript Evaluation
-    if (script.contains('eat.') || script.contains('def ') || script.contains('for ')) {
-      final generatedNotes = EatScriptEngine.executeClipScript(
-        script,
-        baseNotes,
-        paramValues: clip.luaParams,
-        tempo: timeContext.bpm,
-        keyRoot: timeContext.songKeyRoot,
-        isMinor: timeContext.isSongKeyMinor,
-        timeContext: timeContext,
-      );
-      if (generatedNotes.isNotEmpty) return generatedNotes;
+    switch (fxType) {
+      case MidiFxType.eatscript:
+        final generatedNotes = EatScriptEngine.executeClipScript(
+          script,
+          baseNotes,
+          paramValues: clip.luaParams,
+          tempo: timeContext.bpm,
+          keyRoot: timeContext.songKeyRoot,
+          isMinor: timeContext.isSongKeyMinor,
+          timeContext: timeContext,
+        );
+        if (generatedNotes.isNotEmpty) return generatedNotes;
+        return baseNotes;
+
+      case MidiFxType.chordFollow:
+        final rawMode = clip.luaParams['mode'] ?? 0.0;
+        String modeStr = 'chord';
+        if (rawMode == 1.0) {
+          modeStr = 'bass';
+        } else if (rawMode == 2.0) {
+          modeStr = 'scale';
+        } else if (rawMode == 3.0) {
+          modeStr = 'colorLead';
+        }
+        return applyChordFollow(baseNotes, timeContext, mode: modeStr);
+
+      case MidiFxType.chordArp:
+        final rate = clip.luaParams['rate'] ?? clip.luaParams['Rate'] ?? 1.0;
+        final octaves = (clip.luaParams['octaves'] ?? clip.luaParams['Octaves'] ?? 1.0).toInt();
+        final pattern = _parsePattern(clip.luaParams['pattern'] ?? clip.luaParams['Pattern']);
+        final gate = clip.luaParams['gate'] ?? clip.luaParams['Gate'] ?? 0.85;
+        final swing = clip.luaParams['swing'] ?? clip.luaParams['Swing'] ?? 0.0;
+        return applyChordArpeggiate(baseNotes, timeContext, stepRate: rate, octaves: octaves, pattern: pattern, gate: gate, swing: swing);
+
+      case MidiFxType.chordStabs:
+        return generateChordVoicings(baseNotes, timeContext);
+
+      case MidiFxType.arpeggiator:
+        final rate = clip.luaParams['rate'] ?? clip.luaParams['Rate'] ?? 1.0;
+        final octaves = (clip.luaParams['octaves'] ?? clip.luaParams['Octaves'] ?? 2.0).toInt();
+        final pattern = _parsePattern(clip.luaParams['pattern'] ?? clip.luaParams['Pattern']);
+        final gate = clip.luaParams['gate'] ?? clip.luaParams['Gate'] ?? 0.85;
+        final swing = clip.luaParams['swing'] ?? clip.luaParams['Swing'] ?? 0.0;
+        return applyArpeggiator(
+          baseNotes,
+          stepRate: rate,
+          octaves: octaves,
+          pattern: pattern,
+          gate: gate,
+          swing: swing,
+          timeContext: timeContext,
+        );
+
+      case MidiFxType.transpose:
+        final semitones = (clip.luaParams['semitones'] ?? 0.0).round();
+        return baseNotes.map((n) => n.copyWith(pitch: (n.pitch + semitones).clamp(0, 127))).toList();
+
+      case MidiFxType.scaleSnap:
+      case MidiFxType.humanize:
+      case MidiFxType.passthrough:
+        return baseNotes;
     }
-
-    // 1. Chord Follower Clip Transformation Hook
-    if (script.contains('chord_follow') || script.contains('snap_to_chord') || script.contains('Chord.snap') || script.contains('Chord.conform')) {
-      final rawMode = clip.luaParams['mode'] ?? 0.0;
-      String modeStr = 'chord';
-      if (rawMode == 1.0) {
-        modeStr = 'bass';
-      } else if (rawMode == 2.0) {
-        modeStr = 'scale';
-      } else if (rawMode == 3.0) {
-        modeStr = 'colorLead';
-      }
-      return applyChordFollow(baseNotes, timeContext, mode: modeStr);
-    }
-
-    // 2. Chord Arpeggiator Clip Transformation Hook
-    if (script.contains('chord_arp') || script.contains('Chord.arpeggiate')) {
-      final rate = clip.luaParams['rate'] ?? clip.luaParams['Rate'] ?? 1.0;
-      final octaves = (clip.luaParams['octaves'] ?? clip.luaParams['Octaves'] ?? 1.0).toInt();
-      final pattern = _parsePattern(clip.luaParams['pattern'] ?? clip.luaParams['Pattern']);
-      final gate = clip.luaParams['gate'] ?? clip.luaParams['Gate'] ?? 0.85;
-      final swing = clip.luaParams['swing'] ?? clip.luaParams['Swing'] ?? 0.0;
-      return applyChordArpeggiate(baseNotes, timeContext, stepRate: rate, octaves: octaves, pattern: pattern, gate: gate, swing: swing);
-    }
-
-    // 3. Chord Voicing / Stabs Generator Hook
-    if (script.contains('chord_stabs') || script.contains('Chord.generate_voicing')) {
-      return generateChordVoicings(baseNotes, timeContext);
-    }
-
-    // 4. Standard Arpeggiator fallback
-    if (script.contains('Midi.arpeggiate') || script.toLowerCase().contains('arpeggiat') || script.toLowerCase().contains('arp')) {
-      final rate = clip.luaParams['rate'] ?? clip.luaParams['Rate'] ?? 1.0;
-      final octaves = (clip.luaParams['octaves'] ?? clip.luaParams['Octaves'] ?? 2.0).toInt();
-      final pattern = _parsePattern(clip.luaParams['pattern'] ?? clip.luaParams['Pattern']);
-      final gate = clip.luaParams['gate'] ?? clip.luaParams['Gate'] ?? 0.85;
-      final swing = clip.luaParams['swing'] ?? clip.luaParams['Swing'] ?? 0.0;
-      return applyArpeggiator(
-        baseNotes,
-        stepRate: rate,
-        octaves: octaves,
-        pattern: pattern,
-        gate: gate,
-        swing: swing,
-        timeContext: timeContext,
-      );
-    }
-
-    // 5. Transpose fallback
-    if (script.contains('transpose')) {
-      final semitones = (clip.luaParams['semitones'] ?? 0.0).round();
-      return baseNotes.map((n) => n.copyWith(pitch: (n.pitch + semitones).clamp(0, 127))).toList();
-    }
-
-    return baseNotes;
   }
 
   /// Evaluates a MIDI FX insert on a stream/list of notes.
@@ -146,100 +209,93 @@ class MidiPipelineEngine {
   ) {
     final code = midiFX.luaScriptCode.trim();
     final nameLower = midiFX.name.toLowerCase();
+    final cacheKey = '$nameLower\u0000$code';
+    final fxType = _midiFxTypeCache.putIfAbsent(cacheKey, () => _detectMidiFxType(code, nameLower));
 
-    // 0. Eatscript Evaluation
-    if (code.contains('eat.') || code.contains('def ') || code.contains('for ')) {
-      final generatedNotes = EatScriptEngine.executeClipScript(
-        code,
-        notes,
-        paramValues: midiFX.luaParams,
-        tempo: timeContext.bpm,
-        keyRoot: timeContext.songKeyRoot,
-        isMinor: timeContext.isSongKeyMinor,
-        timeContext: timeContext,
-      );
-      if (generatedNotes.isNotEmpty) return generatedNotes;
-    }
-
-    // 1. Harmonic Chord Follower MIDI FX
-    if (code.contains('chord_follower') || code.contains('chord_follow') || nameLower.contains('chord follow') || nameLower.contains('harmonic')) {
-      final rawMode = midiFX.luaParams['Mode'] ?? midiFX.luaParams['mode'] ?? 0.0;
-      String modeStr = 'chord';
-      final modeInt = rawMode.round();
-      if (modeInt == 1) {
-        modeStr = 'bass';
-      } else if (modeInt == 2) {
-        modeStr = 'scale';
-      } else if (modeInt == 3) {
-        modeStr = 'colorLead';
-      }
-      return applyChordFollow(notes, timeContext, mode: modeStr);
-    }
-
-    // 2. Chord Arpeggiator MIDI FX (Arpeggiates active Chord Track pitch classes)
-    if (code.contains('chord_arp') || nameLower.contains('chord arp')) {
-      final rate = midiFX.luaParams['Rate'] ?? midiFX.luaParams['rate'] ?? 1.0;
-      final octaves = (midiFX.luaParams['Octaves'] ?? midiFX.luaParams['octaves'] ?? 1.0).toInt();
-      final pattern = _parsePattern(midiFX.luaParams['Pattern'] ?? midiFX.luaParams['pattern']);
-      final gate = midiFX.luaParams['Gate'] ?? midiFX.luaParams['gate'] ?? 0.85;
-      final swing = midiFX.luaParams['Swing'] ?? midiFX.luaParams['swing'] ?? 0.0;
-      return applyChordArpeggiate(notes, timeContext, stepRate: rate, octaves: octaves, pattern: pattern, gate: gate, swing: swing);
-    }
-
-    // 3. Scale Snap MIDI FX (Snaps to project key or user selected key)
-    if (code.contains('scale_snap') || nameLower.contains('scale')) {
-      final key = (midiFX.luaParams['Key'] ?? midiFX.luaParams['key'] ?? timeContext.songKeyRoot).round();
-      final isMinor = (midiFX.luaParams['Minor'] != null)
-          ? (midiFX.luaParams['Minor']! > 0.5)
-          : timeContext.isSongKeyMinor;
-      return notes.map((n) {
-        final snappedPitch = isMinor
-            ? _snapToMinorScale(n.pitch, key)
-            : _snapToMajorScale(n.pitch, key);
-        return n.copyWith(pitch: snappedPitch);
-      }).toList();
-    }
-
-    // 4. Arpeggiator MIDI FX
-    if (code.contains('arpeggiator') || nameLower.contains('arpeggiator') || nameLower.contains('arp')) {
-      final rate = midiFX.luaParams['Rate'] ?? midiFX.luaParams['rate'] ?? 1.0;
-      final octaves = (midiFX.luaParams['Octaves'] ?? midiFX.luaParams['octaves'] ?? 2.0).toInt();
-      final pattern = _parsePattern(midiFX.luaParams['Pattern'] ?? midiFX.luaParams['pattern']);
-      final gate = midiFX.luaParams['Gate'] ?? midiFX.luaParams['gate'] ?? 0.85;
-      final swing = midiFX.luaParams['Swing'] ?? midiFX.luaParams['swing'] ?? 0.0;
-      return applyArpeggiator(
-        notes,
-        stepRate: rate,
-        octaves: octaves,
-        pattern: pattern,
-        gate: gate,
-        swing: swing,
-        timeContext: timeContext,
-      );
-    }
-
-    // 5. Humanize MIDI FX
-    if (code.contains('humanize') || nameLower.contains('humanize')) {
-      final timingAmount = midiFX.luaParams['timing'] ?? midiFX.luaParams['Timing'] ?? 0.04; // max offset in steps
-      final velAmount = midiFX.luaParams['velocity'] ?? midiFX.luaParams['Velocity'] ?? 0.15;
-      final rand = math.Random(nHashCode(notes));
-
-      return notes.map((n) {
-        final offset = (rand.nextDouble() * 2 - 1) * timingAmount;
-        final newVel = (n.velocity + (rand.nextDouble() * 2 - 1) * velAmount).clamp(0.1, 1.0);
-        return n.copyWith(
-          startStep: math.max(0.0, n.startStep + offset),
-          velocity: newVel,
+    switch (fxType) {
+      case MidiFxType.eatscript:
+        final generatedNotes = EatScriptEngine.executeClipScript(
+          code,
+          notes,
+          paramValues: midiFX.luaParams,
+          tempo: timeContext.bpm,
+          keyRoot: timeContext.songKeyRoot,
+          isMinor: timeContext.isSongKeyMinor,
+          timeContext: timeContext,
         );
-      }).toList();
-    }
+        if (generatedNotes.isNotEmpty) return generatedNotes;
+        return notes;
 
-    // 6. Chord Voicing / Stabs MIDI FX
-    if (code.contains('chord_stabs') || code.contains('Chord.generate_voicing') || nameLower.contains('voicing') || nameLower.contains('stabs')) {
-      return generateChordVoicings(notes, timeContext);
-    }
+      case MidiFxType.chordFollow:
+        final rawMode = midiFX.luaParams['Mode'] ?? midiFX.luaParams['mode'] ?? 0.0;
+        String modeStr = 'chord';
+        final modeInt = rawMode.round();
+        if (modeInt == 1) {
+          modeStr = 'bass';
+        } else if (modeInt == 2) {
+          modeStr = 'scale';
+        } else if (modeInt == 3) {
+          modeStr = 'colorLead';
+        }
+        return applyChordFollow(notes, timeContext, mode: modeStr);
 
-    return notes;
+      case MidiFxType.chordArp:
+        final rate = midiFX.luaParams['Rate'] ?? midiFX.luaParams['rate'] ?? 1.0;
+        final octaves = (midiFX.luaParams['Octaves'] ?? midiFX.luaParams['octaves'] ?? 1.0).toInt();
+        final pattern = _parsePattern(midiFX.luaParams['Pattern'] ?? midiFX.luaParams['pattern']);
+        final gate = midiFX.luaParams['Gate'] ?? midiFX.luaParams['gate'] ?? 0.85;
+        final swing = midiFX.luaParams['Swing'] ?? midiFX.luaParams['swing'] ?? 0.0;
+        return applyChordArpeggiate(notes, timeContext, stepRate: rate, octaves: octaves, pattern: pattern, gate: gate, swing: swing);
+
+      case MidiFxType.scaleSnap:
+        final key = (midiFX.luaParams['Key'] ?? midiFX.luaParams['key'] ?? timeContext.songKeyRoot).round();
+        final isMinor = (midiFX.luaParams['Minor'] != null)
+            ? (midiFX.luaParams['Minor']! > 0.5)
+            : timeContext.isSongKeyMinor;
+        return notes.map((n) {
+          final snappedPitch = isMinor
+              ? _snapToMinorScale(n.pitch, key)
+              : _snapToMajorScale(n.pitch, key);
+          return n.copyWith(pitch: snappedPitch);
+        }).toList();
+
+      case MidiFxType.arpeggiator:
+        final rate = midiFX.luaParams['Rate'] ?? midiFX.luaParams['rate'] ?? 1.0;
+        final octaves = (midiFX.luaParams['Octaves'] ?? midiFX.luaParams['octaves'] ?? 2.0).toInt();
+        final pattern = _parsePattern(midiFX.luaParams['Pattern'] ?? midiFX.luaParams['pattern']);
+        final gate = midiFX.luaParams['Gate'] ?? midiFX.luaParams['gate'] ?? 0.85;
+        final swing = midiFX.luaParams['Swing'] ?? midiFX.luaParams['swing'] ?? 0.0;
+        return applyArpeggiator(
+          notes,
+          stepRate: rate,
+          octaves: octaves,
+          pattern: pattern,
+          gate: gate,
+          swing: swing,
+          timeContext: timeContext,
+        );
+
+      case MidiFxType.humanize:
+        final timingAmount = midiFX.luaParams['timing'] ?? midiFX.luaParams['Timing'] ?? 0.04; // max offset in steps
+        final velAmount = midiFX.luaParams['velocity'] ?? midiFX.luaParams['Velocity'] ?? 0.15;
+        final rand = math.Random(nHashCode(notes));
+
+        return notes.map((n) {
+          final offset = (rand.nextDouble() * 2 - 1) * timingAmount;
+          final newVel = (n.velocity + (rand.nextDouble() * 2 - 1) * velAmount).clamp(0.1, 1.0);
+          return n.copyWith(
+            startStep: math.max(0.0, n.startStep + offset),
+            velocity: newVel,
+          );
+        }).toList();
+
+      case MidiFxType.chordStabs:
+        return generateChordVoicings(notes, timeContext);
+
+      case MidiFxType.transpose:
+      case MidiFxType.passthrough:
+        return notes;
+    }
   }
 
   static String _parsePattern(dynamic raw) {

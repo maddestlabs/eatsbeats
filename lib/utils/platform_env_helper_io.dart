@@ -10,3 +10,12 @@ bool isFlutterTestImpl() {
     return Zone.current[#flutter.test] != null;
   }
 }
+
+String? getEnvImpl(String key) {
+  try {
+    return io.Platform.environment[key];
+  } catch (_) {
+    return null;
+  }
+}
+

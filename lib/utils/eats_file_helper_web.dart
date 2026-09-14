@@ -3,7 +3,7 @@ import 'dart:html' as html;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 
-void downloadWebZipImpl(Uint8List bytes, String fileName) {
+Future<String?> downloadWebZipImpl(Uint8List bytes, String fileName) async {
   try {
     final blob = html.Blob([bytes], 'application/zip');
     final url = html.Url.createObjectUrlFromBlob(blob);
@@ -18,36 +18,41 @@ void downloadWebZipImpl(Uint8List bytes, String fileName) {
     anchor.click();
     anchor.remove();
     html.Url.revokeObjectUrl(url);
+    return name;
   } catch (e) {
     debugPrint('Web ZIP download failed: $e');
+    return null;
   }
 }
 
-void downloadWebFileImpl(String content, String fileName) {
+Future<String?> downloadWebFileImpl(String content, String fileName) async {
   try {
     final bytes = utf8.encode(content);
-    final blob = html.Blob([bytes], 'text/x-lua;charset=utf-8');
+    final blob = html.Blob([bytes], 'text/plain;charset=utf-8');
     final url = html.Url.createObjectUrlFromBlob(blob);
+    final cleanName = fileName.endsWith('.eat') || fileName.endsWith('.eats') || fileName.endsWith('.eats.lua')
+        ? fileName
+        : '$fileName.eat';
     final anchor = html.AnchorElement()
       ..href = url
-      ..download = fileName.endsWith('.eats.lua') ? fileName : '$fileName.eats.lua'
+      ..download = cleanName
       ..style.display = 'none';
     html.document.body?.children.add(anchor);
     anchor.click();
     anchor.remove();
     html.Url.revokeObjectUrl(url);
+    return cleanName;
   } catch (e) {
     debugPrint('Web download failed: $e');
+    return null;
   }
 }
 
-void saveEatsZipFileImpl(Uint8List bytes, String fileName) {
-  downloadWebZipImpl(bytes, fileName);
-}
+Future<String?> saveEatsZipFileImpl(Uint8List bytes, String fileName) =>
+    downloadWebZipImpl(bytes, fileName);
 
-void saveEatsLuaFileImpl(String content, String fileName) {
-  downloadWebFileImpl(content, fileName);
-}
+Future<String?> saveEatsLuaFileImpl(String content, String fileName) =>
+    downloadWebFileImpl(content, fileName);
 
 void pickEatsFileWebImpl(
     Function(Uint8List? bytes, String? textContent, String fileName) onFileLoaded) {

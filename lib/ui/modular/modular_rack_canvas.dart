@@ -115,7 +115,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
   void _setParam(String name, double value) {
     setState(() {
       widget.track.luaParams[name] = value;
-      widget.dawState.updateLuaParam(name, value);
+      widget.dawState.updateLuaParam(name, value, widget.track);
     });
   }
 

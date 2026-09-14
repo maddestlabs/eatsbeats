@@ -100,6 +100,9 @@ class ProceduralDrumEngine {
           case '16-Bit Console Action':
             _generateSnesStep(notes, stepInBar, noteStart, density, ghostProb, humanize, rng);
             break;
+          case '8-Bit Chiptune / C64 SID':
+            _generateC64SidStep(notes, stepInBar, noteStart, density, ghostProb, humanize, rng);
+            break;
           case 'Trap / Halftime':
           default:
             _generateTrapStep(notes, stepInBar, noteStart, density, ghostProb, humanize, rng);
@@ -525,6 +528,78 @@ class ProceduralDrumEngine {
         startStep: noteStart,
         durationSteps: 0.5,
         velocity: _humanizeVel(0.45, humanize, rng),
+      );
+    }
+  }
+
+  static void _generateC64SidStep(
+    List<Note> notes,
+    int stepInBar,
+    double noteStart,
+    double density,
+    double ghostProb,
+    double humanize,
+    Mulberry32Rng rng,
+  ) {
+    // Authentic Commodore 64 Chiptune Groove:
+    // Driving punchy chip kick on 0, 8, and syncopated pushes on 6, 11
+    if (stepInBar == 0 || stepInBar == 8 || (stepInBar == 6 && rng.chance(density)) || (stepInBar == 11 && rng.chance(density * 0.75))) {
+      _addNote(
+        notes,
+        pitch: 36, // Bass Drum 1
+        startStep: noteStart,
+        durationSteps: 1.0,
+        velocity: _humanizeVel(0.95, humanize, rng),
+      );
+    }
+
+    // Snare: Crisp Galois LFSR noise backbeat on 4, 12 + chiptune ghost snaps on 3, 15
+    if (stepInBar == 4 || stepInBar == 12) {
+      _addNote(
+        notes,
+        pitch: 38, // Acoustic / Chip Snare
+        startStep: noteStart,
+        durationSteps: 1.0,
+        velocity: _humanizeVel(0.98, humanize, rng),
+      );
+    } else if (rng.chance(ghostProb) && (stepInBar == 3 || stepInBar == 15)) {
+      _addNote(
+        notes,
+        pitch: 38,
+        startStep: noteStart,
+        durationSteps: 0.5,
+        velocity: _humanizeVel(0.45, humanize, rng),
+      );
+    }
+
+    // Hi-Hats: Rapid 16ths with open hat splash on 14
+    if (stepInBar == 14 && rng.chance(0.65)) {
+      _addNote(
+        notes,
+        pitch: 46, // Open Hat
+        startStep: noteStart,
+        durationSteps: 1.2,
+        velocity: _humanizeVel(0.85, humanize, rng),
+      );
+    } else {
+      final double vel = (stepInBar % 4 == 0) ? 0.85 : (stepInBar % 2 == 0 ? 0.70 : 0.50);
+      _addNote(
+        notes,
+        pitch: 42, // Closed Hat
+        startStep: noteStart,
+        durationSteps: 0.5,
+        velocity: _humanizeVel(vel, humanize, rng),
+      );
+    }
+
+    // Hand clap accent on beat 4 (step 12) in high-energy bars
+    if (stepInBar == 12 && rng.chance(0.40)) {
+      _addNote(
+        notes,
+        pitch: 39, // Hand Clap
+        startStep: noteStart,
+        durationSteps: 0.5,
+        velocity: _humanizeVel(0.75, humanize, rng),
       );
     }
   }

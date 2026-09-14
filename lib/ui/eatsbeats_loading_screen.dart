@@ -7,6 +7,7 @@ import '../models/daw_state.dart';
 import '../theme/eats_theme.dart';
 import '../utils/html_preloader_helper.dart';
 import '../utils/soundfont_pack_manager.dart';
+import '../audio/procgen/song_archetype_registry.dart';
 import 'transport_header.dart';
 
 /// Skeuomorphic vintage rack panel loading screen for Eatsbeats startup.
@@ -31,13 +32,13 @@ class _EatsbeatsLoadingScreenState extends State<EatsbeatsLoadingScreen> with Si
   Timer? _stepTimer;
 
   final List<String> _initSteps = const [
-    'POWERING ON DIGITAL RACK HARDWARE...',
-    'INITIALIZING WEBAUDIO GRAPH CONTEXT...',
-    'PRE-LOADING BUNDLED SOUNDFONT (SUPER SMALL FONT)...',
-    'RESTORE CACHED SOUNDFONTS & USER PREFERENCES...',
-    'PRE-COMPILING LUA SYNTH MODULES (303, KICK, SNARE)...',
-    'WARMING UP DSP RACK FX PROCESSORS...',
-    'SYSTEM INITIALIZATION COMPLETE - DAWN OF SOUND',
+    'DOING STUFF...',
+    'INITIALIZING DSP STUFF...',
+    'PRE-LOADING PRE-LOAD STUFF...',
+    'RESTORING PREVIOUS STUFF...',
+    'PRE-COMPILING SCRIPT STUFF...',
+    'WARMING UP FX STUFF...',
+    'STUFF COMPLETE',
   ];
 
   @override
@@ -57,6 +58,7 @@ class _EatsbeatsLoadingScreenState extends State<EatsbeatsLoadingScreen> with Si
     final initFuture = () async {
       SoundFontEngine.instance.loadDefaultBundledFont();
       await SoundFontPackManager.instance.restoreCachedPacks();
+      await SongArchetypeRegistry.initialize();
       if (widget.dawState != null) {
         await widget.dawState!.loadPersistedSettings();
         if (widget.dawState!.autoRestoreSession) {
@@ -184,7 +186,7 @@ class _EatsbeatsLoadingScreenState extends State<EatsbeatsLoadingScreen> with Si
                                   ),
                                 ),
                                 Text(
-                                  'MODEL 808-LUA // HARDWARE RACK SYSTEM',
+                                  'MODEL 1010 // AUDIO HACKING SYSTEM',
                                   style: EatsTheme.getPrimaryFontStyle(
                                     fontSize: 9,
                                     fontWeight: FontWeight.bold,

@@ -629,3 +629,282 @@ class SIDSynthEngine {
     }
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  COMMODORE 64 SID DRUM KIT SYNTHESIZER ENGINE (GM DRUM NOTE MAPPINGS)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Synthesizes authentic Commodore 64 (MOS 6581 / 8580) chiptune drum sounds
+/// mapped to General MIDI standard note numbers (35..51+).
+class SIDDrumKitEngine {
+  /// Synthesizes audio buffer for a given General MIDI drum note number.
+  static Float32List synthesizeBuffer({
+    required int note,
+    required double durationSec,
+    required double velocity,
+    required Map<String, double> params,
+    double sampleRate = 44100.0,
+  }) {
+    final double masterTune = params['MasterTune'] ?? 0.0;
+    final double pitchMult = math.pow(2.0, masterTune / 12.0).toDouble();
+    final double noiseMetal = (params['NoiseMetal'] ?? 0.5).clamp(0.0, 1.0);
+    final double kickPunch = (params['KickPunch'] ?? 0.7).clamp(0.0, 1.0);
+    final double snareSnap = (params['SnareSnap'] ?? 0.6).clamp(0.0, 1.0);
+    final double overdrive = (params['Overdrive'] ?? 1.35).clamp(0.5, 3.0);
+    final bool is6581 = (params['ChipModel'] ?? 0.0) < 0.5;
+
+    // Drum piece duration determination
+    double drumDuration;
+    switch (note) {
+      case 35:
+      case 36: // Kick
+        drumDuration = 0.28;
+        break;
+      case 37: // Side Stick
+        drumDuration = 0.06;
+        break;
+      case 38:
+      case 40: // Snare
+        drumDuration = 0.22;
+        break;
+      case 39: // Clap
+        drumDuration = 0.24;
+        break;
+      case 42:
+      case 44: // Closed Hat
+        drumDuration = 0.055;
+        break;
+      case 46: // Open Hat
+        drumDuration = 0.32;
+        break;
+      case 41:
+      case 43:
+      case 45:
+      case 47:
+      case 48:
+      case 50: // Toms
+        drumDuration = 0.30;
+        break;
+      case 49:
+      case 52:
+      case 55:
+      case 57: // Crash
+        drumDuration = 0.85;
+        break;
+      case 51:
+      case 59: // Ride
+        drumDuration = 0.45;
+        break;
+      default:
+        drumDuration = 0.20;
+        break;
+    }
+
+    final double effectiveDuration = math.min(durationSec, drumDuration);
+    final int sampleCount = math.max(1, (effectiveDuration * sampleRate).round());
+    final Float32List buffer = Float32List(sampleCount);
+
+    final SIDNoiseGenerator noiseGen = SIDNoiseGenerator();
+    final SIDFilter filter = SIDFilter();
+    filter.chipModel = is6581 ? SIDChipModel.mos6581 : SIDChipModel.mos8580;
+
+    double phase = 0.0;
+    final double dt = 1.0 / sampleRate;
+
+    // Configure filter per drum archetype
+    if (note == 35 || note == 36) {
+      // Kick: Lowpass
+      filter.mode = SIDFilterMode.lowpass;
+      filter.cutoffReg = (750 * (1.0 + kickPunch * 0.4)).round();
+      filter.resonanceReg = 8;
+    } else if (note == 38 || note == 40) {
+      // Snare: Bandpass / Lowpass
+      filter.mode = SIDFilterMode.bandpass;
+      filter.cutoffReg = (1250 * (1.0 + snareSnap * 0.3)).round();
+      filter.resonanceReg = 7;
+    } else if (note == 42 || note == 44 || note == 46) {
+      // Hats: Highpass
+      filter.mode = SIDFilterMode.highpass;
+      filter.cutoffReg = 1600;
+      filter.resonanceReg = 4;
+    } else if (note >= 41 && note <= 50) {
+      // Toms: Lowpass
+      filter.mode = SIDFilterMode.lowpass;
+      filter.cutoffReg = 950;
+      filter.resonanceReg = 9;
+    } else {
+      // Cymbals: Bandpass
+      filter.mode = SIDFilterMode.bandpass;
+      filter.cutoffReg = 1450;
+      filter.resonanceReg = 6;
+    }
+
+    final double volScale = velocity.clamp(0.0, 1.0) * 0.88;
+
+    for (int i = 0; i < sampleCount; i++) {
+      final double t = i * dt;
+      final double progress = t / effectiveDuration;
+
+      double sample = 0.0;
+
+      switch (note) {
+        // 1. Kick Drums (35 Acoustic, 36 Bass Drum 1)
+        case 35:
+        case 36:
+          final double fStart = (180.0 + kickPunch * 90.0) * pitchMult;
+          const double fEnd = 44.0;
+          final double curFreq = fEnd + (fStart - fEnd) * math.exp(-t / 0.032);
+          phase += curFreq * dt;
+          if (phase >= 1.0) phase -= phase.floorToDouble();
+
+          // Triangle wave core: 4.0 * |phase - 0.5| - 1.0
+          final double tri = 4.0 * (phase - 0.5).abs() - 1.0;
+          // Initial 8ms click transient
+          final double click = (t < 0.008) ? (math.sin(phase * 2.0 * math.pi) * 0.4) : 0.0;
+          final double kickEnv = math.exp(-t / 0.085);
+          sample = (tri * 0.85 + click) * kickEnv;
+          break;
+
+        // 2. Side Stick / Rimshot (37)
+        case 37:
+          final double popFreq = 380.0 * pitchMult;
+          phase += popFreq * dt;
+          if (phase >= 1.0) phase -= phase.floorToDouble();
+          final double sqr = phase < 0.35 ? 1.0 : -1.0;
+          noiseGen.clock();
+          final double stickNoise = noiseGen.output;
+          final double stickEnv = math.exp(-t / 0.018);
+          sample = (sqr * 0.6 + stickNoise * 0.4) * stickEnv;
+          break;
+
+        // 3. Snare Drums (38 Acoustic Snare, 40 Electric Snare)
+        case 38:
+        case 40:
+          // Body tone
+          final double bodyStart = (260.0 + (note == 40 ? 40.0 : 0.0)) * pitchMult;
+          const double bodyEnd = 110.0;
+          final double bodyFreq = bodyEnd + (bodyStart - bodyEnd) * math.exp(-t / 0.025);
+          phase += bodyFreq * dt;
+          if (phase >= 1.0) phase -= phase.floorToDouble();
+          final double bodyTone = 4.0 * (phase - 0.5).abs() - 1.0;
+          final double bodyEnv = math.exp(-t / 0.045);
+
+          // 23-bit Galois LFSR Noise
+          noiseGen.clock();
+          if (t < 0.005) noiseGen.clock(); // Double clock transient
+          final double noiseVal = noiseGen.output;
+          final double noiseDecay = (0.07 + snareSnap * 0.06);
+          final double noiseEnv = math.exp(-t / noiseDecay);
+
+          final double toneRatio = (1.0 - snareSnap * 0.5) * 0.45;
+          final double noiseRatio = (0.55 + snareSnap * 0.45) * 0.75;
+          sample = (bodyTone * bodyEnv * toneRatio) + (noiseVal * noiseEnv * noiseRatio);
+          break;
+
+        // 4. Hand Clap (39)
+        case 39:
+          noiseGen.clock();
+          final double clapNoise = noiseGen.output;
+          double clapEnv = 0.0;
+          // 3 micro-flams at 0ms, 12ms, 24ms, then sustained decay
+          if (t < 0.011) {
+            clapEnv = math.exp(-t / 0.006);
+          } else if (t < 0.023) {
+            clapEnv = math.exp(-(t - 0.012) / 0.006);
+          } else {
+            clapEnv = math.exp(-(t - 0.024) / 0.065);
+          }
+          sample = clapNoise * clapEnv * 0.90;
+          break;
+
+        // 5. Closed Hi-Hat (42) & Pedal Hat (44)
+        case 42:
+        case 44:
+          noiseGen.clock();
+          final double hatNoise = noiseGen.output;
+          final double hatEnv = math.exp(-t / (note == 42 ? 0.022 : 0.028));
+          sample = hatNoise * hatEnv * 0.75;
+          break;
+
+        // 6. Open Hi-Hat (46)
+        case 46:
+          noiseGen.clock();
+          final double openNoise = noiseGen.output;
+          final double openEnv = math.exp(-t / (0.12 + noiseMetal * 0.08));
+          sample = openNoise * openEnv * 0.80;
+          break;
+
+        // 7. Toms (41, 43, 45, 47, 48, 50)
+        case 41:
+        case 43:
+        case 45:
+        case 47:
+        case 48:
+        case 50:
+          final tomFreqMap = {41: 85.0, 43: 105.0, 45: 130.0, 47: 160.0, 48: 195.0, 50: 240.0};
+          final baseFreq = (tomFreqMap[note] ?? 140.0) * pitchMult;
+          final double tomFreq = baseFreq * (0.85 + 0.65 * math.exp(-t / 0.04));
+          phase += tomFreq * dt;
+          if (phase >= 1.0) phase -= phase.floorToDouble();
+          final double tomTone = 4.0 * (phase - 0.5).abs() - 1.0;
+          noiseGen.clock();
+          final double tomNoise = (t < 0.015) ? noiseGen.output * 0.25 : 0.0;
+          final double tomEnv = math.exp(-t / 0.095);
+          sample = (tomTone * 0.85 + tomNoise) * tomEnv;
+          break;
+
+        // 8. Crash Cymbals (49, 52, 55, 57)
+        case 49:
+        case 52:
+        case 55:
+        case 57:
+          noiseGen.clock();
+          final double crashNoise = noiseGen.output;
+          // Inharmonic ring modulation with high-frequency pulse
+          phase += 1140.0 * dt;
+          if (phase >= 1.0) phase -= phase.floorToDouble();
+          final double ringTone = (phase < 0.25 ? 1.0 : -1.0) * 0.20;
+          final double crashEnv = math.exp(-t / 0.28);
+          sample = (crashNoise * 0.80 + ringTone) * crashEnv * 0.85;
+          break;
+
+        // 9. Ride Cymbal (51, 59)
+        case 51:
+        case 59:
+          noiseGen.clock();
+          final double rideNoise = noiseGen.output;
+          phase += 2150.0 * dt;
+          if (phase >= 1.0) phase -= phase.floorToDouble();
+          final double pingTone = math.sin(phase * 2.0 * math.pi) * 0.35;
+          final double rideEnv = math.exp(-t / 0.16);
+          sample = (rideNoise * 0.60 + pingTone) * rideEnv * 0.70;
+          break;
+
+        default:
+          noiseGen.clock();
+          sample = noiseGen.output * math.exp(-t / 0.05);
+          break;
+      }
+
+      // Filter processing
+      final double filtered = filter.process(sample, sampleRate);
+
+      // Master volume and FET overdrive
+      double finalSample = filtered * volScale;
+      if (overdrive > 1.01) {
+        finalSample = _fastTanh(finalSample * overdrive);
+      }
+
+      // Smooth envelope tail to avoid pop
+      if (progress > 0.90) {
+        final double fade = (1.0 - progress) / 0.10;
+        finalSample *= fade;
+      }
+
+      buffer[i] = finalSample.clamp(-1.0, 1.0);
+    }
+
+    return buffer;
+  }
+}
+

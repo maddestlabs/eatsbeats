@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' as io;
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import '../models/saved_project_model.dart';
 import 'platform_env_helper.dart';
@@ -61,6 +60,27 @@ class EatsStorageHelperImpl {
   }
 
   static io.File _getSettingsFile() {
+    // 1. Check if settings.json exists in binary directory (alongside executable)
+    try {
+      final exeFile = io.File(io.Platform.resolvedExecutable);
+      final exeDir = exeFile.parent;
+      final binarySettings = io.File('${exeDir.path}/settings.json');
+      final portableMarker = io.File('${exeDir.path}/portable.txt');
+      if (binarySettings.existsSync() || portableMarker.existsSync()) {
+        return binarySettings;
+      }
+    } catch (_) {}
+
+    // 2. Check current working directory (e.g. running locally or in development)
+    try {
+      final cwdSettings = io.File('${io.Directory.current.path}/settings.json');
+      final cwdPortable = io.File('${io.Directory.current.path}/portable.txt');
+      if (cwdSettings.existsSync() || cwdPortable.existsSync()) {
+        return cwdSettings;
+      }
+    } catch (_) {}
+
+    // 3. Fallback to standard AppData directory
     final base = _getBaseDirectory();
     return io.File('${base.path}/settings.json');
   }
@@ -132,12 +152,38 @@ class EatsStorageHelperImpl {
     return _cachedSettings!;
   }
 
+  static void reloadSettings() {
+    _cachedSettings = null;
+    _loadSettingsSync();
+  }
+
+  static String getSettingsFilePath() {
+    if (_isTest) return '/test/settings.json';
+    return _getSettingsFile().path;
+  }
+
+  static Future<void> openSettingsFolder() async {
+    if (_isTest) return;
+    try {
+      final file = _getSettingsFile();
+      if (!file.existsSync()) {
+        await file.parent.create(recursive: true);
+        await file.writeAsString(
+          const JsonEncoder.withIndent('  ').convert(_cachedSettings ?? {}),
+        );
+      }
+      await openFolderForFile(file.path);
+    } catch (e) {
+      debugPrint('Error opening settings folder: $e');
+    }
+  }
+
   static Future<void> _flushSettings() async {
     if (_isTest) return;
     try {
       final file = _getSettingsFile();
       await file.writeAsString(
-        jsonEncode(_cachedSettings ?? {}),
+        const JsonEncoder.withIndent('  ').convert(_cachedSettings ?? {}),
         mode: io.FileMode.write,
         flush: true,
       );
@@ -185,6 +231,14 @@ class EatsStorageHelperImpl {
     final settings = _loadSettingsSync();
     settings[key] = value;
     await _flushSettings();
+  }
+
+  static Future<void> remove(String key) async {
+    final settings = _loadSettingsSync();
+    if (settings.containsKey(key)) {
+      settings.remove(key);
+      await _flushSettings();
+    }
   }
 
   // --- SoundFont Storage API ---
@@ -458,6 +512,23 @@ class EatsStorageHelperImpl {
       }
     } catch (e) {
       debugPrint('Error opening projects folder in file manager: $e');
+    }
+  }
+
+  static Future<void> openFolderForFile(String filePath) async {
+    if (_isTest || filePath.isEmpty) return;
+    try {
+      if (io.Platform.isWindows) {
+        final clean = filePath.replaceAll('/', '\\');
+        await io.Process.run('explorer.exe', ['/select,', clean]);
+      } else if (io.Platform.isMacOS) {
+        await io.Process.run('open', ['-R', filePath]);
+      } else if (io.Platform.isLinux) {
+        final parent = io.File(filePath).parent.path;
+        await io.Process.run('xdg-open', [parent]);
+      }
+    } catch (e) {
+      debugPrint('Error opening folder for file in file manager: $e');
     }
   }
 

@@ -33,6 +33,8 @@ class Mulberry32Rng {
     return ((al * bl) + (((ah * bl + al * bh) & 0xFFFF) << 16)) & 0xFFFFFFFF;
   }
 
+  int nextInt(int max) => max <= 0 ? 0 : (nextDouble() * max).floor().clamp(0, max - 1);
+
   T pick<T>(List<T> list) => list[(nextDouble() * list.length).floor() % list.length];
 
   double rand(double a, double b) => a + nextDouble() * (b - a);

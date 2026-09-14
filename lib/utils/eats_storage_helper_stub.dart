@@ -39,6 +39,14 @@ class EatsStorageHelperImpl {
     _memorySettings[key] = value.toString();
   }
 
+  static Future<void> remove(String key) async {
+    _memorySettings.remove(key);
+  }
+
+  static void reloadSettings() {}
+  static String getSettingsFilePath() => '/settings.json';
+  static Future<void> openSettingsFolder() async {}
+
   static Future<void> saveSoundFont(String fileName, Uint8List bytes) async {
     _memorySoundFonts[fileName] = bytes;
   }
@@ -94,6 +102,8 @@ class EatsStorageHelperImpl {
   static String getProjectsFolderPath() => 'Projects';
 
   static Future<void> openProjectsFolder() async {}
+
+  static Future<void> openFolderForFile(String filePath) async {}
 
   static Future<List<SavedProjectItem>> listSavedProjects() async {
     return _memoryProjects.entries.map((e) {

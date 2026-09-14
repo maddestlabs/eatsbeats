@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../models/automation_model.dart';
@@ -99,6 +100,23 @@ class EatProjectSerializer {
         buffer.writeln('    { id = "${_escapeString(fx.id)}", name = "${_escapeString(fx.name)}", type = "${fx.type.name}", enabled = ${fx.enabled}, mix = ${fx.mix.toStringAsFixed(2)}, params = ${_formatMap(fx.params)}$irStr$presetStr$scriptStr$luaParamsStr },');
       }
       buffer.writeln('  },');
+      buffer.writeln();
+    }
+
+    // 6. Song Blueprint (Procedural Ensemble Architecture & Seed for sharing/re-seeding)
+    if (dawState.songBlueprint != null) {
+      final jsonStr = const JsonEncoder.withIndent('  ').convert(dawState.songBlueprint!.toJson());
+      buffer.writeln('  blueprint = {');
+      buffer.writeln('    seed = ${dawState.songBlueprintSeed ?? 42},');
+      buffer.writeln('    structure = [=[\n$jsonStr\n  ]=],');
+      buffer.writeln('  },');
+      buffer.writeln();
+    }
+
+    // 7. Song Archetype & Procgen Metadata
+    if (dawState.songProcgenMeta != null && dawState.songProcgenMeta!.isNotEmpty) {
+      buffer.writeln('  procgen = ${_formatDynamicLuaValue(dawState.songProcgenMeta, "  ")},');
+      buffer.writeln();
     }
     buffer.writeln('}');
 
@@ -351,5 +369,37 @@ class EatProjectSerializer {
     if (map.isEmpty) return '{}';
     final parts = map.entries.map((e) => '["${_escapeString(e.key)}"] = ${e.value.toStringAsFixed(4)}').join(', ');
     return '{ $parts }';
+  }
+
+  static String _formatDynamicLuaValue(dynamic value, String indent) {
+    if (value == null) return 'nil';
+    if (value is bool) return value.toString();
+    if (value is num) return value.toString();
+    if (value is String) return '"${_escapeString(value)}"';
+    if (value is List) {
+      if (value.isEmpty) return '{}';
+      final childIndent = '$indent  ';
+      final buffer = StringBuffer('{\n');
+      for (final item in value) {
+        buffer.writeln('$childIndent${_formatDynamicLuaValue(item, childIndent)},');
+      }
+      buffer.write('$indent}');
+      return buffer.toString();
+    }
+    if (value is Map) {
+      if (value.isEmpty) return '{}';
+      final childIndent = '$indent  ';
+      final buffer = StringBuffer('{\n');
+      for (final entry in value.entries) {
+        final keyStr = entry.key.toString();
+        final keyFormatted = RegExp(r'^[a-zA-Z_][a-zA-Z0-9_]*$').hasMatch(keyStr)
+            ? keyStr
+            : '["${_escapeString(keyStr)}"]';
+        buffer.writeln('$childIndent$keyFormatted = ${_formatDynamicLuaValue(entry.value, childIndent)},');
+      }
+      buffer.write('$indent}');
+      return buffer.toString();
+    }
+    return '"${_escapeString(value.toString())}"';
   }
 }

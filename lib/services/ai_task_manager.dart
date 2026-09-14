@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../audio/procgen/ensemble_blueprint.dart';
+import '../audio/procgen/procedural_ensemble_engine.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../eatscript/eat_script_library.dart';
@@ -60,6 +63,12 @@ class AiTaskManager extends ChangeNotifier {
 
   String? _pendingLuaScript;
   String? get pendingLuaScript => _pendingLuaScript;
+
+  SongStructureBlueprint? _pendingBlueprint;
+  SongStructureBlueprint? get pendingBlueprint => _pendingBlueprint;
+
+  int? _pendingBlueprintSeed;
+  int? get pendingBlueprintSeed => _pendingBlueprintSeed;
 
   TrackChannel? _targetTrack;
   TrackChannel? get targetTrack => _targetTrack;
@@ -187,22 +196,20 @@ class AiTaskManager extends ChangeNotifier {
     }
   }
 
-  /// Initiates a background Song Architect full 4-track arrangement generation task.
+  /// Initiates a background Song Architect ensemble arrangement generation task using Gemini.
   Future<void> startGenerateSong(
     DawState dawState, {
     required String prompt,
-    String genre = 'Synthwave',
-    double bpm = 120.0,
-    String songKey = 'C Minor',
-    int barLength = 8,
+    int? requestedBars,
   }) async {
     if (isRunning) return;
 
     _status = AiTaskStatus.running;
     _taskType = AiTaskType.songArrangement;
-    _taskTitle = 'Arranging $barLength-Bar $genre Song ("$prompt")';
+    _taskTitle = 'Composing Song Architecture ("$prompt")';
     _errorMessage = null;
     _pendingLuaScript = null;
+    _pendingBlueprint = null;
     _stopwatch.reset();
     _stopwatch.start();
     _startTicker();
@@ -211,17 +218,17 @@ class AiTaskManager extends ChangeNotifier {
     _activeClient = http.Client();
 
     try {
-      final luaSong = await GeminiService.generateSongProject(
+      final blueprint = await GeminiService.generateEnsembleBlueprint(
         prompt: prompt,
-        genre: genre,
-        bpm: bpm,
-        songKey: songKey,
-        barLength: barLength,
+        requestedBars: requestedBars,
       );
 
       if (_status == AiTaskStatus.cancelled) return;
 
-      _pendingLuaScript = luaSong;
+      _pendingBlueprint = blueprint;
+      _pendingBlueprintSeed = (DateTime.now().microsecondsSinceEpoch % 900000) + 100000;
+      const encoder = JsonEncoder.withIndent('  ');
+      _pendingLuaScript = encoder.convert(blueprint.toJson());
       _status = AiTaskStatus.readyForReview;
       _stopwatch.stop();
       notifyListeners();
@@ -246,6 +253,7 @@ class AiTaskManager extends ChangeNotifier {
     _stopwatch.stop();
     _pendingMixResult = null;
     _pendingLuaScript = null;
+    _pendingBlueprint = null;
     notifyListeners();
   }
 
@@ -327,6 +335,11 @@ class AiTaskManager extends ChangeNotifier {
     } else if (_taskType == AiTaskType.soundFx && _pendingLuaScript != null && _targetTrack != null) {
       final scriptDef = LuaScriptLibrary.parseFromLuaScript(_pendingLuaScript!);
       dawState.addAudioFXFromPreset(_targetTrack!, scriptDef);
+    } else if (_taskType == AiTaskType.songArrangement && _pendingBlueprint != null) {
+      final seed = _pendingBlueprintSeed ?? 42;
+      dawState.beginHistoryTransaction('AI Song Architect: ${_pendingBlueprint!.title} (#$seed)', icon: Icons.auto_awesome);
+      ProceduralEnsembleEngine.renderBlueprint(dawState, _pendingBlueprint!, seed: seed);
+      dawState.commitHistoryTransaction();
     } else if (_taskType == AiTaskType.songArrangement && _pendingLuaScript != null) {
       dawState.beginHistoryTransaction('Gemini Generated Song', icon: Icons.music_note);
       dawState.loadFromEatsLua(_pendingLuaScript!);
@@ -341,6 +354,18 @@ class AiTaskManager extends ChangeNotifier {
     reset();
   }
 
+  /// Injects a pending blueprint for testing review and DAW application workflows.
+  @visibleForTesting
+  void setMockBlueprintForReview(SongStructureBlueprint blueprint, {int seed = 42}) {
+    _status = AiTaskStatus.readyForReview;
+    _taskType = AiTaskType.songArrangement;
+    _taskTitle = blueprint.title;
+    _pendingBlueprint = blueprint;
+    _pendingBlueprintSeed = seed;
+    _pendingLuaScript = jsonEncode(blueprint.toJson());
+    notifyListeners();
+  }
+
   /// Clears the task state back to idle.
   void reset() {
     _status = AiTaskStatus.idle;
@@ -348,6 +373,8 @@ class AiTaskManager extends ChangeNotifier {
     _taskTitle = '';
     _pendingMixResult = null;
     _pendingLuaScript = null;
+    _pendingBlueprint = null;
+    _pendingBlueprintSeed = null;
     _targetTrack = null;
     _errorMessage = null;
     _stopwatch.reset();

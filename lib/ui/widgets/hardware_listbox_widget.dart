@@ -87,7 +87,7 @@ class _HardwareListBoxWidgetState extends State<HardwareListBoxWidget> {
       icon: Icons.list,
     );
     widget.track.luaParams[widget.paramName] = index.toDouble();
-    widget.dawState.updateLuaParam(widget.paramName, index.toDouble());
+    widget.dawState.updateLuaParam(widget.paramName, index.toDouble(), widget.track);
     widget.dawState.commitHistoryTransaction();
     widget.onSelectionChanged?.call(index);
     if (mounted) {

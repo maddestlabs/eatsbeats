@@ -12,6 +12,7 @@ import '../../utils/soundfont_pack_manager.dart';
 import '../../utils/ir_pack_manager.dart';
 import '../../utils/audio_to_midi_pack_manager.dart';
 import '../../utils/eats_storage_helper.dart';
+import '../../utils/eats_file_helper.dart';
 import '../../utils/url_script_helper.dart';
 import '../audio_to_midi_dialog.dart';
 import '../../models/history_manager.dart';
@@ -1495,23 +1496,40 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
               ),
               const SizedBox(height: 8),
 
-              // Action Toolbar (+ SAVE CURRENT, REFRESH, OPEN FOLDER)
+              // Action Toolbar (+ SAVE, SAVE AS, OPEN FOLDER, CONVERT, REFRESH)
               Row(
                 children: [
-                  // Save Current Project
+                  // Save Dialog
                   Expanded(
+                    flex: 5,
                     child: ElevatedButton.icon(
                       onPressed: () => _showSaveCurrentProjectDialog(context),
-                      icon: const Icon(Icons.add, size: 14, color: Colors.black),
-                      label: const Text('SAVE CURRENT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black)),
+                      icon: const Icon(Icons.bookmark_add, size: 13, color: Colors.black),
+                      label: const Text('SAVE CURRENT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: EatsTheme.primaryCyan,
-                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
+
+                  // Direct File Picker Save As...
+                  Expanded(
+                    flex: 6,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _handleSaveAsFilePicker(context),
+                      icon: const Icon(Icons.save_as, size: 13, color: Colors.black),
+                      label: const Text('SAVE AS...', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.black)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: EatsTheme.accentGold,
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
 
                   // Open Folder in OS Explorer
                   IconButton(
@@ -1519,7 +1537,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                     icon: const Icon(Icons.folder_open, size: 16),
                     color: EatsTheme.accentGold,
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
                     style: IconButton.styleFrom(
                       backgroundColor: EatsTheme.accentGold.withOpacity(0.12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -1534,7 +1552,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                     icon: const Icon(Icons.transform, size: 16),
                     color: EatsTheme.secondaryMagenta,
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
                     style: IconButton.styleFrom(
                       backgroundColor: EatsTheme.secondaryMagenta.withOpacity(0.12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -1564,7 +1582,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                     icon: const Icon(Icons.refresh, size: 16),
                     color: EatsTheme.primaryCyan,
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
                     style: IconButton.styleFrom(
                       backgroundColor: EatsTheme.primaryCyan.withOpacity(0.12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -1579,20 +1597,37 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
 
         // Path indicator & Count
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          color: Colors.black.withOpacity(0.2),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          color: Colors.black.withOpacity(0.25),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '${filteredProjects.length} PROJECT${filteredProjects.length == 1 ? '' : 'S'} FOUND',
+                '${filteredProjects.length} PROJECT${filteredProjects.length == 1 ? '' : 'S'}',
                 style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: EatsTheme.primaryCyan, letterSpacing: 0.5),
               ),
+              const SizedBox(width: 8),
               Flexible(
-                child: Text(
-                  './Projects/',
-                  style: TextStyle(fontSize: 9, color: EatsTheme.textMuted),
-                  overflow: TextOverflow.ellipsis,
+                child: Tooltip(
+                  message: 'Projects Folder: ${EatsStorageHelper.getProjectsFolderPath()}\nClick to open in Explorer',
+                  child: InkWell(
+                    onTap: () => EatsStorageHelper.openProjectsFolder(),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.folder_open, size: 12, color: EatsTheme.accentGold),
+                        const SizedBox(width: 3),
+                        Flexible(
+                          child: Text(
+                            EatsStorageHelper.getProjectsFolderPath(),
+                            style: TextStyle(fontSize: 9, color: EatsTheme.accentGold.withOpacity(0.9)),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1695,13 +1730,26 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                                                 color: EatsTheme.textMuted,
                                               ),
                                             ),
+                                            if (project.filePath != null && project.filePath!.isNotEmpty) ...[
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                project.filePath!,
+                                                style: TextStyle(
+                                                  fontSize: 8.5,
+                                                  color: EatsTheme.textMuted.withOpacity(0.75),
+                                                  fontFamily: 'monospace',
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
                                           ],
                                         ),
                                       ),
                                     ],
                                   ),
                                   const SizedBox(height: 8),
-                                  // Action Buttons (LOAD, SHARE, RENAME, DELETE)
+                                  // Action Buttons (LOAD, SHARE, REVEAL, RENAME, DELETE)
                                   Row(
                                     children: [
                                       // Load Button
@@ -1735,6 +1783,20 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
                                         ),
                                         onPressed: () => _handleShareProject(context, project),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      // Open in Explorer / Reveal File Button
+                                      IconButton(
+                                        tooltip: 'Show in Explorer / Finder',
+                                        icon: const Icon(Icons.folder_open, size: 14),
+                                        color: EatsTheme.primaryCyan,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                        style: IconButton.styleFrom(
+                                          backgroundColor: EatsTheme.primaryCyan.withOpacity(0.12),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+                                        ),
+                                        onPressed: () => EatsStorageHelper.openFolderForFile(project.filePath ?? ''),
                                       ),
                                       const SizedBox(width: 4),
                                       // Rename Button
@@ -1778,7 +1840,41 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
     );
   }
 
+  Future<void> _handleSaveAsFilePicker(BuildContext context) async {
+    final cleanProjName = widget.dawState.projectName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    final defaultName = cleanProjName.isNotEmpty ? cleanProjName : 'my_song';
+    final fileName = '$defaultName.eat';
+    final eatCode = widget.dawState.exportToEatsLua();
+
+    final savedPath = await EatsFileHelper.saveEatScriptFile(eatCode, fileName);
+    if (!context.mounted) return;
+
+    if (savedPath != null && savedPath.isNotEmpty) {
+      final baseName = savedPath.split(RegExp(r'[\\/]')).last;
+      final parsedName = baseName.replaceAll(RegExp(r'\.(eat|eats|eats\.lua|lua)$', caseSensitive: false), '');
+      if (parsedName.isNotEmpty) {
+        widget.dawState.projectName = parsedName;
+      }
+      await _loadSavedProjects();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved project to:\n$savedPath'),
+            backgroundColor: EatsTheme.panelBackground,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'SHOW IN FOLDER',
+              textColor: EatsTheme.primaryCyan,
+              onPressed: () => EatsStorageHelper.openFolderForFile(savedPath),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   void _showSaveCurrentProjectDialog(BuildContext context) {
+    final currentDir = EatsStorageHelper.getProjectsFolderPath();
     final controller = TextEditingController(
       text: widget.dawState.projectName.isNotEmpty
           ? widget.dawState.projectName
@@ -1796,7 +1892,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
               Icon(Icons.save_as, color: EatsTheme.primaryCyan, size: 20),
               const SizedBox(width: 8),
               Text(
-                'SAVE TO PROJECTS FOLDER',
+                'SAVE PROJECT',
                 style: EatsTheme.getDisplayFontStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -1805,51 +1901,148 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
               ),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Saves your song as a .eats file inside the ./Projects/ directory.',
-                style: TextStyle(color: EatsTheme.textSecondary, fontSize: 11),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                style: TextStyle(color: EatsTheme.textPrimary, fontSize: 13),
-                decoration: InputDecoration(
-                  labelText: 'Song / Project Name',
-                  labelStyle: TextStyle(color: EatsTheme.textMuted),
-                  filled: true,
-                  fillColor: EatsTheme.controlBackground,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  style: TextStyle(color: EatsTheme.textPrimary, fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'Song / Project Name',
+                    labelStyle: TextStyle(color: EatsTheme.textMuted),
+                    filled: true,
+                    fillColor: EatsTheme.controlBackground,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                // Location info box
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white.withOpacity(0.06)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'INTERNAL PROJECTS FOLDER:',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: EatsTheme.accentGold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          InkWell(
+                            onTap: () => EatsStorageHelper.openProjectsFolder(),
+                            child: Row(
+                              children: [
+                                Icon(Icons.folder_open, size: 12, color: EatsTheme.accentGold),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'OPEN IN EXPLORER',
+                                  style: TextStyle(fontSize: 9, color: EatsTheme.accentGold, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      SelectableText(
+                        currentDir,
+                        style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontFamily: 'monospace'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
               child: Text('CANCEL', style: TextStyle(color: EatsTheme.textMuted)),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: EatsTheme.primaryCyan),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: EatsTheme.textPrimary,
+                side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              ),
+              icon: const Icon(Icons.folder, size: 14),
+              label: const Text('SAVE TO PROJECTS FOLDER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
               onPressed: () async {
                 final name = controller.text.trim();
                 if (name.isNotEmpty) {
                   final lua = widget.dawState.exportToEatsLua();
-                  await EatsStorageHelper.saveProjectFile(name, lua);
+                  final savedItem = await EatsStorageHelper.saveProjectFile(name, lua);
                   if (ctx.mounted) Navigator.of(ctx).pop();
                   await _loadSavedProjects();
                   if (context.mounted) {
+                    final pathStr = savedItem?.filePath ?? '$currentDir\\$name.eat';
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Saved project "$name.eats" to Projects/ folder!')),
+                      SnackBar(
+                        content: Text('Saved project to:\n$pathStr'),
+                        backgroundColor: EatsTheme.panelBackground,
+                        duration: const Duration(seconds: 4),
+                        action: SnackBarAction(
+                          label: 'SHOW IN FOLDER',
+                          textColor: EatsTheme.primaryCyan,
+                          onPressed: () => EatsStorageHelper.openFolderForFile(pathStr),
+                        ),
+                      ),
                     );
                   }
                 }
               },
-              child: const Text('SAVE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: EatsTheme.primaryCyan,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              icon: const Icon(Icons.drive_file_move_outlined, size: 14, color: Colors.black),
+              label: const Text('SAVE AS... (FILE PICKER)', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 10)),
+              onPressed: () async {
+                final name = controller.text.trim();
+                final cleanName = name.isNotEmpty ? name : 'my_song';
+                final lua = widget.dawState.exportToEatsLua();
+                if (ctx.mounted) Navigator.of(ctx).pop();
+                final savedPath = await EatsFileHelper.saveEatScriptFile(lua, '$cleanName.eat');
+                if (savedPath != null && savedPath.isNotEmpty) {
+                  final baseName = savedPath.split(RegExp(r'[\\/]')).last;
+                  final parsedName = baseName.replaceAll(RegExp(r'\.(eat|eats|eats\.lua|lua)$', caseSensitive: false), '');
+                  if (parsedName.isNotEmpty) {
+                    widget.dawState.projectName = parsedName;
+                  }
+                  await _loadSavedProjects();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Saved project to:\n$savedPath'),
+                        backgroundColor: EatsTheme.panelBackground,
+                        duration: const Duration(seconds: 4),
+                        action: SnackBarAction(
+                          label: 'SHOW IN FOLDER',
+                          textColor: EatsTheme.primaryCyan,
+                          onPressed: () => EatsStorageHelper.openFolderForFile(savedPath),
+                        ),
+                      ),
+                    );
+                  }
+                }
+              },
             ),
           ],
         );

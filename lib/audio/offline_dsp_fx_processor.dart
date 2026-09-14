@@ -501,6 +501,7 @@ class OfflineDspFxProcessor {
     required double mix,
     required int sampleRate,
   }) {
+    final fxType = EatDspSynthesizer.resolveFxType(code);
     final double fs = sampleRate.toDouble();
     for (int i = 0; i < buffer.length; i++) {
       final dry = buffer[i];
@@ -510,6 +511,7 @@ class OfflineDspFxProcessor {
         inputSample: dry,
         time: t,
         params: params,
+        fxType: fxType,
       );
       buffer[i] = (dry * (1.0 - mix)) + (wet * mix);
     }

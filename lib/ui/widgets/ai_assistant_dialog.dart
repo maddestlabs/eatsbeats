@@ -1,11 +1,17 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../audio/procgen/ensemble_blueprint.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
 import '../../services/gemini_service.dart';
+import '../../services/secure_storage_service.dart';
 import '../../services/ai_mixing_engine.dart';
 import '../../services/ai_task_manager.dart';
 import '../../eatscript/eat_script_library.dart';
+import '../../utils/eats_storage_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'skeuomorphic_hardware_button.dart';
 
@@ -46,34 +52,13 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
   String _selectedGenre = 'Lo-Fi Chill';
   double _selectedTargetLufs = -14.0;
 
-  String _songGenre = 'Synthwave / Retrowave';
-  String _songKey = 'D Minor';
-  double _songBpm = 120.0;
-  int _songBarLength = 8;
-
   final List<String> _genreOptions = [
     'Lo-Fi Chill',
-    'Modern Trap / Hip-Hop',
-    'Synthwave / Retrowave',
-    'EDM / Club House',
-    'Acoustic / Folk',
-    'Neo-Soul / R&B',
-    'Cyberpunk / Industrial',
-    'Custom / Neutral',
-  ];
-
-  final List<String> _keyOptions = [
-    'C Major',
-    'C Minor',
-    'D Minor',
-    'E Minor',
-    'F Major',
-    'F# Minor',
-    'G Major',
-    'G Minor',
-    'A Minor',
-    'Bb Major',
-    'B Minor',
+    'Synthwave / Chiptune',
+    'Cyberpunk EDM',
+    'Ambient Cinematic',
+    'Rock / Metal',
+    'Jazz / Acoustic',
   ];
 
   final Map<String, double> _lufsPresets = {
@@ -83,22 +68,87 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
     'Dynamic Audiophile (-18 LUFS)': -18.0,
   };
 
+  final ScrollController _songArchitectScrollController = ScrollController();
+  bool _isGeneratingMagicPrompt = false;
+
+  bool _isKeyStored = false;
+  bool _rememberKeyOnDevice = false;
+  String? _deleteFeedback;
+
   @override
   void initState() {
     super.initState();
     _activeTab = widget.initialTab;
     _apiKeyController.text = GeminiService.apiKey;
     _selectedTargetLufs = widget.dawState.masterTargetLufs;
-    _songBpm = widget.dawState.bpm;
-    _songKey = widget.dawState.songKey;
+    _initStorageStatus();
+    AiTaskManager.instance.addListener(_onAiTaskManagerChanged);
+  }
+
+  Future<void> _initStorageStatus() async {
+    final isStored = await SecureStorageService.isGeminiApiKeyStored();
+    final remember = await SecureStorageService.getWebRememberPreference();
+    if (mounted) {
+      setState(() {
+        _isKeyStored = isStored;
+        _rememberKeyOnDevice = remember;
+      });
+    }
+  }
+
+  Future<void> _deleteApiKey() async {
+    await GeminiService.deleteApiKey();
+    _apiKeyController.clear();
+    if (mounted) {
+      setState(() {
+        _isKeyStored = false;
+        _testResult = null;
+        _deleteFeedback = 'Stored API key removed from storage and memory.';
+      });
+    }
+  }
+
+  void _onAiTaskManagerChanged() {
+    if (!mounted) return;
+    final mgr = AiTaskManager.instance;
+    if (_activeTab == 1 && mgr.status == AiTaskStatus.readyForReview && mgr.taskType == AiTaskType.songArrangement) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_songArchitectScrollController.hasClients) {
+          _songArchitectScrollController.animateTo(
+            _songArchitectScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOutCubic,
+          );
+        }
+      });
+    }
+  }
+
+  Future<void> _generateMagicPrompt() async {
+    if (_isGeneratingMagicPrompt) return;
+    setState(() => _isGeneratingMagicPrompt = true);
+    try {
+      final prompt = await GeminiService.generateMagicPrompt();
+      if (mounted) {
+        setState(() {
+          _songPromptController.text = prompt;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isGeneratingMagicPrompt = false);
+      }
+    }
   }
 
   @override
   void dispose() {
+    AiTaskManager.instance.removeListener(_onAiTaskManagerChanged);
     _apiKeyController.dispose();
     _mixInstructionsController.dispose();
     _soundPromptController.dispose();
     _songPromptController.dispose();
+    _songArchitectScrollController.dispose();
     super.dispose();
   }
 
@@ -498,128 +548,206 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
       return _buildKeyRequiredBanner();
     }
 
+    final promptSuggestions = [
+      'Medieval fantasy adventure with Spanish guitar, grand piano, and vibraphone (Ultima VI)',
+      'RPG tavern waltz with acoustic lute and wooden flute in 3/4',
+      'Evolving battle theme starting with solo strings into heavy synth drop',
+      'Ambient cavern in D minor with harp, pad, and ocarina',
+      'Late night jazz trio with upright bass, warm Rhodes, and vibraphone',
+      'C64 8-bit chiptune battle with fast 50Hz arpeggio',
+      'Pastoral anime town theme with acoustic guitar and accordion',
+    ];
+
     return SingleChildScrollView(
+      controller: _songArchitectScrollController,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: EatsTheme.controlBackground,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.auto_awesome, color: EatsTheme.primaryCyan, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'AI SONG ARCHITECT & DYNAMIC ENSEMBLE',
+                        style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Describe your musical vision. Gemini designs the custom ensemble (2 to 8+ tracks), harmonic progression, meter (3/4, 4/4, 6/8), and section flow with dynamic builds and dropouts, then renders directly into the DAW.',
+                        style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, height: 1.3),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          if (widget.dawState.songBlueprint != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: EatsTheme.primaryCyan.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.style, color: EatsTheme.primaryCyan, size: 16),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'PROJECT STYLE ARCHITECTURE (SAVED IN .EAT)',
+                          style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: EatsTheme.primaryCyan.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Seed #${widget.dawState.songBlueprintSeed ?? 42}',
+                          style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${widget.dawState.songBlueprint!.title} • ${widget.dawState.songBlueprint!.bpm.round()} BPM • ${widget.dawState.songBlueprint!.meter} • ${widget.dawState.songBlueprint!.mode.toUpperCase()} • ${widget.dawState.songBlueprint!.ensemble.length} Tracks • ${widget.dawState.songBlueprint!.totalBars} Bars',
+                    style: const TextStyle(fontSize: 11, color: Colors.white70),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SkeuomorphicHardwareButton(
+                          label: '🎲 RE-SEED / NEW VARIATION',
+                          isActive: true,
+                          activeColor: EatsTheme.primaryCyan,
+                          height: 30,
+                          onTap: () {
+                            final newSeed = (DateTime.now().microsecondsSinceEpoch % 900000) + 100000;
+                            widget.dawState.regenerateFromSongBlueprint(newSeed: newSeed);
+                            setState(() {});
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Generated fresh variation of "${widget.dawState.songBlueprint!.title}" with seed #$newSeed! Press Ctrl+Z to undo.'),
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SkeuomorphicHardwareButton(
+                        label: '📋 COPY STYLE',
+                        isActive: true,
+                        activeColor: Colors.white70,
+                        height: 30,
+                        width: 95,
+                        onTap: () {
+                          final jsonStr = const JsonEncoder.withIndent('  ').convert(widget.dawState.songBlueprint!.toJson());
+                          Clipboard.setData(ClipboardData(text: jsonStr));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Copied complete Song Architecture JSON to clipboard! Ready to share or use in prompts.'),
+                              duration: Duration(seconds: 3),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
           Row(
             children: [
-              Expanded(
-                flex: 2,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('GENRE STYLE', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      decoration: BoxDecoration(
-                        color: EatsTheme.controlBackground,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: DropdownButton<String>(
-                        value: _songGenre,
-                        isExpanded: true,
-                        underline: const SizedBox(),
-                        dropdownColor: EatsTheme.panelBackground,
-                        items: _genreOptions.map((g) {
-                          return DropdownMenuItem<String>(
-                            value: g,
-                            child: Text(g, style: const TextStyle(fontSize: 11, color: Colors.white)),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) setState(() => _songGenre = val);
-                        },
+              Text('PROMPT / MUSICAL VISION:', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
+              const Spacer(),
+              _isGeneratingMagicPrompt
+                  ? SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(EatsTheme.primaryCyan)),
+                    )
+                  : InkWell(
+                      onTap: _generateMagicPrompt,
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.auto_awesome, color: EatsTheme.primaryCyan, size: 13),
+                            const SizedBox(width: 4),
+                            Text(
+                              '✨ MAGIC PROMPT',
+                              style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('KEY', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      decoration: BoxDecoration(
-                        color: EatsTheme.controlBackground,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: DropdownButton<String>(
-                        value: _songKey,
-                        isExpanded: true,
-                        underline: const SizedBox(),
-                        dropdownColor: EatsTheme.panelBackground,
-                        items: _keyOptions.map((k) {
-                          return DropdownMenuItem<String>(
-                            value: k,
-                            child: Text(k, style: const TextStyle(fontSize: 11, color: Colors.white)),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) setState(() => _songKey = val);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('LENGTH', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      decoration: BoxDecoration(
-                        color: EatsTheme.controlBackground,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: DropdownButton<int>(
-                        value: _songBarLength,
-                        isExpanded: true,
-                        underline: const SizedBox(),
-                        dropdownColor: EatsTheme.panelBackground,
-                        items: const [
-                          DropdownMenuItem<int>(value: 4, child: Text('4 Bars', style: TextStyle(fontSize: 11, color: Colors.white))),
-                          DropdownMenuItem<int>(value: 8, child: Text('8 Bars', style: TextStyle(fontSize: 11, color: Colors.white))),
-                          DropdownMenuItem<int>(value: 16, child: Text('16 Bars', style: TextStyle(fontSize: 11, color: Colors.white))),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) setState(() => _songBarLength = val);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
-          const SizedBox(height: 10),
-
-          Text('SONG ARRANGEMENT PROMPT:', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           TextField(
             controller: _songPromptController,
             maxLines: 3,
             style: const TextStyle(fontSize: 12, color: Colors.white),
             decoration: InputDecoration(
-              hintText: 'e.g. 80s Synthwave track with driving bassline, gated reverb drums, lush pads, and catchy lead hook...',
+              hintText: 'Describe anything: mood, instruments (lute, flute, cello, synth...), tempo, meter (e.g. 3/4 waltz), key, or chord suggestions...',
               hintStyle: const TextStyle(color: Colors.white30, fontSize: 11),
               filled: true,
               fillColor: EatsTheme.controlBackground,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: Colors.white12)),
               contentPadding: const EdgeInsets.all(10),
             ),
+          ),
+          const SizedBox(height: 8),
+
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: promptSuggestions.map((s) {
+              return ActionChip(
+                backgroundColor: EatsTheme.controlBackground,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: Colors.white10),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                label: Text(s, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                onPressed: () {
+                  setState(() {
+                    _songPromptController.text = s;
+                  });
+                },
+              );
+            }).toList(),
           ),
           const SizedBox(height: 12),
 
@@ -648,7 +776,7 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Arranging 4-Track Song, Synths & MIDI Notes... (${seconds}s)',
+                          'Composing Song Architecture & Dynamic Arrangement... (${seconds}s)',
                           style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -666,7 +794,7 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
               }
 
               return SkeuomorphicHardwareButton(
-                label: '⚡ GENERATE COMPLETE 4-TRACK SONG',
+                label: '⚡ COMPOSE WITH AI SONG ARCHITECT',
                 isActive: true,
                 activeColor: EatsTheme.primaryCyan,
                 height: 38,
@@ -680,39 +808,127 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
             animation: AiTaskManager.instance,
             builder: (context, _) {
               final mgr = AiTaskManager.instance;
-              if (mgr.status == AiTaskStatus.readyForReview && mgr.taskType == AiTaskType.songArrangement && mgr.pendingLuaScript != null) {
+              if (mgr.status == AiTaskStatus.readyForReview &&
+                  mgr.taskType == AiTaskType.songArrangement &&
+                  (mgr.pendingBlueprint != null || mgr.pendingLuaScript != null)) {
+                final bp = mgr.pendingBlueprint;
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
                       children: [
-                        Text('GENERATED SONG PROJECT (.EATS / EATSCRIPT):', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
+                        Text('GENERATED SONG ARCHITECTURE:', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
                         const Spacer(),
-                        Text('Ready to Load', style: TextStyle(color: const Color(0xFF00FF66), fontSize: 10, fontWeight: FontWeight.bold)),
+                        Text('Ready to Render', style: TextStyle(color: const Color(0xFF00FF66), fontSize: 10, fontWeight: FontWeight.bold)),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Container(
-                      height: 140,
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F141C),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: SingleChildScrollView(
-                        child: Text(
-                          mgr.pendingLuaScript!,
-                          style: const TextStyle(fontFamily: 'Courier', fontSize: 10, color: Color(0xFF00FF66)),
+                    const SizedBox(height: 6),
+                    if (bp != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F141C),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFF00FF66).withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    bp.title,
+                                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: EatsTheme.primaryCyan.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '${bp.bpm.round()} BPM • ${bp.meter} • ${bp.mode.toUpperCase()} • ${bp.totalBars} BARS',
+                                    style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'ENSEMBLE (${bp.ensemble.length} TRACKS):',
+                              style: TextStyle(color: EatsTheme.textSecondary, fontSize: 9, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: bp.ensemble.map((t) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Color(t.colorHex).withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: Color(t.colorHex).withOpacity(0.6)),
+                                  ),
+                                  child: Text(
+                                    '${t.name} (${t.role.name})',
+                                    style: TextStyle(color: Color(t.colorHex), fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'SECTIONS (${bp.sections.length} PARTS):',
+                              style: TextStyle(color: EatsTheme.textSecondary, fontSize: 9, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: bp.sections.map((s) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white10,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '${s.name} (${s.lengthBars}b)',
+                                    style: const TextStyle(color: Colors.white70, fontSize: 10),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
+                    ] else ...[
+                      Container(
+                        height: 120,
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F141C),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: SingleChildScrollView(
+                          child: Text(
+                            mgr.pendingLuaScript!,
+                            style: const TextStyle(fontFamily: 'Courier', fontSize: 10, color: Color(0xFF00FF66)),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(
                           child: SkeuomorphicHardwareButton(
-                            label: '✓ LOAD SONG INTO DAW (UNDOABLE)',
+                            label: '✓ RENDER SONG INTO DAW (UNDOABLE)',
                             isActive: true,
                             activeColor: const Color(0xFF00FF66),
                             height: 32,
@@ -721,7 +937,7 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                               Navigator.of(context).pop();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Song Arrangement loaded successfully! Press Play to listen.'),
+                                  content: Text('Song generated and rendered successfully into DAW! Press Play to listen.'),
                                   duration: Duration(seconds: 3),
                                 ),
                               );
@@ -758,10 +974,6 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
     AiTaskManager.instance.startGenerateSong(
       widget.dawState,
       prompt: prompt,
-      genre: _songGenre,
-      bpm: _songBpm,
-      songKey: _songKey,
-      barLength: _songBarLength,
     );
   }
 
@@ -986,12 +1198,16 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                     Icon(Icons.lock, size: 16, color: EatsTheme.primaryCyan),
                     const SizedBox(width: 6),
                     Text('GOOGLE GEMINI API KEY (FREE)', style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    _buildStorageStatusBadge(),
                   ],
                 ),
                 const SizedBox(height: 6),
-                const Text(
-                  'Eatsbeats connects directly to Google AI Studio from your device. Your API key is stored locally and never shared with third parties.',
-                  style: TextStyle(fontSize: 11, color: Colors.white70, height: 1.3),
+                Text(
+                  kIsWeb
+                      ? 'Eatsbeats connects directly to Google AI Studio from your browser. In-memory for this session by default.'
+                      : 'Eatsbeats connects directly to Google AI Studio from your device. Keys are saved in your OS Credential Manager / Keychain.',
+                  style: const TextStyle(fontSize: 11, color: Colors.white70, height: 1.3),
                 ),
                 const SizedBox(height: 10),
                 TextField(
@@ -1008,9 +1224,47 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                   ),
                   onChanged: (val) {
                     GeminiService.apiKey = val;
-                    setState(() => _testResult = null);
+                    setState(() {
+                      _testResult = null;
+                      _deleteFeedback = null;
+                    });
                   },
                 ),
+                if (kIsWeb) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: Checkbox(
+                          value: _rememberKeyOnDevice,
+                          activeColor: EatsTheme.primaryCyan,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          onChanged: (val) async {
+                            final checked = val ?? false;
+                            setState(() => _rememberKeyOnDevice = checked);
+                            await SecureStorageService.setWebRememberPreference(checked);
+                            if (checked && _apiKeyController.text.trim().isNotEmpty) {
+                              await GeminiService.persistApiKey(_apiKeyController.text.trim());
+                              setState(() => _isKeyStored = true);
+                            } else if (!checked) {
+                              await SecureStorageService.deleteGeminiApiKey();
+                              setState(() => _isKeyStored = false);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Remember key in this browser (⚠️ Do NOT enable on public or shared computers)',
+                          style: TextStyle(fontSize: 10, color: Colors.white70),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 10),
                 Text('ACTIVE GEMINI MODEL:', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
@@ -1043,7 +1297,9 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     SkeuomorphicHardwareButton(
                       label: _isTestingKey ? 'TESTING...' : 'TEST KEY CONNECTION',
@@ -1053,8 +1309,52 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                       width: 160,
                       onTap: _testApiKey,
                     ),
+                    if (_isKeyStored || GeminiService.hasApiKey || _apiKeyController.text.isNotEmpty)
+                      SkeuomorphicHardwareButton(
+                        label: 'DELETE STORED KEY',
+                        isActive: true,
+                        activeColor: Colors.redAccent,
+                        height: 28,
+                        width: 155,
+                        onTap: _deleteApiKey,
+                      ),
+                    if (!kIsWeb)
+                      SkeuomorphicHardwareButton(
+                        label: 'OPEN SETTINGS FOLDER',
+                        isActive: true,
+                        activeColor: EatsTheme.textSecondary,
+                        height: 28,
+                        width: 175,
+                        onTap: () async {
+                          await EatsStorageHelper.openSettingsFolder();
+                        },
+                      ),
                   ],
                 ),
+                if (_deleteFeedback != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.amber.withOpacity(0.4)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, size: 14, color: Colors.amber),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _deleteFeedback!,
+                            style: const TextStyle(fontSize: 11, color: Colors.amber, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 if (_testResult != null) ...[
                   const SizedBox(height: 10),
                   Container(
@@ -1151,6 +1451,54 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
     );
   }
 
+  Widget _buildStorageStatusBadge() {
+    String label;
+    Color color;
+    IconData icon;
+
+    if (GeminiService.keySource == GeminiKeySource.environment) {
+      label = 'ENV VAR';
+      color = EatsTheme.primaryCyan;
+      icon = Icons.terminal;
+    } else if (GeminiService.keySource == GeminiKeySource.settingsFile) {
+      label = 'SETTINGS FILE';
+      color = const Color(0xFF64B5F6);
+      icon = Icons.description_outlined;
+    } else if (_isKeyStored) {
+      label = kIsWeb ? 'BROWSER' : 'SECURE VAULT';
+      color = Colors.green;
+      icon = Icons.shield_outlined;
+    } else if (GeminiService.hasApiKey) {
+      label = 'SESSION ONLY';
+      color = Colors.amber;
+      icon = Icons.schedule;
+    } else {
+      label = 'NOT CONFIGURED';
+      color = Colors.white38;
+      icon = Icons.key_off;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildKeyRequiredBanner() {
     return Center(
       child: Column(
@@ -1180,13 +1528,21 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
   }
 
   Future<void> _testApiKey() async {
-    GeminiService.apiKey = _apiKeyController.text.trim();
+    final key = _apiKeyController.text.trim();
+    GeminiService.apiKey = key;
     setState(() {
       _isTestingKey = true;
       _testResult = null;
+      _deleteFeedback = null;
     });
 
     final result = await GeminiService.testConnection();
+    if (result.isSuccess) {
+      if (!kIsWeb || _rememberKeyOnDevice) {
+        await GeminiService.persistApiKey(key);
+        _isKeyStored = true;
+      }
+    }
     if (mounted) {
       setState(() {
         _isTestingKey = false;

@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:ui';
 import 'eat_preset_library.dart';
 import 'eat_script_library.dart';
+import '../audio/procgen/ensemble_blueprint.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../models/chord_model.dart';
@@ -219,6 +221,36 @@ class EatProjectParser {
           dawState.masterTrack.fxRack.add(_parseFxInsert(fMap, dawState.masterTrack.fxRack.length));
         }
       }
+    }
+
+    // 6. Procedural Song Architecture Blueprint if present
+    final rawBp = map['blueprint'] ?? meta['blueprint'];
+    if (rawBp is Map) {
+      final seed = (rawBp['seed'] as num?)?.toInt() ?? 42;
+      final rawStruct = rawBp['structure'];
+      SongStructureBlueprint? parsedBp;
+      if (rawStruct is String && rawStruct.trim().isNotEmpty) {
+        try {
+          final decoded = jsonDecode(rawStruct);
+          if (decoded is Map<String, dynamic>) {
+            parsedBp = SongStructureBlueprint.fromJson(decoded);
+          } else if (decoded is Map) {
+            parsedBp = SongStructureBlueprint.fromJson(Map<String, dynamic>.from(decoded));
+          }
+        } catch (_) {}
+      } else if (rawStruct is Map) {
+        parsedBp = SongStructureBlueprint.fromJson(Map<String, dynamic>.from(rawStruct));
+      }
+      if (parsedBp != null) {
+        dawState.setSongBlueprint(parsedBp, seed: seed);
+      }
+    }
+
+    // 7. Song Archetype & Procgen Metadata if present
+    final rawProcgen = map['procgen'] ?? map['procgenMeta'] ?? meta['procgen'];
+    if (rawProcgen is Map) {
+      final procgenMap = Map<String, dynamic>.from(rawProcgen);
+      dawState.setSongProcgenMeta(procgenMap);
     }
 
     dawState.notifyState();

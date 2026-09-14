@@ -75,7 +75,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     if (onParamChanged != null) {
       onParamChanged!(paramName, value);
     } else {
-      dawState.updateLuaParam(paramName, value);
+      dawState.updateLuaParam(paramName, value, track);
     }
   }
 

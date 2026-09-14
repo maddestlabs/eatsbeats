@@ -23,6 +23,13 @@ void main() {
       expect(GeminiService.activeModel, equals('gemini-3.0-flash'));
       GeminiService.activeModel = 'gemini-3.6-flash';
     });
+
+    test('generateMagicPrompt returns non-empty evocative prompt from curated bank or Gemini', () async {
+      final prompt = await GeminiService.generateMagicPrompt();
+      expect(prompt, isNotEmpty);
+      expect(prompt.length, greaterThan(20));
+      expect(GeminiService.curatedPromptBank.length, greaterThanOrEqualTo(10));
+    });
   });
 
   group('AiMixingEngine Patch Application Tests', () {
@@ -171,7 +178,8 @@ void main() {
       // Switch to Song Architect tab
       await tester.tap(find.text('SONG ARCHITECT'));
       await tester.pumpAndSettle();
-      expect(find.text('SONG ARRANGEMENT PROMPT:'), findsOneWidget);
+      expect(find.text('PROMPT / MUSICAL VISION:'), findsOneWidget);
+      expect(find.text('✨ MAGIC PROMPT'), findsOneWidget);
 
       // Switch to Sound Architect tab
       await tester.tap(find.text('SOUND ARCHITECT'));

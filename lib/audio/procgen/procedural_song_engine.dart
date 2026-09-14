@@ -74,6 +74,7 @@ class ProceduralSongEngine {
     'Neo-Soul / R&B',
     'Pop / Funk Anthem',
     'SNES 16-Bit Adventure',
+    'C64 SID 8-Bit Chiptune',
   ];
 
   static const List<String> availableStructures = [
@@ -575,6 +576,111 @@ class ProceduralSongEngine {
         ],
       ],
     ),
+
+    // 8. C64 SID 8-Bit Chiptune
+    'C64 SID 8-Bit Chiptune': const SongGenreConfig(
+      id: 'c64_chiptune',
+      name: 'C64 SID 8-Bit Chiptune',
+      defaultBpm: 138.0,
+      defaultMinor: true,
+      drumStyle: '8-Bit Chiptune / C64 SID',
+      defaultSwing: 0.0,
+      defaultGhostProb: 0.28,
+      defaultFillDensity: 0.45,
+      drumPresetId: 'c64_sid_drum_kit',
+      drumParams: {
+        'MasterTune': 0.0,
+        'KickPunch': 0.85,
+        'SnareSnap': 0.70,
+        'NoiseMetal': 0.60,
+        'ChipModel': 0.0, // MOS 6581
+        'Overdrive': 1.45,
+      },
+      bassPresetId: 'c64_sid_synth',
+      bassName: 'C64 SID PWM Bass',
+      bassColor: const Color(0xFF6C5EB5),
+      bassParams: {
+        'Waveform': 0.0, // Pulse
+        'PulseWidth': 2048.0,
+        'PwmRate': 1.4,
+        'PwmDepth': 0.55,
+        'ChipModel': 0.0,
+        'FilterMode': 0.0, // Lowpass
+        'Cutoff': 950.0,
+        'Resonance': 10.0,
+        'Overdrive': 1.6,
+        'Attack': 0.0,
+        'Decay': 4.0,
+        'Sustain': 6.0,
+        'Release': 3.0,
+      },
+      chordPresetId: 'c64_sid_synth',
+      chordName: 'C64 SID 50Hz Arp',
+      chordColor: const Color(0xFFA0864B),
+      chordParams: {
+        'Waveform': 1.0, // Sawtooth
+        'PulseWidth': 1024.0,
+        'ArpMode': 1.0, // 50Hz European PAL rate
+        'ChipModel': 0.0,
+        'FilterMode': 1.0, // Bandpass
+        'Cutoff': 1350.0,
+        'Resonance': 8.0,
+        'Overdrive': 1.2,
+        'Attack': 0.0,
+        'Decay': 6.0,
+        'Sustain': 10.0,
+        'Release': 4.0,
+      },
+      leadPresetId: 'c64_sid_synth',
+      leadName: 'C64 SID Hero Lead',
+      leadColor: const Color(0xFF3E9B48),
+      leadParams: {
+        'Waveform': 0.0, // Pulse
+        'PulseWidth': 1536.0,
+        'PwmRate': 2.2,
+        'PwmDepth': 0.65,
+        'GlideSpeed': 0.04,
+        'ChipModel': 0.0,
+        'FilterMode': 0.0, // Lowpass
+        'Cutoff': 1650.0,
+        'Resonance': 9.0,
+        'Overdrive': 1.5,
+        'Attack': 1.0,
+        'Decay': 5.0,
+        'Sustain': 11.0,
+        'Release': 4.0,
+      },
+      chordProgressions: [
+        // Progression 1: i - bVI - III - bVII (Classic C64 Demo Scene Anthem)
+        [
+          (0, ChordQuality.minor, 2.0),
+          (8, ChordQuality.major, 2.0),
+          (3, ChordQuality.major, 2.0),
+          (10, ChordQuality.major, 2.0),
+        ],
+        // Progression 2: i - bVII - bVI - V (Andalusian Battle / Rob Hubbard Style)
+        [
+          (0, ChordQuality.minor, 2.0),
+          (10, ChordQuality.major, 2.0),
+          (8, ChordQuality.major, 2.0),
+          (7, ChordQuality.dominant7, 2.0),
+        ],
+        // Progression 3: i - iv - bVII - III (Heroic Galway Odyssey)
+        [
+          (0, ChordQuality.minor, 2.0),
+          (5, ChordQuality.minor, 2.0),
+          (10, ChordQuality.major, 2.0),
+          (3, ChordQuality.major, 2.0),
+        ],
+        // Progression 4: i - bVI - bVII - i (High-Speed Space Action)
+        [
+          (0, ChordQuality.minor, 2.0),
+          (8, ChordQuality.major, 2.0),
+          (10, ChordQuality.major, 2.0),
+          (0, ChordQuality.minor, 2.0),
+        ],
+      ],
+    ),
   };
 
   /// Main execution method for generating a song into [DawState].
@@ -584,13 +690,46 @@ class ProceduralSongEngine {
   ) {
     // 1. Resolve Style
     final rawStyle = params['Style'] ?? params['style'];
-    final String styleStr = rawStyle is num
-        ? (rawStyle.toInt() >= 0 && rawStyle.toInt() < availableStyles.length
-            ? availableStyles[rawStyle.toInt()]
-            : 'Lo-Fi Hip Hop')
-        : (rawStyle?.toString() ?? 'Lo-Fi Hip Hop');
+    SongGenreConfig? matchedConfig;
 
-    final config = genres[styleStr] ?? genres['Lo-Fi Hip Hop']!;
+    if (rawStyle is num) {
+      final idx = rawStyle.toInt();
+      if (idx >= 0 && idx < availableStyles.length) {
+        matchedConfig = genres[availableStyles[idx]];
+      }
+    } else if (rawStyle != null) {
+      final str = rawStyle.toString().trim().toLowerCase();
+      // First pass: exact match (case-insensitive) on keys, config IDs, or config names
+      for (final entry in genres.entries) {
+        if (entry.key.toLowerCase() == str ||
+            entry.value.id.toLowerCase() == str ||
+            entry.value.name.toLowerCase() == str) {
+          matchedConfig = entry.value;
+          break;
+        }
+      }
+      // Second pass: keyword / substring matching
+      if (matchedConfig == null) {
+        for (final entry in genres.entries) {
+          final idLower = entry.value.id.toLowerCase();
+          final nameLower = entry.value.name.toLowerCase();
+          if (str.contains(idLower) ||
+              ((str.contains('c64') || str.contains('sid')) && (idLower.contains('c64') || nameLower.contains('sid'))) ||
+              ((str.contains('snes') || str.contains('16-bit')) && (idLower.contains('snes') || nameLower.contains('snes'))) ||
+              (str.contains('acid') && idLower.contains('acid')) ||
+              (str.contains('synthwave') && idLower.contains('synthwave')) ||
+              ((str.contains('lofi') || str.contains('lo-fi')) && idLower.contains('lofi')) ||
+              (str.contains('house') && idLower.contains('house')) ||
+              ((str.contains('r&b') || str.contains('soul')) && idLower.contains('soul')) ||
+              ((str.contains('pop') || str.contains('funk')) && idLower.contains('pop'))) {
+            matchedConfig = entry.value;
+            break;
+          }
+        }
+      }
+    }
+
+    final config = matchedConfig ?? genres['Lo-Fi Hip Hop']!;
 
     // 2. Resolve Seed & PRNG
     final int seed = ((params['Seed'] ?? params['seed'] ?? 42) as num).toInt();
@@ -823,8 +962,12 @@ class ProceduralSongEngine {
 
     final track = TrackChannel(
       id: 'proc_track_drums',
-      name: config.drumPresetId == 'snes_drum_kit' ? 'SNES Drum Kit' : 'Drums (GM Standard Kit)',
-      color: config.drumPresetId == 'snes_drum_kit' ? const Color(0xFFE52521) : const Color(0xFFFF4081),
+      name: config.drumPresetId == 'snes_drum_kit'
+          ? 'SNES Drum Kit'
+          : (config.drumPresetId == 'c64_sid_drum_kit' ? 'C64 SID Drum Kit' : 'Drums (GM Standard Kit)'),
+      color: config.drumPresetId == 'snes_drum_kit'
+          ? const Color(0xFFE52521)
+          : (config.drumPresetId == 'c64_sid_drum_kit' ? const Color(0xFF6C5EB5) : const Color(0xFFFF4081)),
       type: TrackType.eatScript,
       volume: 0.90,
       pan: 0.0,
@@ -1119,6 +1262,19 @@ class ProceduralSongEngine {
                 velocity: 0.75,
               ));
             }
+          } else if (config.id == 'c64_chiptune') {
+            // Commodore 64 Chiptune: Driving rolling 16ths with octave pops and syncopated pushes
+            for (int s = 0; s < 16; s += 2) {
+              final isOctave = (s % 4) == 2;
+              final isAccent = (s % 8) == 0;
+              sectionNotes.add(Note(
+                id: 'bass_c64_${bar}_$s',
+                pitch: isOctave ? bassRoot + 12 : bassRoot,
+                startStep: barStartStep + s,
+                durationSteps: 1.5,
+                velocity: isAccent ? 0.98 : 0.82,
+              ));
+            }
           } else {
             // Neo-Soul / Pop: Syncopated groove with 5th and octave
             final steps = [0, 4, 7, 10, 12];
@@ -1273,6 +1429,18 @@ class ProceduralSongEngine {
               velocity: 0.72,
             ));
           }
+        } else if (config.id == 'c64_chiptune') {
+          // Commodore 64: Rapid stepped chiptune arpeggio chords
+          for (int s = 0; s < 32; s += 2) {
+            final pIdx = (s ~/ 2) % voicing.length;
+            sectionNotes.add(Note(
+              id: 'chord_c64_${bar}_$s',
+              pitch: voicing[pIdx],
+              startStep: barStartStep + s,
+              durationSteps: 1.4,
+              velocity: (s % 8 == 0) ? 0.88 : 0.72,
+            ));
+          }
         } else {
           // Default sustained comping
           for (int vi = 0; vi < voicing.length; vi++) {
@@ -1424,6 +1592,41 @@ class ProceduralSongEngine {
             startStep: barStartStep + 16.0 + 2.0,
             durationSteps: 10.0,
             velocity: 0.85,
+          ));
+        }
+      } else if (config.id == 'c64_chiptune') {
+        // Commodore 64 Heroic Chiptune Lead: Rob Hubbard / Galway style heroic melodic phrasing
+        for (int bar = startBar; bar < endBar; bar += 2) {
+          final chord = _getChordAtBar(chords, bar) ?? chords.first;
+          final pRoot = chord.rootPitchClass;
+          final int barInClip = bar - startBar;
+          final double barStartStep = barInClip * 16.0;
+
+          // Heroic 8-bit theme motif across bar 1
+          final motifSteps = [0.0, 3.0, 6.0, 10.0, 12.0];
+          final intervals = isMinor ? [0, 3, 7, 10, 12] : [0, 4, 7, 9, 12];
+          for (int mi = 0; mi < motifSteps.length; mi++) {
+            final interval = intervals[mi % intervals.length];
+            final pitch = 72 + pRoot + interval;
+            final dur = (mi == motifSteps.length - 1) ? 3.5 : 2.0;
+            sectionNotes.add(Note(
+              id: 'lead_c64_${bar}_$mi',
+              pitch: pitch.clamp(60, 96),
+              startStep: barStartStep + motifSteps[mi],
+              durationSteps: dur,
+              velocity: 0.92,
+              isSlide: mi == 3,
+              isAccent: mi == 0 || mi == 4,
+            ));
+          }
+
+          // Bar 2 answer / sustained climax note with pitch modulation
+          sectionNotes.add(Note(
+            id: 'lead_c64_${bar}_ans',
+            pitch: 72 + pRoot + 7, // Held 5th
+            startStep: barStartStep + 16.0 + 0.0,
+            durationSteps: 12.0,
+            velocity: 0.88,
           ));
         }
       } else {

@@ -28,6 +28,11 @@ class EatsStorageHelper {
   static Future<double?> getDouble(String key) => EatsStorageHelperImpl.getDouble(key);
   static Future<void> setDouble(String key, double value) => EatsStorageHelperImpl.setDouble(key, value);
 
+  static Future<void> remove(String key) => EatsStorageHelperImpl.remove(key);
+  static void reloadSettings() => EatsStorageHelperImpl.reloadSettings();
+  static String getSettingsFilePath() => EatsStorageHelperImpl.getSettingsFilePath();
+  static Future<void> openSettingsFolder() => EatsStorageHelperImpl.openSettingsFolder();
+
   // --- SoundFont Storage API ---
 
   static Future<void> saveSoundFont(String fileName, Uint8List bytes) =>
@@ -75,6 +80,8 @@ class EatsStorageHelper {
   static String getProjectsFolderPath() => EatsStorageHelperImpl.getProjectsFolderPath();
 
   static Future<void> openProjectsFolder() => EatsStorageHelperImpl.openProjectsFolder();
+
+  static Future<void> openFolderForFile(String filePath) => EatsStorageHelperImpl.openFolderForFile(filePath);
 
   static Future<List<SavedProjectItem>> listSavedProjects() =>
       EatsStorageHelperImpl.listSavedProjects();

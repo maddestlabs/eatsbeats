@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
 import 'package:eatsbeats/eatscript/eat_project_serializer.dart';
+import 'package:eatsbeats/audio/procgen/ensemble_blueprint.dart';
+import 'package:eatsbeats/audio/procgen/procedural_ensemble_engine.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -140,6 +142,45 @@ end
       expect(newState.patterns.first.tracks.length, equals(state.patterns.first.tracks.length));
       state.dispose();
       newState.dispose();
+    });
+
+    test('Serializes and deserializes SongStructureBlueprint and generation seed in project save format', () {
+      final state = DawState();
+      final blueprint = ProceduralEnsembleEngine.generateOfflineBlueprint(
+        'RPG Fireside Tavern (Lute & Flute Duet, 3/4 Waltz)',
+        seed: 777,
+      );
+      ProceduralEnsembleEngine.renderBlueprint(state, blueprint, seed: 777);
+
+      expect(state.songBlueprint, isNotNull);
+      expect(state.songBlueprint!.title, equals('Fireside Tavern Tale'));
+      expect(state.songBlueprintSeed, equals(777));
+
+      // Serialize to .eat format
+      final serialized = state.exportToEatsLua();
+      expect(serialized, contains('blueprint = {'));
+      expect(serialized, contains('seed = 777'));
+      expect(serialized, contains('Fireside Tavern Tale'));
+
+      // Deserialize into fresh DawState
+      final loadedState = DawState();
+      loadedState.loadFromEatsLua(serialized);
+
+      expect(loadedState.songBlueprint, isNotNull);
+      expect(loadedState.songBlueprint!.title, equals('Fireside Tavern Tale'));
+      expect(loadedState.songBlueprintSeed, equals(777));
+      expect(loadedState.songBlueprint!.meter, equals('3/4'));
+      expect(loadedState.songBlueprint!.ensemble.length, equals(2));
+      expect(loadedState.songBlueprint!.sections.length, equals(4));
+
+      // Test re-seeding / regenerating a variation from the loaded blueprint
+      final regenResult = loadedState.regenerateFromSongBlueprint(newSeed: 9999);
+      expect(regenResult?.isSuccess, isTrue);
+      expect(loadedState.songBlueprintSeed, equals(9999));
+      expect(loadedState.projectName, contains('#9999'));
+
+      state.dispose();
+      loadedState.dispose();
     });
   });
 

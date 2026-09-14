@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../models/daw_state.dart';
 import '../theme/eats_theme.dart';
 import '../utils/eats_file_helper.dart';
+import '../utils/eats_storage_helper.dart';
 import '../utils/url_script_helper.dart';
 import '../eatscript/default_song.dart';
 import '../eatscript/default_song_eat.dart';
@@ -249,17 +250,34 @@ class TransportHeader extends StatelessWidget {
     );
   }
 
-  void _handleSave(BuildContext context) {
-    final zipBytes = dawState.exportToEatsZip();
-    final fileName = '${dawState.projectName.toLowerCase().replaceAll(' ', '_')}.eats.zip';
-    EatsFileHelper.saveEatsZipFile(zipBytes, fileName);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Saved project as "$fileName"'),
-        backgroundColor: EatsTheme.panelBackground,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+  Future<void> _handleSave(BuildContext context) async {
+    final cleanProjName = dawState.projectName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    final defaultName = cleanProjName.isNotEmpty ? cleanProjName : 'my_song';
+    final fileName = '$defaultName.eat';
+    final eatCode = dawState.exportToEatsLua();
+
+    final savedPath = await EatsFileHelper.saveEatScriptFile(eatCode, fileName);
+    if (!context.mounted) return;
+
+    if (savedPath != null && savedPath.isNotEmpty) {
+      final baseName = savedPath.split(RegExp(r'[\\/]')).last;
+      final cleanName = baseName.replaceAll(RegExp(r'\.(eat|eats|eats\.lua|lua)$', caseSensitive: false), '');
+      if (cleanName.isNotEmpty) {
+        dawState.projectName = cleanName;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Saved project to:\n$savedPath'),
+          backgroundColor: EatsTheme.panelBackground,
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'SHOW IN FOLDER',
+            textColor: EatsTheme.primaryCyan,
+            onPressed: () => EatsStorageHelper.openFolderForFile(savedPath),
+          ),
+        ),
+      );
+    }
   }
 
   void _handleLoad(BuildContext context) {
@@ -400,6 +418,30 @@ class TransportHeader extends StatelessWidget {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Copied compressed shareable song URL to clipboard!')),
                       );
+                    }
+                  },
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.save_as, size: 15),
+                  label: const Text('SAVE FILE', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: TextButton.styleFrom(foregroundColor: EatsTheme.primaryCyan),
+                  onPressed: () async {
+                    if (controller.text.isNotEmpty) {
+                      final cleanProjName = dawState.projectName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+                      final defaultName = cleanProjName.isNotEmpty ? cleanProjName : 'my_song';
+                      final saved = await EatsFileHelper.saveEatScriptFile(controller.text, '$defaultName.eat');
+                      if (context.mounted && saved != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Saved project to:\n$saved'),
+                            action: SnackBarAction(
+                              label: 'SHOW IN FOLDER',
+                              textColor: EatsTheme.primaryCyan,
+                              onPressed: () => EatsStorageHelper.openFolderForFile(saved),
+                            ),
+                          ),
+                        );
+                      }
                     }
                   },
                 ),

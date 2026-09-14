@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 
 import 'eats_file_helper_stub.dart'
@@ -6,29 +5,32 @@ import 'eats_file_helper_stub.dart'
 
 class EatsFileHelper {
   /// Save/Download `.eats.zip` binary archive across Web, Desktop (Windows/macOS/Linux), and Mobile.
-  static void saveEatsZipFile(Uint8List zipBytes, String fileName) {
+  /// Returns the saved absolute file path (or file name on Web), or null if cancelled.
+  static Future<String?> saveEatsZipFile(Uint8List zipBytes, String fileName) async {
     if (kIsWeb) {
-      downloadWebZipImpl(zipBytes, fileName);
+      return downloadWebZipImpl(zipBytes, fileName);
     } else {
-      saveEatsZipFileImpl(zipBytes, fileName);
+      return saveEatsZipFileImpl(zipBytes, fileName);
     }
   }
 
   /// Save/Download legacy `.eats.lua` file.
-  static void saveEatsLuaFile(String content, String fileName) {
+  /// Returns the saved absolute file path (or file name on Web), or null if cancelled.
+  static Future<String?> saveEatsLuaFile(String content, String fileName) async {
     if (kIsWeb) {
-      downloadWebFileImpl(content, fileName);
+      return downloadWebFileImpl(content, fileName);
     } else {
-      saveEatsLuaFileImpl(content, fileName);
+      return saveEatsLuaFileImpl(content, fileName);
     }
   }
 
   /// Save/Download Eatscript `.eat` / `.eats` script file.
-  static void saveEatScriptFile(String content, String fileName) {
+  /// Returns the saved absolute file path (or file name on Web), or null if cancelled.
+  static Future<String?> saveEatScriptFile(String content, String fileName) async {
     final cleanName = fileName.endsWith('.eat') || fileName.endsWith('.eats')
         ? fileName
         : '$fileName.eat';
-    saveEatsLuaFile(content, cleanName);
+    return saveEatsLuaFile(content, cleanName);
   }
 
   /// Triggers file open dialog for `.eats.zip`, `.zip`, `.eats.lua`, `.sf2`, `.wav`, `.mid`, `.midi`, or `.txt` files.

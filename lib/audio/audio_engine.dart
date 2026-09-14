@@ -222,8 +222,8 @@ class AudioEngine {
 
   int get pcmCacheCount => _pcmCache.length;
 
-  Map<String, double> getMeterSnapshot() {
-    updateMeters();
+  Map<String, double> getMeterSnapshot({DateTime? timestamp}) {
+    updateMeters(timestamp: timestamp);
     return {
       'leftPeak': _leftPeak,
       'rightPeak': _rightPeak,
@@ -243,14 +243,13 @@ class AudioEngine {
     _trackRightPeaks.remove(trackId);
   }
 
-  DateTime _lastMeterUpdateTime = DateTime.now();
-  DateTime _lastNativeMeterCall = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _lastMeterUpdateTime = DateTime.fromMillisecondsSinceEpoch(0);
   // Separate throttle for visualization-driven meter polls (waveform/spectrum widgets).
   DateTime _lastVizMeterUpdateTime = DateTime.fromMillisecondsSinceEpoch(0);
 
   /// Fast pure-Dart meter decay without calling native FFI. Used when idle/stopped.
-  void decayMeters() {
-    final now = DateTime.now();
+  void decayMeters({DateTime? timestamp}) {
+    final now = timestamp ?? DateTime.now();
     final dt = (now.difference(_lastMeterUpdateTime).inMicroseconds / 1000000.0).clamp(0.001, 0.5);
     _lastMeterUpdateTime = now;
     final decay = math.exp(-dt / 0.15); // Smooth 150ms release
@@ -261,8 +260,11 @@ class AudioEngine {
     _trackRightPeaks.updateAll((_, val) => (val * decay) < 0.001 ? 0.0 : val * decay);
   }
 
-  void updateMeters({bool force = false}) {
-    final now = DateTime.now();
+  void updateMeters({bool force = false, DateTime? timestamp}) {
+    final now = timestamp ?? DateTime.now();
+    if (!force && now.difference(_lastMeterUpdateTime).inMilliseconds < 15) {
+      return;
+    }
     final dt = (now.difference(_lastMeterUpdateTime).inMicroseconds / 1000000.0).clamp(0.001, 0.5);
     _lastMeterUpdateTime = now;
 
@@ -275,7 +277,12 @@ class AudioEngine {
     _activeVoices.removeWhere((v) => !v.isLooping && (currentAudioTime >= v.startTime + v.durationSec + 0.1));
 
     if (_activeVoices.isEmpty && !_backend.hasActiveAudioSources) {
-      decayMeters();
+      final idleDecay = math.exp(-dt / 0.15); // Smooth 150ms release
+      _leftPeak = (_leftPeak * idleDecay) < 0.001 ? 0.0 : _leftPeak * idleDecay;
+      _rightPeak = (_rightPeak * idleDecay) < 0.001 ? 0.0 : _rightPeak * idleDecay;
+      _cpuLoad = (_cpuLoad * 0.90) + (0.015 * 0.10);
+      _trackLeftPeaks.updateAll((_, val) => (val * idleDecay) < 0.001 ? 0.0 : val * idleDecay);
+      _trackRightPeaks.updateAll((_, val) => (val * idleDecay) < 0.001 ? 0.0 : val * idleDecay);
       return;
     }
 
@@ -379,8 +386,9 @@ class AudioEngine {
     int count = 64,
     double gain = 1.0,
     double timebase = 1.0,
+    DateTime? timestamp,
   }) {
-    final now = DateTime.now();
+    final now = timestamp ?? DateTime.now();
     final isMaster = trackId == null || trackId == 'master_bus' || trackId == 'master' || trackId.toLowerCase().contains('master');
     final targetId = isMaster ? null : trackId;
 
@@ -393,14 +401,14 @@ class AudioEngine {
     final bufRms = _bufferRms(_trackTapBuffer);
     final noteOnPeak = isMaster
         ? math.max(_leftPeak, _rightPeak)
-        : (trackId != null ? math.max(getTrackLeftPeak(trackId), getTrackRightPeak(trackId)) : 0.0);
+        : math.max(getTrackLeftPeak(trackId), getTrackRightPeak(trackId));
     final activity = math.max(bufRms * 4.0, noteOnPeak);
 
     final result = List<double>.filled(count, 0.0);
     final len = _trackTapBuffer.length;
     if (len == 0) return result;
 
-    final nowSec = DateTime.now().millisecondsSinceEpoch / 1000.0;
+    final nowSec = now.millisecondsSinceEpoch / 1000.0;
     final bool isBufferFlat = bufRms < 0.002;
 
     for (int i = 0; i < count; i++) {
@@ -424,11 +432,12 @@ class AudioEngine {
     int bands = 16,
     double gain = 1.0,
     double decay = 0.6,
+    DateTime? timestamp,
   }) {
-    final now = DateTime.now();
+    final now = timestamp ?? DateTime.now();
     // Throttle to 30ms (≈33Hz) — same gate as getWaveformSamples.
     if (now.difference(_lastVizMeterUpdateTime).inMilliseconds >= 30) {
-      updateMeters();
+      updateMeters(force: true, timestamp: now);
       _lastVizMeterUpdateTime = now;
     }
     final isMaster = trackId == null || trackId == 'master_bus' || trackId == 'master' || trackId.toLowerCase().contains('master');
@@ -440,14 +449,14 @@ class AudioEngine {
     final freqEnergy = _trackTapBuffer.fold<double>(0.0, (acc, b) => acc + b) / (255.0 * _trackTapBuffer.length);
     final noteOnPeak = isMaster
         ? math.max(_leftPeak, _rightPeak)
-        : (trackId != null ? math.max(getTrackLeftPeak(trackId), getTrackRightPeak(trackId)) : 0.0);
+        : math.max(getTrackLeftPeak(trackId), getTrackRightPeak(trackId));
     final activity = math.max(freqEnergy * 4.0, noteOnPeak);
 
     final result = List<double>.filled(bands, 0.0);
     final len = _trackTapBuffer.length;
     if (len == 0) return result;
 
-    final nowSec = DateTime.now().millisecondsSinceEpoch / 1000.0;
+    final nowSec = now.millisecondsSinceEpoch / 1000.0;
     final samplesPerBand = math.max(1, len ~/ bands);
     for (int b = 0; b < bands; b++) {
       double bandSum = 0.0;
@@ -470,8 +479,8 @@ class AudioEngine {
     return result;
   }
 
-  (double left, double right) getPeakLevels({String? trackId}) {
-    updateMeters();
+  (double left, double right) getPeakLevels({String? trackId, DateTime? timestamp}) {
+    updateMeters(timestamp: timestamp);
     if (trackId == null || trackId == 'master_bus' || trackId == 'master') {
       return (_leftPeak, _rightPeak);
     }
@@ -699,6 +708,15 @@ class AudioEngine {
     return _pcmCache.containsKey(cacheKey);
   }
 
+  Float32List? _pcmCacheGet(String key) {
+    final cached = _pcmCache.remove(key);
+    if (cached != null) {
+      _pcmCache[key] = cached; // Move to most recently used
+      return cached;
+    }
+    return null;
+  }
+
   (Float32List, String?) _getOrCreateBuffer({
     required TrackChannel track,
     required int midiNote,
@@ -728,7 +746,7 @@ class AudioEngine {
         : '${track.id}_${midiNote}${targetPitchStr}${artStr}_${durMs}_${isAccent ? 1 : 0}_${isSlide ? 1 : 0}_$pHash';
 
     if (cacheKey != null) {
-      final cached = _pcmCache[cacheKey];
+      final cached = _pcmCacheGet(cacheKey);
       if (cached != null) {
         return (cached, cacheKey);
       }
@@ -821,6 +839,7 @@ class AudioEngine {
         pressurePoints: pressurePoints,
         timbrePoints: timbrePoints,
         velocity: velocity,
+        synthType: track.resolvedSynthType,
       );
     } else {
       return PolySynth.generateSynthToneBuffer(
@@ -1027,9 +1046,9 @@ class AudioEngine {
           continue;
         }
 
-        final notes = clip.notes;
-        for (int nIdx = 0; nIdx < notes.length; nIdx++) {
-          final note = notes[nIdx];
+        final sortedNotes = clip.notes.toList()..sort((a, b) => a.startStep.compareTo(b.startStep));
+        for (int nIdx = 0; nIdx < sortedNotes.length; nIdx++) {
+          final note = sortedNotes[nIdx];
           final double absoluteNoteStep = clipStart + note.startStep;
 
           if (!eagerAll && (absoluteNoteStep < startStep || absoluteNoteStep >= endStep)) {
@@ -1039,18 +1058,20 @@ class AudioEngine {
           int? targetPitch;
           final double slideMaxStep = note.startStep + math.max(1.5, note.durationSteps + 0.5);
           if (track.isMonophonicTrack) {
-            for (int k = 0; k < notes.length; k++) {
-              final n = notes[k];
-              if (n.startStep > note.startStep && n.startStep <= slideMaxStep) {
+            for (int k = nIdx + 1; k < sortedNotes.length; k++) {
+              final n = sortedNotes[k];
+              if (n.startStep > slideMaxStep) break;
+              if (n.startStep > note.startStep) {
                 targetPitch = n.pitch;
                 break;
               }
             }
           } else {
             // Polyphonic track: match slide target on the same tracker column
-            for (int k = 0; k < notes.length; k++) {
-              final n = notes[k];
-              if (n.column == note.column && n.startStep > note.startStep && n.startStep <= slideMaxStep) {
+            for (int k = nIdx + 1; k < sortedNotes.length; k++) {
+              final n = sortedNotes[k];
+              if (n.startStep > slideMaxStep) break;
+              if (n.column == note.column && n.startStep > note.startStep) {
                 if (n.isSlide) targetPitch = n.pitch;
                 break;
               }

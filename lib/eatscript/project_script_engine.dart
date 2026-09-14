@@ -8,6 +8,7 @@ import 'eat_script_engine.dart';
 import '../audio/procgen/procedural_piano_engine.dart';
 import '../audio/procgen/procedural_drum_engine.dart';
 import '../audio/procgen/procedural_song_engine.dart';
+import '../audio/procgen/procedural_ensemble_engine.dart';
 
 /// Result of executing a project script.
 class ProjectScriptResult {
@@ -252,6 +253,11 @@ class ProjectScriptEngine {
       return _runProceduralSongGenerator(dawState, p);
     }
 
+    // 4b. Procedural Ensemble & Dynamic Arranger Script
+    if (scriptId == 'action_ensemble_arranger' || scriptId.contains('ensemble_arranger') || code.contains('procedural ensemble')) {
+      return _runProceduralEnsembleArranger(dawState, p);
+    }
+
     // 5. Groove & Velocity Humanizer Script
     if (scriptId == 'action_humanize_groove') {
       return _runHumanizeGroove(dawState, p);
@@ -401,6 +407,11 @@ class ProjectScriptEngine {
   /// Procedurally generates a full multi-track song structure (Drums, Bass, Chords, Lead/Hook).
   static ProjectScriptResult _runProceduralSongGenerator(DawState dawState, Map<String, dynamic> params) {
     return ProceduralSongEngine.generateToDawState(dawState, params);
+  }
+
+  /// Procedurally composes a dynamic ensemble arrangement across arbitrary-N tracks.
+  static ProjectScriptResult _runProceduralEnsembleArranger(DawState dawState, Map<String, dynamic> params) {
+    return ProceduralEnsembleEngine.generateToDawState(dawState, params);
   }
 
   /// Humanizes groove micro-timing and note velocities.

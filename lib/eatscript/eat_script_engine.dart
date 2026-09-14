@@ -15,6 +15,7 @@ import 'eat_parser.dart';
 import 'eat_script_library.dart';
 import 'eat_transpiler.dart';
 import 'project_script_engine.dart';
+import 'eat_synth_type.dart';
 
 class EatCompilationResult {
   final bool isSuccess;
@@ -72,6 +73,7 @@ class EatScriptEngine {
     List<List<double>>? pressurePoints,
     List<List<double>>? timbrePoints,
     double velocity = 0.9,
+    EatSynthType? synthType,
   }) => EatDspSynthesizer.synthesizeBuffer(
     code: code,
     durationSec: durationSec,
@@ -88,6 +90,7 @@ class EatScriptEngine {
     pressurePoints: pressurePoints,
     timbrePoints: timbrePoints,
     velocity: velocity,
+    synthType: synthType,
   );
 
   /// Evaluates an automation lane procedurally (LFO, ramp, ADSR) or via keyframe interpolation.
@@ -113,6 +116,7 @@ class EatScriptEngine {
     String? trackId,
     int sampleIndex = 0,
     int totalSamples = 1,
+    EatSynthType? synthType,
   }) => EatDspSynthesizer.evaluateSynth(
     code: code,
     time: time,
@@ -125,6 +129,7 @@ class EatScriptEngine {
     trackId: trackId,
     sampleIndex: sampleIndex,
     totalSamples: totalSamples,
+    synthType: synthType,
   );
 
   /// Evaluates an ADSR envelope.

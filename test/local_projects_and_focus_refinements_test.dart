@@ -30,7 +30,7 @@ void main() {
       final saved = await EatsStorageHelper.saveProjectFile(projectName, luaContent);
       expect(saved, isNotNull);
       expect(saved!.name, equals(projectName));
-      expect(saved.fileName, equals('Cyber Funk Groove.eats.lua'));
+      expect(saved.fileName, anyOf(equals('Cyber Funk Groove.eats'), equals('Cyber Funk Groove.eats.lua')));
 
       // 2. List Projects
       final list = await EatsStorageHelper.listSavedProjects();

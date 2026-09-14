@@ -79,6 +79,18 @@ class EatsStorageHelperImpl {
     await setString(key, value.toString());
   }
 
+  static Future<void> remove(String key) async {
+    try {
+      html.window.localStorage.remove(key);
+    } catch (e) {
+      debugPrint('localStorage remove error: $e');
+    }
+  }
+
+  static void reloadSettings() {}
+  static String getSettingsFilePath() => 'localStorage';
+  static Future<void> openSettingsFolder() async {}
+
   // --- SoundFont Storage API (IndexedDB) ---
 
   static Future<void> saveSoundFont(String fileName, Uint8List bytes) async {
@@ -209,6 +221,8 @@ class EatsStorageHelperImpl {
   static String getProjectsFolderPath() => 'Web Browser Storage (localStorage)';
 
   static Future<void> openProjectsFolder() async {}
+
+  static Future<void> openFolderForFile(String filePath) async {}
 
   static Future<List<SavedProjectItem>> listSavedProjects() async {
     final results = <SavedProjectItem>[];
