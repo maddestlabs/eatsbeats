@@ -56,6 +56,10 @@ void main() {
       await tester.tap(settingsBtn);
       await tester.pumpAndSettle();
 
+      // Expand DISPLAY & WORKSPACE section (collapsed by default)
+      await tester.tap(find.text('DISPLAY & WORKSPACE'));
+      await tester.pumpAndSettle();
+
       // Verify GUI ANIMATIONS label and SkeuomorphicHardwareSwitch are present
       expect(find.text('GUI ANIMATIONS & CPU'), findsOneWidget);
       expect(find.text('Enabled (Full Visualizers & Tickers)'), findsOneWidget);

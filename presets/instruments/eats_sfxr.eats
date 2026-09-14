@@ -1,5 +1,6 @@
 # @name: SNES Sfxr
 # @category: instrument
+# @description: 16-Bit retro arcade and console sound effect synthesizer with procedural presets, random seeds, and SNES echo DSP.
 
 # --- Parameter Definitions ---
 def init():

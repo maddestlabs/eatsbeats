@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/audio/time_context.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
-import 'package:eatsbeats/eatscript/eat_engine.dart';
+import 'package:eatsbeats/eatscript/eats_engine.dart';
 import 'package:eatsbeats/eatscript/midi_pipeline_engine.dart';
 import 'package:flutter/material.dart';
 

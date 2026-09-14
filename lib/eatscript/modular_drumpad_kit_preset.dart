@@ -1,4 +1,4 @@
-import 'eat_script_library.dart';
+import 'eats_script_library.dart';
 
 /// Modular Drum Machine (`modular_drumpad_kit`) Preset.
 ///

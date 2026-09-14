@@ -117,8 +117,22 @@ void main() {
       await tester.tap(trackText, buttons: kSecondaryMouseButton);
       await tester.pumpAndSettle();
 
-      // Verify pullout drawer opened
+      // Verify pullout drawer opened to Track section
       expect(find.byType(ArrangerContextInspector), findsOneWidget);
+      expect(find.text('SELECTED CLIP'), findsNothing);
+      expect(find.text('TRACK PROPERTIES'), findsOneWidget);
+
+      // Scroll inspector to reveal track cards
+      final inspectorList = find.descendant(of: find.byType(ArrangerContextInspector), matching: find.byType(Scrollable));
+      await tester.scrollUntilVisible(find.text('TRACK ACTIONS'), 100, scrollable: inspectorList);
+      await tester.pumpAndSettle();
+
+      expect(find.text('TRACK ACTIONS'), findsOneWidget);
+      expect(find.text('TRACK COLOR'), findsOneWidget);
+      expect(find.text('TRACK LYRICS'), findsOneWidget);
+      expect(find.byIcon(Icons.palette), findsOneWidget);
+      expect(find.byIcon(Icons.colorize), findsOneWidget);
+      expect(find.byIcon(Icons.settings), findsOneWidget);
 
       dawState.dispose();
     });
@@ -153,6 +167,10 @@ void main() {
       expect(find.byType(ArrangerContextInspector), findsOneWidget);
       expect(find.text('SELECTED CLIP'), findsOneWidget);
       expect(find.text(clip.name), findsAtLeastNWidgets(1));
+      expect(find.text('LOOP & LENGTH'), findsOneWidget);
+      expect(find.text('OPEN IN EDIT TAB'), findsOneWidget);
+      expect(find.text('SPLIT NOTES INTO TRACKS'), findsOneWidget);
+      expect(find.text('CLIP LYRICS'), findsOneWidget);
 
       dawState.dispose();
     });

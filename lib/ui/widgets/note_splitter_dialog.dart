@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../eatscript/eat_script_engine.dart';
-import '../../eatscript/eat_param_model.dart';
-import '../../eatscript/eat_gui_parser.dart';
-import '../../eatscript/eat_script_library.dart';
+import '../../eatscript/eats_script_engine.dart';
+import '../../eatscript/eats_param_model.dart';
+import '../../eatscript/eats_gui_parser.dart';
+import '../../eatscript/eats_script_library.dart';
 import '../../eatscript/note_splitter_engine.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';

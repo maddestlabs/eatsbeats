@@ -24,12 +24,12 @@ class EatsFileHelper {
     }
   }
 
-  /// Save/Download Eatscript `.eat` / `.eats` script file.
+  /// Save/Download Eatscript `.eats` script file.
   /// Returns the saved absolute file path (or file name on Web), or null if cancelled.
   static Future<String?> saveEatScriptFile(String content, String fileName) async {
-    final cleanName = fileName.endsWith('.eat') || fileName.endsWith('.eats')
+    final cleanName = fileName.endsWith('.eats')
         ? fileName
-        : '$fileName.eat';
+        : '$fileName.eats';
     return saveEatsLuaFile(content, cleanName);
   }
 

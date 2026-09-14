@@ -3,12 +3,12 @@ import 'dart:typed_data';
 
 import '../audio/time_context.dart';
 import '../models/automation_model.dart';
-import 'eat_dsp_synthesizer.dart';
-import 'eat_script_engine.dart';
-import 'eat_param_model.dart';
-import 'eat_synth_type.dart';
+import 'eats_dsp_synthesizer.dart';
+import 'eats_script_engine.dart';
+import 'eats_param_model.dart';
+import 'eats_synth_type.dart';
 
-export 'eat_param_model.dart';
+export 'eats_param_model.dart';
 
 // Backwards-compatibility alias
 typedef LuaEngine = EatEngine;

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import '../models/saved_project_model.dart';
 
 import 'eats_storage_helper_stub.dart'
@@ -10,6 +11,14 @@ import 'eats_storage_helper_stub.dart'
 /// - Web: Uses localStorage for settings/sessions and IndexedDB for large binary SoundFonts (.sf2).
 /// - Windows/Desktop: Uses AppData directory for settings, sessions, and binary SoundFonts.
 class EatsStorageHelper {
+  /// Notifier triggered whenever a project file is saved, deleted, or renamed.
+  static final ValueNotifier<int> onProjectsChanged = ValueNotifier<int>(0);
+
+  /// Notifies all listening UI components (e.g. Project Browser > Projects) that project files changed.
+  static void notifyProjectsChanged() {
+    onProjectsChanged.value++;
+  }
+
   // --- Settings Keys ---
   static const String keyThemePreset = 'theme_preset';
   static const String keyUiScale = 'ui_scale';
@@ -75,7 +84,7 @@ class EatsStorageHelper {
   static Future<void> clearSessionLua() =>
       EatsStorageHelperImpl.clearSessionLua();
 
-  // --- Saved Projects Storage API ---
+  // --- Saved Projects API ---
 
   static String getProjectsFolderPath() => EatsStorageHelperImpl.getProjectsFolderPath();
 
@@ -86,17 +95,32 @@ class EatsStorageHelper {
   static Future<List<SavedProjectItem>> listSavedProjects() =>
       EatsStorageHelperImpl.listSavedProjects();
 
-  static Future<SavedProjectItem?> saveProjectFile(String name, String luaCode) =>
-      EatsStorageHelperImpl.saveProjectFile(name, luaCode);
+  static Future<SavedProjectItem?> saveProjectFile(String name, String luaCode) async {
+    final res = await EatsStorageHelperImpl.saveProjectFile(name, luaCode);
+    if (res != null) {
+      notifyProjectsChanged();
+    }
+    return res;
+  }
 
   static Future<String?> loadProjectFile(SavedProjectItem item) =>
       EatsStorageHelperImpl.loadProjectFile(item);
 
-  static Future<bool> deleteProjectFile(SavedProjectItem item) =>
-      EatsStorageHelperImpl.deleteProjectFile(item);
+  static Future<bool> deleteProjectFile(SavedProjectItem item) async {
+    final res = await EatsStorageHelperImpl.deleteProjectFile(item);
+    if (res) {
+      notifyProjectsChanged();
+    }
+    return res;
+  }
 
-  static Future<bool> renameProjectFile(SavedProjectItem item, String newName) =>
-      EatsStorageHelperImpl.renameProjectFile(item, newName);
+  static Future<bool> renameProjectFile(SavedProjectItem item, String newName) async {
+    final res = await EatsStorageHelperImpl.renameProjectFile(item, newName);
+    if (res) {
+      notifyProjectsChanged();
+    }
+    return res;
+  }
 
   static void setTestMode(bool value) => EatsStorageHelperImpl.setTestMode(value);
 }

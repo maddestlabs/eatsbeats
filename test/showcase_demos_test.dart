@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/models/daw_state.dart';
-import 'package:eatsbeats/eatscript/eat_project_parser.dart';
-import 'package:eatsbeats/eatscript/eat_engine.dart';
+import 'package:eatsbeats/eatscript/eats_project_parser.dart';
+import 'package:eatsbeats/eatscript/eats_engine.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -22,13 +22,13 @@ import '../audio/gm/gm_instrument_registry.dart';
 import '../audio/audio_to_midi_engine.dart';
 import '../utils/audio_to_midi_pack_manager.dart';
 import '../theme/eats_theme.dart';
-import '../eatscript/eat_engine.dart';
-import '../eatscript/eat_gui_model.dart';
-import '../eatscript/eat_project_serializer.dart';
-import '../eatscript/eat_project_parser.dart';
+import '../eatscript/eats_engine.dart';
+import '../eatscript/eats_gui_model.dart';
+import '../eatscript/eats_project_serializer.dart';
+import '../eatscript/eats_project_parser.dart';
 import '../audio/time_context.dart';
-import '../eatscript/eat_preset_library.dart';
-import '../eatscript/eat_script_library.dart';
+import '../eatscript/eats_preset_library.dart';
+import '../eatscript/eats_script_library.dart';
 import '../eatscript/midi_pipeline_engine.dart';
 import '../eatscript/note_splitter_engine.dart';
 import '../eatscript/project_script_engine.dart';
@@ -44,9 +44,9 @@ import '../audio/easing.dart';
 import '../audio/track_freeze_engine.dart';
 import '../audio/master_offline_render_engine.dart';
 import '../audio/virtual_render_pipeline.dart';
-import '../eatscript/eat_script_engine.dart';
-import '../eatscript/default_song_eat.dart';
-import '../eatscript/eat_transpiler.dart';
+import '../eatscript/eats_script_engine.dart';
+import '../eatscript/eats_default_song.dart';
+import '../eatscript/eats_transpiler.dart';
 import '../audio/procgen/procedural_song_engine.dart';
 import '../audio/procgen/ensemble_blueprint.dart';
 import '../audio/procgen/procedural_ensemble_engine.dart';
@@ -1433,9 +1433,7 @@ class DawState extends ChangeNotifier {
   void resetActiveIndices() {
     _activePatternIndex = 0;
     _activeTrackIndex = 0;
-    if (activeTrack.clips.isNotEmpty) {
-      activeClip = activeTrack.clips.first;
-    }
+    activeClip = null;
     if (activeTrack.luaScriptCode.isNotEmpty) {
       luaCode = activeTrack.luaScriptCode;
       compilationResult = compileScript(luaCode);
@@ -1725,15 +1723,12 @@ class DawState extends ChangeNotifier {
     }
 
     _activeTrackIndex = newIndex;
+    activeClip = null;
 
-    // Synchronize activeClip to current playhead position or track's first clip
     if (activeTrack.clips.isNotEmpty) {
       final currentBar = _arrangerStep ~/ 16;
       final matchingClip = getClipAtBar(activeTrack, currentBar) ?? activeTrack.clips.first;
-      activeClip = matchingClip;
       activeTrack.notes = matchingClip.notes.map((n) => n.copyWith()).toList();
-    } else {
-      activeClip = null;
     }
 
     if (activeTrack.luaScriptCode.isNotEmpty) {
@@ -1856,7 +1851,7 @@ class DawState extends ChangeNotifier {
   }
 
   void _initDemoTracks() {
-    loadFromEatsLua(DefaultSongEat.midnightBitesEat);
+    loadFromEatsLua(DefaultSong.midnightBites);
   }
 
   /// Generates an authentic procedural multi-track song (e.g. Lo-Fi Hip Hop, Synthwave)
@@ -3432,7 +3427,7 @@ def gui():
                         hasSimultaneous ||
                         hasSlideParam ||
                         (hasNextNote && (note.isSlide || hasSlideParam));
-                    final bool isAccentNote = note.isAccent || note.velocity > 0.75;
+                    final bool isAccentNote = note.hasAccent;
                     final effectiveMidi = remapPitch(note.pitch);
                     final double noteDurSec = math.max(0.02, math.min(3.0, note.durationSteps * stepDurationSec));
 
@@ -3453,7 +3448,7 @@ def gui():
                     if (note.startStep < localStep || note.startStep >= stepEnd) continue;
                     final double subOffset = (note.startStep - localStep).clamp(0.0, 0.99);
                     final double noteHardwareTime = hardwareTime + (subOffset * stepDurationSec);
-                    final bool isAccentNote = note.isAccent || note.velocity > 0.75;
+                    final bool isAccentNote = note.hasAccent;
                     final effectiveMidi = remapPitch(note.pitch);
 
                     // Polyphonic slide resolution per tracker column (no toList).
@@ -3492,7 +3487,7 @@ def gui():
                     (track.isMonophonicTrack && prevStep.active);
                 final int? rawTargetPitch = nextStep.active ? nextStep.pitch : null;
                 final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
-                final bool isAccentStep = step.isAccent || step.velocity > 0.75;
+                final bool isAccentStep = step.hasAccent;
 
                 final effectiveMidi = remapPitch(step.pitch);
 
@@ -3620,7 +3615,7 @@ def gui():
                     hasSlideParam ||
                     (note.durationSteps > 1.0) ||
                     (hasNextNote && (note.isSlide || hasSlideParam || note.durationSteps >= 1.0));
-                final bool isAccentNote = note.isAccent || note.velocity > 0.75;
+                final bool isAccentNote = note.hasAccent;
                 final effectiveMidi = remapPitch(note.pitch);
 
                 audioEngine.playNoteOrSample(
@@ -3639,7 +3634,7 @@ def gui():
                 if (note.startStep < localStep || note.startStep >= stepEnd2) continue;
                 final double subOffset = (note.startStep - localStep).clamp(0.0, 0.99);
                 final double noteHardwareTime = hardwareTime + (subOffset * stepDurationSec);
-                final bool isAccentNote = note.isAccent || note.velocity > 0.75;
+                final bool isAccentNote = note.hasAccent;
                 final effectiveMidi = remapPitch(note.pitch);
 
                 audioEngine.playNoteOrSample(
@@ -3664,7 +3659,7 @@ def gui():
                 (track.isMonophonicTrack && prevStep.active);
             final int? rawTargetPitch = nextStep.active ? nextStep.pitch : null;
             final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
-            final bool isAccentStep = step.isAccent || step.velocity > 0.75;
+            final bool isAccentStep = step.hasAccent;
 
             final effectiveMidi = remapPitch(step.pitch);
 
@@ -3813,7 +3808,7 @@ def gui():
       midiNote: note.pitch,
       targetMidiNote: targetSlidePitch,
       isSlide: isSlide,
-      isAccent: note.isAccent || note.velocity > 0.75,
+      isAccent: note.hasAccent,
       velocity: note.velocity,
       articulation: note.articulation,
       releaseVelocity: note.releaseVelocity ?? 0.5,
@@ -4379,6 +4374,314 @@ def gui():
       },
       'tracks': trackTelemetry,
     };
+  }
+
+  /// Extracts musical, harmonic, and track telemetry for AI style assessment & arrangement.
+  Map<String, dynamic> extractSongStyleTelemetry() {
+    final activeTracks = activePattern.tracks;
+    final chordList = chordTrack.map((c) => {
+      'bar': c.startBar,
+      'length': c.barLength,
+      'chord': c.displayName,
+      'root': ChordTheory.pitchClassNames[c.rootPitchClass],
+      'rootPitchClass': c.rootPitchClass,
+      'quality': c.quality.name,
+      'bassPitchClass': c.bassPitchClass,
+    }).toList();
+
+    final trackSummaries = activeTracks.map((t) {
+      final allNotes = t.notes.isNotEmpty
+          ? t.notes
+          : (t.clips.isNotEmpty ? t.clips.expand((c) => c.notes).toList() : <Note>[]);
+      int minPitch = 127;
+      int maxPitch = 0;
+      for (final n in allNotes) {
+        if (n.pitch < minPitch) minPitch = n.pitch;
+        if (n.pitch > maxPitch) maxPitch = n.pitch;
+      }
+      return {
+        'id': t.id,
+        'name': t.name,
+        'role': t.primaryTag,
+        'tags': t.effectiveTags,
+        'type': t.type.name,
+        'isMuted': t.isMuted,
+        'chordFollowMode': t.chordFollowMode.displayName,
+        'clipCount': t.clips.length,
+        'noteCount': allNotes.length,
+        'pitchRange': allNotes.isNotEmpty
+            ? '${ChordTheory.pitchClassNames[minPitch % 12]}${minPitch ~/ 12 - 1} to ${ChordTheory.pitchClassNames[maxPitch % 12]}${maxPitch ~/ 12 - 1}'
+            : 'none',
+        'hasNotes': allNotes.isNotEmpty,
+      };
+    }).toList();
+
+    return {
+      'title': projectName,
+      'bpm': _bpm,
+      'songKey': songKey,
+      'songKeyRoot': songKeyRoot,
+      'isMinor': isSongKeyMinor,
+      'totalTimelineBars': totalTimelineBars,
+      'patternCount': patterns.length,
+      'chordTrack': chordList,
+      'tracks': trackSummaries,
+      'archetypeId': songArchetype?.archetypeId,
+    };
+  }
+
+  /// Non-destructively arranges an existing loop/song into a full multi-section song
+  /// according to a [SongStructureBlueprint], preserving all custom user DSP parameters,
+  /// Eatscript code, and track instruments.
+  ProjectScriptResult applyArrangementTake(
+    SongStructureBlueprint blueprint, {
+    String takeTitle = 'AI Arrangement Take',
+  }) {
+    beginHistoryTransaction('Apply $takeTitle', icon: Icons.auto_awesome);
+
+    final int totalBars = blueprint.totalBars;
+    ensureSongLengthForBars(totalBars);
+    setLoopPoints(0, totalBars);
+    setLooping(true);
+    isSongMode = true;
+    setSongBlueprint(blueprint);
+
+    // 1. Build Global Chord Track across all sections
+    final List<ChordEvent> newChordEvents = [];
+    int runningBar = 0;
+    for (final section in blueprint.sections) {
+      int secBar = 0;
+      int chordIdx = 0;
+      while (secBar < section.lengthBars && section.chords.isNotEmpty) {
+        final ch = section.chords[chordIdx % section.chords.length];
+        final dur = math.min(ch.barLength, (section.lengthBars - secBar).toDouble());
+        newChordEvents.add(ChordEvent(
+          id: 'take_chord_${runningBar + secBar}',
+          startBar: runningBar + secBar,
+          barLength: dur,
+          rootPitchClass: ch.rootPitchClass,
+          quality: ch.quality,
+        ));
+        secBar += dur.toInt();
+        chordIdx++;
+      }
+      runningBar += section.lengthBars;
+    }
+    if (newChordEvents.isNotEmpty) {
+      chordTrack = newChordEvents;
+    }
+
+    // 2. Arrange Existing Tracks and Clips
+    int totalClipsPlaced = 0;
+    int totalNotesPlaced = 0;
+
+    for (final track in activePattern.tracks) {
+      final wasInitiallyMuted = track.isMuted;
+
+      // Extract template notes and source clip length
+      List<Note> templateNotes = [];
+      int templateBarLength = 4;
+      int? sourceLoopBars;
+
+      if (track.clips.isNotEmpty) {
+        final src = track.clips.first;
+        templateNotes = src.notes.map((n) => n.copyWith()).toList();
+        templateBarLength = math.max(1, src.barLength);
+        if (src.loopLengthBars != null && src.loopLengthBars! > 0) {
+          sourceLoopBars = src.loopLengthBars;
+        }
+      } else if (track.notes.isNotEmpty) {
+        templateNotes = track.notes.map((n) => n.copyWith()).toList();
+        double maxStep = 0.0;
+        for (final n in track.notes) {
+          final end = n.startStep + n.durationSteps;
+          if (end > maxStep) maxStep = end;
+        }
+        templateBarLength = math.max(1, (maxStep / 16.0).ceil());
+      }
+
+      // Detect if notes span fewer bars than templateBarLength (or if sourceLoopBars is set)
+      if (templateNotes.isNotEmpty) {
+        double maxNoteEnd = 0.0;
+        for (final n in templateNotes) {
+          final end = n.startStep + n.durationSteps;
+          if (end > maxNoteEnd) maxNoteEnd = end;
+        }
+        final int noteSpanBars = math.max(1, (maxNoteEnd / 16.0).ceil());
+        final int effectiveLoopBars = (sourceLoopBars != null && sourceLoopBars > 0 && sourceLoopBars < templateBarLength)
+            ? sourceLoopBars
+            : (noteSpanBars < templateBarLength ? noteSpanBars : templateBarLength);
+
+        // Tile/repeat the pattern if notes end before templateBarLength (e.g. 2-bar DX7 in 4-bar loop)
+        if (effectiveLoopBars < templateBarLength) {
+          final baseNotes = templateNotes.where((n) => n.startStep < effectiveLoopBars * 16).toList();
+          final List<Note> tiledNotes = [];
+          int curRepBar = 0;
+          while (curRepBar < templateBarLength) {
+            final double repOffsetSteps = curRepBar * 16.0;
+            for (final n in baseNotes) {
+              if (n.startStep + repOffsetSteps < templateBarLength * 16) {
+                tiledNotes.add(n.copyWith(
+                  id: '${n.id}_rep$curRepBar',
+                  startStep: n.startStep + repOffsetSteps,
+                ));
+              }
+            }
+            curRepBar += effectiveLoopBars;
+          }
+          templateNotes = tiledNotes;
+        }
+      }
+
+      // Clear existing arrangement clips and notes
+      track.clips.clear();
+      track.notes.clear();
+
+      if (templateNotes.isEmpty) {
+        continue;
+      }
+
+      int sectionStartBar = 0;
+      for (int secIdx = 0; secIdx < blueprint.sections.length; secIdx++) {
+        final section = blueprint.sections[secIdx];
+
+        // Resolve track energy
+        double energy = section.getTrackEnergy(track.id);
+        if (energy <= 0.01) {
+          // Check matching by track name or role
+          final nameMatches = section.trackEnergy.entries.where(
+            (e) =>
+                track.name.toLowerCase().contains(e.key.toLowerCase()) ||
+                e.key.toLowerCase().contains(track.primaryTag),
+          );
+          if (nameMatches.isNotEmpty) {
+            energy = nameMatches.first.value;
+          }
+        }
+
+        // If not specified in blueprint:
+        if (energy <= 0.01 && !section.trackEnergy.containsKey(track.id)) {
+          final isChorus = section.name.toLowerCase().contains('chorus') ||
+              section.name.toLowerCase().contains('climax') ||
+              section.name.toLowerCase().contains('drop');
+          final isIntro = section.name.toLowerCase().contains('intro');
+          final isOutro = section.name.toLowerCase().contains('outro');
+          final isRhythm = track.isDrumTrack || track.primaryTag == 'kick' || track.primaryTag == 'snare';
+          final isBass = track.primaryTag == 'bass';
+
+          if (wasInitiallyMuted) {
+            // Muted track (e.g. guitar): only active in choruses / climaxes!
+            energy = isChorus ? 0.95 : 0.0;
+          } else if (isIntro || isOutro) {
+            // In intro/outro, rhythm and bass rest; melodic/chord instruments play
+            energy = (isRhythm || isBass) ? 0.0 : 0.8;
+          } else {
+            energy = 0.85;
+          }
+        }
+
+        // Check if track rests in this section
+        if (energy <= 0.01) {
+          sectionStartBar += section.lengthBars;
+          continue;
+        }
+
+        // Stamp clips across the section
+        int curSecBar = 0;
+        while (curSecBar < section.lengthBars) {
+          final clipBars = math.min(templateBarLength, section.lengthBars - curSecBar);
+          final clipId = 'take_clip_${track.id}_${sectionStartBar + curSecBar}';
+
+          // Copy template notes with relative step offsets
+          final clipNotes = templateNotes.where((n) => n.startStep < (clipBars * 16)).map((n) {
+            return n.copyWith(id: 'n_${clipId}_${n.startStep.toInt()}_${n.pitch}');
+          }).toList();
+
+          final newClip = TrackClip(
+            id: clipId,
+            name: '${section.name} (${track.name})',
+            trackId: track.id,
+            startBar: sectionStartBar + curSecBar,
+            barLength: clipBars,
+            notes: clipNotes,
+            loopLengthBars: (sourceLoopBars != null && sourceLoopBars < clipBars) ? sourceLoopBars : null,
+          );
+          track.clips.add(newClip);
+          totalClipsPlaced++;
+
+          // Reflect on timeline notes
+          final double clipOffsetSteps = (sectionStartBar + curSecBar) * 16.0;
+          for (final n in clipNotes) {
+            track.notes.add(n.copyWith(
+              id: 'arr_${clipId}_${n.startStep.toInt()}_${n.pitch}',
+              startStep: n.startStep + clipOffsetSteps,
+            ));
+            totalNotesPlaced++;
+          }
+
+          curSecBar += clipBars;
+        }
+
+        sectionStartBar += section.lengthBars;
+      }
+
+      // Unmute track at channel level so the placed clips sound (muted sections have no clips)
+      if (wasInitiallyMuted && track.clips.isNotEmpty) {
+        track.isMuted = false;
+      }
+    }
+
+    commitHistoryTransaction();
+    triggerAutoSave();
+    notifyListeners();
+
+    return ProjectScriptResult(
+      isSuccess: true,
+      message: 'Arranged "$takeTitle" across $totalBars bars ($totalClipsPlaced clips, $totalNotesPlaced notes).',
+      affectedTracksCount: activePattern.tracks.length,
+      affectedNotesCount: totalNotesPlaced,
+      affectedChordsCount: newChordEvents.length,
+    );
+  }
+
+  /// Saves all alternative arrangement takes from [assessment] as standalone `.eats` project files
+  /// in the user's Projects folder without altering the current active session state.
+  /// Returns the list of saved project file paths or names.
+  Future<List<String>> saveArrangementTakesAsProjects(SongStyleAssessment assessment) async {
+    final List<String> savedPaths = [];
+    final originalSnapshot = exportToEatsLua();
+    final baseProjectName = projectName.isNotEmpty ? projectName : 'Eats Song';
+
+    for (int i = 0; i < assessment.takes.length; i++) {
+      final take = assessment.takes[i];
+      final tempDaw = DawState();
+      EatProjectParser.populateDawState(tempDaw, originalSnapshot);
+      tempDaw.applyArrangementTake(take, takeTitle: take.title);
+
+      // Clean filename for platform compatibility
+      final cleanTakeTitle = take.title
+          .replaceAll(':', ' -')
+          .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
+          .trim();
+      final takeProjectName = '$baseProjectName - $cleanTakeTitle';
+      tempDaw.projectName = takeProjectName;
+
+      final projectContent = tempDaw.exportToEatsLua();
+      final savedItem = await EatsStorageHelper.saveProjectFile(takeProjectName, projectContent);
+      if (savedItem != null) {
+        savedPaths.add(savedItem.filePath ?? savedItem.name);
+      } else {
+        savedPaths.add(takeProjectName);
+      }
+    }
+
+    if (savedPaths.isNotEmpty) {
+      browserTabIndex = 4;
+      EatsStorageHelper.notifyProjectsChanged();
+      notifyListeners();
+    }
+
+    return savedPaths;
   }
 
   void toggleMute(TrackChannel track) {
@@ -5310,7 +5613,6 @@ def gui():
         for (final file in archive) {
           final n = file.name.toLowerCase();
           if (n.endsWith('.eats') ||
-              n.endsWith('.eat') ||
               n.endsWith('.lua') ||
               n.endsWith('.eats.lua') ||
               n.endsWith('.py')) {
@@ -5354,13 +5656,13 @@ def gui():
       return;
     }
 
-    final isLua = lowerName.endsWith('.lua');
+    final isScript = lowerName.endsWith('.eats') || lowerName.endsWith('.lua');
 
-    if (isLua) {
-      final luaCode = utf8.decode(fileBytes);
-      final preset = LuaPresetLibrary.parseFromLuaScript(
-        luaCode,
-        fallbackName: cleanName.replaceAll(RegExp(r'\.lua$', caseSensitive: false), ''),
+    if (isScript) {
+      final scriptCode = utf8.decode(fileBytes);
+      final preset = LuaPresetLibrary.parseFromEatScript(
+        scriptCode,
+        fallbackName: cleanName.replaceAll(RegExp(r'\.(eats|lua)$', caseSensitive: false), ''),
       );
 
       if (preset.category == LuaPresetCategory.audioFx) {

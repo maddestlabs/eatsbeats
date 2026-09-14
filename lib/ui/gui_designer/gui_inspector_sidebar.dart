@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../eatscript/eat_gui_model.dart';
+import '../../eatscript/eats_gui_model.dart';
 import '../../theme/eats_theme.dart';
 import '../vector/built_in_vector_skins.dart';
 import '../vector/vector_skin_model.dart';

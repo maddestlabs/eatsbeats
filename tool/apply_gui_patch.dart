@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 /// Automated CLI tool for parsing a GitHub Issue body from an Eatsbeats GUI tweak
-/// submission, locating the target `.eat` file, validating the payload, and updating the bundle.
+/// submission, locating the target `.eats` file, validating the payload, and updating the bundle.
 ///
 /// Usage:
 ///   dart run tool/apply_gui_patch.dart <issue_number | issue_url | path_to_issue_body.md>
@@ -36,14 +36,14 @@ Future<void> main(List<String> args) async {
 
   File? targetFile;
   for (final file in presetsDir.listSync(recursive: true).whereType<File>()) {
-    if (file.path.endsWith('${payload.presetId}.eat')) {
+    if (file.path.endsWith('${payload.presetId}.eats')) {
       targetFile = file;
       break;
     }
   }
 
   if (targetFile == null) {
-    stderr.writeln('Error: Target preset file "${payload.presetId}.eat" not found in presets/ tree.');
+    stderr.writeln('Error: Target preset file "${payload.presetId}.eats" not found in presets/ tree.');
     exit(4);
   }
 

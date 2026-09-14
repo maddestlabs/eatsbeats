@@ -3128,6 +3128,131 @@ class MoogLadderFilterNode extends GraphNode {
   }
 }
 
+/// 4-Pole 18dB/oct Virtual Analog Diode Ladder Lowpass Filter (TB-303 topology).
+/// Replicates the Robin Schmidt Open303 and Mystran coupled diode ladder equations
+/// with 150 Hz feedback-loop highpass, resonance squelch, and envelope modulation.
+class Tb303FilterNode extends GraphNode {
+  final GraphNode input;
+  final double cutoffHz;
+  final String? cutoffParam;
+  final double resonance; // 0.0 to 1.0 (where 1.0 is full self-oscillation)
+  final String? resonanceParam;
+  final double envMod; // 0.0 to 1.0 modulation depth
+  final String? envModParam;
+  final double decaySec; // 0.2 to 2.0s envelope decay
+  final String? decayParam;
+
+  const Tb303FilterNode({
+    required this.input,
+    this.cutoffHz = 1000.0,
+    this.cutoffParam,
+    this.resonance = 0.75,
+    this.resonanceParam,
+    this.envMod = 0.50,
+    this.envModParam,
+    this.decaySec = 0.40,
+    this.decayParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+
+    final double rawCutoff = (cutoffParam != null ? ctx.getParam(cutoffParam!, cutoffHz) : cutoffHz).clamp(60.0, 14000.0);
+    final double rawRes = (resonanceParam != null ? ctx.getParam(resonanceParam!, resonance) : resonance).clamp(0.0, 1.0);
+    final double rawEnv = (envModParam != null ? ctx.getParam(envModParam!, envMod) : envMod).clamp(0.0, 1.0);
+    final double rawDecay = (decayParam != null ? ctx.getParam(decayParam!, decaySec) : decaySec).clamp(0.05, 3.0);
+
+    final double sr = ctx.sampleRate;
+    final int len = outBuffer.length;
+
+    const int oversampling = 4;
+    final double filterRate = sr * oversampling;
+
+    final double normCutoff = (math.log(rawCutoff.clamp(314.0, 3500.0) / 314.0) / math.log(2394.0 / 314.0)).clamp(0.0, 1.2);
+    final double nominalCutoff = 314.0 * math.pow(2394.0 / 314.0, normCutoff);
+
+    const double c0 = 313.8152786059267;
+    const double c1 = 2394.411986817546;
+    const double oF = 0.048292930943553;
+    const double oC = 0.294391201442418;
+    const double sLoF = 3.773996325111173;
+    const double sLoC = 0.736965594166206;
+    const double sHiF = 4.194548788411135;
+    const double sHiC = 0.864344900642434;
+
+    final double e = math.pow(rawEnv, 2.0).toDouble();
+    final double c = (math.log(nominalCutoff / c0) / math.log(c1 / c0)).clamp(0.0, 1.0);
+    final double sLo = sLoF * e + sLoC;
+    final double sHi = sHiF * e + sHiC;
+    final double envScaler = (1.0 - c) * sLo + c * sHi;
+    final double envOffset = oF * c + oC;
+
+    final double decayCoeff = math.exp(-1.0 / (sr * rawDecay));
+    final double rc1Coeff = math.exp(-1.0 / (sr * 0.003));
+    final double r = (1.0 - math.exp(-3.0 * rawRes)) / (1.0 - math.exp(-3.0));
+
+    final double fbHpX = math.exp(-2.0 * math.pi * 150.0 / filterRate);
+    final double fbHpB0 = 0.5 * (1.0 + fbHpX);
+    final double fbHpB1 = -0.5 * (1.0 + fbHpX);
+    final double fbHpA1 = fbHpX;
+
+    double mainEnv = 1.0;
+    double rc1 = 0.0;
+    double s1 = 0.0, s2 = 0.0, s3 = 0.0, s4 = 0.0;
+    double fbHpX1 = 0.0, fbHpY1 = 0.0;
+
+    for (int i = 0; i < len; i++) {
+      mainEnv *= decayCoeff;
+      rc1 = mainEnv + rc1Coeff * (rc1 - mainEnv);
+
+      final double tmp1 = envScaler * (rc1 - envOffset);
+      final double instCutoff = (nominalCutoff * math.pow(2.0, tmp1)).clamp(60.0, 18000.0);
+
+      final double wc = 2.0 * math.pi * instCutoff / filterRate;
+      final double fx = wc * (1.0 / math.sqrt2) / (2.0 * math.pi);
+      final double b0 = (0.00045522346 + 6.1922189 * fx) /
+          (1.0 + 12.358354 * fx + 4.4156345 * (fx * fx));
+      double k = fx *
+              (fx *
+                      (fx *
+                              (fx *
+                                      (fx * (fx + 7198.6997) - 5837.7917) -
+                                  476.47308) +
+                          614.95611) +
+                  213.87126) +
+          16.998792;
+      double g = k * (1.0 / 17.0);
+      g = (g - 1.0) * r + 1.0;
+      g = g * (1.0 + r);
+      k = k * r;
+
+      final double inSample = outBuffer[i];
+      double filtered = 0.0;
+
+      for (int step = 0; step < oversampling; step++) {
+        final double fbHpIn = k * s4;
+        final double fbHpOut = fbHpB0 * fbHpIn + fbHpB1 * fbHpX1 + fbHpA1 * fbHpY1;
+        fbHpX1 = fbHpIn;
+        fbHpY1 = fbHpOut;
+
+        final double y0 = inSample - fbHpOut;
+        s1 += 2.0 * b0 * (y0 - s1 + s2);
+        s2 += b0 * (s1 - 2.0 * s2 + s3);
+        s3 += b0 * (s2 - 2.0 * s3 + s4);
+        s4 += b0 * (s3 - 2.0 * s4);
+
+        filtered = 2.0 * g * s4;
+      }
+
+      outBuffer[i] = filtered.clamp(-1.0, 1.0);
+    }
+  }
+}
+
+/// Typedef alias for modular flexibility
+typedef DiodeLadderFilterNode = Tb303FilterNode;
+
 /// Coupled Double-Course Digital Waveguide.
 /// Synthesizes paired string physics (Lute, Baroque Guitar, Vihuela, 12-String Guitar, Mandolin)
 /// with micro-detuning, octave pairing, and acoustic bridge energy exchange.

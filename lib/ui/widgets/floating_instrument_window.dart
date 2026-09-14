@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../../eatscript/eat_script_engine.dart';
-import '../../eatscript/eat_param_model.dart';
+import '../../eatscript/eats_script_engine.dart';
+import '../../eatscript/eats_param_model.dart';
 import '../../models/daw_state.dart';
 import '../../models/script_target_model.dart';
 import '../../models/track_model.dart';

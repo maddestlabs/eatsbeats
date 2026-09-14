@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/track_model.dart';
 import '../models/chord_model.dart';
-import '../eatscript/eat_script_engine.dart';
+import '../eatscript/eats_script_engine.dart';
 import 'poly_synth.dart';
 import 'sampler_engine.dart';
 import 'soundfont_engine.dart';

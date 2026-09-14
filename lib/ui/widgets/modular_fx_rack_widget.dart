@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../audio/convolver_engine.dart';
 import '../../audio/procedural_ir_generator.dart';
-import '../../eatscript/eat_preset_library.dart';
+import '../../eatscript/eats_preset_library.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
@@ -68,15 +68,15 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
             return Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: isHovering ? EatsTheme.secondaryMagenta.withOpacity(0.2) : EatsTheme.panelBackground,
+                color: isHovering ? track.color.withOpacity(0.08) : EatsTheme.panelBackground,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: isHovering ? EatsTheme.secondaryMagenta : EatsTheme.secondaryMagenta.withOpacity(0.5),
+                  color: isHovering ? track.color : track.color.withOpacity(0.35),
                   width: isHovering ? 2 : 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: EatsTheme.secondaryMagenta.withOpacity(isHovering ? 0.3 : 0.1),
+                    color: track.color.withOpacity(isHovering ? 0.3 : 0.08),
                     blurRadius: isHovering ? 12 : 8,
                   ),
                 ],
@@ -87,14 +87,14 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.tune, color: EatsTheme.secondaryMagenta, size: 16),
+                      Icon(Icons.graphic_eq, color: track.color, size: 16),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           'AUDIO FX RACK (${track.fxRack.length})',
                           overflow: TextOverflow.ellipsis,
                           style: EatsTheme.getPrimaryFontStyle(
-                            color: EatsTheme.secondaryMagenta,
+                            color: track.color,
                             fontWeight: FontWeight.bold,
                             fontSize: 11,
                           ),
@@ -115,22 +115,15 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                             decoration: BoxDecoration(
                               color: EatsTheme.panelHeader,
                               borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: EatsTheme.secondaryMagenta),
+                              border: Border.all(color: track.color),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.search, size: 12, color: EatsTheme.secondaryMagenta),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '+ ADD FX',
-                                  style: EatsTheme.getPrimaryFontStyle(
-                                    color: EatsTheme.secondaryMagenta,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 10,
-                                  ),
-                                ),
-                              ],
+                            child: Text(
+                              '+ ADD FX',
+                              style: EatsTheme.getPrimaryFontStyle(
+                                color: track.color,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                              ),
                             ),
                           ),
                         ),
@@ -151,7 +144,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                         id: fx.id,
                         name: fx.name,
                         type: TrackType.luaScript,
-                        color: EatsTheme.secondaryMagenta,
+                        color: track.color,
                         luaScriptCode: fx.luaScriptCode ?? '',
                         luaParams: fx.luaParams,
                         sampleName: fx.irSampleName ?? 'Great Hall',
@@ -164,7 +157,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                           color: EatsTheme.panelHeader,
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(
-                            color: fx.enabled ? EatsTheme.secondaryMagenta : const Color(0xFF2B3245),
+                            color: fx.enabled ? track.color.withOpacity(0.7) : const Color(0xFF2B3245),
                           ),
                         ),
                         child: Column(
@@ -179,7 +172,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                   orientation: Axis.vertical,
                                   width: 16.0,
                                   height: 28.0,
-                                  activeColor: EatsTheme.secondaryMagenta,
+                                  activeColor: track.color,
                                   tooltip: 'Toggle ${fx.name} (Bypass / Active)',
                                   onChanged: (val) => dawState.toggleFXInsert(track, fx.id, val),
                                 ),
@@ -204,7 +197,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                         Icon(
                                           isExpanded ? Icons.expand_less : Icons.expand_more,
                                           size: 14,
-                                          color: EatsTheme.secondaryMagenta,
+                                          color: track.color,
                                         ),
                                       ],
                                     ),
@@ -213,7 +206,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                 IconButton(
                                   tooltip: 'Move FX Up',
                                   icon: const Icon(Icons.keyboard_arrow_up, size: 18),
-                                  color: isFirst ? Colors.white12 : EatsTheme.primaryCyan,
+                                  color: isFirst ? Colors.white12 : track.color,
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
                                   onPressed: isFirst ? null : () => dawState.moveFXUp(track, idx),
@@ -221,7 +214,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                 IconButton(
                                   tooltip: 'Move FX Down',
                                   icon: const Icon(Icons.keyboard_arrow_down, size: 18),
-                                  color: isLast ? Colors.white12 : EatsTheme.primaryCyan,
+                                  color: isLast ? Colors.white12 : track.color,
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
                                   onPressed: isLast ? null : () => dawState.moveFXDown(track, idx),
@@ -252,18 +245,18 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: EatsTheme.secondaryMagenta.withOpacity(0.18),
+                                        color: track.color.withOpacity(0.18),
                                         borderRadius: BorderRadius.circular(3),
-                                        border: Border.all(color: EatsTheme.secondaryMagenta.withOpacity(0.6), width: 0.8),
+                                        border: Border.all(color: track.color.withOpacity(0.6), width: 0.8),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(Icons.fullscreen, size: 12, color: EatsTheme.secondaryMagenta),
+                                          Icon(Icons.fullscreen, size: 12, color: track.color),
                                           const SizedBox(width: 3),
                                           Text(
                                             'FULL',
-                                            style: EatsTheme.getDisplayFontStyle(fontSize: 8.5, color: EatsTheme.secondaryMagenta, fontWeight: FontWeight.bold),
+                                            style: EatsTheme.getDisplayFontStyle(fontSize: 8.5, color: track.color, fontWeight: FontWeight.bold),
                                           ),
                                         ],
                                       ),
@@ -278,7 +271,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                   decoration: BoxDecoration(
                                     color: Colors.black.withOpacity(0.35),
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: EatsTheme.secondaryMagenta.withOpacity(0.4)),
+                                    border: Border.all(color: track.color.withOpacity(0.4)),
                                   ),
                                   padding: const EdgeInsets.all(8),
                                   child: LayoutBuilder(
@@ -355,7 +348,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                       max: 1.5,
                                       defaultValue: 0.5,
                                       label: 'Wet Level',
-                                      activeColor: EatsTheme.secondaryMagenta,
+                                      activeColor: track.color,
                                       onChanged: (val) => dawState.updateFXParam(track, fx.id, 'WetLevel', val),
                                     ),
                                   ),
@@ -363,7 +356,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                     width: 55,
                                     child: Text(
                                       '${((fx.params['WetLevel'] ?? 0.5) * 100).toInt()}%',
-                                      style: EatsTheme.getDisplayFontStyle(color: EatsTheme.secondaryMagenta, fontSize: 10),
+                                      style: EatsTheme.getDisplayFontStyle(color: track.color, fontSize: 10),
                                     ),
                                   ),
                                 ],
@@ -422,7 +415,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                       max: 1.0,
                                       defaultValue: 1.0,
                                       label: 'Mix',
-                                      activeColor: EatsTheme.primaryCyan,
+                                      activeColor: track.color,
                                       onChanged: (val) => dawState.updateFXMix(track, fx.id, val),
                                     ),
                                   ),
@@ -430,7 +423,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                     width: 55,
                                     child: Text(
                                       '${(fx.mix * 100).round()}%',
-                                      style: EatsTheme.getDisplayFontStyle(color: EatsTheme.primaryCyan, fontSize: 10),
+                                      style: EatsTheme.getDisplayFontStyle(color: track.color, fontSize: 10),
                                     ),
                                   ),
                                 ],
@@ -458,7 +451,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                           max: maxV,
                                           defaultValue: defV,
                                           label: p.key,
-                                          activeColor: EatsTheme.secondaryMagenta,
+                                          activeColor: track.color,
                                           onChanged: (val) => dawState.updateFXParam(track, fx.id, p.key, val),
                                         ),
                                       ),
@@ -466,7 +459,7 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                                         width: 55,
                                         child: Text(
                                           _formatParamVal(p.key, p.value),
-                                          style: EatsTheme.getDisplayFontStyle(color: EatsTheme.secondaryMagenta, fontSize: 10),
+                                          style: EatsTheme.getDisplayFontStyle(color: track.color, fontSize: 10),
                                         ),
                                       ),
                                     ],

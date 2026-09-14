@@ -30,9 +30,9 @@ Future<String?> downloadWebFileImpl(String content, String fileName) async {
     final bytes = utf8.encode(content);
     final blob = html.Blob([bytes], 'text/plain;charset=utf-8');
     final url = html.Url.createObjectUrlFromBlob(blob);
-    final cleanName = fileName.endsWith('.eat') || fileName.endsWith('.eats') || fileName.endsWith('.eats.lua')
+    final cleanName = fileName.endsWith('.eats') || fileName.endsWith('.eats.lua')
         ? fileName
-        : '$fileName.eat';
+        : '$fileName.eats';
     final anchor = html.AnchorElement()
       ..href = url
       ..download = cleanName

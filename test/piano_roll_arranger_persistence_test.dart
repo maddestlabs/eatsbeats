@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
 
-import 'package:eatsbeats/eatscript/default_song_eat.dart';
+import 'package:eatsbeats/eatscript/eats_default_song.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

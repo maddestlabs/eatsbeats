@@ -3,8 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/audio/procgen/procedural_drum_engine.dart';
 import 'package:eatsbeats/audio/procgen/procedural_song_engine.dart';
 import 'package:eatsbeats/audio/sid_dsp_engine.dart';
-import 'package:eatsbeats/eatscript/eat_dsp_synthesizer.dart';
-import 'package:eatsbeats/eatscript/eat_script_library.dart';
+import 'package:eatsbeats/eatscript/eats_dsp_synthesizer.dart';
+import 'package:eatsbeats/eatscript/eats_script_library.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 
 void main() {

@@ -3,9 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:eatsbeats/audio/snes_dsp_engine.dart';
 import 'package:eatsbeats/audio/offline_dsp_fx_processor.dart';
-import 'package:eatsbeats/eatscript/eat_dsp_synthesizer.dart';
-import 'package:eatsbeats/eatscript/eat_script_library.dart';
-import 'package:eatsbeats/eatscript/eat_builtin_presets.g.dart';
+import 'package:eatsbeats/eatscript/eats_dsp_synthesizer.dart';
+import 'package:eatsbeats/eatscript/eats_script_library.dart';
+import 'package:eatsbeats/eatscript/eats_builtin_presets.g.dart';
 import 'package:eatsbeats/models/track_model.dart';
 
 void main() {

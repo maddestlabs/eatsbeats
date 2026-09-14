@@ -203,7 +203,7 @@ class SongArchetype {
     return null;
   }
 
-  /// Instantiates a [SongArchetype] from a parsed `.eat` table map.
+  /// Instantiates a [SongArchetype] from a parsed `.eats` table map.
   factory SongArchetype.fromEatMap(Map<String, dynamic> eatMap, {String? sourcePath}) {
     final meta = eatMap['meta'] is Map ? Map<String, dynamic>.from(eatMap['meta']) : {};
     final procgen = eatMap['procgen'] is Map
@@ -355,7 +355,7 @@ class SongArchetype {
     );
   }
 
-  /// Converts the archetype procgen metadata back into a format suitable for `.eat` serialization.
+  /// Converts the archetype procgen metadata back into a format suitable for `.eats` serialization.
   Map<String, dynamic> toProcgenMap() {
     final hintsMap = <String, dynamic>{};
     for (final entry in sectionHints.entries) {

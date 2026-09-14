@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../eatscript/eat_preset_library.dart';
-import '../eatscript/eat_script_library.dart';
+import '../eatscript/eats_preset_library.dart';
+import '../eatscript/eats_script_library.dart';
 import '../ui/widgets/project_script_runner_dialog.dart';
 import '../theme/eats_theme.dart';
 import '../ui/widgets/ui_scale_dialog.dart';
@@ -9,6 +9,7 @@ import 'daw_state.dart';
 import 'track_model.dart';
 import '../ui/widgets/circle_of_fifths_dialog.dart';
 import '../ui/widgets/script_search_dialog.dart';
+import '../ui/widgets/ai_assistant_dialog.dart';
 
 enum CommandCategory {
   action,
@@ -411,6 +412,56 @@ class CommandPaletteRegistry {
           },
         );
       }),
+      QuickCommand(
+        id: 'action_ai_compose',
+        title: 'AI: Compose New Song (Prompt-to-Song)',
+        subtitle: 'Describe musical vision to compose dynamic multi-track ensemble',
+        category: CommandCategory.action,
+        icon: Icons.auto_awesome,
+        onExecute: (state, ctx) {
+          AiAssistantDialog.show(ctx, state, initialTab: 0);
+        },
+      ),
+      QuickCommand(
+        id: 'action_ai_song_architect',
+        title: 'AI: Extend Loop (Non-Destructive Takes Arranger)',
+        subtitle: 'Assess genre/style and expand loop into alternative multi-section takes',
+        category: CommandCategory.action,
+        icon: Icons.unfold_more,
+        onExecute: (state, ctx) {
+          AiAssistantDialog.show(ctx, state, initialTab: 1);
+        },
+      ),
+      QuickCommand(
+        id: 'action_ai_sound_design',
+        title: 'AI: Design Instrument, Audio FX or MIDI FX',
+        subtitle: 'Generate Eatscript synthesizers, DSP audio effects, or MIDI processors',
+        category: CommandCategory.action,
+        icon: Icons.draw,
+        onExecute: (state, ctx) {
+          AiAssistantDialog.show(ctx, state, initialTab: 2);
+        },
+      ),
+      QuickCommand(
+        id: 'action_ai_master',
+        title: 'AI: Master Track (Auto-Mix & LUFS Normalization)',
+        subtitle: 'Automated track gain/pan balancing, EQ, and master limiter targeting',
+        category: CommandCategory.action,
+        icon: Icons.equalizer,
+        onExecute: (state, ctx) {
+          AiAssistantDialog.show(ctx, state, initialTab: 3);
+        },
+      ),
+      QuickCommand(
+        id: 'action_ai_settings',
+        title: 'AI: Settings & API Key Configuration',
+        subtitle: 'Configure Google Gemini API key and test connection',
+        category: CommandCategory.action,
+        icon: Icons.key,
+        onExecute: (state, ctx) {
+          AiAssistantDialog.show(ctx, state, initialTab: 4);
+        },
+      ),
       QuickCommand(
         id: 'action_add_synth_track',
         title: 'Add Track: Synth / Instrument',

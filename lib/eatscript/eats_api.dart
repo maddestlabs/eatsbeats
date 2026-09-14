@@ -6,10 +6,10 @@ import '../models/daw_state.dart';
 import '../models/automation_model.dart';
 import '../audio/easing.dart';
 import '../audio/time_context.dart';
-import 'eat_param_model.dart';
+import 'eats_param_model.dart';
 import 'midi_pipeline_engine.dart';
 import 'project_script_engine.dart';
-import 'eat_interpreter.dart';
+import 'eats_interpreter.dart';
 
 /// The host context in which an Eatscript executes.
 class EatScriptContext {

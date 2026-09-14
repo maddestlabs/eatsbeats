@@ -46,13 +46,26 @@ Eatscript uses Python-like indentation and syntax:
 
 ## Directory Organization
 - `lib/eatscript/`: Core Eatscript engines, parsers, serializers, GUI models, canvas drawing engines, and script libraries.
-- All files in `lib/eatscript/` use `eat_` prefixes (e.g., `eat_script_library.dart`, `eat_engine.dart`, `eat_gui_model.dart`, `eat_project_parser.dart`).
+- All files in `lib/eatscript/` use `eats_` prefixes (e.g., `eats_script_library.dart`, `eats_engine.dart`, `eats_gui_model.dart`, `eats_project_parser.dart`).
 - Never introduce a `lib/lua/` directory or files with `lua_` prefixes.
 
 ---
 
 ## Project Serialization Compatibility
 When reading project files:
-- The standard project file extension is `.eat`.
+- The standard project file extension is `.eats`.
 - Legacy `.eats.lua` files and JSON with `"type": "luaScript"` or `"luaScriptCode"` are retained strictly for backward compatibility when deserializing older projects.
 - New serialization always produces `"type": "eatScript"` and `"eatScriptCode"`.
+
+---
+
+## Eatscript Documentation & AI Skill
+- Modular documentation suite: [`docs/api/`](docs/api/README.md)
+  - Lifecycle: `docs/api/01_eatscript_syntax_lifecycle.md`
+  - Parameters: `docs/api/02_parameter_system.md`
+  - DSP Catalog: `docs/api/03_dsp_node_catalog.md`
+  - GUI DSL: `docs/api/04_declarative_gui_dsl.md`
+  - MIDI & Theory: `docs/api/05_midi_and_music_theory.md`
+  - DAW Macros: `docs/api/06_daw_macro_api.md`
+  - Recipes: `docs/api/07_canonical_recipes.md`
+- AI Agent Skill: `.agents/skills/eatscript/SKILL.md`

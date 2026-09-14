@@ -26,7 +26,16 @@ enum FunctionalRole {
     for (final role in FunctionalRole.values) {
       if (role.name.toLowerCase() == clean) return role;
     }
-    if (clean.contains('drum') || clean.contains('percuss') || clean.contains('beat')) return FunctionalRole.rhythm;
+    if (clean.contains('drum') ||
+        clean.contains('percuss') ||
+        clean.contains('beat') ||
+        clean.contains('kick') ||
+        clean.contains('snare') ||
+        clean.contains('hat') ||
+        clean.contains('clap') ||
+        clean.contains('cymbal')) {
+      return FunctionalRole.rhythm;
+    }
     if (clean.contains('bass') || clean.contains('root') || clean.contains('sub')) return FunctionalRole.foundation;
     if (clean.contains('chord') || clean.contains('pad') || clean.contains('strum') || clean.contains('arp')) {
       return FunctionalRole.harmonicTexture;
@@ -238,6 +247,30 @@ class EnsembleSectionBlueprint {
     this.transitionFill = TransitionFill.none,
   });
 
+  EnsembleSectionBlueprint copyWith({
+    String? name,
+    int? lengthBars,
+    List<EnsembleChordEvent>? chords,
+    Map<String, double>? trackEnergy,
+    MelodyBehavior? melodyBehavior,
+    MelodyStyle? melodyStyle,
+    List<int>? melodyMotif,
+    double? melodyDensity,
+    TransitionFill? transitionFill,
+  }) {
+    return EnsembleSectionBlueprint(
+      name: name ?? this.name,
+      lengthBars: lengthBars ?? this.lengthBars,
+      chords: chords ?? this.chords,
+      trackEnergy: trackEnergy ?? this.trackEnergy,
+      melodyBehavior: melodyBehavior ?? this.melodyBehavior,
+      melodyStyle: melodyStyle ?? this.melodyStyle,
+      melodyMotif: melodyMotif ?? this.melodyMotif,
+      melodyDensity: melodyDensity ?? this.melodyDensity,
+      transitionFill: transitionFill ?? this.transitionFill,
+    );
+  }
+
   double getTrackEnergy(String trackId) => trackEnergy[trackId] ?? 0.8;
 
   Map<String, dynamic> toJson() => {
@@ -313,6 +346,28 @@ class SongStructureBlueprint {
     required this.ensemble,
     required this.sections,
   });
+
+  SongStructureBlueprint copyWith({
+    String? archetypeId,
+    String? title,
+    double? bpm,
+    String? meter,
+    int? rootPitchClass,
+    String? mode,
+    List<EnsembleTrackBlueprint>? ensemble,
+    List<EnsembleSectionBlueprint>? sections,
+  }) {
+    return SongStructureBlueprint(
+      archetypeId: archetypeId ?? this.archetypeId,
+      title: title ?? this.title,
+      bpm: bpm ?? this.bpm,
+      meter: meter ?? this.meter,
+      rootPitchClass: rootPitchClass ?? this.rootPitchClass,
+      mode: mode ?? this.mode,
+      ensemble: ensemble ?? this.ensemble,
+      sections: sections ?? this.sections,
+    );
+  }
 
   int get totalBars => sections.fold(0, (sum, s) => sum + s.lengthBars);
 

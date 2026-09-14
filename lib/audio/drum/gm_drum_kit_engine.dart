@@ -5,8 +5,8 @@ import '../graph/graph_evaluator.dart';
 import '../graph/graph_node.dart';
 import '../graph/graph_primitives.dart';
 import '../poly_synth.dart';
-import '../../eatscript/eat_script_library.dart';
-import '../../eatscript/eat_script_engine.dart';
+import '../../eatscript/eats_script_library.dart';
+import '../../eatscript/eats_script_engine.dart';
 
 /// Pure-Dart DSP Synthesis Engine for the General MIDI Standard Drum Kit (Notes 35–81).
 ///

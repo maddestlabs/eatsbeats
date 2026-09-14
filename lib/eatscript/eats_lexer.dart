@@ -1,4 +1,4 @@
-import 'eat_token.dart';
+import 'eats_token.dart';
 
 class EatLexerException implements Exception {
   final String message;

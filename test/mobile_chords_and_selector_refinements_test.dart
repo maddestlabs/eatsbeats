@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/audio/soundfont_engine.dart';
-import 'package:eatsbeats/eatscript/eat_preset_library.dart';
+import 'package:eatsbeats/eatscript/eats_preset_library.dart';
 import 'package:eatsbeats/models/chord_model.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
@@ -50,7 +50,7 @@ void main() {
 
       expect(find.text('+ ADD FX'), findsOneWidget);
       expect(find.text('+ ADD MIDI FX'), findsOneWidget);
-      expect(find.byIcon(Icons.search), findsNWidgets(2));
+      expect(find.byIcon(Icons.search), findsNothing);
       dawState.dispose();
     });
   });
@@ -121,7 +121,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // In desktop mode, both wheel and modifiers matrix are present side-by-side without mobile tabs
-      expect(find.text('CHORD SELECTOR & CIRCLE OF FIFTHS'), findsOneWidget);
+      expect(find.text('CHORDS'), findsOneWidget);
       expect(find.text('CHORD QUALITY & EXTENSIONS'), findsOneWidget);
       expect(find.text('BASS / SLASH NOTE (INVERSION)'), findsOneWidget);
       expect(find.text('QUALITIES & BASS'), findsNothing);

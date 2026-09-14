@@ -3,9 +3,9 @@ import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../models/lyric_model.dart';
 import '../../models/chord_model.dart';
-import '../../eatscript/eat_script_engine.dart';
-import '../../eatscript/eat_param_model.dart';
-import '../../eatscript/eat_preset_library.dart';
+import '../../eatscript/eats_script_engine.dart';
+import '../../eatscript/eats_param_model.dart';
+import '../../eatscript/eats_preset_library.dart';
 import '../../models/script_target_model.dart';
 import 'preset_browser_dialog.dart';
 import '../../audio/audio_to_midi_engine.dart';
@@ -29,7 +29,7 @@ enum InspectorTab { track, clip }
 class ArrangerContextInspector extends StatefulWidget {
   final DawState dawState;
   final VoidCallback onClose;
-  final InspectorTab initialTab;
+  final InspectorTab? initialTab;
   final double? width;
   final ValueChanged<double>? onResize;
 
@@ -37,7 +37,7 @@ class ArrangerContextInspector extends StatefulWidget {
     super.key,
     required this.dawState,
     required this.onClose,
-    this.initialTab = InspectorTab.track,
+    this.initialTab,
     this.width,
     this.onResize,
   });
@@ -91,7 +91,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
   @override
   void initState() {
     super.initState();
-    _activeTab = widget.initialTab;
+    _activeTab = widget.initialTab ?? (widget.dawState.activeClip != null ? InspectorTab.clip : InspectorTab.track);
     if (widget.dawState.activeClip == null) {
       _activeTab = InspectorTab.track;
     }
@@ -108,7 +108,18 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
   }
 
   void _onDawStateChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      final clip = widget.dawState.activeClip;
+      if (clip != null && clip.id != _lastClipId) {
+        _lastClipId = clip.id;
+        _clipNameController.text = clip.name;
+        _activeTab = InspectorTab.clip;
+      } else if (clip == null && _activeTab == InspectorTab.clip) {
+        _lastClipId = null;
+        _activeTab = InspectorTab.track;
+      }
+      setState(() {});
+    }
   }
 
   @override
@@ -118,8 +129,8 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
       oldWidget.dawState.removeListener(_onDawStateChanged);
       widget.dawState.addListener(_onDawStateChanged);
     }
-    if (oldWidget.initialTab != widget.initialTab) {
-      _activeTab = widget.initialTab;
+    if (widget.initialTab != null && oldWidget.initialTab != widget.initialTab) {
+      _activeTab = widget.initialTab!;
     }
     final track = widget.dawState.activeTrack;
     if (track.id != _lastTrackId) {
@@ -133,6 +144,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
       _clipNameController.text = clip.name;
       _lastClipId = clip.id;
       _isEditingClipName = false;
+      _activeTab = InspectorTab.clip;
     } else if (clip == null) {
       _lastClipId = null;
       _isEditingClipName = false;
@@ -231,7 +243,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(4),
                   border: !isTrackActive
-                      ? Border.all(color: EatsTheme.accentGold.withOpacity(0.6), width: 1.0)
+                      ? Border.all(color: trackColor.withOpacity(0.6), width: 1.0)
                       : Border.all(color: Colors.transparent),
                 ),
                 child: Row(
@@ -240,7 +252,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                     Icon(
                       Icons.movie_creation_outlined,
                       size: 11,
-                      color: !isTrackActive ? EatsTheme.accentGold : EatsTheme.textSecondary,
+                      color: !isTrackActive ? trackColor : EatsTheme.textSecondary,
                     ),
                     const SizedBox(width: 5),
                     Flexible(
@@ -338,12 +350,27 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
               ),
               const SizedBox(width: 6),
               Tooltip(
+                message: 'Gemini AI Song Architect: Multi-Section Arrangement Takes',
+                child: SkeuomorphicHardwareButton(
+                  label: 'AI TAKES',
+                  isActive: true,
+                  activeColor: const Color(0xFFBD00FF),
+                  onTap: () => AiAssistantDialog.show(context, dawState, initialTab: 1),
+                  height: 22,
+                  width: 68,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  showLed: false,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Tooltip(
                 message: 'Gemini AI Auto-Mastering Assistant',
                 child: SkeuomorphicHardwareButton(
                   label: 'AI MASTER',
                   isActive: true,
                   activeColor: accentColor,
-                  onTap: () => AiAssistantDialog.show(context, dawState, initialTab: 0),
+                  onTap: () => AiAssistantDialog.show(context, dawState, initialTab: 3),
                   height: 22,
                   width: 72,
                   padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -793,7 +820,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
     if (track.isFolder) return const SizedBox.shrink();
 
     final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
-    final accentColor = isGrungy ? const Color(0xFFFF8C00) : track.color;
+    final accentColor = track.color;
     final isExpanded = !_collapsedInstrumentTrackIds.contains(track.id);
 
     // Resolve specific instrument/script name rather than replicating editable track name
@@ -1338,15 +1365,22 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
       decoration: BoxDecoration(
         color: EatsTheme.panelHeader,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF2B3245)),
+        border: Border.all(color: track.color.withOpacity(0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text('TRACK COLOR', style: TextStyle(color: EatsTheme.textMuted, fontSize: 9, fontWeight: FontWeight.bold)),
-              const Spacer(),
+              Icon(Icons.palette, size: 12, color: track.color),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'TRACK COLOR',
+                  style: TextStyle(color: track.color, fontSize: 9, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
               InkWell(
                 onTap: () {
                   showEatsColorPickerDialog(
@@ -1363,16 +1397,16 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                   decoration: BoxDecoration(
                     color: EatsTheme.controlBackground,
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.5)),
+                    border: Border.all(color: track.color.withOpacity(0.6)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.palette, size: 11, color: EatsTheme.primaryCyan),
+                      Icon(Icons.colorize, size: 11, color: track.color),
                       const SizedBox(width: 3),
                       Text(
                         'PALETTE...',
-                        style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 8.5, fontWeight: FontWeight.bold),
+                        style: TextStyle(color: track.color, fontSize: 8.5, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -1420,7 +1454,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
       decoration: BoxDecoration(
         color: EatsTheme.panelHeader,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF2B3245)),
+        border: Border.all(color: track.color.withOpacity(0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1428,7 +1462,15 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('TRACK ACTIONS', style: TextStyle(color: EatsTheme.textMuted, fontSize: 9, fontWeight: FontWeight.bold)),
+              Icon(Icons.settings, size: 12, color: track.color),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'TRACK ACTIONS',
+                  style: TextStyle(color: track.color, fontSize: 9, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1444,12 +1486,12 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                         decoration: BoxDecoration(
                           color: EatsTheme.controlBackground,
                           borderRadius: BorderRadius.circular(3),
-                          border: Border.all(color: const Color(0xFF2B3245), width: 0.8),
+                          border: Border.all(color: isFirstTrack ? Colors.white10 : track.color.withOpacity(0.5), width: 0.8),
                         ),
                         child: Icon(
                           isMixer ? Icons.keyboard_arrow_left : Icons.keyboard_arrow_up,
                           size: 13,
-                          color: isFirstTrack ? Colors.white12 : EatsTheme.primaryCyan,
+                          color: isFirstTrack ? Colors.white12 : track.color,
                         ),
                       ),
                     ),
@@ -1465,12 +1507,12 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                         decoration: BoxDecoration(
                           color: EatsTheme.controlBackground,
                           borderRadius: BorderRadius.circular(3),
-                          border: Border.all(color: const Color(0xFF2B3245), width: 0.8),
+                          border: Border.all(color: isLastTrack ? Colors.white10 : track.color.withOpacity(0.5), width: 0.8),
                         ),
                         child: Icon(
                           isMixer ? Icons.keyboard_arrow_right : Icons.keyboard_arrow_down,
                           size: 13,
-                          color: isLastTrack ? Colors.white12 : EatsTheme.primaryCyan,
+                          color: isLastTrack ? Colors.white12 : track.color,
                         ),
                       ),
                     ),
@@ -1486,8 +1528,8 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                 child: OutlinedButton.icon(
                   onPressed: () => widget.dawState.addClipToTrack(track, 0),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: EatsTheme.primaryCyan,
-                    side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.5)),
+                    foregroundColor: track.color,
+                    side: BorderSide(color: track.color.withOpacity(0.5)),
                     padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                   ),
                   icon: const Icon(Icons.add, size: 13),
@@ -1500,7 +1542,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                   onPressed: () => widget.dawState.duplicateTrack(track),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: EatsTheme.textSecondary,
-                    side: const BorderSide(color: Color(0xFF2B3245)),
+                    side: BorderSide(color: track.color.withOpacity(0.35)),
                     padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                   ),
                   icon: const Icon(Icons.copy, size: 12),
@@ -1558,7 +1600,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
 
 
   Widget _buildClipSection(BuildContext context, TrackChannel track, TrackClip? clip) {
-    if (clip == null) return _buildEmptyClipCard();
+    if (clip == null) return _buildEmptyClipCard(track.color);
     final hasTrackMidiFx = track.midiFXRack.any((f) => f.enabled);
     final isAudio = clip.isAudioClip || track.type == TrackType.sampler;
 
@@ -1763,11 +1805,11 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.transform, size: 14, color: EatsTheme.primaryCyan),
+                  Icon(Icons.transform, size: 14, color: track.color),
                   const SizedBox(width: 5),
                   Text(
                     'AUDIO-TO-MIDI & CHORDS',
-                    style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 9.5, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                    style: TextStyle(color: track.color, fontSize: 9.5, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                   ),
                 ],
               ),
@@ -1782,7 +1824,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
               child: LinearProgressIndicator(
                 value: _transcriptionProgress > 0 ? _transcriptionProgress : null,
                 backgroundColor: EatsTheme.controlBackground,
-                valueColor: AlwaysStoppedAnimation<Color>(EatsTheme.primaryCyan),
+                valueColor: AlwaysStoppedAnimation<Color>(track.color),
                 minHeight: 6,
               ),
             ),
@@ -1793,7 +1835,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                 Expanded(
                   child: Text(
                     _transcriptionStatus,
-                    style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 9.5, fontStyle: FontStyle.italic),
+                    style: TextStyle(color: track.color, fontSize: 9.5, fontStyle: FontStyle.italic),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -1901,8 +1943,8 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                         );
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: EatsTheme.textSecondary,
-                        side: const BorderSide(color: Color(0xFF2B3245)),
+                        foregroundColor: track.color,
+                        side: BorderSide(color: track.color.withOpacity(0.5)),
                         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                       ),
                       icon: const Icon(Icons.library_add, size: 12),
@@ -1914,8 +1956,8 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                     child: OutlinedButton.icon(
                       onPressed: () => _startClipTranscription(clip),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: EatsTheme.textMuted,
-                        side: const BorderSide(color: Colors.white12),
+                        foregroundColor: track.color,
+                        side: BorderSide(color: track.color.withOpacity(0.35)),
                         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                       ),
                       icon: const Icon(Icons.refresh, size: 12),
@@ -1931,17 +1973,18 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
     );
   }
 
-  Widget _buildEmptyClipCard() {
+  Widget _buildEmptyClipCard([Color? accentColor]) {
+    final color = accentColor ?? EatsTheme.textMuted;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: EatsTheme.panelHeader.withOpacity(0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF2B3245)),
+        border: Border.all(color: color.withOpacity(0.35)),
       ),
       child: Row(
         children: [
-          Icon(Icons.touch_app_outlined, size: 20, color: EatsTheme.textMuted),
+          Icon(Icons.touch_app_outlined, size: 20, color: color.withOpacity(0.8)),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -2104,13 +2147,14 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
           height: 18,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isEnabled ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.02),
+            color: isEnabled ? track.color.withOpacity(0.12) : Colors.white.withOpacity(0.02),
             borderRadius: BorderRadius.circular(3),
+            border: isEnabled ? Border.all(color: track.color.withOpacity(0.3), width: 0.6) : null,
           ),
           child: Icon(
             icon,
             size: 10,
-            color: isEnabled ? EatsTheme.textPrimary : EatsTheme.textMuted.withOpacity(0.3),
+            color: isEnabled ? track.color : EatsTheme.textMuted.withOpacity(0.3),
           ),
         ),
       );
@@ -2121,7 +2165,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
       decoration: BoxDecoration(
         color: EatsTheme.panelHeader,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: isLooped ? EatsTheme.accentGold.withOpacity(0.6) : Colors.white.withOpacity(0.08), width: 1.0),
+        border: Border.all(color: track.color.withOpacity(isLooped ? 0.6 : 0.35), width: 1.0),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2133,12 +2177,12 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.repeat, size: 12, color: isLooped ? EatsTheme.accentGold : EatsTheme.textSecondary),
+                  Icon(Icons.repeat, size: 12, color: isLooped ? track.color : track.color.withOpacity(0.8)),
                   const SizedBox(width: 4),
                   Text(
                     'LOOP & LENGTH',
                     style: TextStyle(
-                      color: isLooped ? EatsTheme.accentGold : EatsTheme.textPrimary,
+                      color: isLooped ? track.color : track.color.withOpacity(0.85),
                       fontSize: 9.0,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.5,
@@ -2151,7 +2195,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                 alignment: Alignment.centerRight,
                 child: Switch(
                   value: isLooped,
-                  activeColor: EatsTheme.accentGold,
+                  activeColor: track.color,
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   onChanged: (enabled) {
                     if (enabled) {
@@ -2191,7 +2235,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                           ),
                           Text(
                             '${clip.barLength} B',
-                            style: TextStyle(color: EatsTheme.textPrimary, fontSize: 9.5, fontWeight: FontWeight.bold),
+                            style: TextStyle(color: track.color, fontSize: 9.5, fontWeight: FontWeight.bold),
                           ),
                           buildStepperBtn(
                             icon: Icons.add,
@@ -2218,7 +2262,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Loop Point', style: TextStyle(color: isLooped ? EatsTheme.accentGold : EatsTheme.textMuted, fontSize: 8.0)),
+                      Text('Loop Point', style: TextStyle(color: isLooped ? track.color : EatsTheme.textMuted, fontSize: 8.0)),
                       const SizedBox(height: 2),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2232,7 +2276,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                           Text(
                             isLooped ? '$loopLength B' : 'OFF',
                             style: TextStyle(
-                              color: isLooped ? EatsTheme.accentGold : EatsTheme.textMuted,
+                              color: isLooped ? track.color : EatsTheme.textMuted,
                               fontSize: 9.5,
                               fontWeight: FontWeight.bold,
                             ),
@@ -2260,7 +2304,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
     return Column(
       children: [
         if (!isAudio) ...[
-          // Edit in Piano Roll
+          // Open in EDIT tab
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
@@ -2269,12 +2313,12 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                 widget.dawState.activeTabIndex = 1; // EDIT tab
               },
               style: OutlinedButton.styleFrom(
-                foregroundColor: EatsTheme.primaryCyan,
-                side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6)),
+                foregroundColor: track.color,
+                side: BorderSide(color: track.color.withOpacity(0.6)),
                 padding: const EdgeInsets.symmetric(vertical: 8),
               ),
               icon: const Icon(Icons.piano, size: 15),
-              label: const Text('OPEN IN PIANO ROLL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              label: const Text('OPEN IN EDIT TAB', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
             ),
           ),
           const SizedBox(height: 8),
@@ -2294,8 +2338,8 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                 );
               },
               style: OutlinedButton.styleFrom(
-                foregroundColor: EatsTheme.primaryCyan,
-                side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.6)),
+                foregroundColor: track.color,
+                side: BorderSide(color: track.color.withOpacity(0.6)),
                 padding: const EdgeInsets.symmetric(vertical: 8),
               ),
               icon: const Icon(Icons.tune, size: 15),
@@ -2342,8 +2386,8 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
           child: OutlinedButton.icon(
             onPressed: () => NoteSplitterDialog.show(context, widget.dawState, clip),
             style: OutlinedButton.styleFrom(
-              foregroundColor: EatsTheme.primaryCyan,
-              side: BorderSide(color: EatsTheme.primaryCyan.withOpacity(0.5)),
+              foregroundColor: track.color,
+              side: BorderSide(color: track.color.withOpacity(0.5)),
               padding: const EdgeInsets.symmetric(vertical: 8),
             ),
             icon: const Icon(Icons.call_split, size: 14),
@@ -2359,8 +2403,8 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
               child: OutlinedButton.icon(
                 onPressed: () => widget.dawState.duplicateClip(track, clip),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: EatsTheme.textSecondary,
-                  side: const BorderSide(color: Color(0xFF2B3245)),
+                  foregroundColor: track.color,
+                  side: BorderSide(color: track.color.withOpacity(0.4)),
                   padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
                 ),
                 icon: const Icon(Icons.copy, size: 13),
@@ -2400,9 +2444,9 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: EatsTheme.panelHeader,
-                foregroundColor: EatsTheme.accentGold,
+                foregroundColor: track.color,
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                side: BorderSide(color: EatsTheme.accentGold.withOpacity(0.6)),
+                side: BorderSide(color: track.color.withOpacity(0.6)),
               ),
               icon: const Icon(Icons.auto_fix_high, size: 14),
               label: const Text('BAKE TRACK MIDI FX', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
@@ -2418,29 +2462,31 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
     final isTtsActive = track.type == TrackType.tts || track.luaScriptCode.contains('TtsSynth') || track.enableTts;
 
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: EatsTheme.panelHeader,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: track.color.withOpacity(0.5), width: 1.2),
+        border: Border.all(color: track.color.withOpacity(0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.mic, size: 14, color: track.color),
-              const SizedBox(width: 6),
-              Text(
-                clip != null ? 'CLIP LYRICS' : 'TRACK LYRICS',
-                style: TextStyle(
-                  color: EatsTheme.textPrimary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
+              Icon(Icons.mic, size: 12, color: track.color),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  clip != null ? 'CLIP LYRICS' : 'TRACK LYRICS',
+                  style: TextStyle(
+                    color: track.color,
+                    fontSize: 9.0,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                 decoration: BoxDecoration(

@@ -4,7 +4,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import '../../eatscript/eat_project_parser.dart';
+import '../../eatscript/eats_project_parser.dart';
 import 'song_archetype.dart';
 
 class SongArchetypeRegistry {
@@ -13,7 +13,7 @@ class SongArchetypeRegistry {
 
   /// Known bundled exemplar song asset paths.
   static const List<String> bundledAssetPaths = [
-    'assets/archetypes/fantasy_rpg_midnight_bites.eat',
+    'assets/archetypes/fantasy_rpg_midnight_bites.eats',
   ];
 
   /// Returns an unmodifiable list of all registered archetypes.
@@ -53,7 +53,7 @@ class SongArchetypeRegistry {
     _archetypes[archetype.archetypeId] = archetype;
   }
 
-  /// Parses an `.eat` song string and registers it as an archetype if valid.
+  /// Parses an `.eats` song string and registers it as an archetype if valid.
   static SongArchetype? registerFromEatString(String eatContent, {String? sourcePath}) {
     try {
       final map = EatProjectParser.parseLuaTableToMap(eatContent);

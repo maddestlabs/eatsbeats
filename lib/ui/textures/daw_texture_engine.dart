@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import '../../eatscript/eat_gui_model.dart';
+import '../../eatscript/eats_gui_model.dart';
 
 /// Supported procedural texture styles for DAW hardware, synths, and FX modules.
 enum DawTextureType {

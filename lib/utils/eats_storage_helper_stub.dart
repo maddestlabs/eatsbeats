@@ -109,7 +109,7 @@ class EatsStorageHelperImpl {
     return _memoryProjects.entries.map((e) {
       return SavedProjectItem(
         id: e.key,
-        name: e.key.replaceAll('.eats.lua', '').replaceAll('.eats', '').replaceAll('.eat', ''),
+        name: e.key.replaceAll('.eats.lua', '').replaceAll('.eats', ''),
         fileName: e.key,
         filePath: 'Projects/${e.key}',
         fileSizeBytes: utf8.encode(e.value).length,
@@ -122,7 +122,7 @@ class EatsStorageHelperImpl {
   static Future<SavedProjectItem?> saveProjectFile(String name, String luaCode) async {
     final sanitized = name.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final lower = sanitized.toLowerCase();
-    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eat') || lower.endsWith('.eats.lua'))
+    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eats.lua'))
         ? sanitized
         : '$sanitized.eats';
     _memoryProjects[fileName] = luaCode;
@@ -150,7 +150,7 @@ class EatsStorageHelperImpl {
   static Future<bool> renameProjectFile(SavedProjectItem item, String newName) async {
     final sanitized = newName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final lower = sanitized.toLowerCase();
-    final newFileName = (lower.endsWith('.eats') || lower.endsWith('.eat') || lower.endsWith('.eats.lua'))
+    final newFileName = (lower.endsWith('.eats') || lower.endsWith('.eats.lua'))
         ? sanitized
         : '$sanitized.eats';
     final code = _memoryProjects.remove(item.fileName) ?? _memoryProjects.remove(item.id) ?? '';

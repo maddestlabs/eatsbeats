@@ -7,11 +7,11 @@ import '../models/script_target_model.dart';
 import '../theme/eats_theme.dart';
 import 'widgets/code_editor_scroll_controller.dart';
 import 'widgets/show_on_screen_absorber.dart';
-import '../eatscript/eat_param_model.dart';
-import '../eatscript/eat_preset_library.dart';
-import '../eatscript/eat_script_library.dart';
-import '../eatscript/eat_script_engine.dart';
-import '../eatscript/eat_transpiler.dart';
+import '../eatscript/eats_param_model.dart';
+import '../eatscript/eats_preset_library.dart';
+import '../eatscript/eats_script_library.dart';
+import '../eatscript/eats_script_engine.dart';
+import '../eatscript/eats_transpiler.dart';
 import 'gui_designer/gui_designer_view.dart';
 import 'modular/eurorack_theme.dart';
 import 'modular/modular_rack_canvas.dart';
@@ -22,6 +22,7 @@ import 'widgets/project_script_runner_dialog.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
 import 'widgets/submit_gui_tweak_dialog.dart';
 import '../services/github_tweak_submission_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 enum DesignStudioViewMode {
   code,
@@ -805,6 +806,34 @@ class _EatscriptWorkbenchViewState extends State<EatscriptWorkbenchView> {
                                         'SUBMIT PR',
                                         style: EatsTheme.getPrimaryFontStyle(
                                           color: EatsTheme.primaryCyan,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              InkWell(
+                                onTap: () async {
+                                  final uri = Uri.parse('https://maddestlabs.github.io/eatsbeats/docs/');
+                                  if (await canLaunchUrl(uri)) {
+                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(4),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.menu_book, size: 12, color: EatsTheme.accentGreen),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'API DOCS',
+                                        style: EatsTheme.getPrimaryFontStyle(
+                                          color: EatsTheme.accentGreen,
                                           fontSize: 9.5,
                                           fontWeight: FontWeight.bold,
                                         ),

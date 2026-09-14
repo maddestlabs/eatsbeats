@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../audio/procgen/ensemble_blueprint.dart';
 import '../audio/procgen/song_archetype_registry.dart';
+import '../models/chord_model.dart';
 import 'secure_storage_service.dart';
 
 class ConnectionTestResult {
@@ -18,6 +19,43 @@ class ConnectionTestResult {
     required this.message,
     this.rawResponse,
   });
+}
+
+/// Represents Gemini AI's stylistic assessment of an existing song/loop along with alternative arrangement takes.
+class SongStyleAssessment {
+  final String detectedGenre;
+  final String stylisticVibe;
+  final String harmonicObservations;
+  final List<String> arrangementOpportunities;
+  final List<SongStructureBlueprint> takes;
+
+  const SongStyleAssessment({
+    required this.detectedGenre,
+    required this.stylisticVibe,
+    required this.harmonicObservations,
+    required this.arrangementOpportunities,
+    required this.takes,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'detectedGenre': detectedGenre,
+    'stylisticVibe': stylisticVibe,
+    'harmonicObservations': harmonicObservations,
+    'arrangementOpportunities': arrangementOpportunities,
+    'takes': takes.map((t) => t.toJson()).toList(),
+  };
+
+  factory SongStyleAssessment.fromJson(Map<String, dynamic> json) {
+    final rawTakes = json['takes'] as List? ?? [];
+    final takes = rawTakes.map((t) => SongStructureBlueprint.fromJson(Map<String, dynamic>.from(t as Map))).toList();
+    return SongStyleAssessment(
+      detectedGenre: json['detectedGenre']?.toString() ?? 'Lo-Fi Chillhop',
+      stylisticVibe: json['stylisticVibe']?.toString() ?? 'Warm, laid-back instrumental groove.',
+      harmonicObservations: json['harmonicObservations']?.toString() ?? 'Lush extended chord movements.',
+      arrangementOpportunities: (json['arrangementOpportunities'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      takes: takes,
+    );
+  }
 }
 
 /// Service for communicating with Google Gemini API
@@ -478,6 +516,60 @@ Output pure Eatscript code only.
     return _extractCode(rawOutput);
   }
 
+  /// Generates a standalone Eatscript MIDI FX plugin script (Arpeggiators, Chord followers, Humanizers, etc.) with custom hardware GUI.
+  static Future<String> generateMidiFxScript({
+    required String prompt,
+  }) async {
+    if (!hasApiKey) {
+      throw Exception('Gemini API key is required. Please set your key in AI Settings.');
+    }
+
+    final systemInstruction = '''
+You are a master MIDI algorithmic composer and Eatscript developer for Eatsbeats DAW.
+Write a complete real-time MIDI FX script (Arpeggiator, Chord Strummer, Velocity Humanizer, Scale Snap, Octave Jumper, Euclidian Rhythm Generator, etc.) complete with a custom hardware GUI.
+
+EATSBEATS MIDI FX SPECIFICATION:
+1. Header:
+   # @name: <Plugin Name>
+   # @author: Gemini AI
+   # @category: midi_fx
+   # @description: <Description>
+
+2. Define parameters via init():
+   def init():
+       eat.param("Rate", min=0.0, max=3.0, default=1.0, options=["1/4", "1/8", "1/16", "1/32"])
+       eat.param("Octaves", min=1, max=4, default=2, step=1)
+       eat.param("Gate", min=0.1, max=1.0, default=0.75, step=0.05)
+
+3. SKEUOMORPHIC HARDWARE GUI:
+   def gui():
+       return {
+           "panel": {
+               "title": "<Plugin Name>",
+               "subtitle": "MIDI FX Processor",
+               "layout": [
+                   {
+                       "type": "row",
+                       "children": [
+                           {"type": "knob", "param": "Rate", "label": "RATE", "size": 52, "accent": "#00FFCC"},
+                           {"type": "knob", "param": "Octaves", "label": "OCTAVES", "size": 48},
+                           {"type": "knob", "param": "Gate", "label": "GATE", "size": 48}
+                       ]
+                   }
+               ]
+           }
+       }
+
+4. Implement transform_notes(notes, params, time_context):
+   # Return transformed Note list or procedural MIDI events.
+
+Output pure Eatscript code only.
+''';
+
+    final rawOutput = await _callGemini(systemInstruction: systemInstruction, userPrompt: 'Create a MIDI FX plugin matching: $prompt');
+    return _extractCode(rawOutput);
+  }
+
   /// Generates a complete, multi-track .eats.lua arrangement song project with custom synthesizers and MIDI notes.
   static Future<String> generateSongProject({
     required String prompt,
@@ -492,7 +584,7 @@ Output pure Eatscript code only.
 
     final systemInstruction = '''
 You are a Grammy-winning music producer, arranger, and DSP sound engineer for Eatsbeats DAW.
-Your mission is to generate a complete, synthesizable, production-ready 4-track song project in Eatsbeats Eatscript format (`.eat`).
+Your mission is to generate a complete, synthesizable, production-ready 4-track song project in Eatsbeats Eatscript format (`.eats`).
 
 SONG SPECIFICATION:
 - Title: Generated from prompt
@@ -791,6 +883,368 @@ RESPONSE FORMAT (JSON ONLY, NO MARKDOWN OUTSIDE JSON):
     final cleanJson = _cleanJsonResponse(rawOutput);
     final decoded = jsonDecode(cleanJson) as Map<String, dynamic>;
     return SongStructureBlueprint.fromJson(decoded);
+  }
+
+  /// Analyzes project telemetry, assesses genre and sonic vibe, and generates
+  /// alternative arrangement takes using Gemini (with rich offline fallback).
+  static Future<SongStyleAssessment> analyzeSongStyleAndGenerateTakes({
+    required Map<String, dynamic> telemetry,
+  }) async {
+    final title = telemetry['title']?.toString() ?? 'Untitled Song';
+    final bpm = (telemetry['bpm'] as num?)?.toDouble() ?? 120.0;
+    final songKey = telemetry['songKey']?.toString() ?? 'C Major';
+    final rawTracks = telemetry['tracks'] as List? ?? [];
+    final rawChords = telemetry['chordTrack'] as List? ?? [];
+
+    if (!hasApiKey) {
+      return _generateOfflineStyleAssessment(telemetry);
+    }
+
+    try {
+      final systemInstruction = '''
+You are an elite Grammy-winning Music Producer, Arranger, and Musicologist for the Eatsbeats Digital Audio Workstation.
+Your mission is to analyze the provided project telemetry, assess its exact musical genre and stylistic identity, and author 3 distinct alternative Arrangement Takes.
+
+IMPORTANT RULES:
+1. PRESERVE THE EXISTING TRACKS:
+   The ensemble in each Take MUST retain the user's existing track IDs, names, and roles from the telemetry.
+2. UTILIZE MUTED TRACKS AS CHANGE-UP / CHORUS LIFTS:
+   If a track is marked `isMuted = true` (e.g. an acoustic guitar or synth layer), treat it as a secret weapon: give it `0.0` energy during Intros and Verses, and bring it to `0.9` to `1.0` energy during Choruses or Climaxes!
+3. HARMONIC VARIATION:
+   - For Verses and Choruses, keep the user's core chord progression.
+   - For the Bridge / Change-Up, author a harmonically complementary contrasting progression (e.g. secondary dominants, modal interchange, or jazz ii-V substitutions).
+4. RESPONSE FORMAT:
+   Respond with pure JSON only adhering to this structure:
+{
+  "detectedGenre": "Short Genre Name (e.g. Lo-Fi Chillhop / Neo-Soul)",
+  "stylisticVibe": "1-2 sentence aesthetic summary of the groove and mood.",
+  "harmonicObservations": "Analysis of the harmonic movement and cadence.",
+  "arrangementOpportunities": [
+    "Key structural suggestion 1",
+    "Key structural suggestion 2",
+    "Key structural suggestion 3"
+  ],
+  "takes": [
+    {
+      "title": "Take 1: Classic Genre Arc",
+      "bpm": $bpm,
+      "meter": "4/4",
+      "rootPitchClass": 0,
+      "mode": "major",
+      "ensemble": [
+        { "trackId": "t1", "name": "Name", "role": "rhythm", "presetId": "", "colorHex": 4280465128 }
+      ],
+      "sections": [
+        {
+          "name": "Intro",
+          "lengthBars": 4,
+          "chords": [
+            { "rootPitchClass": 5, "quality": "maj9", "barLength": 1.0 }
+          ],
+          "trackEnergy": { "t1": 0.0 }
+        }
+      ]
+    }
+  ]
+}
+''';
+
+      final userPrompt = '''
+PROJECT TELEMETRY:
+${const JsonEncoder.withIndent('  ').convert(telemetry)}
+
+Assess the genre and musical identity, and produce 3 tailored arrangement takes (Take 1: Classic Arc, Take 2: Contrasting Bridge Journey, Take 3: Dynamic Variation).
+''';
+
+      final rawOutput = await _callGemini(
+        systemInstruction: systemInstruction,
+        userPrompt: userPrompt,
+        responseMimeType: 'application/json',
+      );
+
+      final cleanJson = _cleanJsonResponse(rawOutput);
+      final decoded = jsonDecode(cleanJson) as Map<String, dynamic>;
+      return SongStyleAssessment.fromJson(decoded);
+    } catch (e) {
+      debugPrint('[GeminiService] analyzeSongStyleAndGenerateTakes fallback: $e');
+      return _generateOfflineStyleAssessment(telemetry);
+    }
+  }
+
+  /// Public offline procedural generator for style assessment and multi-take arrangements.
+  static SongStyleAssessment generateOfflineStyleAssessment(Map<String, dynamic> telemetry) =>
+      _generateOfflineStyleAssessment(telemetry);
+
+  /// Offline procedural fallback generator for style assessment and takes.
+  static SongStyleAssessment _generateOfflineStyleAssessment(Map<String, dynamic> telemetry) {
+    final bpm = (telemetry['bpm'] as num?)?.toDouble() ?? 120.0;
+    final songKey = telemetry['songKey']?.toString() ?? 'C Major';
+    final isMinor = telemetry['isMinor'] == true;
+    final rootPitchClass = (telemetry['songKeyRoot'] as num?)?.toInt() ?? 0;
+    final rawTracks = telemetry['tracks'] as List? ?? [];
+    final rawChords = telemetry['chordTrack'] as List? ?? [];
+
+    // Parse existing chords or fallback to standard progression
+    final List<EnsembleChordEvent> baseChords = [];
+    if (rawChords.isNotEmpty) {
+      for (final c in rawChords) {
+        if (c is Map) {
+          int root = 0;
+          if (c['rootPitchClass'] is num) {
+            root = ((c['rootPitchClass'] as num).toInt() + 120) % 12;
+          } else if (c['root'] != null) {
+            final idx = ChordTheory.pitchClassNames.indexOf(c['root'].toString());
+            if (idx >= 0) root = idx;
+          }
+          final qStr = c['quality']?.toString().toLowerCase() ?? 'major';
+          final len = (c['length'] as num?)?.toDouble() ?? 1.0;
+          baseChords.add(EnsembleChordEvent(
+            rootPitchClass: root,
+            quality: ChordQuality.values.firstWhere(
+              (q) => q.name.toLowerCase() == qStr,
+              orElse: () => ChordQuality.major,
+            ),
+            barLength: len,
+          ));
+        }
+      }
+    }
+    if (baseChords.isEmpty) {
+      baseChords.addAll([
+        EnsembleChordEvent(rootPitchClass: (rootPitchClass + 5) % 12, quality: ChordQuality.maj9, barLength: 1.0),
+        EnsembleChordEvent(rootPitchClass: (rootPitchClass + 4) % 12, quality: ChordQuality.minor7, barLength: 1.0),
+        EnsembleChordEvent(rootPitchClass: (rootPitchClass + 9) % 12, quality: ChordQuality.min9, barLength: 1.0),
+        EnsembleChordEvent(rootPitchClass: rootPitchClass % 12, quality: ChordQuality.major7, barLength: 1.0),
+      ]);
+    }
+
+    // Build ensemble track list
+    final List<EnsembleTrackBlueprint> ensemble = [];
+    final List<String> mutedTrackIds = [];
+    for (final t in rawTracks) {
+      if (t is Map) {
+        final tId = t['id']?.toString() ?? 't';
+        final tName = t['name']?.toString() ?? 'Track';
+        final tRole = FunctionalRole.fromString(t['role']?.toString() ?? 'harmonicTexture');
+        final isMuted = t['isMuted'] == true;
+        if (isMuted) mutedTrackIds.add(tId);
+
+        ensemble.add(EnsembleTrackBlueprint(
+          trackId: tId,
+          name: tName,
+          presetId: '',
+          role: tRole,
+          colorHex: isMuted ? 0xFFFF3333 : 0xFF21F4E8,
+        ));
+      }
+    }
+
+    // Contrasting Bridge chords (e.g. ii9 -> V13 -> iii7 -> VI7)
+    final bridgeChords = [
+      EnsembleChordEvent(rootPitchClass: (rootPitchClass + 2) % 12, quality: ChordQuality.min9, barLength: 2.0),
+      EnsembleChordEvent(rootPitchClass: (rootPitchClass + 7) % 12, quality: ChordQuality.dominant7, barLength: 2.0),
+      EnsembleChordEvent(rootPitchClass: (rootPitchClass + 4) % 12, quality: ChordQuality.minor7, barLength: 2.0),
+      EnsembleChordEvent(rootPitchClass: (rootPitchClass + 9) % 12, quality: ChordQuality.dominant7, barLength: 2.0),
+    ];
+
+    // Helper to generate energy map for a section
+    Map<String, double> buildEnergyMap({
+      required bool isIntro,
+      required bool isVerse,
+      required bool isChorus,
+      required bool isBridge,
+      required bool isOutro,
+    }) {
+      final map = <String, double>{};
+      for (final t in ensemble) {
+        final isMutedTrack = mutedTrackIds.contains(t.trackId);
+        final isRhythm = t.role == FunctionalRole.rhythm;
+        final isBass = t.role == FunctionalRole.foundation;
+
+        if (isIntro) {
+          map[t.trackId] = (isRhythm || isBass || isMutedTrack) ? 0.0 : 0.80;
+        } else if (isVerse) {
+          map[t.trackId] = isMutedTrack ? 0.0 : 0.85;
+        } else if (isChorus) {
+          map[t.trackId] = 0.95; // Unmute everything!
+        } else if (isBridge) {
+          map[t.trackId] = isRhythm ? 0.40 : (isMutedTrack ? 0.85 : 0.90);
+        } else if (isOutro) {
+          map[t.trackId] = (isRhythm || isBass) ? 0.0 : 0.70;
+        }
+      }
+      return map;
+    }
+
+    // Take 1: Classic Chillhop Arc (32 Bars)
+    final take1 = SongStructureBlueprint(
+      title: 'Take 1: Classic Chillhop Arc',
+      bpm: bpm,
+      meter: '4/4',
+      rootPitchClass: rootPitchClass,
+      mode: isMinor ? 'minor' : 'major',
+      ensemble: ensemble,
+      sections: [
+        EnsembleSectionBlueprint(
+          name: 'Intro',
+          lengthBars: 4,
+          chords: baseChords,
+          trackEnergy: buildEnergyMap(isIntro: true, isVerse: false, isChorus: false, isBridge: false, isOutro: false),
+          melodyBehavior: MelodyBehavior.themeA,
+        ),
+        EnsembleSectionBlueprint(
+          name: 'Verse 1',
+          lengthBars: 8,
+          chords: baseChords,
+          trackEnergy: buildEnergyMap(isIntro: false, isVerse: true, isChorus: false, isBridge: false, isOutro: false),
+          melodyBehavior: MelodyBehavior.themeA,
+        ),
+        EnsembleSectionBlueprint(
+          name: 'Chorus 1',
+          lengthBars: 8,
+          chords: baseChords,
+          trackEnergy: buildEnergyMap(isIntro: false, isVerse: false, isChorus: true, isBridge: false, isOutro: false),
+          melodyBehavior: MelodyBehavior.themeB,
+        ),
+        EnsembleSectionBlueprint(
+          name: 'Verse 2',
+          lengthBars: 8,
+          chords: baseChords,
+          trackEnergy: buildEnergyMap(isIntro: false, isVerse: true, isChorus: false, isBridge: false, isOutro: false),
+          melodyBehavior: MelodyBehavior.variation,
+        ),
+        EnsembleSectionBlueprint(
+          name: 'Outro',
+          lengthBars: 4,
+          chords: baseChords,
+          trackEnergy: buildEnergyMap(isIntro: false, isVerse: false, isChorus: false, isBridge: false, isOutro: true),
+          melodyBehavior: MelodyBehavior.tacet,
+        ),
+      ],
+    );
+
+    // Take 2: Neo-Soul Reharmonized Journey (36 Bars with Bridge)
+    final take2 = SongStructureBlueprint(
+      title: 'Take 2: Neo-Soul Bridge Modulation',
+      bpm: bpm,
+      meter: '4/4',
+      rootPitchClass: rootPitchClass,
+      mode: isMinor ? 'minor' : 'major',
+      ensemble: ensemble,
+      sections: [
+        EnsembleSectionBlueprint(
+          name: 'Intro',
+          lengthBars: 4,
+          chords: baseChords,
+          trackEnergy: buildEnergyMap(isIntro: true, isVerse: false, isChorus: false, isBridge: false, isOutro: false),
+          melodyBehavior: MelodyBehavior.themeA,
+        ),
+        EnsembleSectionBlueprint(
+          name: 'Verse 1',
+          lengthBars: 8,
+          chords: baseChords,
+          trackEnergy: buildEnergyMap(isIntro: false, isVerse: true, isChorus: false, isBridge: false, isOutro: false),
+          melodyBehavior: MelodyBehavior.themeA,
+        ),
+        EnsembleSectionBlueprint(
+          name: 'Chorus 1',
+          lengthBars: 8,
+          chords: baseChords,
+          trackEnergy: buildEnergyMap(isIntro: false, isVerse: false, isChorus: true, isBridge: false, isOutro: false),
+          melodyBehavior: MelodyBehavior.themeB,
+        ),
+        EnsembleSectionBlueprint(
+          name: 'Bridge (Reharmonized)',
+          lengthBars: 8,
+          chords: bridgeChords,
+          trackEnergy: buildEnergyMap(isIntro: false, isVerse: false, isChorus: false, isBridge: true, isOutro: false),
+          melodyBehavior: MelodyBehavior.callResponse,
+        ),
+        EnsembleSectionBlueprint(
+          name: 'Chorus 2 (Climax)',
+          lengthBars: 8,
+          chords: baseChords,
+          trackEnergy: buildEnergyMap(isIntro: false, isVerse: false, isChorus: true, isBridge: false, isOutro: false),
+          melodyBehavior: MelodyBehavior.themeB,
+        ),
+        EnsembleSectionBlueprint(
+          name: 'Outro',
+          lengthBars: 4,
+          chords: baseChords,
+          trackEnergy: buildEnergyMap(isIntro: false, isVerse: false, isChorus: false, isBridge: false, isOutro: true),
+          melodyBehavior: MelodyBehavior.tacet,
+        ),
+      ],
+    );
+
+    // Take 3: Dynamic 303 Breakdown & Crossover (32 Bars)
+    final take3 = SongStructureBlueprint(
+      title: 'Take 3: Dynamic 303 Breakdown',
+      bpm: bpm,
+      meter: '4/4',
+      rootPitchClass: rootPitchClass,
+      mode: isMinor ? 'minor' : 'major',
+      ensemble: ensemble,
+      sections: [
+        EnsembleSectionBlueprint(
+          name: 'Intro (Bass & DX7)',
+          lengthBars: 4,
+          chords: baseChords,
+          trackEnergy: {
+            for (final t in ensemble)
+              t.trackId: (t.role == FunctionalRole.foundation || t.role == FunctionalRole.harmonicTexture) ? 0.85 : 0.0,
+          },
+          melodyBehavior: MelodyBehavior.themeA,
+        ),
+        EnsembleSectionBlueprint(
+          name: 'Verse',
+          lengthBars: 8,
+          chords: baseChords,
+          trackEnergy: buildEnergyMap(isIntro: false, isVerse: true, isChorus: false, isBridge: false, isOutro: false),
+          melodyBehavior: MelodyBehavior.themeA,
+        ),
+        EnsembleSectionBlueprint(
+          name: 'Chorus (Full Ensemble)',
+          lengthBars: 8,
+          chords: baseChords,
+          trackEnergy: buildEnergyMap(isIntro: false, isVerse: false, isChorus: true, isBridge: false, isOutro: false),
+          melodyBehavior: MelodyBehavior.themeB,
+        ),
+        EnsembleSectionBlueprint(
+          name: 'Acid Bass Breakdown',
+          lengthBars: 8,
+          chords: baseChords,
+          trackEnergy: {
+            for (final t in ensemble)
+              t.trackId: (t.role == FunctionalRole.foundation || t.role == FunctionalRole.rhythm) ? 0.90 : 0.0,
+          },
+          melodyBehavior: MelodyBehavior.variation,
+        ),
+        EnsembleSectionBlueprint(
+          name: 'Outro',
+          lengthBars: 4,
+          chords: baseChords,
+          trackEnergy: buildEnergyMap(isIntro: false, isVerse: false, isChorus: false, isBridge: false, isOutro: true),
+          melodyBehavior: MelodyBehavior.tacet,
+        ),
+      ],
+    );
+
+    final genreName = (bpm >= 115 && bpm <= 135)
+        ? 'Lo-Fi Chillhop / Neo-Soul Groove'
+        : (bpm < 100 ? 'Lo-Fi Hip Hop / Downtempo' : 'Neo-Soul / Ambient Fusion');
+
+    return SongStyleAssessment(
+      detectedGenre: genreName,
+      stylisticVibe: 'Warm, laid-back instrumental groove combining digital FM electric piano, subby analog bassline, and physical acoustic instruments.',
+      harmonicObservations: 'Lush modal IVmaj9 - iiim7 - vim9 - Imaj7 progression with smooth voice-leading and rich jazz color.',
+      arrangementOpportunities: [
+        'Hold back the muted Steel-String Acoustic Guitar until the Chorus to provide a vibrant organic lift.',
+        'Use the DX7 E-Piano and gentle hats to set an intimate atmosphere during the 4-bar Intro.',
+        'Introduce contrasting ii-V harmonic movement in an 8-bar Bridge to create narrative tension before the final drop.',
+      ],
+      takes: [take1, take2, take3],
+    );
   }
 
   /// Low-level Gemini REST API caller with automatic model fallback and timeout protection.

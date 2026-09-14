@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../eatscript/eat_script_engine.dart';
-import '../../eatscript/eat_param_model.dart';
-import '../../eatscript/eat_script_library.dart';
+import '../../eatscript/eats_script_engine.dart';
+import '../../eatscript/eats_param_model.dart';
+import '../../eatscript/eats_script_library.dart';
 import '../../eatscript/project_script_engine.dart';
 import '../../models/daw_state.dart';
 import '../../theme/eats_theme.dart';
+import 'ai_assistant_dialog.dart';
 
 class ProjectScriptRunnerDialog extends StatefulWidget {
   final DawState dawState;
@@ -51,6 +52,14 @@ class _ProjectScriptRunnerDialogState extends State<ProjectScriptRunnerDialog> {
   }
 
   void _runScript() {
+    final rawTake = _paramValues['Take'];
+    final isInteractive = rawTake == 3 || rawTake == 3.0 || rawTake == 'Interactive AI Assistant Dialog (Review Takes)';
+    if (widget.script.id == 'action_non_destructive_arranger' && isInteractive) {
+      Navigator.of(context).pop();
+      AiAssistantDialog.show(context, widget.dawState, initialTab: 1);
+      return;
+    }
+
     setState(() => _isExecuting = true);
 
     final result = widget.dawState.runProjectScript(
@@ -235,6 +244,26 @@ class _ProjectScriptRunnerDialogState extends State<ProjectScriptRunnerDialog> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  if (widget.script.id == 'action_non_destructive_arranger') ...[
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF21F4E8)),
+                        foregroundColor: const Color(0xFF21F4E8),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        AiAssistantDialog.show(context, widget.dawState, initialTab: 1);
+                      },
+                      icon: const Icon(Icons.auto_awesome, size: 16, color: Color(0xFF21F4E8)),
+                      label: const Text(
+                        'OPEN AI ASSISTANT',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                      ),
+                    ),
+                    const Spacer(),
+                  ],
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     child: const Text(

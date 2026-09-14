@@ -6,8 +6,8 @@ import 'package:eatsbeats/audio/gm/gm_instrument_registry.dart';
 import 'package:eatsbeats/audio/graph/graph_node.dart';
 import 'package:eatsbeats/audio/graph/graph_primitives.dart';
 import 'package:eatsbeats/audio/graph/graph_evaluator.dart';
-import 'package:eatsbeats/eatscript/eat_engine.dart';
-import 'package:eatsbeats/eatscript/eat_preset_library.dart';
+import 'package:eatsbeats/eatscript/eats_engine.dart';
+import 'package:eatsbeats/eatscript/eats_preset_library.dart';
 
 void main() {
   group('Eatsbeats Graph (eatsbeats.graph) Core DSP Unit Tests', () {
@@ -927,6 +927,35 @@ void main() {
       final furnaceRes = GmInstrumentRegistry.resolve(trackName: 'Blast Furnace');
       expect(furnaceRes.isNative, isTrue);
       expect(furnaceRes.presetId, equals('eats_furnace'));
+    });
+
+    test('Tb303FilterNode (DiodeLadderFilterNode) filters audio with authentic diode squelch and stability', () {
+      const saw = SawOscNode();
+      const filter = Tb303FilterNode(
+        input: saw,
+        cutoffHz: 800.0,
+        resonance: 0.85,
+        envMod: 0.70,
+        decaySec: 0.35,
+      );
+
+      final ctx = GraphContext(
+        durationSec: 0.20,
+        freq: 65.4,
+        midiNote: 36,
+      );
+      final buffer = Float32List(ctx.totalSamples);
+      filter.process(ctx, buffer);
+
+      expect(buffer.length, greaterThan(100));
+      double peak = 0.0;
+      for (final s in buffer) {
+        expect(s.isNaN, isFalse);
+        expect(s.isInfinite, isFalse);
+        expect(s, inInclusiveRange(-1.0, 1.0));
+        if (s.abs() > peak) peak = s.abs();
+      }
+      expect(peak, greaterThan(0.05));
     });
   });
 }

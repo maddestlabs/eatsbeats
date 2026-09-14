@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'automation_model.dart';
 import 'lyric_model.dart';
-import '../eatscript/eat_synth_type.dart';
+import '../eatscript/eats_synth_type.dart';
 
 enum MusicViewType { pianoRoll, tracker, script, score }
 enum TrackType {
@@ -87,6 +87,16 @@ class Note {
   bool get isBend => isSlide || (pitchBendPoints != null && pitchBendPoints!.isNotEmpty);
   set isBend(bool value) => isSlide = value;
 
+  /// True if accent is active via flag, high velocity, articulation tag, lyric tag, or tracker effect.
+  bool get hasAccent {
+    if (isAccent) return true;
+    if (velocity > 0.75) return true;
+    if (articulation != null && articulation!.toLowerCase().contains('accent')) return true;
+    if (lyric != null && lyric!.toLowerCase().contains('accent')) return true;
+    if (effectCommand.isNotEmpty && effectCommand.toLowerCase().contains('acc')) return true;
+    return false;
+  }
+
   Note({
     required this.id,
     required this.pitch,
@@ -103,7 +113,10 @@ class Note {
     this.pitchBendPoints,
     this.pressurePoints,
     this.timbrePoints,
-  }) : isAccent = isAccent ?? (velocity > 0.75);
+  }) : isAccent = isAccent ?? (velocity > 0.75 ||
+            (articulation != null && articulation.toLowerCase().contains('accent')) ||
+            (lyric != null && lyric.toLowerCase().contains('accent')) ||
+            (effectCommand.toLowerCase().contains('acc')));
 
   /// Interpolates a piecewise linear curve of [[timeNorm, value], ...] at [progress] (0.0 to 1.0).
   static double interpolateCurve(List<List<double>>? points, double progress, double fallback) {
@@ -283,6 +296,7 @@ class StepEvent {
   int pitch; // Default pitch for drum or note trigger
   bool isSlide;
   bool isAccent;
+  bool get hasAccent => isAccent || velocity > 0.75;
 
   StepEvent({
     this.active = false,
@@ -312,12 +326,13 @@ class StepEvent {
 
   factory StepEvent.fromJson(Map<String, dynamic> json) {
     final vel = (json['velocity'] as num?)?.toDouble() ?? 0.8;
+    final rawAccent = json['isAccent'] ?? json['accent'];
     return StepEvent(
       active: json['active'] ?? false,
       velocity: vel,
       pitch: json['pitch'] ?? 60,
-      isSlide: json['isSlide'] ?? false,
-      isAccent: json['isAccent'] ?? (vel > 0.75),
+      isSlide: json['isSlide'] ?? json['slide'] ?? false,
+      isAccent: rawAccent is bool ? rawAccent : (rawAccent == null ? vel > 0.75 : rawAccent.toString() == 'true'),
     );
   }
 }

@@ -10,7 +10,7 @@ import '../../services/gemini_service.dart';
 import '../../services/secure_storage_service.dart';
 import '../../services/ai_mixing_engine.dart';
 import '../../services/ai_task_manager.dart';
-import '../../eatscript/eat_script_library.dart';
+import '../../eatscript/eats_script_library.dart';
 import '../../utils/eats_storage_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'skeuomorphic_hardware_button.dart';
@@ -47,10 +47,11 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
   bool _isTestingKey = false;
   ConnectionTestResult? _testResult;
 
-  String _soundCategory = 'instrument'; // 'instrument' or 'audio_fx'
+  String _soundCategory = 'instrument'; // 'instrument', 'audio_fx', or 'midi_fx'
 
   String _selectedGenre = 'Lo-Fi Chill';
   double _selectedTargetLufs = -14.0;
+  bool _forceExtendOverride = false;
 
   final List<String> _genreOptions = [
     'Lo-Fi Chill',
@@ -68,8 +69,13 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
     'Dynamic Audiophile (-18 LUFS)': -18.0,
   };
 
-  final ScrollController _songArchitectScrollController = ScrollController();
+  final ScrollController _composeScrollController = ScrollController();
+  final ScrollController _extendScrollController = ScrollController();
+  final ScrollController _designScrollController = ScrollController();
+  final ScrollController _masterScrollController = ScrollController();
+  final ScrollController _settingsScrollController = ScrollController();
   bool _isGeneratingMagicPrompt = false;
+  bool _isSavingTakesAsProjects = false;
 
   bool _isKeyStored = false;
   bool _rememberKeyOnDevice = false;
@@ -111,16 +117,66 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
   void _onAiTaskManagerChanged() {
     if (!mounted) return;
     final mgr = AiTaskManager.instance;
-    if (_activeTab == 1 && mgr.status == AiTaskStatus.readyForReview && mgr.taskType == AiTaskType.songArrangement) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_songArchitectScrollController.hasClients) {
-          _songArchitectScrollController.animateTo(
-            _songArchitectScrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 500),
+    if (mgr.status == AiTaskStatus.readyForReview) {
+      _scrollToBottom();
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (!mounted) return;
+        ScrollController? controller;
+        if (_activeTab == 0) controller = _composeScrollController;
+        if (_activeTab == 1) controller = _extendScrollController;
+        if (_activeTab == 2) controller = _designScrollController;
+        if (_activeTab == 3) controller = _masterScrollController;
+        if (_activeTab == 4) controller = _settingsScrollController;
+
+        if (controller != null && controller.hasClients) {
+          controller.animateTo(
+            controller.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 450),
             curve: Curves.easeOutCubic,
           );
         }
       });
+    });
+  }
+
+  Future<void> _saveAllTakesAsProjects(SongStyleAssessment assessment) async {
+    if (_isSavingTakesAsProjects) return;
+    setState(() => _isSavingTakesAsProjects = true);
+
+    try {
+      final savedPaths = await widget.dawState.saveArrangementTakesAsProjects(assessment);
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Saved all ${savedPaths.length} takes to Projects folder!\nLoad any take from Project Browser > Projects.'),
+          backgroundColor: EatsTheme.panelBackground,
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'SHOW IN FOLDER',
+            textColor: EatsTheme.primaryCyan,
+            onPressed: () => EatsStorageHelper.openProjectsFolder(),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving arrangement takes: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSavingTakesAsProjects = false);
+      }
     }
   }
 
@@ -148,7 +204,11 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
     _mixInstructionsController.dispose();
     _soundPromptController.dispose();
     _songPromptController.dispose();
-    _songArchitectScrollController.dispose();
+    _composeScrollController.dispose();
+    _extendScrollController.dispose();
+    _designScrollController.dispose();
+    _masterScrollController.dispose();
+    _settingsScrollController.dispose();
     super.dispose();
   }
 
@@ -191,16 +251,18 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
             ),
             const SizedBox(height: 10),
 
-            // Tab Buttons (4 Tabs)
+            // Tab Buttons (5-Stage Production Pipeline)
             Row(
               children: [
-                _buildTabButton(0, 'MIX & MASTER', Icons.equalizer),
+                _buildTabButton(0, 'COMPOSE', Icons.auto_awesome),
                 const SizedBox(width: 4),
-                _buildTabButton(1, 'SONG ARCHITECT', Icons.library_music),
+                _buildTabButton(1, 'EXTEND', Icons.unfold_more),
                 const SizedBox(width: 4),
-                _buildTabButton(2, 'SOUND ARCHITECT', Icons.graphic_eq),
+                _buildTabButton(2, 'DESIGN', Icons.draw),
                 const SizedBox(width: 4),
-                _buildTabButton(3, 'AI SETTINGS', Icons.key),
+                _buildTabButton(3, 'MASTER', Icons.equalizer),
+                const SizedBox(width: 4),
+                _buildTabButton(4, 'AI SETTINGS', Icons.key),
               ],
             ),
             const SizedBox(height: 12),
@@ -220,12 +282,14 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
   Widget _buildActiveTabContent() {
     switch (_activeTab) {
       case 0:
-        return _buildMixMasterTab();
+        return _buildComposeTab();
       case 1:
-        return _buildSongArchitectTab();
+        return _buildExtendTab();
       case 2:
-        return _buildSoundArchitectTab();
+        return _buildDesignTab();
       case 3:
+        return _buildMasterTab();
+      case 4:
       default:
         return _buildSettingsTab();
     }
@@ -271,14 +335,15 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
     );
   }
 
-  // ── Tab 1: Mix & Master ────────────────────────────────────────────────────
+  // ── Tab 3: Master (Mix & Master) ───────────────────────────────────────────
 
-  Widget _buildMixMasterTab() {
+  Widget _buildMasterTab() {
     if (!GeminiService.hasApiKey) {
       return _buildKeyRequiredBanner();
     }
 
     return SingleChildScrollView(
+      controller: _masterScrollController,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -541,9 +606,9 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
     );
   }
 
-  // ── Tab 2: Song Architect (4-Track Arrangement) ───────────────────────────
+  // ── Tab 0: Compose (Procedural Songwriting & Ensemble) ─────────────────────
 
-  Widget _buildSongArchitectTab() {
+  Widget _buildComposeTab() {
     if (!GeminiService.hasApiKey) {
       return _buildKeyRequiredBanner();
     }
@@ -559,7 +624,7 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
     ];
 
     return SingleChildScrollView(
-      controller: _songArchitectScrollController,
+      controller: _composeScrollController,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -613,7 +678,7 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          'PROJECT STYLE ARCHITECTURE (SAVED IN .EAT)',
+                          'PROJECT STYLE ARCHITECTURE (SAVED IN .EATS)',
                           style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -776,7 +841,7 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Composing Song Architecture & Dynamic Arrangement... (${seconds}s)',
+                          mgr.taskTitle.isNotEmpty ? '${mgr.taskTitle}... (${seconds}s)' : 'Composing Song Architecture... (${seconds}s)',
                           style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -818,12 +883,16 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                   children: [
                     Row(
                       children: [
-                        Text('GENERATED SONG ARCHITECTURE:', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
+                        Text(
+                          'GENERATED SONG ARCHITECTURE:',
+                          style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
                         const Spacer(),
-                        Text('Ready to Render', style: TextStyle(color: const Color(0xFF00FF66), fontSize: 10, fontWeight: FontWeight.bold)),
+                        const Text('Ready to Apply', style: TextStyle(color: Color(0xFF00FF66), fontSize: 10, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     const SizedBox(height: 6),
+
                     if (bp != null) ...[
                       Container(
                         padding: const EdgeInsets.all(10),
@@ -855,30 +924,6 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                                   ),
                                 ),
                               ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'ENSEMBLE (${bp.ensemble.length} TRACKS):',
-                              style: TextStyle(color: EatsTheme.textSecondary, fontSize: 9, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
-                              children: bp.ensemble.map((t) {
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Color(t.colorHex).withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(color: Color(t.colorHex).withOpacity(0.6)),
-                                  ),
-                                  child: Text(
-                                    '${t.name} (${t.role.name})',
-                                    style: TextStyle(color: Color(t.colorHex), fontSize: 10, fontWeight: FontWeight.bold),
-                                  ),
-                                );
-                              }).toList(),
                             ),
                             const SizedBox(height: 8),
                             Text(
@@ -937,7 +982,9 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                               Navigator.of(context).pop();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Song generated and rendered successfully into DAW! Press Play to listen.'),
+                                  content: Text(
+                                    'Song generated and rendered successfully into DAW! Press Play to listen.',
+                                  ),
                                   duration: Duration(seconds: 3),
                                 ),
                               );
@@ -967,6 +1014,488 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
     );
   }
 
+  // ── Tab 1: Extend (Loop to Song Takes Arranger) ───────────────────────────
+
+  Widget _buildExtendTab() {
+    if (!GeminiService.hasApiKey) {
+      return _buildKeyRequiredBanner();
+    }
+
+    final tracks = widget.dawState.activePattern.tracks;
+    final mutedCount = tracks.where((t) => t.isMuted).length;
+    final bars = widget.dawState.totalTimelineBars;
+    final chords = widget.dawState.chordTrack;
+    final isShortLoop = bars <= 8;
+
+    return SingleChildScrollView(
+      controller: _extendScrollController,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // If song is longer than 8 bars and user hasn't overridden, show full-song gate card
+          if (!isShortLoop && !_forceExtendOverride) ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF191F2B),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFF8C00).withOpacity(0.6), width: 1.2),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.info_outline, color: Color(0xFFFF8C00), size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'FULL SONG DETECTED ($bars BARS)',
+                          style: const TextStyle(color: Color(0xFFFF8C00), fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF8C00).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '$bars Bars • ${widget.dawState.bpm.round()} BPM',
+                          style: const TextStyle(color: Color(0xFFFF8C00), fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Loop Extension is optimized for expanding brief musical sketches (≤ 8 bars) into multi-part arrangements (Intro, Verse, Chorus, Bridge).\n\nYour active project already has an extensive timeline structure ($bars bars). You can compose a new arrangement in the Compose tab, or force-extend this project anyway.',
+                    style: const TextStyle(fontSize: 11, color: Colors.white70, height: 1.35),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      _buildContextPill(Icons.music_note, widget.dawState.songKey),
+                      _buildContextPill(Icons.layers, '${tracks.length} Tracks'),
+                      if (mutedCount > 0)
+                        _buildContextPill(Icons.volume_off, '$mutedCount Muted / Reserve', color: const Color(0xFFFF8C00)),
+                      if (chords.isNotEmpty)
+                        _buildContextPill(Icons.queue_music, chords.take(4).map((c) => c.displayName).join(' - ')),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SkeuomorphicHardwareButton(
+                          label: '← SWITCH TO COMPOSE TAB',
+                          isActive: true,
+                          activeColor: EatsTheme.primaryCyan,
+                          height: 32,
+                          onTap: () => setState(() => _activeTab = 0),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: SkeuomorphicHardwareButton(
+                          label: '⚡ FORCE RE-ARRANGE ($bars BARS)',
+                          isActive: true,
+                          activeColor: const Color(0xFFFF8C00),
+                          height: 32,
+                          onTap: () => setState(() => _forceExtendOverride = true),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF131A24),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.35)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.auto_mode, color: EatsTheme.primaryCyan, size: 16),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'LOOP EXTENDER & NON-DESTRUCTIVE TAKES',
+                          style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      if (_forceExtendOverride && !isShortLoop)
+                        Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF8C00).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text('OVERRIDE', style: TextStyle(color: Color(0xFFFF8C00), fontSize: 9, fontWeight: FontWeight.bold)),
+                        ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: EatsTheme.primaryCyan.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '$bars Bars • ${widget.dawState.bpm.round()} BPM',
+                          style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Analyzes your existing instruments, chords (${chords.length} chords), and muted tracks (e.g. acoustic guitar) to assess the genre and generate 3 alternative arrangement takes without replacing your custom synth presets.',
+                    style: const TextStyle(fontSize: 10, color: Colors.white70, height: 1.3),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      _buildContextPill(Icons.music_note, widget.dawState.songKey),
+                      _buildContextPill(Icons.layers, '${tracks.length} Tracks'),
+                      if (mutedCount > 0)
+                        _buildContextPill(Icons.volume_off, '$mutedCount Muted / Reserve', color: const Color(0xFFFF8C00)),
+                      if (chords.isNotEmpty)
+                        _buildContextPill(Icons.queue_music, chords.take(4).map((c) => c.displayName).join(' - ')),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  AnimatedBuilder(
+                    animation: AiTaskManager.instance,
+                    builder: (context, _) {
+                      final mgr = AiTaskManager.instance;
+                      final isAssessing = mgr.isRunning && mgr.taskType == AiTaskType.styleAssessmentAndTakes;
+
+                      if (isAssessing) {
+                        final seconds = (mgr.elapsed.inMilliseconds / 1000).toStringAsFixed(1);
+                        return Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: EatsTheme.primaryCyan.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(EatsTheme.primaryCyan)),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Assessing genre & authoring alternative takes... (${seconds}s)',
+                                  style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              SkeuomorphicHardwareButton(
+                                label: 'CANCEL',
+                                isActive: true,
+                                activeColor: Colors.redAccent,
+                                height: 24,
+                                width: 65,
+                                onTap: () => mgr.cancelActiveTask(),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return SkeuomorphicHardwareButton(
+                        label: '🔍 ASSESS STYLE & GENERATE ALTERNATIVE TAKES',
+                        isActive: true,
+                        activeColor: EatsTheme.primaryCyan,
+                        height: 32,
+                        onTap: () {
+                          mgr.startSongStyleAssessmentAndTakes(widget.dawState);
+                        },
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+
+          // Ready for review: Style Assessment & Takes
+          AnimatedBuilder(
+            animation: AiTaskManager.instance,
+            builder: (context, _) {
+              final mgr = AiTaskManager.instance;
+              if (mgr.status == AiTaskStatus.readyForReview &&
+                  mgr.taskType == AiTaskType.styleAssessmentAndTakes &&
+                  mgr.pendingStyleAssessment != null) {
+                final assessment = mgr.pendingStyleAssessment!;
+                final bp = mgr.pendingBlueprint;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'STYLE ASSESSMENT & ALTERNATIVE TAKES:',
+                          style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                        const Spacer(),
+                        const Text('Ready to Apply', style: TextStyle(color: Color(0xFF00FF66), fontSize: 10, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F1722),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.5)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: EatsTheme.primaryCyan.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: EatsTheme.primaryCyan),
+                                ),
+                                child: Text(
+                                  assessment.detectedGenre.toUpperCase(),
+                                  style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${assessment.takes.length} Alternative Takes',
+                                style: const TextStyle(color: Colors.white54, fontSize: 10),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            assessment.stylisticVibe,
+                            style: const TextStyle(color: Colors.white, fontSize: 11, height: 1.3),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'HARMONY: ${assessment.harmonicObservations}',
+                            style: const TextStyle(color: Colors.white70, fontSize: 10, fontStyle: FontStyle.italic),
+                          ),
+                          if (assessment.arrangementOpportunities.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            ...assessment.arrangementOpportunities.map(
+                              (tip) => Padding(
+                                padding: const EdgeInsets.only(bottom: 2),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('• ', style: TextStyle(color: Color(0xFF00FF66), fontSize: 10)),
+                                    Expanded(
+                                      child: Text(
+                                        tip,
+                                        style: const TextStyle(color: Colors.white70, fontSize: 10, height: 1.25),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          const Divider(color: Colors.white12, height: 1),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'SELECT ARRANGEMENT TAKE:',
+                            style: TextStyle(color: Colors.white54, fontSize: 9, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: List.generate(assessment.takes.length, (idx) {
+                              final take = assessment.takes[idx];
+                              final isSel = mgr.selectedTakeIndex == idx;
+                              return InkWell(
+                                onTap: () => setState(() => mgr.selectedTakeIndex = idx),
+                                borderRadius: BorderRadius.circular(6),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: isSel ? EatsTheme.primaryCyan.withOpacity(0.25) : EatsTheme.controlBackground,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: isSel ? EatsTheme.primaryCyan : Colors.white12,
+                                      width: isSel ? 1.5 : 1.0,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    take.title,
+                                    style: TextStyle(
+                                      color: isSel ? Colors.white : Colors.white70,
+                                      fontSize: 10,
+                                      fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (bp != null) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F141C),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFF00FF66).withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    bp.title,
+                                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: EatsTheme.primaryCyan.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '${bp.bpm.round()} BPM • ${bp.meter} • ${bp.mode.toUpperCase()} • ${bp.totalBars} BARS',
+                                    style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'SECTIONS (${bp.sections.length} PARTS):',
+                              style: TextStyle(color: EatsTheme.textSecondary, fontSize: 9, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: bp.sections.map((s) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white10,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '${s.name} (${s.lengthBars}b)',
+                                    style: const TextStyle(color: Colors.white70, fontSize: 10),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SkeuomorphicHardwareButton(
+                            label: '✓ APPLY TAKE TO TIMELINE (NON-DESTRUCTIVE)',
+                            isActive: true,
+                            activeColor: const Color(0xFF00FF66),
+                            height: 32,
+                            onTap: () {
+                              mgr.applyPendingResult(widget.dawState);
+                              Navigator.of(context).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Applied arrangement "${bp?.title ?? "Take"}" across ${bp?.totalBars ?? 32} bars! Press Ctrl+Z to undo.',
+                                  ),
+                                  duration: const Duration(seconds: 3),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SkeuomorphicHardwareButton(
+                          label: 'DISCARD',
+                          isActive: true,
+                          activeColor: Colors.redAccent,
+                          height: 32,
+                          width: 80,
+                          onTap: () => mgr.discardPendingResult(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SkeuomorphicHardwareButton(
+                      label: _isSavingTakesAsProjects
+                          ? 'SAVING TAKES AS PROJECTS...'
+                          : '💾 SAVE ALL 3 TAKES AS PROJECTS (FOR AUDITIONING)',
+                      isActive: true,
+                      activeColor: EatsTheme.primaryCyan,
+                      height: 32,
+                      onTap: () => _saveAllTakesAsProjects(assessment),
+                    ),
+                  ],
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContextPill(IconData icon, String text, {Color? color}) {
+    final c = color ?? Colors.white70;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: c.withOpacity(0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: c),
+          const SizedBox(width: 4),
+          Text(text, style: TextStyle(fontSize: 9, color: c, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
   void _generateSong() {
     final prompt = _songPromptController.text.trim();
     if (prompt.isEmpty) return;
@@ -977,9 +1506,9 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
     );
   }
 
-  // ── Tab 3: Sound Architect ─────────────────────────────────────────────────
+  // ── Tab 2: Design (Instruments, Audio FX, MIDI FX) ─────────────────────────
 
-  Widget _buildSoundArchitectTab() {
+  Widget _buildDesignTab() {
     if (!GeminiService.hasApiKey) {
       return _buildKeyRequiredBanner();
     }
@@ -987,6 +1516,7 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
     final activeTrack = widget.dawState.activeTrack;
 
     return SingleChildScrollView(
+      controller: _designScrollController,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1004,7 +1534,7 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                     onChanged: (val) => setState(() => _soundCategory = val!),
                   ),
                   const Text('Instrument', style: TextStyle(fontSize: 11, color: Colors.white)),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Radio<String>(
                     value: 'audio_fx',
                     groupValue: _soundCategory,
@@ -1012,6 +1542,14 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                     onChanged: (val) => setState(() => _soundCategory = val!),
                   ),
                   const Text('Audio FX', style: TextStyle(fontSize: 11, color: Colors.white)),
+                  const SizedBox(width: 8),
+                  Radio<String>(
+                    value: 'midi_fx',
+                    groupValue: _soundCategory,
+                    activeColor: EatsTheme.primaryCyan,
+                    onChanged: (val) => setState(() => _soundCategory = val!),
+                  ),
+                  const Text('MIDI FX', style: TextStyle(fontSize: 11, color: Colors.white)),
                 ],
               ),
             ],
@@ -1027,7 +1565,9 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
             decoration: InputDecoration(
               hintText: _soundCategory == 'instrument'
                   ? 'e.g. 80s punchy analog synth bass with lowpass filter and Moog knobs...'
-                  : 'e.g. Vintage 1970s tape flutter and warm overdrive with vintage tone knob...',
+                  : _soundCategory == 'audio_fx'
+                      ? 'e.g. Vintage 1970s tape flutter and warm overdrive with vintage tone knob...'
+                      : 'e.g. MIDI arpeggiator with rate, octave spread, gate time, and chord humanizer...',
               hintStyle: const TextStyle(color: Colors.white30, fontSize: 11),
               filled: true,
               fillColor: EatsTheme.controlBackground,
@@ -1062,7 +1602,7 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Generating DSP Synthesizer & Hardware GUI... (${seconds}s)',
+                          'Generating Eatscript ${_soundCategory == 'instrument' ? 'Synthesizer' : _soundCategory == 'audio_fx' ? 'Audio FX' : 'MIDI FX'} & Hardware GUI... (${seconds}s)',
                           style: TextStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -1100,9 +1640,9 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                   children: [
                     Row(
                       children: [
-                        Text('GENERATED LUA DSP & GUI SCRIPT:', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
+                        Text('GENERATED EATSCRIPT DSP & GUI SCRIPT:', style: TextStyle(color: EatsTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
                         const Spacer(),
-                        Text('Ready to Apply', style: TextStyle(color: const Color(0xFF00FF66), fontSize: 10, fontWeight: FontWeight.bold)),
+                        const Text('Ready to Apply', style: TextStyle(color: Color(0xFF00FF66), fontSize: 10, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -1176,10 +1716,11 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
     );
   }
 
-  // ── Tab 3: API Settings (BYOK) ─────────────────────────────────────────────
+  // ── Tab 4: AI Settings (BYOK) ─────────────────────────────────────────────
 
   Widget _buildSettingsTab() {
     return SingleChildScrollView(
+      controller: _settingsScrollController,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1515,12 +2056,12 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
           ),
           const SizedBox(height: 16),
           SkeuomorphicHardwareButton(
-            label: 'GO TO API SETTINGS',
+            label: 'GO TO AI SETTINGS',
             isActive: true,
             activeColor: EatsTheme.primaryCyan,
             height: 32,
             width: 180,
-            onTap: () => setState(() => _activeTab = 2),
+            onTap: () => setState(() => _activeTab = 4),
           ),
         ],
       ),

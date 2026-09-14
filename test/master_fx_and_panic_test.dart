@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:eatsbeats/eatscript/eat_project_parser.dart';
-import 'package:eatsbeats/eatscript/eat_project_serializer.dart';
+import 'package:eatsbeats/eatscript/eats_project_parser.dart';
+import 'package:eatsbeats/eatscript/eats_project_serializer.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
 import 'package:eatsbeats/theme/eats_theme.dart';

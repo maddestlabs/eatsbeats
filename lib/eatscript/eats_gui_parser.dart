@@ -3,9 +3,9 @@ import 'dart:ui';
 import '../ui/vector/vector_skin_model.dart';
 import '../ui/hardware/eat_hardware_knob_model.dart';
 import '../ui/hardware/eat_hardware_scale.dart';
-import 'eat_script_engine.dart';
-import 'eat_project_parser.dart';
-import 'eat_gui_model.dart';
+import 'eats_script_engine.dart';
+import 'eats_project_parser.dart';
+import 'eats_gui_model.dart';
 
 // Backwards-compatibility aliases
 typedef LuaGuiParser = EatGuiParser;

@@ -1,5 +1,5 @@
-import 'eat_ast.dart';
-import 'eat_token.dart';
+import 'eats_ast.dart';
+import 'eats_token.dart';
 
 class EatParserException implements Exception {
   final String message;

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../audio/drum/gm_drum_kit_engine.dart';
-import '../../eatscript/eat_script_library.dart';
+import '../../eatscript/eats_script_library.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';

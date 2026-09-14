@@ -1,6 +1,6 @@
-import '../../eatscript/eat_script_library.dart';
+import '../../eatscript/eats_script_library.dart';
 import '../../models/track_model.dart';
-import '../../eatscript/eat_script_engine.dart';
+import '../../eatscript/eats_script_engine.dart';
 
 /// General MIDI 1 instrument families (16 melodic families + GM percussion).
 enum GmFamily {

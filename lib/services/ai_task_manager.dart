@@ -6,7 +6,7 @@ import '../audio/procgen/ensemble_blueprint.dart';
 import '../audio/procgen/procedural_ensemble_engine.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
-import '../eatscript/eat_script_library.dart';
+import '../eatscript/eats_script_library.dart';
 import 'gemini_service.dart';
 import 'ai_mixing_engine.dart';
 
@@ -23,6 +23,7 @@ enum AiTaskType {
   soundInstrument,
   soundFx,
   songArrangement,
+  styleAssessmentAndTakes,
 }
 
 /// Manages non-blocking background AI tasks, cancellation tokens, and pending approval gates.
@@ -40,13 +41,15 @@ class AiTaskManager extends ChangeNotifier {
 
   int get targetTab {
     switch (_taskType) {
-      case AiTaskType.mixAndMaster:
-        return 0;
       case AiTaskType.songArrangement:
-        return 1;
+        return 0; // Compose
+      case AiTaskType.styleAssessmentAndTakes:
+        return 1; // Extend
       case AiTaskType.soundInstrument:
       case AiTaskType.soundFx:
-        return 2;
+        return 2; // Design
+      case AiTaskType.mixAndMaster:
+        return 3; // Master
       default:
         return 0;
     }
@@ -54,6 +57,24 @@ class AiTaskManager extends ChangeNotifier {
 
   String _taskTitle = '';
   String get taskTitle => _taskTitle;
+
+  SongStyleAssessment? _pendingStyleAssessment;
+  SongStyleAssessment? get pendingStyleAssessment => _pendingStyleAssessment;
+
+  int _selectedTakeIndex = 0;
+  int get selectedTakeIndex => _selectedTakeIndex;
+  set selectedTakeIndex(int idx) {
+    if (_selectedTakeIndex != idx) {
+      _selectedTakeIndex = idx;
+      if (_pendingStyleAssessment != null && _pendingStyleAssessment!.takes.isNotEmpty) {
+        final clamped = idx.clamp(0, _pendingStyleAssessment!.takes.length - 1);
+        _pendingBlueprint = _pendingStyleAssessment!.takes[clamped];
+        _pendingBlueprintSeed = (DateTime.now().microsecondsSinceEpoch % 900000) + 100000;
+        _pendingLuaScript = const JsonEncoder.withIndent('  ').convert(_pendingBlueprint!.toJson());
+      }
+      notifyListeners();
+    }
+  }
 
   final Stopwatch _stopwatch = Stopwatch();
   Duration get elapsed => _stopwatch.elapsed;
@@ -158,8 +179,11 @@ class AiTaskManager extends ChangeNotifier {
     if (isRunning) return;
 
     _status = AiTaskStatus.running;
-    _taskType = category == 'instrument' ? AiTaskType.soundInstrument : AiTaskType.soundFx;
-    _taskTitle = 'Generating ${category == 'instrument' ? "Instrument" : "Audio FX"}: "$prompt"';
+    _taskType = category == 'instrument'
+        ? AiTaskType.soundInstrument
+        : (category == 'midi_fx' ? AiTaskType.soundFx : AiTaskType.soundFx);
+    final catName = category == 'instrument' ? 'Instrument' : (category == 'midi_fx' ? 'MIDI FX' : 'Audio FX');
+    _taskTitle = 'Generating $catName: "$prompt"';
     _errorMessage = null;
     _pendingLuaScript = null;
     _targetTrack = targetTrack;
@@ -174,6 +198,8 @@ class AiTaskManager extends ChangeNotifier {
       String luaCode = '';
       if (category == 'instrument') {
         luaCode = await GeminiService.generateInstrumentScript(prompt: prompt);
+      } else if (category == 'midi_fx') {
+        luaCode = await GeminiService.generateMidiFxScript(prompt: prompt);
       } else {
         luaCode = await GeminiService.generateAudioFxScript(prompt: prompt);
       }
@@ -229,6 +255,53 @@ class AiTaskManager extends ChangeNotifier {
       _pendingBlueprintSeed = (DateTime.now().microsecondsSinceEpoch % 900000) + 100000;
       const encoder = JsonEncoder.withIndent('  ');
       _pendingLuaScript = encoder.convert(blueprint.toJson());
+      _status = AiTaskStatus.readyForReview;
+      _stopwatch.stop();
+      notifyListeners();
+    } catch (e) {
+      if (_status == AiTaskStatus.cancelled) return;
+      _status = AiTaskStatus.failed;
+      _errorMessage = e.toString();
+      _stopwatch.stop();
+      notifyListeners();
+    } finally {
+      _activeClient?.close();
+      _activeClient = null;
+    }
+  }
+
+  /// Initiates a background song style assessment and alternative takes generation task.
+  Future<void> startSongStyleAssessmentAndTakes(DawState dawState) async {
+    if (isRunning) return;
+
+    _status = AiTaskStatus.running;
+    _taskType = AiTaskType.styleAssessmentAndTakes;
+    _taskTitle = 'Analyzing Project Style & Composing Takes';
+    _errorMessage = null;
+    _pendingStyleAssessment = null;
+    _pendingBlueprint = null;
+    _pendingLuaScript = null;
+    _selectedTakeIndex = 0;
+    _stopwatch.reset();
+    _stopwatch.start();
+    _startTicker();
+    notifyListeners();
+
+    _activeClient = http.Client();
+
+    try {
+      final telemetry = dawState.extractSongStyleTelemetry();
+      final assessment = await GeminiService.analyzeSongStyleAndGenerateTakes(telemetry: telemetry);
+
+      if (_status == AiTaskStatus.cancelled) return;
+
+      _pendingStyleAssessment = assessment;
+      if (assessment.takes.isNotEmpty) {
+        _selectedTakeIndex = 0;
+        _pendingBlueprint = assessment.takes[0];
+        _pendingBlueprintSeed = (DateTime.now().microsecondsSinceEpoch % 900000) + 100000;
+        _pendingLuaScript = const JsonEncoder.withIndent('  ').convert(_pendingBlueprint!.toJson());
+      }
       _status = AiTaskStatus.readyForReview;
       _stopwatch.stop();
       notifyListeners();
@@ -335,6 +408,11 @@ class AiTaskManager extends ChangeNotifier {
     } else if (_taskType == AiTaskType.soundFx && _pendingLuaScript != null && _targetTrack != null) {
       final scriptDef = LuaScriptLibrary.parseFromLuaScript(_pendingLuaScript!);
       dawState.addAudioFXFromPreset(_targetTrack!, scriptDef);
+    } else if (_taskType == AiTaskType.styleAssessmentAndTakes && _pendingBlueprint != null) {
+      dawState.applyArrangementTake(
+        _pendingBlueprint!,
+        takeTitle: _pendingBlueprint!.title,
+      );
     } else if (_taskType == AiTaskType.songArrangement && _pendingBlueprint != null) {
       final seed = _pendingBlueprintSeed ?? 42;
       dawState.beginHistoryTransaction('AI Song Architect: ${_pendingBlueprint!.title} (#$seed)', icon: Icons.auto_awesome);
@@ -366,6 +444,22 @@ class AiTaskManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Injects a mock style assessment and takes for review and testing.
+  @visibleForTesting
+  void setMockStyleAssessmentForReview(SongStyleAssessment assessment, {int selectedTake = 0}) {
+    _status = AiTaskStatus.readyForReview;
+    _taskType = AiTaskType.styleAssessmentAndTakes;
+    _taskTitle = assessment.detectedGenre;
+    _pendingStyleAssessment = assessment;
+    _selectedTakeIndex = selectedTake;
+    if (assessment.takes.isNotEmpty) {
+      _pendingBlueprint = assessment.takes[selectedTake.clamp(0, assessment.takes.length - 1)];
+      _pendingBlueprintSeed = 42;
+      _pendingLuaScript = jsonEncode(_pendingBlueprint!.toJson());
+    }
+    notifyListeners();
+  }
+
   /// Clears the task state back to idle.
   void reset() {
     _status = AiTaskStatus.idle;
@@ -375,6 +469,8 @@ class AiTaskManager extends ChangeNotifier {
     _pendingLuaScript = null;
     _pendingBlueprint = null;
     _pendingBlueprintSeed = null;
+    _pendingStyleAssessment = null;
+    _selectedTakeIndex = 0;
     _targetTrack = null;
     _errorMessage = null;
     _stopwatch.reset();

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/audio/procgen/ensemble_blueprint.dart';
 import 'package:eatsbeats/audio/procgen/procedural_ensemble_engine.dart';
-import 'package:eatsbeats/eatscript/eat_script_library.dart';
+import 'package:eatsbeats/eatscript/eats_script_library.dart';
 import 'package:eatsbeats/eatscript/project_script_engine.dart';
 import 'package:eatsbeats/models/chord_model.dart';
 import 'package:eatsbeats/models/daw_state.dart';

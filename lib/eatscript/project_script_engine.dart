@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 import '../models/chord_model.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
-import 'eat_script_library.dart';
-import 'eat_script_engine.dart';
+import 'eats_script_library.dart';
+import 'eats_script_engine.dart';
 import '../audio/procgen/procedural_piano_engine.dart';
 import '../audio/procgen/procedural_drum_engine.dart';
 import '../audio/procgen/procedural_song_engine.dart';
 import '../audio/procgen/procedural_ensemble_engine.dart';
+import '../services/gemini_service.dart';
 
 /// Result of executing a project script.
 class ProjectScriptResult {
@@ -258,6 +259,14 @@ class ProjectScriptEngine {
       return _runProceduralEnsembleArranger(dawState, p);
     }
 
+    // 4c. Loop to Song Non-Destructive Takes Arranger Script
+    if (scriptId == 'action_non_destructive_arranger' ||
+        scriptId.contains('non_destructive_arranger') ||
+        code.contains('non-destructive takes arranger') ||
+        code.contains('loop to song')) {
+      return _runNonDestructiveArrangement(dawState, p);
+    }
+
     // 5. Groove & Velocity Humanizer Script
     if (scriptId == 'action_humanize_groove') {
       return _runHumanizeGroove(dawState, p);
@@ -269,6 +278,54 @@ class ProjectScriptEngine {
       script: script,
       params: p,
     );
+  }
+
+  /// Non-destructively arranges active loop into multi-section song takes.
+  static ProjectScriptResult _runNonDestructiveArrangement(DawState dawState, Map<String, dynamic> params) {
+    final telemetry = dawState.extractSongStyleTelemetry();
+    final assessment = GeminiService.generateOfflineStyleAssessment(telemetry);
+
+    final num rawTake = (params['Take'] ?? params['take'] ?? 0) as num;
+    final int takeIdx = rawTake.toInt();
+
+    if (takeIdx == 3) {
+      return const ProjectScriptResult(
+        isSuccess: true,
+        message: 'Open the AI Assistant Dialog (Song Architect tab) to inspect style assessment and choose takes.',
+      );
+    }
+
+    if (takeIdx == 4) {
+      dawState.saveArrangementTakesAsProjects(assessment);
+      return ProjectScriptResult(
+        isSuccess: true,
+        message: 'Saved all ${assessment.takes.length} arrangement takes to your Projects folder! Open Project Browser > Projects to audition each take.',
+      );
+    }
+
+    // Map 0 -> Take 2 (Neo-Soul Bridge), 1 -> Take 1 (Classic Arc), 2 -> Take 3 (Dynamic 303 Breakdown)
+    var take = (takeIdx >= 0 && takeIdx < assessment.takes.length)
+        ? (takeIdx == 0
+            ? assessment.takes[1]
+            : (takeIdx == 1 ? assessment.takes[0] : assessment.takes[2]))
+        : assessment.takes[1];
+
+    // If ContrastBridgeChords is 1 ("No (Repeat Base Progression)"), keep base chords across all sections
+    final num rawContrast = (params['ContrastBridgeChords'] ?? params['contrast_bridge'] ?? 0) as num;
+    if (rawContrast.toInt() == 1) {
+      final baseChords = take.sections.firstWhere((s) => s.chords.isNotEmpty, orElse: () => take.sections.first).chords;
+      take = take.copyWith(
+        sections: take.sections.map((sec) {
+          if (sec.name.toLowerCase().contains('bridge')) {
+            return sec.copyWith(chords: baseChords);
+          }
+          return sec;
+        }).toList(),
+      );
+    }
+
+    final result = dawState.applyArrangementTake(take, takeTitle: take.title);
+    return result;
   }
 
   /// Transposes the entire project (chords, synths, melodies, basslines).

@@ -2,9 +2,9 @@ import 'gm_standard_drum_kit_preset.dart';
 import 'modular_drumpad_kit_preset.dart';
 import 'pipe_family_presets.dart';
 import 'brass_reed_family_presets.dart';
-import 'eat_builtin_presets.g.dart';
-import 'eat_script_engine.dart';
-import 'eat_transpiler.dart';
+import 'eats_builtin_presets.g.dart';
+import 'eats_script_engine.dart';
+import 'eats_transpiler.dart';
 
 // Backwards-compatibility aliases for LuaScript definitions & Eatscript branding
 typedef LuaPreset = EatScriptDef;
@@ -194,10 +194,13 @@ class EatScriptLibrary {
 
   static void registerCustomPreset(LuaScriptDef script) => registerCustomScript(script);
 
+  static EatScriptDef parseFromEatScript(String scriptCode, {String fallbackName = 'Custom Script'}) =>
+      parseFromLuaScript(scriptCode, fallbackName: fallbackName);
+
   static LuaScriptDef parseFromLuaScript(String luaCode, {String fallbackName = 'Custom Script'}) {
     String name = fallbackName;
     LuaScriptCategory category = LuaScriptCategory.instrument;
-    String description = 'User imported Lua script';
+    String description = '';
     final List<String> tags = [];
 
     final lines = luaCode.split('\n');
@@ -226,6 +229,10 @@ class EatScriptLibrary {
       } else if (luaCode.contains('transform_notes') || luaCode.contains('midi_fx')) {
         category = LuaScriptCategory.midiFx;
       }
+    }
+
+    if (description.isEmpty) {
+      description = '$name ${category == LuaScriptCategory.audioFx ? 'DSP audio effect' : (category == LuaScriptCategory.midiFx ? 'MIDI effect transformer' : 'synthesizer instrument')}';
     }
 
     final id = 'custom_${DateTime.now().millisecondsSinceEpoch}_${name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')}';

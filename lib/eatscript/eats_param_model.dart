@@ -1,4 +1,4 @@
-import 'eat_gui_model.dart';
+import 'eats_gui_model.dart';
 
 // Backwards-compatibility aliases
 typedef LuaParamDef = EatParamDef;

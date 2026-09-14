@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart' hide Easing;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:eatsbeats/eatscript/eat_dsp_synthesizer.dart';
+import 'package:eatsbeats/eatscript/eats_dsp_synthesizer.dart';
 import 'package:eatsbeats/eatscript/midi_pipeline_engine.dart';
 import 'package:eatsbeats/audio/audio_engine.dart';
 import 'package:eatsbeats/models/track_model.dart';

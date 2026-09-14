@@ -3,12 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/audio/audio_engine.dart';
 import 'package:eatsbeats/audio/poly_synth.dart';
 import 'package:eatsbeats/audio/graph/graph_node.dart';
-import 'package:eatsbeats/eatscript/eat_api.dart';
-import 'package:eatsbeats/eatscript/eat_dsp_synthesizer.dart';
-import 'package:eatsbeats/eatscript/eat_engine.dart';
-import 'package:eatsbeats/eatscript/eat_interpreter.dart';
-import 'package:eatsbeats/eatscript/eat_param_model.dart';
-import 'package:eatsbeats/eatscript/eat_script_library.dart';
+import 'package:eatsbeats/eatscript/eats_api.dart';
+import 'package:eatsbeats/eatscript/eats_dsp_synthesizer.dart';
+import 'package:eatsbeats/eatscript/eats_engine.dart';
+import 'package:eatsbeats/eatscript/eats_interpreter.dart';
+import 'package:eatsbeats/eatscript/eats_param_model.dart';
+import 'package:eatsbeats/eatscript/eats_script_library.dart';
 import 'package:eatsbeats/models/track_model.dart';
 
 void main() {

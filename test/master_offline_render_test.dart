@@ -6,7 +6,7 @@ import 'package:eatsbeats/audio/virtual_render_pipeline.dart';
 import 'package:eatsbeats/audio/wav_exporter.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
-import 'package:eatsbeats/eatscript/eat_script_library.dart';
+import 'package:eatsbeats/eatscript/eats_script_library.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -11,4 +11,5 @@ When generating code, scripts, presets, or answering questions:
   - `def process():` for sample-by-sample or block DSP calculations
   - `def gui():` for declaring custom instrument / FX panels (`panel`, `row`, `knob`, `slider`, `toggle`)
 - Never use Lua keywords or syntax (`local`, `then`, `end`, `--`, `function()`, etc.).
-- Eatscript files and classes live in `lib/eatscript/` with `eat_` prefixes.
+- Eatscript files and classes live in `lib/eatscript/` with `eats_` prefixes.
+- For complete API, DSP node catalogs, parameter signatures, and hardware GUI definitions, consult the documentation suite in `docs/api/` and the Eatscript skill in `.agents/skills/eatscript/SKILL.md`.

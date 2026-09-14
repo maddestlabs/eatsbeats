@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:eatsbeats/eatscript/eat_engine.dart';
-import 'package:eatsbeats/eatscript/eat_gui_model.dart';
-import 'package:eatsbeats/eatscript/eat_gui_parser.dart';
-import 'package:eatsbeats/eatscript/eat_preset_library.dart';
+import 'package:eatsbeats/eatscript/eats_engine.dart';
+import 'package:eatsbeats/eatscript/eats_gui_model.dart';
+import 'package:eatsbeats/eatscript/eats_gui_parser.dart';
+import 'package:eatsbeats/eatscript/eats_preset_library.dart';
 
 void main() {
   group('Lua GUI Parser Tests', () {

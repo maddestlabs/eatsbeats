@@ -49,6 +49,9 @@ jobs:
       - name: Build Web Production App
         run: flutter build web --release --base-href "/"
 
+      - name: Bundle Documentation into Web Artifact
+        run: cp -r docs build/web/docs
+
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:

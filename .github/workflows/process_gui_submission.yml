@@ -61,7 +61,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
           git checkout -b "$BRANCH"
-          git add "${{ steps.patch.outputs.target_file }}" lib/eatscript/eat_builtin_presets.g.dart
+          git add "${{ steps.patch.outputs.target_file }}" lib/eatscript/eats_builtin_presets.g.dart
           git commit -m "feat(gui): update ${{ steps.patch.outputs.preset_name }} (${{ steps.patch.outputs.preset_id }}) layout (closes #${{ github.event.issue.number }})"
           git push origin "$BRANCH"
           
@@ -71,7 +71,7 @@ jobs:
 
 ### Changes
 * Updated preset: \`${{ steps.patch.outputs.target_file }}\`
-* Regenerated \`lib/eatscript/eat_builtin_presets.g.dart\`
+* Regenerated \`lib/eatscript/eats_builtin_presets.g.dart\`
 
 Closes #${{ github.event.issue.number }}" \
             --head "$BRANCH" \

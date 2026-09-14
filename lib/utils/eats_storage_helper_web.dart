@@ -249,7 +249,7 @@ class EatsStorageHelperImpl {
     final sanitized = name.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final id = 'proj_${DateTime.now().millisecondsSinceEpoch}';
     final lower = sanitized.toLowerCase();
-    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eat') || lower.endsWith('.eats.lua'))
+    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eats.lua'))
         ? sanitized
         : '$sanitized.eats';
 
@@ -301,7 +301,7 @@ class EatsStorageHelperImpl {
   static Future<bool> renameProjectFile(SavedProjectItem item, String newName) async {
     final sanitized = newName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final lower = sanitized.toLowerCase();
-    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eat') || lower.endsWith('.eats.lua'))
+    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eats.lua'))
         ? sanitized
         : '$sanitized.eats';
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../eatscript/eat_script_engine.dart';
-import '../../eatscript/eat_param_model.dart';
-import '../../eatscript/eat_preset_library.dart';
+import '../../eatscript/eats_script_engine.dart';
+import '../../eatscript/eats_param_model.dart';
+import '../../eatscript/eats_preset_library.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../models/script_target_model.dart';
@@ -33,10 +33,10 @@ class MidiFxRackWidget extends StatelessWidget {
 
         return Container(
           decoration: BoxDecoration(
-            color: isHovered ? EatsTheme.primaryCyan.withOpacity(0.08) : EatsTheme.panelBackground,
+            color: isHovered ? track.color.withOpacity(0.08) : EatsTheme.panelBackground,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isHovered ? EatsTheme.primaryCyan : const Color(0xFF2B3245),
+              color: isHovered ? track.color : track.color.withOpacity(0.35),
               width: isHovered ? 2.0 : 1.5,
             ),
           ),
@@ -52,14 +52,14 @@ class MidiFxRackWidget extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.piano, color: EatsTheme.primaryCyan, size: 16),
+                    Icon(Icons.bolt, color: track.color, size: 16),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'MIDI FX RACK (${track.midiFXRack.length})',
                         overflow: TextOverflow.ellipsis,
                         style: EatsTheme.getPrimaryFontStyle(
-                          color: EatsTheme.primaryCyan,
+                          color: track.color,
                           fontWeight: FontWeight.bold,
                           fontSize: 11,
                         ),
@@ -100,22 +100,15 @@ class MidiFxRackWidget extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: EatsTheme.panelHeader,
                             borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: EatsTheme.primaryCyan),
+                            border: Border.all(color: track.color),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.search, size: 12, color: EatsTheme.primaryCyan),
-                              const SizedBox(width: 4),
-                              Text(
-                                '+ ADD MIDI FX',
-                                style: EatsTheme.getPrimaryFontStyle(
-                                  color: EatsTheme.primaryCyan,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            '+ ADD MIDI FX',
+                            style: EatsTheme.getPrimaryFontStyle(
+                              color: track.color,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                            ),
                           ),
                         ),
                       ),
@@ -139,7 +132,7 @@ class MidiFxRackWidget extends StatelessWidget {
                       color: EatsTheme.panelHeader,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: fx.enabled ? EatsTheme.primaryCyan.withOpacity(0.7) : const Color(0xFF2B3245),
+                        color: fx.enabled ? track.color.withOpacity(0.7) : const Color(0xFF2B3245),
                         width: 1.2,
                       ),
                     ),
@@ -155,7 +148,7 @@ class MidiFxRackWidget extends StatelessWidget {
                               orientation: Axis.vertical,
                               width: 16.0,
                               height: 28.0,
-                              activeColor: EatsTheme.primaryCyan,
+                              activeColor: track.color,
                               tooltip: 'Toggle ${fx.name} (Bypass / Active)',
                               onChanged: (val) => dawState.toggleMidiFXInsert(track, fx.id, val),
                             ),
@@ -202,7 +195,7 @@ class MidiFxRackWidget extends StatelessWidget {
                             IconButton(
                               tooltip: 'Move Up',
                               icon: const Icon(Icons.keyboard_arrow_up, size: 18),
-                              color: isFirst ? Colors.white12 : EatsTheme.primaryCyan,
+                              color: isFirst ? Colors.white12 : track.color,
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
                               onPressed: isFirst ? null : () => dawState.moveMidiFXUp(track, idx),
@@ -210,7 +203,7 @@ class MidiFxRackWidget extends StatelessWidget {
                             IconButton(
                               tooltip: 'Move Down',
                               icon: const Icon(Icons.keyboard_arrow_down, size: 18),
-                              color: isLast ? Colors.white12 : EatsTheme.primaryCyan,
+                              color: isLast ? Colors.white12 : track.color,
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
                               onPressed: isLast ? null : () => dawState.moveMidiFXDown(track, idx),
@@ -251,7 +244,7 @@ class MidiFxRackWidget extends StatelessWidget {
           id: fx.id,
           name: fx.name,
           type: TrackType.luaScript,
-          color: EatsTheme.primaryCyan,
+          color: track.color,
           luaScriptCode: fx.luaScriptCode,
           luaParams: fx.luaParams,
         );
@@ -326,14 +319,14 @@ class MidiFxRackWidget extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: EatsTheme.controlBackground,
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.4)),
+                      border: Border.all(color: track.color.withOpacity(0.4)),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<double>(
                         value: patternOptions.any((p) => p['val'] == rawPattern) ? rawPattern : 0.0,
                         isExpanded: true,
                         dropdownColor: EatsTheme.panelHeader,
-                        style: EatsTheme.getPrimaryFontStyle(color: EatsTheme.primaryCyan, fontSize: 11, fontWeight: FontWeight.bold),
+                        style: EatsTheme.getPrimaryFontStyle(color: track.color, fontSize: 11, fontWeight: FontWeight.bold),
                         items: patternOptions.map((p) {
                           return DropdownMenuItem<double>(
                             value: p['val'] as double,
@@ -362,7 +355,7 @@ class MidiFxRackWidget extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: EatsTheme.controlBackground,
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.4)),
+                      border: Border.all(color: track.color.withOpacity(0.4)),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<double>(
@@ -401,7 +394,7 @@ class MidiFxRackWidget extends StatelessWidget {
                 min: 1.0,
                 max: 4.0,
                 divisions: 3,
-                activeColor: EatsTheme.primaryCyan,
+                activeColor: track.color,
                 onChanged: (val) => dawState.updateMidiFXParam(track, fx.id, 'Octaves', val.roundToDouble()),
               ),
             ),
@@ -561,7 +554,7 @@ class MidiFxRackWidget extends StatelessWidget {
             defaultValue: param.value,
             min: 0.0,
             max: 10.0,
-            activeColor: EatsTheme.primaryCyan,
+            activeColor: track.color,
             onChanged: (val) => dawState.updateMidiFXParam(track, fx.id, param.key, val),
           ),
         );

@@ -1,6 +1,6 @@
 import 'dart:math' as math;
-import 'eat_project_parser.dart';
-import 'eat_param_model.dart';
+import 'eats_project_parser.dart';
+import 'eats_param_model.dart';
 
 /// Transpiles legacy Lua preset and script definitions into pure, Pythonic Eatscript.
 class EatTranspiler {

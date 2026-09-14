@@ -41,17 +41,17 @@ Future<String?> saveEatsZipFileImpl(Uint8List zipBytes, String fileName) async {
 
 Future<String?> saveEatScriptFileImpl(String content, String fileName) async {
   try {
-    final cleanName = fileName.endsWith('.eat') || fileName.endsWith('.eats')
+    final cleanName = fileName.endsWith('.eats')
         ? fileName
-        : '$fileName.eat';
+        : '$fileName.eats';
     final bytes = Uint8List.fromList(utf8.encode(content));
 
     final uri = await FilePicker.saveFile(
-      dialogTitle: 'Save Eatsbeats Project (.eat)',
+      dialogTitle: 'Save Eatsbeats Project (.eats)',
       fileName: cleanName,
       bytes: bytes,
       type: FileType.custom,
-      allowedExtensions: ['eat', 'eats'],
+      allowedExtensions: ['eats'],
     );
     if (uri != null) {
       final path = uri.toFilePath();

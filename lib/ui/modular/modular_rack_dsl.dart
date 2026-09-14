@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'modular_theme.dart';
 import 'modular_module_search_dialog.dart';
-import '../../eatscript/eat_script_engine.dart';
+import '../../eatscript/eats_script_engine.dart';
 
 /// Identifies a physical jack on a module in the rack
 class JackKey {

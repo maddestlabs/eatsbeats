@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:ui';
-import 'eat_preset_library.dart';
-import 'eat_script_library.dart';
+import 'eats_preset_library.dart';
+import 'eats_script_library.dart';
 import '../audio/procgen/ensemble_blueprint.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
@@ -10,14 +10,14 @@ import '../models/automation_model.dart';
 import '../models/lyric_model.dart';
 import '../theme/eats_theme.dart';
 
-import 'eat_script_engine.dart';
-import 'eat_transpiler.dart';
+import 'eats_script_engine.dart';
+import 'eats_transpiler.dart';
 
 // Backwards-compatibility alias
 typedef EatsLuaParser = EatProjectParser;
 
 class EatProjectParser {
-  /// Parses a `.eats.lua` or `.eat` project string and updates/populates [DawState].
+  /// Parses a `.eats.lua` or `.eats` project string and updates/populates [DawState].
   static Map<String, dynamic> parseLuaTableToMap(String luaCode) {
     final trimmed = luaCode.trim();
     if (trimmed.startsWith('#') || trimmed.contains('song =') || trimmed.contains('eat.')) {

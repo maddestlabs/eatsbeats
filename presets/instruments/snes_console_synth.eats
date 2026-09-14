@@ -1,5 +1,6 @@
 # @name: SNES Synth
 # @category: instrument
+# @description: Authentic 16-bit polyphonic S-DSP console synthesizer with selectable waveforms, ADSR envelope, vibrato, and hardware echo DSP.
 
 # --- Parameter Definitions ---
 def init():

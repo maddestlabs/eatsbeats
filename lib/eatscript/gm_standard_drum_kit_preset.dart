@@ -1,4 +1,4 @@
-import 'eat_script_library.dart';
+import 'eats_script_library.dart';
 
 /// General MIDI Standard Drum Kit (`gm_standard_drum_kit`) Preset.
 ///

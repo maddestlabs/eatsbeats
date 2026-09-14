@@ -2,8 +2,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/audio/procgen/song_archetype.dart';
 import 'package:eatsbeats/audio/procgen/song_archetype_registry.dart';
-import 'package:eatsbeats/eatscript/eat_project_parser.dart';
-import 'package:eatsbeats/eatscript/eat_project_serializer.dart';
+import 'package:eatsbeats/eatscript/eats_project_parser.dart';
+import 'package:eatsbeats/eatscript/eats_project_serializer.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 
 void main() {
@@ -13,7 +13,7 @@ void main() {
     late String exemplarContent;
 
     setUpAll(() {
-      final file = File('assets/archetypes/fantasy_rpg_midnight_bites.eat');
+      final file = File('assets/archetypes/fantasy_rpg_midnight_bites.eats');
       expect(file.existsSync(), isTrue, reason: 'Exemplar asset must exist at assets/archetypes/');
       exemplarContent = file.readAsStringSync();
     });
@@ -22,7 +22,7 @@ void main() {
       SongArchetypeRegistry.clear();
     });
 
-    test('Parses archetype procgen metadata from .eat exemplar file', () {
+    test('Parses archetype procgen metadata from .eats exemplar file', () {
       final archetype = SongArchetypeRegistry.registerFromEatString(exemplarContent);
       expect(archetype, isNotNull);
 
@@ -108,7 +108,7 @@ void main() {
       expect(dawState1.songArchetype!.archetypeId, equals('fantasy_rpg_midnight_bites'));
       expect(dawState1.songArchetype!.leadDirectives.glissandoDensity, closeTo(0.35, 0.001));
 
-      // Serialize to .eat format
+      // Serialize to .eats format
       final serialized = EatProjectSerializer.serialize(dawState1);
       expect(serialized, contains('procgen = {'));
       expect(serialized, contains('archetypeId = "fantasy_rpg_midnight_bites"'));

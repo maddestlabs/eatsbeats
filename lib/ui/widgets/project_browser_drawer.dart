@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../eatscript/eat_preset_library.dart';
+import '../../eatscript/eats_preset_library.dart';
 import '../../models/daw_state.dart';
 import '../../theme/eats_theme.dart';
 import '../../audio/soundfont_engine.dart';
@@ -70,11 +70,21 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
       if (_tabController.indexIsChanging) {
         widget.dawState.browserTabIndex = _tabController.index;
       }
+      if (_tabController.index == 4) {
+        _loadSavedProjects();
+      }
     });
     _scriptSearchController.addListener(() => setState(() {}));
     _presetSearchController.addListener(() => setState(() {}));
     _projectSearchController.addListener(() => setState(() {}));
     _loadSavedProjects();
+    EatsStorageHelper.onProjectsChanged.addListener(_onExternalProjectsChanged);
+  }
+
+  void _onExternalProjectsChanged() {
+    if (mounted) {
+      _loadSavedProjects();
+    }
   }
 
   Future<void> _loadSavedProjects() async {
@@ -90,6 +100,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
 
   @override
   void dispose() {
+    EatsStorageHelper.onProjectsChanged.removeListener(_onExternalProjectsChanged);
     _tabController.dispose();
     _scriptSearchController.dispose();
     _presetSearchController.dispose();
@@ -1843,7 +1854,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
   Future<void> _handleSaveAsFilePicker(BuildContext context) async {
     final cleanProjName = widget.dawState.projectName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final defaultName = cleanProjName.isNotEmpty ? cleanProjName : 'my_song';
-    final fileName = '$defaultName.eat';
+    final fileName = '$defaultName.eats';
     final eatCode = widget.dawState.exportToEatsLua();
 
     final savedPath = await EatsFileHelper.saveEatScriptFile(eatCode, fileName);
@@ -1851,7 +1862,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
 
     if (savedPath != null && savedPath.isNotEmpty) {
       final baseName = savedPath.split(RegExp(r'[\\/]')).last;
-      final parsedName = baseName.replaceAll(RegExp(r'\.(eat|eats|eats\.lua|lua)$', caseSensitive: false), '');
+      final parsedName = baseName.replaceAll(RegExp(r'\.(eats|eats\.lua|lua)$', caseSensitive: false), '');
       if (parsedName.isNotEmpty) {
         widget.dawState.projectName = parsedName;
       }
@@ -1990,7 +2001,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                   if (ctx.mounted) Navigator.of(ctx).pop();
                   await _loadSavedProjects();
                   if (context.mounted) {
-                    final pathStr = savedItem?.filePath ?? '$currentDir\\$name.eat';
+                    final pathStr = savedItem?.filePath ?? '$currentDir\\$name.eats';
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text('Saved project to:\n$pathStr'),
@@ -2019,10 +2030,10 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                 final cleanName = name.isNotEmpty ? name : 'my_song';
                 final lua = widget.dawState.exportToEatsLua();
                 if (ctx.mounted) Navigator.of(ctx).pop();
-                final savedPath = await EatsFileHelper.saveEatScriptFile(lua, '$cleanName.eat');
+                final savedPath = await EatsFileHelper.saveEatScriptFile(lua, '$cleanName.eats');
                 if (savedPath != null && savedPath.isNotEmpty) {
                   final baseName = savedPath.split(RegExp(r'[\\/]')).last;
-                  final parsedName = baseName.replaceAll(RegExp(r'\.(eat|eats|eats\.lua|lua)$', caseSensitive: false), '');
+                  final parsedName = baseName.replaceAll(RegExp(r'\.(eats|eats\.lua|lua)$', caseSensitive: false), '');
                   if (parsedName.isNotEmpty) {
                     widget.dawState.projectName = parsedName;
                   }

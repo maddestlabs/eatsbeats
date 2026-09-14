@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'eat_ast.dart';
+import 'eats_ast.dart';
 
 class EatRuntimeException implements Exception {
   final String message;

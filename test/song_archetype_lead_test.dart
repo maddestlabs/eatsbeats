@@ -15,7 +15,7 @@ void main() {
     late String exemplarContent;
 
     setUpAll(() {
-      final file = File('assets/archetypes/fantasy_rpg_midnight_bites.eat');
+      final file = File('assets/archetypes/fantasy_rpg_midnight_bites.eats');
       expect(file.existsSync(), isTrue);
       exemplarContent = file.readAsStringSync();
     });

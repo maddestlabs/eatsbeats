@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../eatscript/eat_script_library.dart';
+import '../eatscript/eats_script_library.dart';
 
 /// Service for packaging and submitting mobile/desktop GUI tweaks and presets
 /// directly to the GitHub repository without requiring authentication in-app.

@@ -1,1 +1,1 @@
-export 'eat_script_library.dart';
+export 'eats_script_library.dart';

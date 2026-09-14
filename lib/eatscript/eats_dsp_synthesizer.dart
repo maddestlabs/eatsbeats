@@ -10,7 +10,8 @@ import '../models/automation_model.dart';
 import '../models/track_model.dart';
 import '../audio/graph/graph_node.dart';
 import '../audio/sid_dsp_engine.dart';
-import 'eat_synth_type.dart';
+import 'eats_synth_type.dart';
+import 'eats_tb303_core.dart';
 typedef EatSynthBufferExecutor = Float32List Function({
   required double durationSec,
   required double freq,
@@ -134,7 +135,6 @@ class EatDspSynthesizer {
     return evaluateAdsr(time, attack, 0.001, 1.0, release, duration);
   }
 
-  static final Map<String, _AcidVoiceState> _acidVoiceStates = {};
   static final Map<String, _HiHatVoiceState> _hihatVoiceStates = {};
   static final Map<String, _SnareVoiceState> _snareVoiceStates = {};
   static final Map<String, FMChipVoice> _fmChipVoices = {};
@@ -144,13 +144,13 @@ class EatDspSynthesizer {
   static void resetVoiceStates([String? trackId]) {
     GmDrumKitEngine.resetVoiceStates(trackId);
     if (trackId != null) {
-      _acidVoiceStates.remove(trackId);
+      EatsTb303Core.clearVoice(trackId);
       _hihatVoiceStates.remove(trackId);
       _snareVoiceStates.remove(trackId);
       _fmChipVoices.remove(trackId);
       _snesDspEngines.remove(trackId);
     } else {
-      _acidVoiceStates.clear();
+      EatsTb303Core.clearAllVoices();
       _hihatVoiceStates.clear();
       _snareVoiceStates.clear();
       _fmChipVoices.clear();
@@ -1098,173 +1098,22 @@ class EatDspSynthesizer {
     List<List<double>>? timbrePoints,
     double velocity = 0.9,
   }) {
-    final int numSamples = (44100 * durationSec).toInt().clamp(1, 441000);
-    final buffer = Float32List(numSamples);
-
-      if (freq <= 0) return buffer;
-
-      // Extract parameter values with sensible defaults and range mappings
-      final waveType = params['Waveform'] ?? 0.0;
-      final rawCutoff = params['Cutoff'] ?? 1600.0;
-      final cutoff = rawCutoff > 10.0 ? rawCutoff : (200.0 * math.pow(2.0, rawCutoff * 4.5));
-      final res = params['Resonance'] ?? 8.0;
-      final envMod = params['EnvMod'] ?? 0.75;
-      final rawDecay = params['Decay'] ?? 0.28;
-      // Normal decay ranges from ~200ms to ~2000ms
-      final normalDecay = rawDecay <= 1.0 ? (0.200 + rawDecay * 1.800) : rawDecay;
-      final accentParam = params['Accent'] ?? 0.6;
-      final drive = params['Overdrive'] ?? params['Drive'] ?? 0.3;
-      final slideParam = params['Slide'] ?? params['Portamento'] ?? params['Glide'] ?? 0.0;
-      final double glideTime = slideParam > 0.01 ? (0.010 + slideParam * 0.200) : 0.060;
-
-      // Extended TB-303 / Devil Fish mod parameters
-      final tuningOffset = params['Tuning'] ?? params['Pitch'] ?? 0.0;
-      final octaveShift = (params['Octave'] ?? 0.0).round();
-      final subVolume = params['SubVolume'] ?? params['SubOscVolume'] ?? 0.0;
-      final subWave = params['SubWaveform'] ?? 0.0;
-
-      final voiceKey = trackId ?? 'default_303';
-      final vState = _acidVoiceStates.putIfAbsent(voiceKey, () => _AcidVoiceState());
-
-      // Base note frequency adjusted by octave and tuning
-      final effectiveFreq = freq * math.pow(2.0, octaveShift + (tuningOffset / 12.0));
-
-      if (!isSlide && slideParam <= 0.01) {
-        vState.lastEnv = 1.0;
-        vState.startFreq = effectiveFreq;
-        vState.phase = 0.0;
-        vState.subPhase = 0.0;
-        vState.stage1 = 0.0;
-        vState.stage2 = 0.0;
-        vState.stage3 = 0.0;
-        vState.stage4 = 0.0;
-        vState.hpfX1 = 0.0;
-        vState.hpfY1 = 0.0;
-        vState.feedbackHpfX1 = 0.0;
-        vState.feedbackHpfY1 = 0.0;
-      } else {
-        vState.startFreq = vState.lastFreq > 0 ? vState.lastFreq : effectiveFreq;
-      }
-
-      final bool hasAccent = isAccent || (accentParam > 0.7 && !isSlide);
-
-      // In TB-303 / JC-303, an accented note overrides decay to snappy ~200ms
-      final double activeDecay = hasAccent ? 0.200 : normalDecay.clamp(0.03, 3.0);
-      final double envBoost = hasAccent ? (1.0 + accentParam * 1.25) : 1.0;
-      final double kRes = (res > 1.0 ? (res / 16.0 * 3.85) : (res * 3.85)).clamp(0.0, 3.92);
-      final double gain = drive > 0.02 ? (1.0 + (drive * 3.5)) : 1.0;
-      final int fadeSamples = (44100 * 0.04).toInt().clamp(64, math.max(1, numSamples ~/ 4));
-
-      double targetFreq = effectiveFreq;
-      if (targetMidiNote != null && targetMidiNote > 0) {
-        targetFreq = 440.0 * math.pow(2.0, ((targetMidiNote + octaveShift * 12) - 69 + tuningOffset) / 12.0);
-      } else if (isSlide || slideParam > 0.01) {
-        targetFreq = targetMidiNote != null
-            ? (440.0 * math.pow(2.0, ((targetMidiNote + octaveShift * 12) - 69 + tuningOffset) / 12.0))
-            : effectiveFreq;
-      }
-
-      // Feedback HPF alpha at 150 Hz (Open303 / JC-303 topology)
-      const double hpCutoffHz = 150.0;
-      const double hpAlpha = 1.0 / (1.0 + (2.0 * math.pi * hpCutoffHz / 44100.0));
-
-      for (int i = 0; i < numSamples; i++) {
-        final time = i / 44100.0;
-
-        // Exponential pitch glide for portamento slide
-        double currentFreq = effectiveFreq;
-        if (targetFreq != effectiveFreq || isSlide || slideParam > 0.01 || (vState.startFreq != effectiveFreq)) {
-          currentFreq = targetFreq + (vState.startFreq - targetFreq) * math.exp(-time / glideTime);
-        }
-        vState.lastFreq = currentFreq;
-
-        // Main 303 Oscillator: Leaky Integrator Saw & Differentiated Square
-        vState.phase = (vState.phase + (currentFreq / 44100.0)) % 1.0;
-        final normPhase = vState.phase;
-
-        // 303 Sawtooth: Ramp with highpass filtering and phase distortion
-        final sawRaw = 2.0 * normPhase - 1.0;
-        final sawHP = sawRaw - 0.85 * math.exp(-time * 12.0);
-
-        // 303 Square: Asymmetric pulse wave with curved droop and soft saturation
-        final sqrRaw = normPhase < 0.48 ? 0.78 : -0.78;
-        final mainOsc = (1.0 - waveType) * sawHP + waveType * sqrRaw;
-
-        // Optional Sub-Oscillator (-1 or -2 octaves)
-        double subOsc = 0.0;
-        if (subVolume > 0.01) {
-          vState.subPhase = (vState.subPhase + (currentFreq * 0.5 / 44100.0)) % 1.0;
-          final subNorm = vState.subPhase;
-          subOsc = subWave > 0.5 ? (subNorm < 0.5 ? 0.7 : -0.7) : math.sin(2.0 * math.pi * subNorm);
-        }
-
-        final combinedOsc = mainOsc * (1.0 - subVolume * 0.4) + subOsc * (subVolume * 0.6);
-
-        // Filter Envelope: Soft attack (~3ms) followed by exponential decay
-        final softAttack = 1.0 - math.exp(-time / 0.003);
-        final envDecayCurve = math.exp(-time / activeDecay);
-        final baseEnv = isSlide ? (vState.lastEnv * envDecayCurve) : (softAttack * envDecayCurve);
-        vState.lastEnv = baseEnv;
-
-        // Accent Pulse: Rapid ~35ms transient cutoff boost
-        final accentPulse = hasAccent ? (accentParam * 0.55 * math.exp(-time / 0.035)) : 0.0;
-
-        // Exponential cutoff sweep modulation (up to 5.5 octaves)
-        final modCutoff = (cutoff * math.pow(2.0, (baseEnv + accentPulse) * envMod * 5.2 * envBoost)).clamp(30.0, 18000.0);
-        final fNorm = (modCutoff / 44100.0 * math.pi).clamp(0.002, 0.42);
-
-        if (vState.stage1.isNaN || vState.stage1.abs() > 20.0) {
-          vState.stage1 = 0.0;
-          vState.stage2 = 0.0;
-          vState.stage3 = 0.0;
-          vState.stage4 = 0.0;
-          vState.hpfX1 = 0.0;
-          vState.hpfY1 = 0.0;
-          vState.feedbackHpfX1 = 0.0;
-          vState.feedbackHpfY1 = 0.0;
-        }
-
-        // 2x internal oversampling of the non-linear diode ladder filter for unconditional stability
-        for (int step = 0; step < 2; step++) {
-          final rawFeedback = kRes * _tanh(vState.stage4 * 0.50);
-          final feedbackHP = hpAlpha * (vState.feedbackHpfY1 + rawFeedback - vState.feedbackHpfX1);
-          vState.feedbackHpfX1 = rawFeedback;
-          vState.feedbackHpfY1 = feedbackHP;
-
-          final inputWithRes = _tanh(combinedOsc - feedbackHP);
-
-          vState.stage1 = (vState.stage1 + fNorm * (inputWithRes - vState.stage1)).clamp(-4.0, 4.0);
-          vState.stage2 = (vState.stage2 + fNorm * (_tanh(vState.stage1) - vState.stage2)).clamp(-4.0, 4.0);
-          vState.stage3 = (vState.stage3 + fNorm * (_tanh(vState.stage2) - vState.stage3)).clamp(-4.0, 4.0);
-          vState.stage4 = (vState.stage4 + fNorm * (_tanh(vState.stage3) - vState.stage4)).clamp(-4.0, 4.0);
-        }
-        final filtered = vState.stage4 * (1.0 + kRes * 0.20);
-
-        // DC-blocking post-filter high-pass
-        final hpfOut = 0.985 * (vState.hpfY1 + filtered - vState.hpfX1);
-        vState.hpfX1 = filtered;
-        vState.hpfY1 = hpfOut;
-
-        // VCA Stage & Accent Boost (+6 to +10 dB)
-        double output = hpfOut * (hasAccent ? (1.35 + accentParam * 0.45) : 1.0);
-
-        // Overdrive Saturation Stage
-        if (drive > 0.02) {
-          output = _tanh(output * gain);
-        }
-
-        if (output.isNaN || output.isInfinite) output = 0.0;
-
-        final samplesRemaining = numSamples - 1 - i;
-        double boundaryFade = 1.0;
-        if (samplesRemaining < fadeSamples && fadeSamples > 0) {
-          final norm = (samplesRemaining / fadeSamples).clamp(0.0, 1.0);
-          boundaryFade = 0.5 * (1.0 - math.cos(math.pi * norm));
-        }
-
-        buffer[i] = (output * boundaryFade).clamp(-1.0, 1.0);
-      }
-      return buffer;
+    return EatsTb303Core.synthesizeBuffer(
+      durationSec: durationSec,
+      freq: freq,
+      note: note,
+      params: params,
+      targetMidiNote: targetMidiNote,
+      isSlide: isSlide,
+      isAccent: isAccent,
+      trackId: trackId,
+      articulation: articulation,
+      releaseVelocity: releaseVelocity,
+      pitchBendPoints: pitchBendPoints,
+      pressurePoints: pressurePoints,
+      timbrePoints: timbrePoints,
+      velocity: velocity,
+    );
   }
   static Float32List _synthesizeProceduralSnareBuffer({
     required double durationSec,
@@ -1732,144 +1581,17 @@ class EatDspSynthesizer {
       }
 
       case EatSynthType.acid303: {
-        if (freq <= 0) return 0.0;
-
-        final waveType = params['Waveform'] ?? 0.0;
-        final rawCutoff = params['Cutoff'] ?? 1600.0;
-        final cutoff = rawCutoff > 10.0 ? rawCutoff : (200.0 * math.pow(2.0, rawCutoff * 4.5));
-        final res = params['Resonance'] ?? 8.0;
-        final envMod = params['EnvMod'] ?? 0.75;
-        final rawDecay = params['Decay'] ?? 0.28;
-        final normalDecay = rawDecay <= 1.0 ? (0.200 + rawDecay * 1.800) : rawDecay;
-        final accentParam = params['Accent'] ?? 0.6;
-        final drive = params['Overdrive'] ?? params['Drive'] ?? 0.3;
-        final slideParam = params['Slide'] ?? params['Portamento'] ?? params['Glide'] ?? 0.0;
-        final double glideTime = slideParam > 0.01 ? (0.010 + slideParam * 0.200) : 0.060;
-
-        final tuningOffset = params['Tuning'] ?? params['Pitch'] ?? 0.0;
-        final octaveShift = (params['Octave'] ?? 0.0).round();
-        final subVolume = params['SubVolume'] ?? params['SubOscVolume'] ?? 0.0;
-        final subWave = params['SubWaveform'] ?? 0.0;
-
-        final voiceKey = trackId ?? 'default_303';
-        final vState = _acidVoiceStates.putIfAbsent(voiceKey, () => _AcidVoiceState());
-
-        final effectiveFreq = freq * math.pow(2.0, octaveShift + (tuningOffset / 12.0));
-
-        if (sampleIndex == 0) {
-          if (!isSlide && slideParam <= 0.01) {
-            vState.lastEnv = 1.0;
-            vState.startFreq = effectiveFreq;
-            vState.phase = 0.0;
-            vState.subPhase = 0.0;
-            vState.stage1 = 0.0;
-            vState.stage2 = 0.0;
-            vState.stage3 = 0.0;
-            vState.stage4 = 0.0;
-            vState.hpfX1 = 0.0;
-            vState.hpfY1 = 0.0;
-            vState.feedbackHpfX1 = 0.0;
-            vState.feedbackHpfY1 = 0.0;
-          } else {
-            vState.startFreq = vState.lastFreq > 0 ? vState.lastFreq : effectiveFreq;
-          }
-        }
-
-        final bool hasAccent = isAccent || (accentParam > 0.7 && !isSlide);
-        final double activeDecay = hasAccent ? 0.200 : normalDecay.clamp(0.03, 3.0);
-        final double envBoost = hasAccent ? (1.0 + accentParam * 1.25) : 1.0;
-        final double kRes = (res > 1.0 ? (res / 16.0 * 3.85) : (res * 3.85)).clamp(0.0, 3.92);
-        final double gain = drive > 0.02 ? (1.0 + (drive * 3.5)) : 1.0;
-
-        double targetFreq = effectiveFreq;
-        if (targetMidiNote != null && targetMidiNote > 0) {
-          targetFreq = 440.0 * math.pow(2.0, ((targetMidiNote + octaveShift * 12) - 69 + tuningOffset) / 12.0);
-        } else if (isSlide || slideParam > 0.01) {
-          targetFreq = targetMidiNote != null
-              ? (440.0 * math.pow(2.0, ((targetMidiNote + octaveShift * 12) - 69 + tuningOffset) / 12.0))
-              : effectiveFreq;
-        }
-
-        double currentFreq = effectiveFreq;
-        if (targetFreq != effectiveFreq || isSlide || slideParam > 0.01 || (vState.startFreq != effectiveFreq)) {
-          currentFreq = targetFreq + (vState.startFreq - targetFreq) * math.exp(-time / glideTime);
-        }
-        vState.lastFreq = currentFreq;
-
-        vState.phase = (vState.phase + (currentFreq / 44100.0)) % 1.0;
-        final normPhase = vState.phase;
-
-        final sawRaw = 2.0 * normPhase - 1.0;
-        final sawHP = sawRaw - 0.85 * math.exp(-time * 12.0);
-        final sqrRaw = normPhase < 0.48 ? 0.78 : -0.78;
-        final mainOsc = (1.0 - waveType) * sawHP + waveType * sqrRaw;
-
-        double subOsc = 0.0;
-        if (subVolume > 0.01) {
-          vState.subPhase = (vState.subPhase + (currentFreq * 0.5 / 44100.0)) % 1.0;
-          final subNorm = vState.subPhase;
-          subOsc = subWave > 0.5 ? (subNorm < 0.5 ? 0.7 : -0.7) : math.sin(2.0 * math.pi * subNorm);
-        }
-
-        final combinedOsc = mainOsc * (1.0 - subVolume * 0.4) + subOsc * (subVolume * 0.6);
-        final softAttack = 1.0 - math.exp(-time / 0.003);
-        final envDecayCurve = math.exp(-time / activeDecay);
-        final baseEnv = isSlide ? (vState.lastEnv * envDecayCurve) : (softAttack * envDecayCurve);
-        vState.lastEnv = baseEnv;
-
-        final accentPulse = hasAccent ? (accentParam * 0.55 * math.exp(-time / 0.035)) : 0.0;
-        final modCutoff = (cutoff * math.pow(2.0, (baseEnv + accentPulse) * envMod * 5.2 * envBoost)).clamp(30.0, 18000.0);
-        final fNorm = (modCutoff / 44100.0 * math.pi).clamp(0.002, 0.42);
-
-        const double hpCutoffHz = 150.0;
-        const double hpAlpha = 1.0 / (1.0 + (2.0 * math.pi * hpCutoffHz / 44100.0));
-
-        if (vState.stage1.isNaN || vState.stage1.abs() > 20.0) {
-          vState.stage1 = 0.0;
-          vState.stage2 = 0.0;
-          vState.stage3 = 0.0;
-          vState.stage4 = 0.0;
-          vState.hpfX1 = 0.0;
-          vState.hpfY1 = 0.0;
-          vState.feedbackHpfX1 = 0.0;
-          vState.feedbackHpfY1 = 0.0;
-        }
-
-        for (int step = 0; step < 2; step++) {
-          final rawFeedback = kRes * _tanh(vState.stage4 * 0.50);
-          final feedbackHP = hpAlpha * (vState.feedbackHpfY1 + rawFeedback - vState.feedbackHpfX1);
-          vState.feedbackHpfX1 = rawFeedback;
-          vState.feedbackHpfY1 = feedbackHP;
-
-          final inputWithRes = _tanh(combinedOsc - feedbackHP);
-
-          vState.stage1 = (vState.stage1 + fNorm * (inputWithRes - vState.stage1)).clamp(-4.0, 4.0);
-          vState.stage2 = (vState.stage2 + fNorm * (_tanh(vState.stage1) - vState.stage2)).clamp(-4.0, 4.0);
-          vState.stage3 = (vState.stage3 + fNorm * (_tanh(vState.stage2) - vState.stage3)).clamp(-4.0, 4.0);
-          vState.stage4 = (vState.stage4 + fNorm * (_tanh(vState.stage3) - vState.stage4)).clamp(-4.0, 4.0);
-        }
-        final filtered = vState.stage4 * (1.0 + kRes * 0.20);
-
-        final hpfOut = 0.985 * (vState.hpfY1 + filtered - vState.hpfX1);
-        vState.hpfX1 = filtered;
-        vState.hpfY1 = hpfOut;
-
-        double output = hpfOut * (hasAccent ? (1.35 + accentParam * 0.45) : 1.0);
-        if (drive > 0.02) {
-          output = _tanh(output * gain);
-        }
-
-        if (output.isNaN || output.isInfinite) output = 0.0;
-
-        final fadeSamples = (44100 * 0.04).toInt().clamp(64, math.max(1, totalSamples ~/ 4));
-        final samplesRemaining = totalSamples - 1 - sampleIndex;
-        double boundaryFade = 1.0;
-        if (samplesRemaining < fadeSamples && fadeSamples > 0) {
-          final norm = (samplesRemaining / fadeSamples).clamp(0.0, 1.0);
-          boundaryFade = 0.5 * (1.0 - math.cos(math.pi * norm));
-        }
-
-        return (output * boundaryFade).clamp(-1.0, 1.0);
+        return EatsTb303Core.synthesizeSample(
+          freq: freq,
+          note: note,
+          params: params,
+          sampleIndex: sampleIndex,
+          totalSamples: totalSamples,
+          targetMidiNote: targetMidiNote,
+          isSlide: isSlide,
+          isAccent: isAccent,
+          trackId: trackId,
+        );
       }
 
       case EatSynthType.proceduralSnare: {
@@ -2318,21 +2040,6 @@ class EatDspSynthesizer {
   }
 }
 
-class _AcidVoiceState {
-  double phase = 0.0;
-  double subPhase = 0.0;
-  double lastEnv = 1.0;
-  double lastFreq = 0.0;
-  double startFreq = 0.0;
-  double stage1 = 0.0;
-  double stage2 = 0.0;
-  double stage3 = 0.0;
-  double stage4 = 0.0;
-  double hpfX1 = 0.0;
-  double hpfY1 = 0.0;
-  double feedbackHpfX1 = 0.0;
-  double feedbackHpfY1 = 0.0;
-}
 
 class _HiHatVoiceState {
   double x1 = 0.0;

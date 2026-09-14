@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import '../models/track_model.dart';
 import '../models/chord_model.dart';
 import '../audio/time_context.dart';
-import 'eat_script_engine.dart';
+import 'eats_script_engine.dart';
 
 /// Resolved MIDI FX type for fast enum-based dispatch without string matching on each step.
 enum MidiFxType {

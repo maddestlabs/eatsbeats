@@ -1,21 +1,21 @@
 import 'dart:typed_data';
-import 'eat_gui_model.dart';
-import 'eat_gui_parser.dart';
+import 'eats_gui_model.dart';
+import 'eats_gui_parser.dart';
 import '../models/automation_model.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../audio/time_context.dart';
-import 'eat_api.dart';
-import 'eat_ast.dart';
-import 'eat_dsp_synthesizer.dart';
-import 'eat_interpreter.dart';
-import 'eat_lexer.dart';
-import 'eat_param_model.dart';
-import 'eat_parser.dart';
-import 'eat_script_library.dart';
-import 'eat_transpiler.dart';
+import 'eats_api.dart';
+import 'eats_ast.dart';
+import 'eats_dsp_synthesizer.dart';
+import 'eats_interpreter.dart';
+import 'eats_lexer.dart';
+import 'eats_param_model.dart';
+import 'eats_parser.dart';
+import 'eats_script_library.dart';
+import 'eats_transpiler.dart';
 import 'project_script_engine.dart';
-import 'eat_synth_type.dart';
+import 'eats_synth_type.dart';
 
 class EatCompilationResult {
   final bool isSuccess;

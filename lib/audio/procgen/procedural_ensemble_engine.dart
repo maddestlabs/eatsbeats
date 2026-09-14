@@ -4,7 +4,7 @@
 
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../../eatscript/eat_script_library.dart';
+import '../../eatscript/eats_script_library.dart';
 import '../../eatscript/project_script_engine.dart';
 import '../../models/chord_model.dart';
 import '../../models/daw_state.dart';

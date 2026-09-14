@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/daw_state.dart';
@@ -7,8 +5,7 @@ import '../theme/eats_theme.dart';
 import '../utils/eats_file_helper.dart';
 import '../utils/eats_storage_helper.dart';
 import '../utils/url_script_helper.dart';
-import '../eatscript/default_song.dart';
-import '../eatscript/default_song_eat.dart';
+import '../eatscript/eats_default_song.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
 import 'widgets/skeuomorphic_hardware_switch.dart';
 import 'widgets/glowing_nixie_display.dart';
@@ -215,7 +212,7 @@ class TransportHeader extends StatelessWidget {
 
           // Gemini AI Assistant Button
           Tooltip(
-            message: 'Gemini AI Assistant (Auto-Mix, Master, Sound Architect)',
+            message: 'Gemini AI Assistant (Compose, Extend, Design, Master, Settings)',
             child: SkeuomorphicHardwareButton(
               icon: Icons.auto_awesome,
               isActive: true,
@@ -253,7 +250,7 @@ class TransportHeader extends StatelessWidget {
   Future<void> _handleSave(BuildContext context) async {
     final cleanProjName = dawState.projectName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final defaultName = cleanProjName.isNotEmpty ? cleanProjName : 'my_song';
-    final fileName = '$defaultName.eat';
+    final fileName = '$defaultName.eats';
     final eatCode = dawState.exportToEatsLua();
 
     final savedPath = await EatsFileHelper.saveEatScriptFile(eatCode, fileName);
@@ -261,7 +258,7 @@ class TransportHeader extends StatelessWidget {
 
     if (savedPath != null && savedPath.isNotEmpty) {
       final baseName = savedPath.split(RegExp(r'[\\/]')).last;
-      final cleanName = baseName.replaceAll(RegExp(r'\.(eat|eats|eats\.lua|lua)$', caseSensitive: false), '');
+      final cleanName = baseName.replaceAll(RegExp(r'\.(eats|eats\.lua|lua)$', caseSensitive: false), '');
       if (cleanName.isNotEmpty) {
         dawState.projectName = cleanName;
       }
@@ -429,7 +426,7 @@ class TransportHeader extends StatelessWidget {
                     if (controller.text.isNotEmpty) {
                       final cleanProjName = dawState.projectName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
                       final defaultName = cleanProjName.isNotEmpty ? cleanProjName : 'my_song';
-                      final saved = await EatsFileHelper.saveEatScriptFile(controller.text, '$defaultName.eat');
+                      final saved = await EatsFileHelper.saveEatScriptFile(controller.text, '$defaultName.eats');
                       if (context.mounted && saved != null) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -485,6 +482,11 @@ class TransportHeader extends StatelessWidget {
   void _showSettingsDialog(BuildContext context) {
     final titleController = TextEditingController(text: dawState.projectName);
     final authorController = TextEditingController(text: dawState.authorName);
+    bool projectHubExpanded = true;
+    bool sessionPersistenceExpanded = false;
+    bool displayWorkspaceExpanded = false;
+    bool audioEngineExpanded = false;
+    bool creditsExpanded = false;
 
     showDialog(
       context: context,
@@ -511,440 +513,471 @@ class TransportHeader extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'PROJECT HUB',
-                        style: TextStyle(color: EatsTheme.textSecondary, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.0),
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Project Details Section
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: EatsTheme.controlBackground,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: EatsTheme.panelHeader),
-                        ),
+                      // 1. PROJECT HUB (Open by default)
+                      _buildCollapsibleSection(
+                        title: 'PROJECT HUB',
+                        icon: Icons.folder_special,
+                        isExpanded: projectHubExpanded,
+                        onToggle: () {
+                          setDialogState(() {
+                            projectHubExpanded = !projectHubExpanded;
+                          });
+                        },
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('COMPOSITION DETAILS', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 8),
-
-                            // Title input
-                            TextField(
-                              controller: titleController,
-                              style: TextStyle(color: EatsTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
-                              decoration: InputDecoration(
-                                labelText: 'Title / Song Name',
-                                labelStyle: TextStyle(color: EatsTheme.textMuted, fontSize: 11),
-                                isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                            // Project Details Section
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: EatsTheme.controlBackground,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: EatsTheme.panelHeader),
                               ),
-                              onChanged: (val) => dawState.projectName = val,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('COMPOSITION DETAILS', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 8),
+
+                                  // Title input
+                                  TextField(
+                                    controller: titleController,
+                                    style: TextStyle(color: EatsTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
+                                    decoration: InputDecoration(
+                                      labelText: 'Title / Song Name',
+                                      labelStyle: TextStyle(color: EatsTheme.textMuted, fontSize: 11),
+                                      isDense: true,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                                    ),
+                                    onChanged: (val) => dawState.projectName = val,
+                                  ),
+                                  const SizedBox(height: 10),
+
+                                  // Author input
+                                  TextField(
+                                    controller: authorController,
+                                    style: TextStyle(color: EatsTheme.textPrimary, fontSize: 13),
+                                    decoration: InputDecoration(
+                                      labelText: 'Author / Creator',
+                                      labelStyle: TextStyle(color: EatsTheme.textMuted, fontSize: 11),
+                                      isDense: true,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                                    ),
+                                    onChanged: (val) => dawState.authorName = val,
+                                  ),
+                                ],
+                              ),
                             ),
                             const SizedBox(height: 10),
 
-                            // Author input
-                            TextField(
-                              controller: authorController,
-                              style: TextStyle(color: EatsTheme.textPrimary, fontSize: 13),
-                              decoration: InputDecoration(
-                                labelText: 'Author / Creator',
-                                labelStyle: TextStyle(color: EatsTheme.textMuted, fontSize: 11),
-                                isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                              ),
-                              onChanged: (val) => dawState.authorName = val,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-
-                      // 2x2 Grid of Actions
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildHubActionButton(
-                              icon: Icons.save,
-                              label: 'SAVE (.eats)',
-                              color: EatsTheme.accentGold,
-                              onTap: () {
-                                Navigator.of(context).pop();
-                                _handleSave(context);
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _buildHubActionButton(
-                              icon: Icons.folder_open,
-                              label: 'LOAD (.eats)',
-                              color: EatsTheme.primaryCyan,
-                              onTap: () {
-                                Navigator.of(context).pop();
-                                _handleLoad(context);
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildHubActionButton(
-                              icon: Icons.import_export,
-                              label: 'IMPORT / EXPORT',
-                              color: EatsTheme.secondaryMagenta,
-                              onTap: () {
-                                Navigator.of(context).pop();
-                                _showCodeViewDialog(context);
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _buildHubActionButton(
-                              icon: Icons.download,
-                              label: 'EXPORT WAV',
-                              color: EatsTheme.accentGreen,
-                              onTap: () {
-                                Navigator.of(context).pop();
-                                dawState.exportWavSong();
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      Text(
-                        'SESSION PERSISTENCE & AUTO-RESTORE',
-                        style: TextStyle(color: EatsTheme.textSecondary, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.0),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: EatsTheme.controlBackground,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: EatsTheme.panelHeader),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+                            // 2x2 Grid of Actions
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Restore last project on startup',
-                                        style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Automatically resumes your previous workspace',
-                                        style: TextStyle(color: EatsTheme.textMuted, fontSize: 10),
-                                      ),
-                                    ],
+                                  child: _buildHubActionButton(
+                                    icon: Icons.save,
+                                    label: 'SAVE (.eats)',
+                                    color: EatsTheme.accentGold,
+                                    onTap: () {
+                                      Navigator.of(context).pop();
+                                      _handleSave(context);
+                                    },
                                   ),
                                 ),
-                                SkeuomorphicHardwareSwitch(
-                                  value: dawState.autoRestoreSession,
-                                  activeColor: EatsTheme.primaryCyan,
-                                  tooltip: 'Restore last project on startup',
-                                  onChanged: (val) {
-                                    setDialogState(() {
-                                      dawState.autoRestoreSession = val;
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                            const Divider(height: 14, color: Colors.white12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
+                                const SizedBox(width: 8),
                                 Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Auto-save project state',
-                                        style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Silently writes .eats snapshot to local storage',
-                                        style: TextStyle(color: EatsTheme.textMuted, fontSize: 10),
-                                      ),
-                                    ],
+                                  child: _buildHubActionButton(
+                                    icon: Icons.folder_open,
+                                    label: 'LOAD (.eats)',
+                                    color: EatsTheme.primaryCyan,
+                                    onTap: () {
+                                      Navigator.of(context).pop();
+                                      _handleLoad(context);
+                                    },
                                   ),
-                                ),
-                                SkeuomorphicHardwareSwitch(
-                                  value: dawState.autoSaveEnabled,
-                                  activeColor: EatsTheme.accentGold,
-                                  tooltip: 'Auto-save project state',
-                                  onChanged: (val) {
-                                    setDialogState(() {
-                                      dawState.autoSaveEnabled = val;
-                                    });
-                                  },
                                 ),
                               ],
                             ),
                             const SizedBox(height: 8),
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: EatsTheme.muteColor,
-                                  side: BorderSide(color: EatsTheme.muteColor.withOpacity(0.5)),
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildHubActionButton(
+                                    icon: Icons.import_export,
+                                    label: 'IMPORT / EXPORT',
+                                    color: EatsTheme.secondaryMagenta,
+                                    onTap: () {
+                                      Navigator.of(context).pop();
+                                      _showCodeViewDialog(context);
+                                    },
+                                  ),
                                 ),
-                                icon: const Icon(Icons.refresh, size: 16),
-                                label: const Text('RESET TO DEFAULT TEMPLATE (CLEAN SLATE)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                onPressed: () {
-                                  dawState.loadFromEatsLua(DefaultSongEat.midnightBitesEat);
-                                  dawState.clearSavedSession();
-                                  Navigator.of(context).pop();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Reset workspace to default Midnight Bites template')),
-                                  );
-                                },
-                              ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _buildHubActionButton(
+                                    icon: Icons.download,
+                                    label: 'EXPORT WAV',
+                                    color: EatsTheme.accentGreen,
+                                    onTap: () {
+                                      Navigator.of(context).pop();
+                                      dawState.exportWavSong();
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
 
-                      Text(
-                        'DISPLAY & WORKSPACE',
-                        style: TextStyle(color: EatsTheme.textSecondary, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.0),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: EatsTheme.controlBackground,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: EatsTheme.panelHeader),
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('UI MAGNIFICATION', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Current Scale: ${(dawState.uiScale * 100).toStringAsFixed(0)}%',
-                                      style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                      // 2. SESSION PERSISTENCE & AUTO-RESTORE (Collapsed by default)
+                      _buildCollapsibleSection(
+                        title: 'SESSION PERSISTENCE & AUTO-RESTORE',
+                        icon: Icons.history,
+                        isExpanded: sessionPersistenceExpanded,
+                        onToggle: () {
+                          setDialogState(() {
+                            sessionPersistenceExpanded = !sessionPersistenceExpanded;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: EatsTheme.controlBackground,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: EatsTheme.panelHeader),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Restore last project on startup',
+                                          style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Automatically resumes your previous workspace',
+                                          style: TextStyle(color: EatsTheme.textMuted, fontSize: 10),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                                SkeuomorphicHardwareButton(
-                                  label: 'ADJUST SCALE',
-                                  icon: Icons.aspect_ratio,
-                                  isActive: true,
-                                  activeColor: EatsTheme.primaryCyan,
-                                  onTap: () {
+                                  ),
+                                  SkeuomorphicHardwareSwitch(
+                                    value: dawState.autoRestoreSession,
+                                    activeColor: EatsTheme.primaryCyan,
+                                    tooltip: 'Restore last project on startup',
+                                    onChanged: (val) {
+                                      setDialogState(() {
+                                        dawState.autoRestoreSession = val;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 14, color: Colors.white12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Auto-save project state',
+                                          style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Silently writes .eats snapshot to local storage',
+                                          style: TextStyle(color: EatsTheme.textMuted, fontSize: 10),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SkeuomorphicHardwareSwitch(
+                                    value: dawState.autoSaveEnabled,
+                                    activeColor: EatsTheme.accentGold,
+                                    tooltip: 'Auto-save project state',
+                                    onChanged: (val) {
+                                      setDialogState(() {
+                                        dawState.autoSaveEnabled = val;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: EatsTheme.muteColor,
+                                    side: BorderSide(color: EatsTheme.muteColor.withOpacity(0.5)),
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                  icon: const Icon(Icons.refresh, size: 16),
+                                  label: const Text('RESET TO DEFAULT TEMPLATE (CLEAN SLATE)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  onPressed: () {
+                                    dawState.loadFromEatsLua(DefaultSong.midnightBites);
+                                    dawState.clearSavedSession();
                                     Navigator.of(context).pop();
-                                    UiScaleDialog.show(context, dawState);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Reset workspace to default Midnight Bites template')),
+                                    );
                                   },
-                                  height: 32,
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 ),
-                              ],
-                            ),
-                            const Divider(height: 16, color: Colors.white10),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Column(
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // 3. DISPLAY & WORKSPACE (Collapsed by default)
+                      _buildCollapsibleSection(
+                        title: 'DISPLAY & WORKSPACE',
+                        icon: Icons.tune,
+                        isExpanded: displayWorkspaceExpanded,
+                        onToggle: () {
+                          setDialogState(() {
+                            displayWorkspaceExpanded = !displayWorkspaceExpanded;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: EatsTheme.controlBackground,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: EatsTheme.panelHeader),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text('UI THEME ENGINE', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                                      Text('UI MAGNIFICATION', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
                                       const SizedBox(height: 2),
                                       Text(
-                                        '${EatsTheme.currentPreset.name.toUpperCase()} (Active)',
-                                        style: TextStyle(
-                                          color: EatsTheme.accentGold,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                        'Current Scale: ${(dawState.uiScale * 100).toStringAsFixed(0)}%',
+                                        style: TextStyle(color: EatsTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
                                       ),
                                     ],
                                   ),
-                                ),
-                                SkeuomorphicHardwareButton(
-                                  label: 'THEME',
-                                  icon: Icons.palette,
-                                  isActive: true,
-                                  activeColor: EatsTheme.accentGold,
-                                  onTap: () {
-                                    Navigator.of(context).pop();
-                                    ThemePickerDialog.show(context, dawState);
-                                  },
-                                  height: 32,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                ),
-                              ],
-                            ),
-                            const Divider(height: 16, color: Colors.white10),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text('SCREEN SHADERS & CRT FX', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        ShaderSettingsManager.instance.hasActiveShader
-                                            ? '${ShaderSettingsManager.instance.activeProfile.name} (Active)'
-                                            : 'Disabled (Normal Display)',
-                                        style: TextStyle(
-                                          color: ShaderSettingsManager.instance.hasActiveShader
-                                              ? EatsTheme.primaryCyan
-                                              : EatsTheme.textPrimary,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
+                                  SkeuomorphicHardwareButton(
+                                    label: 'ADJUST SCALE',
+                                    icon: Icons.aspect_ratio,
+                                    isActive: true,
+                                    activeColor: EatsTheme.primaryCyan,
+                                    onTap: () {
+                                      Navigator.of(context).pop();
+                                      UiScaleDialog.show(context, dawState);
+                                    },
+                                    height: 32,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                   ),
-                                ),
-                                SkeuomorphicHardwareButton(
-                                  label: 'SHADERS',
-                                  icon: Icons.tv,
-                                  isActive: ShaderSettingsManager.instance.hasActiveShader,
-                                  activeColor: EatsTheme.primaryCyan,
-                                  onTap: () {
-                                    Navigator.of(context).pop();
-                                    ShaderPickerDialog.show(context);
-                                  },
-                                  height: 32,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                ),
-                              ],
-                            ),
-                            const Divider(height: 16, color: Colors.white10),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text('GUI ANIMATIONS & CPU', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        dawState.guiAnimationsEnabled
-                                            ? 'Enabled (Full Visualizers & Tickers)'
-                                            : 'Disabled (Static UI / Conserve CPU)',
-                                        style: TextStyle(
-                                          color: dawState.guiAnimationsEnabled
-                                              ? EatsTheme.primaryCyan
-                                              : EatsTheme.textMuted,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
+                                ],
+                              ),
+                              const Divider(height: 16, color: Colors.white10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('UI THEME ENGINE', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${EatsTheme.currentPreset.name.toUpperCase()} (Active)',
+                                          style: TextStyle(
+                                            color: EatsTheme.accentGold,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                SkeuomorphicHardwareSwitch(
-                                  value: dawState.guiAnimationsEnabled,
-                                  activeColor: EatsTheme.primaryCyan,
-                                  onChanged: (val) {
-                                    setDialogState(() {
-                                      dawState.setGuiAnimationsEnabled(val);
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          ],
+                                  SkeuomorphicHardwareButton(
+                                    label: 'THEME',
+                                    icon: Icons.palette,
+                                    isActive: true,
+                                    activeColor: EatsTheme.accentGold,
+                                    onTap: () {
+                                      Navigator.of(context).pop();
+                                      ThemePickerDialog.show(context, dawState);
+                                    },
+                                    height: 32,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 16, color: Colors.white10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('SCREEN SHADERS & CRT FX', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          ShaderSettingsManager.instance.hasActiveShader
+                                              ? '${ShaderSettingsManager.instance.activeProfile.name} (Active)'
+                                              : 'Disabled (Normal Display)',
+                                          style: TextStyle(
+                                            color: ShaderSettingsManager.instance.hasActiveShader
+                                                ? EatsTheme.primaryCyan
+                                                : EatsTheme.textPrimary,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SkeuomorphicHardwareButton(
+                                    label: 'SHADERS',
+                                    icon: Icons.tv,
+                                    isActive: ShaderSettingsManager.instance.hasActiveShader,
+                                    activeColor: EatsTheme.primaryCyan,
+                                    onTap: () {
+                                      Navigator.of(context).pop();
+                                      ShaderPickerDialog.show(context);
+                                    },
+                                    height: 32,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 16, color: Colors.white10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('GUI ANIMATIONS & CPU', style: TextStyle(color: EatsTheme.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          dawState.guiAnimationsEnabled
+                                              ? 'Enabled (Full Visualizers & Tickers)'
+                                              : 'Disabled (Static UI / Conserve CPU)',
+                                          style: TextStyle(
+                                            color: dawState.guiAnimationsEnabled
+                                                ? EatsTheme.primaryCyan
+                                                : EatsTheme.textMuted,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SkeuomorphicHardwareSwitch(
+                                    value: dawState.guiAnimationsEnabled,
+                                    activeColor: EatsTheme.primaryCyan,
+                                    onChanged: (val) {
+                                      setDialogState(() {
+                                        dawState.setGuiAnimationsEnabled(val);
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 16),
 
-                      Text(
-                        'AUDIO ENGINE CONFIG',
-                        style: TextStyle(color: EatsTheme.textSecondary, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.0),
-                      ),
-
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(color: EatsTheme.controlBackground, borderRadius: BorderRadius.circular(6)),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('• Clock: WebAudio Hardware Scheduler (Look-Ahead 120ms)', style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10)),
-                            const SizedBox(height: 4),
-                            Text('• Sample Rate: 44.1 kHz / 48.0 kHz Hardware Native', style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10)),
-                            const SizedBox(height: 4),
-                            Text('• Script Compiler: Embedded Lua 5.4 / LuaJIT Live Engine', style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10)),
-                          ],
+                      // 4. AUDIO ENGINE CONFIG (Collapsed by default)
+                      _buildCollapsibleSection(
+                        title: 'AUDIO ENGINE CONFIG',
+                        icon: Icons.graphic_eq,
+                        isExpanded: audioEngineExpanded,
+                        onToggle: () {
+                          setDialogState(() {
+                            audioEngineExpanded = !audioEngineExpanded;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(color: EatsTheme.controlBackground, borderRadius: BorderRadius.circular(6)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('• Clock: WebAudio Hardware Scheduler (Look-Ahead 120ms)', style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10)),
+                              const SizedBox(height: 4),
+                              Text('• Sample Rate: 44.1 kHz / 48.0 kHz Hardware Native', style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10)),
+                              const SizedBox(height: 4),
+                              Text('• Script Compiler: Pure-Dart Eatscript DSP Engine', style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10)),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 16),
 
-                      Text(
-                        'CREDITS & ACKNOWLEDGMENTS',
-                        style: TextStyle(color: EatsTheme.textSecondary, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.0),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: EatsTheme.controlBackground,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: EatsTheme.panelHeader),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '• Commuted Waveguide Piano Physical Models: Based on research by Balázs Bank, Julien Bensa, Julius O. Smith, and Scott Van Duyne (CCRMA, Stanford). DSP topology & 88-key empirical tables derived from Romain Michon\'s Faust/STK physmodels.lib (MIT/STK-4.3 License) and David Braun\'s (DBraun) physical modeling adaptation.',
-                              style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '• Eats-303 DSP & Acid Synthesis: Inspired by JC-303 (Jean-Christophe Taveau), Open303 (Robin Schmidt), and classic 303 diode ladder filter topology.',
-                              style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '• SoundFont & Sampler Engine: SoundFont parser and synthesis architecture inspired by TinySoundFont / FluidSynth with bundled Super Small Font (CC BY 4.0) by nitro-shoe and GeneralUser GS by S. Christian Collins.',
-                              style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '• Reverb & Convolution FX: Freeverb Schroeder-Moorer reverberation model and open impulse responses.',
-                              style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '• Platform Runtime: Powered by Flutter, WebAudio API, WAJUCE audio engine, and embedded Lua 5.4 / LuaJIT scripting environment.',
-                              style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
-                            ),
-                          ],
+                      // 5. CREDITS & ACKNOWLEDGMENTS (Collapsed by default)
+                      _buildCollapsibleSection(
+                        title: 'CREDITS & ACKNOWLEDGMENTS',
+                        icon: Icons.info_outline,
+                        isExpanded: creditsExpanded,
+                        isLast: true,
+                        onToggle: () {
+                          setDialogState(() {
+                            creditsExpanded = !creditsExpanded;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: EatsTheme.controlBackground,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: EatsTheme.panelHeader),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '• Commuted Waveguide Piano Physical Models: Based on research by Balázs Bank, Julien Bensa, Julius O. Smith, and Scott Van Duyne (CCRMA, Stanford). DSP topology & 88-key empirical tables derived from Romain Michon\'s Faust/STK physmodels.lib (MIT/STK-4.3 License) and David Braun\'s (DBraun) physical modeling adaptation.',
+                                style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '• Eats-303 DSP & Acid Synthesis: Inspired by JC-303 (Jean-Christophe Taveau), Open303 (Robin Schmidt), and classic 303 diode ladder filter topology.',
+                                style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '• SoundFont & Sampler Engine: SoundFont parser and synthesis architecture inspired by TinySoundFont / FluidSynth with bundled Super Small Font (CC BY 4.0) by nitro-shoe and GeneralUser GS by S. Christian Collins.',
+                                style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '• Reverb & Convolution FX: Freeverb Schroeder-Moorer reverberation model and open impulse responses.',
+                                style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '• Platform Runtime: Powered by Flutter, WebAudio API, WAJUCE audio engine, and pure-Dart Eatscript DSP environment.',
+                                style: TextStyle(color: EatsTheme.textPrimary, fontSize: 10, height: 1.35),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -961,6 +994,65 @@ class TransportHeader extends StatelessWidget {
           },
         );
       },
+    );
+  }
+
+  Widget _buildCollapsibleSection({
+    required String title,
+    required IconData icon,
+    required bool isExpanded,
+    required VoidCallback onToggle,
+    required Widget child,
+    bool isLast = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: onToggle,
+          borderRadius: BorderRadius.circular(6),
+          hoverColor: EatsTheme.primaryCyan.withOpacity(0.08),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 15,
+                  color: isExpanded ? EatsTheme.primaryCyan : EatsTheme.textSecondary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: isExpanded ? EatsTheme.primaryCyan : EatsTheme.textSecondary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ),
+                Icon(
+                  isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+                  size: 18,
+                  color: isExpanded ? EatsTheme.primaryCyan : EatsTheme.textSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (isExpanded) ...[
+          const SizedBox(height: 6),
+          child,
+          const SizedBox(height: 6),
+        ],
+        if (!isLast) ...[
+          const Divider(height: 12, color: Colors.white10),
+          const SizedBox(height: 2),
+        ],
+      ],
     );
   }
   void _showBpmEditDialog(BuildContext context) {

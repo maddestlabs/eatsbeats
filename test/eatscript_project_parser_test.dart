@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eatsbeats/models/daw_state.dart';
 import 'package:eatsbeats/models/track_model.dart';
-import 'package:eatsbeats/eatscript/eat_project_serializer.dart';
+import 'package:eatsbeats/eatscript/eats_project_serializer.dart';
 import 'package:eatsbeats/audio/procgen/ensemble_blueprint.dart';
 import 'package:eatsbeats/audio/procgen/procedural_ensemble_engine.dart';
 
@@ -156,7 +156,7 @@ end
       expect(state.songBlueprint!.title, equals('Fireside Tavern Tale'));
       expect(state.songBlueprintSeed, equals(777));
 
-      // Serialize to .eat format
+      // Serialize to .eats format
       final serialized = state.exportToEatsLua();
       expect(serialized, contains('blueprint = {'));
       expect(serialized, contains('seed = 777'));

@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import '../models/track_model.dart';
-import '../eatscript/eat_dsp_synthesizer.dart';
+import '../eatscript/eats_dsp_synthesizer.dart';
 import 'convolver_engine.dart';
 import 'procedural_ir_generator.dart';
 import 'snes_dsp_engine.dart';

@@ -3,7 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../audio/sampler_engine.dart';
-import '../eatscript/eat_preset_library.dart';
+import '../eatscript/eats_preset_library.dart';
 import '../models/daw_state.dart';
 import '../models/track_model.dart';
 import '../models/chord_model.dart';
@@ -15,8 +15,10 @@ import 'widgets/eatsbeats_slider.dart';
 import 'widgets/fx_rack_dialog.dart';
 import 'widgets/preset_search_dialog.dart';
 import 'widgets/project_browser_drawer.dart';
+import 'widgets/ai_assistant_dialog.dart';
 import 'widgets/skeuomorphic_hardware_button.dart';
 import 'widgets/skeuomorphic_hardware_knob.dart';
+import 'widgets/arranger_minimap_scrollbar.dart';
 import 'sequence_editor_view.dart';
 
 class ArrangerView extends StatefulWidget {
@@ -41,6 +43,7 @@ class _ArrangerViewState extends State<ArrangerView> {
   bool _isSyncingScroll = false;
   bool _isMiddleMouseDragging = false;
   bool _isPropertiesExpanded = false;
+  InspectorTab? _propertiesInitialTab;
   static const double _kMinPropertiesWidth = 290.0;
   static const double _kDefaultPropertiesWidth = _kMinPropertiesWidth;
   static const double _kMaxPropertiesWidth = 720.0;
@@ -229,91 +232,94 @@ class _ArrangerViewState extends State<ArrangerView> {
                           left: const BorderSide(color: EatsTheme.accentGold, width: 3),
                         ),
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.queue_music, size: 12, color: EatsTheme.accentGold),
-                          const SizedBox(width: 4),
-                          Text(
-                            'CHORDS',
-                            style: EatsTheme.getPrimaryFontStyle(
-                              color: EatsTheme.accentGold,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const Spacer(),
-                          // Song Key Selector Button
-                          PopupMenuButton<String>(
-                            tooltip: 'Song Key: ${widget.dawState.songKey}',
-                            color: EatsTheme.controlBackground,
-                            padding: EdgeInsets.zero,
-                            popUpAnimationStyle: const AnimationStyle(
-                              duration: Duration(milliseconds: 100),
-                              curve: Curves.fastOutSlowIn,
-                            ),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: EatsTheme.controlBackground,
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: EatsTheme.accentGold.withOpacity(0.5), width: 0.8),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    widget.dawState.songKey.replaceAll(' Major', '').replaceAll(' Minor', 'm'),
-                                    style: const TextStyle(color: EatsTheme.accentGold, fontSize: 8.5, fontWeight: FontWeight.bold),
-                                  ),
-                                  const Icon(Icons.arrow_drop_down, size: 10, color: EatsTheme.accentGold),
-                                ],
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.queue_music, size: 12, color: EatsTheme.accentGold),
+                            const SizedBox(width: 4),
+                            Text(
+                              'CHORDS',
+                              style: EatsTheme.getPrimaryFontStyle(
+                                color: EatsTheme.accentGold,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            itemBuilder: (context) {
-                              const keys = [
-                                'C Major', 'G Major', 'D Major', 'A Major', 'E Major', 'B Major', 'F# Major', 'Db Major', 'Ab Major', 'Eb Major', 'Bb Major', 'F Major',
-                                'A Minor', 'E Minor', 'B Minor', 'F# Minor', 'C# Minor', 'G# Minor', 'D# Minor', 'Bb Minor', 'F Minor', 'C Minor', 'G Minor', 'D Minor',
-                              ];
-                              return keys.map((k) => PopupMenuItem(value: k, child: Text(k, style: TextStyle(fontSize: 11, color: EatsTheme.textPrimary)))).toList();
-                            },
-                            onSelected: (k) => widget.dawState.setSongKey(k),
-                          ),
-                          const SizedBox(width: 4),
-                          // Chords Dialog Button
-                          InkWell(
-                            onTap: () {
-                              final curBar = (widget.dawState.arrangerStep ~/ 16).clamp(0, totalBars - 1);
-                              final existing = widget.dawState.getActiveChordAtBar(curBar);
-                              CircleOfFifthsDialog.show(context, dawState: widget.dawState, targetBar: curBar, initialChord: existing);
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: EatsTheme.primaryCyan.withOpacity(0.18),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.5), width: 0.8),
+                            const SizedBox(width: 8),
+                            // Song Key Selector Button
+                            PopupMenuButton<String>(
+                              tooltip: 'Song Key: ${widget.dawState.songKey}',
+                              color: EatsTheme.controlBackground,
+                              padding: EdgeInsets.zero,
+                              popUpAnimationStyle: const AnimationStyle(
+                                duration: Duration(milliseconds: 100),
+                                curve: Curves.fastOutSlowIn,
                               ),
-                              child: Tooltip(
-                                message: 'Chords',
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: EatsTheme.controlBackground,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: EatsTheme.accentGold.withOpacity(0.5), width: 0.8),
+                                ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.album_outlined, size: 11, color: EatsTheme.primaryCyan),
-                                    const SizedBox(width: 3),
                                     Text(
-                                      'Chords',
-                                      style: TextStyle(
-                                        color: EatsTheme.primaryCyan,
-                                        fontSize: 8.5,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                      widget.dawState.songKey.replaceAll(' Major', '').replaceAll(' Minor', 'm'),
+                                      style: const TextStyle(color: EatsTheme.accentGold, fontSize: 8.5, fontWeight: FontWeight.bold),
                                     ),
+                                    const Icon(Icons.arrow_drop_down, size: 10, color: EatsTheme.accentGold),
                                   ],
                                 ),
                               ),
+                              itemBuilder: (context) {
+                                const keys = [
+                                  'C Major', 'G Major', 'D Major', 'A Major', 'E Major', 'B Major', 'F# Major', 'Db Major', 'Ab Major', 'Eb Major', 'Bb Major', 'F Major',
+                                  'A Minor', 'E Minor', 'B Minor', 'F# Minor', 'C# Minor', 'G# Minor', 'D# Minor', 'Bb Minor', 'F Minor', 'C Minor', 'G Minor', 'D Minor',
+                                ];
+                                return keys.map((k) => PopupMenuItem(value: k, child: Text(k, style: TextStyle(fontSize: 11, color: EatsTheme.textPrimary)))).toList();
+                              },
+                              onSelected: (k) => widget.dawState.setSongKey(k),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            // Chords Dialog Button
+                            InkWell(
+                              onTap: () {
+                                final curBar = (widget.dawState.arrangerStep ~/ 16).clamp(0, totalBars - 1);
+                                final existing = widget.dawState.getActiveChordAtBar(curBar);
+                                CircleOfFifthsDialog.show(context, dawState: widget.dawState, targetBar: curBar, initialChord: existing);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: EatsTheme.primaryCyan.withOpacity(0.18),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.5), width: 0.8),
+                                ),
+                                child: Tooltip(
+                                  message: 'Chords',
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.album_outlined, size: 11, color: EatsTheme.primaryCyan),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'Chords',
+                                        style: TextStyle(
+                                          color: EatsTheme.primaryCyan,
+                                          fontSize: 8.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     Expanded(
@@ -502,29 +508,36 @@ class _ArrangerViewState extends State<ArrangerView> {
                                    final isTrackReordering = trackHoverData.any((d) => d is TrackChannel);
 
                                    return GestureDetector(
-                                     onLongPress: () {
-                                       setState(() => _isPropertiesExpanded = true);
-                                       if (allIdx != -1) widget.dawState.activeTrackIndex = allIdx;
-                                       final targetClip = widget.dawState.getClipAtBar(track, widget.dawState.arrangerStep ~/ 16) ?? (track.clips.isNotEmpty ? track.clips.first : null);
-                                       widget.dawState.selectClip(targetClip);
-                                     },
-                                     onSecondaryTap: () {
-                                       setState(() => _isPropertiesExpanded = true);
-                                       if (allIdx != -1) widget.dawState.activeTrackIndex = allIdx;
-                                       final targetClip = widget.dawState.getClipAtBar(track, widget.dawState.arrangerStep ~/ 16) ?? (track.clips.isNotEmpty ? track.clips.first : null);
-                                       widget.dawState.selectClip(targetClip);
-                                     },
-                                     onTapDown: (_) {
-                                       final now = DateTime.now();
-                                       final isDoubleTap = _lastHeaderTapTrackIdx == trackIdx &&
-                                           _lastHeaderTapTime != null &&
-                                           now.difference(_lastHeaderTapTime!).inMilliseconds < 300;
-                                       _lastHeaderTapTime = now;
-                                       _lastHeaderTapTrackIdx = trackIdx;
+                                      onLongPress: () {
+                                        if (allIdx != -1) widget.dawState.activeTrackIndex = allIdx;
+                                        widget.dawState.selectClip(null);
+                                        setState(() {
+                                          _isPropertiesExpanded = true;
+                                          _propertiesInitialTab = InspectorTab.track;
+                                        });
+                                      },
+                                      onSecondaryTap: () {
+                                        if (allIdx != -1) widget.dawState.activeTrackIndex = allIdx;
+                                        widget.dawState.selectClip(null);
+                                        setState(() {
+                                          _isPropertiesExpanded = true;
+                                          _propertiesInitialTab = InspectorTab.track;
+                                        });
+                                      },
+                                      onTapDown: (_) {
+                                        final now = DateTime.now();
+                                        final isDoubleTap = _lastHeaderTapTrackIdx == trackIdx &&
+                                            _lastHeaderTapTime != null &&
+                                            now.difference(_lastHeaderTapTime!).inMilliseconds < 300;
+                                        _lastHeaderTapTime = now;
+                                        _lastHeaderTapTrackIdx = trackIdx;
 
-                                       if (allIdx != -1) widget.dawState.activeTrackIndex = allIdx;
-                                       final targetClip = widget.dawState.getClipAtBar(track, widget.dawState.arrangerStep ~/ 16) ?? (track.clips.isNotEmpty ? track.clips.first : null);
-                                       widget.dawState.selectClip(targetClip);
+                                        if (allIdx != -1) {
+                                          if (widget.dawState.activeTrackIndex != allIdx) {
+                                            widget.dawState.selectClip(null);
+                                          }
+                                          widget.dawState.activeTrackIndex = allIdx;
+                                        }
                                         if (isDoubleTap) {
                                           if (track.isFolder) {
                                             widget.dawState.toggleFolderCollapsed(track);
@@ -798,13 +811,52 @@ class _ArrangerViewState extends State<ArrangerView> {
                     },
                   ),
                 ),
+                // Left Panel Aligned Overview Corner Strip (Height 26)
+                Container(
+                  height: 26,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: EatsTheme.panelHeader,
+                    border: const Border(
+                      top: BorderSide(color: Color(0xFF1E2330), width: 1.0),
+                      right: BorderSide(color: Color(0xFF1E2330), width: 1.0),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.view_timeline_outlined, size: 12, color: EatsTheme.textMuted),
+                      const SizedBox(width: 4),
+                      Text(
+                        'OVERVIEW',
+                        style: EatsTheme.getPrimaryFontStyle(
+                          color: EatsTheme.textMuted,
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '$totalBars BARS',
+                        style: EatsTheme.getDisplayFontStyle(
+                          color: EatsTheme.accentGold.withOpacity(0.85),
+                          fontSize: 8,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
 
-              // Right Multitrack Timeline Grid with Top Bar Ruler & Live Playhead
+              // Right Multitrack Timeline Grid with Top Bar Ruler, Live Playhead & Bottom Minimap Scrollbar
               Expanded(
-                child: LayoutBuilder(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: LayoutBuilder(
                   builder: (context, constraints) {
                     return AnimatedBuilder(
                       animation: _horizontalScroll,
@@ -1523,12 +1575,18 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                              }
                                                            },
                                                            onSecondaryTap: () {
-                                                             setState(() => _isPropertiesExpanded = true);
+                                                             setState(() {
+                                                               _isPropertiesExpanded = true;
+                                                               _propertiesInitialTab = InspectorTab.clip;
+                                                             });
                                                              widget.dawState.activeTrackIndex = trackIdx;
                                                              widget.dawState.selectClip(clip);
                                                            },
                                                            onLongPress: () {
-                                                             setState(() => _isPropertiesExpanded = true);
+                                                             setState(() {
+                                                               _isPropertiesExpanded = true;
+                                                               _propertiesInitialTab = InspectorTab.clip;
+                                                             });
                                                              widget.dawState.activeTrackIndex = trackIdx;
                                                              widget.dawState.selectClip(clip);
                                                            },
@@ -2025,6 +2083,17 @@ class _ArrangerViewState extends State<ArrangerView> {
           },
         ),
       ),
+      // Bottom FL Studio-Style Overview Minimap Scrollbar
+      ArrangerMinimapScrollbar(
+        dawState: widget.dawState,
+        horizontalScroll: _horizontalScroll,
+        barWidth: barWidth,
+        totalBars: totalBars,
+        height: 26.0,
+      ),
+    ],
+  ),
+),
     ],
   ),
 ),
@@ -2163,14 +2232,17 @@ class _ArrangerViewState extends State<ArrangerView> {
       dawState: widget.dawState,
       isExpanded: _isPropertiesExpanded,
       propertiesWidth: _propertiesWidth,
+      initialTab: _propertiesInitialTab,
       onToggleExpand: () {
         setState(() {
           _isPropertiesExpanded = !_isPropertiesExpanded;
+          if (_isPropertiesExpanded) _propertiesInitialTab = null;
         });
       },
       onExpansionChanged: (expanded) {
         setState(() {
           _isPropertiesExpanded = expanded;
+          if (expanded) _propertiesInitialTab = null;
         });
       },
       onWidthChanged: (width) {

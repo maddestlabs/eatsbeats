@@ -1,11 +1,11 @@
 import 'dart:ui';
-import 'eat_param_model.dart';
+import 'eats_param_model.dart';
 import '../ui/vector/vector_skin_model.dart';
 import '../ui/hardware/eat_hardware_knob_model.dart';
 import '../ui/hardware/eat_hardware_scale.dart';
-import 'eat_gui_model.dart';
-import 'eat_gui_parser.dart';
-import 'eat_script_engine.dart';
+import 'eats_gui_model.dart';
+import 'eats_gui_parser.dart';
+import 'eats_script_engine.dart';
 
 // Backwards-compatibility aliases
 typedef LuaGuiSerializer = EatGuiSerializer;

@@ -56,9 +56,43 @@ def gui():
                             "style": "vintage_bakelite",
                             "scale": "0_to_10",
                             "size": 58
+                        },
+                        {
+                            "type": "knob",
+                            "param": "Sustain",
+                            "label": "SUSTAIN",
+                            "style": "anodized_knurled",
+                            "scale": "1_to_6",
+                            "size": 58
+                        },
+                        {
+                            "type": "knob",
+                            "param": "Punch",
+                            "label": "PUNCH",
+                            "style": "two_tone_stepped",
+                            "scale": "0_to_10",
+                            "size": 58
+                        },
+                        {
+                            "type": "divider",
+                            "orientation": "vertical",
+                            "height": 72
+                        },
+                        {
+                            "type": "slider",
+                            "param": "Volume",
+                            "label": "OUTPUT",
+                            "orientation": "vertical",
+                            "style": "console",
+                            "scale": "db",
+                            "height": 100,
+                            "width": 36
                         }
                     ]
                 }
             ]
         }
     }
+
+KickChannelStrip = True
+
