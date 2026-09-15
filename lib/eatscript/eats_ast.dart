@@ -275,3 +275,18 @@ class EatDictLiteral extends EatExpression {
     required super.column,
   });
 }
+
+class EatConditionalExpr extends EatExpression {
+  final EatExpression condition;
+  final EatExpression thenExpr;
+  final EatExpression elseExpr;
+
+  const EatConditionalExpr({
+    required this.condition,
+    required this.thenExpr,
+    required this.elseExpr,
+    required super.line,
+    required super.column,
+  });
+}
+

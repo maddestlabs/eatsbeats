@@ -6,6 +6,8 @@ import '../eatscript/eats_dsp_synthesizer.dart';
 import 'convolver_engine.dart';
 import 'procedural_ir_generator.dart';
 import 'snes_dsp_engine.dart';
+import 'dsp/dynamics_processor.dart';
+import 'dsp/multi_mode_filter.dart';
 
 /// Pure-Dart offline DSP processor that executes Track and Master FX racks,
 /// including parametric EQ, dynamic filters, delays, distortion, bitcrushers,
@@ -382,49 +384,33 @@ class OfflineDspFxProcessor {
     required double releaseMs,
     required double mix,
     required int sampleRate,
+    Float32List? sidechainBuffer,
   }) {
-    final double threshLin = math.pow(10.0, thresholdDb / 20.0).toDouble();
-    final double attackCoeff = math.exp(-1.0 / (attackMs * sampleRate / 1000.0));
-    final double releaseCoeff = math.exp(-1.0 / (releaseMs * sampleRate / 1000.0));
-    double env = 0.0;
-
-    for (int i = 0; i < buffer.length; i++) {
-      final dry = buffer[i];
-      final absVal = dry.abs();
-
-      if (absVal > env) {
-        env = attackCoeff * env + (1.0 - attackCoeff) * absVal;
-      } else {
-        env = releaseCoeff * env + (1.0 - releaseCoeff) * absVal;
-      }
-
-      double gain = 1.0;
-      if (env > threshLin && env > 0.0001) {
-        final envDb = 20.0 * math.log(env) / math.ln10;
-        final compressedDb = thresholdDb + (envDb - thresholdDb) / ratio;
-        gain = math.pow(10.0, (compressedDb - envDb) / 20.0).toDouble();
-      }
-
-      final wet = dry * gain;
-      buffer[i] = (dry * (1.0 - mix)) + (wet * mix);
-    }
+    final comp = EatCompressor(
+      sampleRate: sampleRate.toDouble(),
+      thresholdDb: thresholdDb,
+      ratio: ratio,
+      attackMs: attackMs,
+      releaseMs: releaseMs,
+      mix: mix,
+    );
+    comp.process(buffer, sidechainBuffer: sidechainBuffer);
   }
 
-  static void _applyLimiter(Float32List buffer, {required double ceilingDb}) {
-    final double ceiling = math.pow(10.0, ceilingDb / 20.0).toDouble().clamp(0.05, 1.0);
-    double maxPeak = 0.0;
-    for (int i = 0; i < buffer.length; i++) {
-      final absVal = buffer[i].abs();
-      if (absVal > maxPeak) maxPeak = absVal;
-    }
-
-    if (maxPeak > ceiling) {
-      final double attenuation = ceiling / maxPeak;
-      for (int i = 0; i < buffer.length; i++) {
-        buffer[i] *= attenuation;
-      }
-    }
+  static void _applyLimiter(
+    Float32List buffer, {
+    required double ceilingDb,
+    int sampleRate = 44100,
+  }) {
+    final lim = EatLimiter(
+      sampleRate: sampleRate.toDouble(),
+      ceilingDb: ceilingDb,
+      releaseMs: 40.0,
+      lookaheadMs: 2.0,
+    );
+    lim.process(buffer);
   }
+
 
   static void _applyConvolutionReverbMono(
     Float32List buffer, {

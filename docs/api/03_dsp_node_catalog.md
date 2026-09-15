@@ -1,6 +1,13 @@
 # Eatscript DSP Node Catalog
 
-Eatsbeats provides an extensive library of pre-compiled, high-performance pure-Dart DSP models. By including the corresponding identifier or dispatch flag in your Eatscript, the host will bind real-time, zero-alloc audio evaluators directly to your parameters.
+Eatsbeats provides an extensive library of pre-compiled, high-performance pure-Dart DSP models. 
+
+### Explicit Engine Binding (Recommended)
+You can deterministically bind any native DSP engine using either:
+1. **Header Directive**: `# @engine: <id>`
+2. **Programmatic Binding**: `eat.use_engine("<id>")` in `def init():`
+
+*(Legacy scripts without `@engine` are also supported via backwards-compatible heuristic fallback).*
 
 ---
 
@@ -9,13 +16,13 @@ Eatsbeats provides an extensive library of pre-compiled, high-performance pure-D
 ### Analog 808 Series
 Authentic bridged T-network and transistor simulation of vintage TR-808 percussion.
 
-| Engine Flag / Name | Primary Parameters |
-| :--- | :--- |
-| `Analog808Kick = True` | `Tune`, `Tone`, `Decay`, `Punch`, `Distortion` |
-| `Analog808Snare = True` | `Snappy`, `Tone`, `Decay` |
-| `Analog808HiHat = True` | `Decay`, `Metallic`, `Tone` |
-| `Analog808Cowbell = True`| `Tune`, `Decay`, `HighPass` |
-| `Analog808Tom = True` | `Pitch`, `Decay`, `LowPass` |
+| Engine ID (`# @engine: ...`) | Legacy Flag | Primary Parameters |
+| :--- | :--- | :--- |
+| `analog_808_kick` | `Analog808Kick = True` | `Tune`, `Tone`, `Decay`, `Punch`, `Distortion` |
+| `analog_808_snare` | `Analog808Snare = True` | `Snappy`, `Tone`, `Decay` |
+| `analog_808_hihat` | `Analog808HiHat = True` | `Decay`, `Metallic`, `Tone` |
+| `analog_808_cowbell` | `Analog808Cowbell = True`| `Tune`, `Decay`, `HighPass` |
+| `analog_808_tom` | `Analog808Tom = True` | `Pitch`, `Decay`, `LowPass` |
 
 ### Analog 909 Series
 State-variable filter (SVF) oscillators, pulse punch generators, and authentic 6-bit / 8-bit ROM hi-hat playback.
@@ -100,24 +107,37 @@ Non-linear exciter coupled with cylindrical/conical acoustic bore delay lines.
 
 ---
 
-## 6. Chiptune & FM Engines
+## 6. Ambient & Pad Synthesizers
+
+| Engine Model | Key Flags / ID | Primary Parameters | Description |
+| :--- | :--- | :--- | :--- |
+| **Astral Shimmer Pad** | `ambient_pad`, `super_pad` | `Cutoff`, `Resonance`, `Detune`, `Warmth`, `Attack`, `Decay`, `Sustain`, `Release` | 7-unison detuned analog supersaw pad with wide stereo spread, slow sweeping resonant filter, and lush ADSR envelope. |
+
+---
+
+## 7. Chiptune & FM Engines
 
 | Engine Model | Key Flags / ID | Description |
 | :--- | :--- | :--- |
-| **Commodore 64 SID** | `SIDSynth = True` | MOS 6581/8580 wave generator, pulse-width modulation, ring mod, and non-linear filter distortion. |
-| **SNES SPC700** | `snesDsp = True` | Authentic 32kHz downsampling, 8-tap FIR echo, and BRR interpolation. |
-| **YM2612 FM Chip** | `ym2612 = True` | Sega Genesis 4-operator FM sound chip with 9-bit DAC simulation. |
+| **Commodore 64 SID** | `SIDSynth = True`, `c64_sid` | MOS 6581/8580 wave generator, pulse-width modulation, ring mod, and non-linear filter distortion. |
+| **SNES SPC700** | `snesDsp = True`, `snes_dsp` | Authentic 32kHz downsampling, 8-tap FIR echo, and BRR interpolation. |
+| **YM2612 FM Chip** | `ym2612 = True`, `ym2612` | Sega Genesis 4-operator FM sound chip with 9-bit DAC simulation. |
 | **Voltaic Plasma** | `VoltaicPlasmaSynth` | Electric arc discharge audio synthesizer. |
 
 ---
 
-## 7. Built-in Audio Effects
+## 8. Built-in Audio Effects
 
-| FX Identifier | Parameters | Description |
+| FX Identifier | Primary Parameters | Description |
 | :--- | :--- | :--- |
-| `stereoDelay` | `TimeMs`, `Feedback`, `Dampening`, `Mix` | Ping-pong lookahead delay line. |
-| `stereoChorus` | `RateHz`, `DepthMs`, `Mix` | Multi-phase LFO modulated delay chorus. |
+| `compressor` | `Threshold`, `Ratio`, `Attack`, `Release`, `Makeup`, `Mix` | Studio dynamic range compressor with true logarithmic decibel ballistics and external sidechain input. |
+| `limiter` | `Ceiling`, `Threshold`, `Release` | Zero-overshoot brickwall peak limiter with 2ms lookahead buffer. |
+| `multimode_filter` | `Cutoff`, `Resonance`, `GainDb`, `Type` | 2-pole RBJ biquad filter (Lowpass, Highpass, Bandpass, Notch, Peaking, Shelves). |
+| `parametric_eq` | `Band1_Freq`..`Band5_Freq`, `Gain`, `Q` | 5-band studio parametric EQ with real-time composite magnitude response. |
+| `stereo_delay` | `TimeMs`, `Feedback`, `Damping`, `Mix` | Stereo ping-pong tape delay line with analog feedback saturation. |
+| `stereo_chorus` | `RateHz`, `DepthMs`, `BaseDelayMs`, `Mix` | Dual quadrature LFO multi-voice stereo chorus & flanger. |
 | `bitcrusher` | `Bits`, `Downsample`, `Drive`, `Mix` | Hardware sample-rate and quantization bit-depth reduction. |
-| `snesDownsample` | `Rate`, `EchoVolume`, `Mix` | Authentic Super Nintendo 32kHz interpolation and echo. |
-| `tubeDistortion` | `Drive`, `Bias`, `Tone`, `Mix` | Asymmetric triode tube saturation. |
-| `cabDesigner` | `CabSize`, `Resonance`, `MicDistance`, `Mix` | Speaker cabinet impulse and standing wave resonator. |
+| `snes_downsample` | `Rate`, `EchoVolume`, `Mix` | Authentic Super Nintendo 32kHz interpolation and echo. |
+| `tube_distortion` | `Drive`, `Bias`, `Tone`, `Mix` | Asymmetric triode tube saturation. |
+| `cab_designer` | `CabSize`, `Resonance`, `MicDistance`, `Mix` | Speaker cabinet impulse and standing wave resonator. |
+

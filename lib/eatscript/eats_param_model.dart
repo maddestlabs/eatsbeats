@@ -1,4 +1,5 @@
 import 'eats_gui_model.dart';
+import 'eats_ast.dart';
 
 // Backwards-compatibility aliases
 typedef LuaParamDef = EatParamDef;
@@ -12,6 +13,7 @@ class EatParamDef {
   final double max;
   final double defaultValue;
   final double step;
+  final String unit;
   final List<String> options;
   final bool allowVariance;
   final double varianceScale;
@@ -22,6 +24,7 @@ class EatParamDef {
     required this.max,
     required this.defaultValue,
     this.step = 0.0,
+    this.unit = '',
     this.options = const [],
     bool? allowVariance,
     this.varianceScale = 1.0,
@@ -63,21 +66,35 @@ class EatParamDef {
 }
 
 /// Unified script compilation and parameter discovery result.
-class LuaCompilationResult {
+class EatCompilationResult {
   final bool isSuccess;
   final String errorMessage;
   final int errorLine;
+  final int errorColumn;
   final List<EatParamDef> params;
   final String scriptType; // 'synth', 'drum', 'effect', or 'generator'
   final EatScriptGuiPanelDef? guiLayout;
+  final EatProgram? program;
+  final String? engineId;
+  final List<String> warnings;
 
-  LuaCompilationResult({
+  const EatCompilationResult({
     required this.isSuccess,
     this.errorMessage = '',
     this.errorLine = 0,
+    this.errorColumn = 0,
     required this.params,
     required this.scriptType,
     this.guiLayout,
+    this.program,
+    this.engineId,
+    this.warnings = const [],
   });
+
+  // Backwards-compatibility bridge
+  EatCompilationResult toLuaCompilationResult() => this;
 }
+
+// Backwards-compatibility alias
+typedef LuaCompilationResult = EatCompilationResult;
 

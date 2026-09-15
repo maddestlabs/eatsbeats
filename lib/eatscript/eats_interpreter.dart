@@ -359,6 +359,15 @@ class EatInterpreter {
   dynamic evaluate(EatExpression expr, EatEnvironment env) {
     _tick(expr.line, expr.column);
 
+    if (expr is EatConditionalExpr) {
+      final condVal = evaluate(expr.condition, env);
+      if (_isTruthy(condVal)) {
+        return evaluate(expr.thenExpr, env);
+      } else {
+        return evaluate(expr.elseExpr, env);
+      }
+    }
+
     if (expr is EatLiteral) {
       return expr.value;
     }

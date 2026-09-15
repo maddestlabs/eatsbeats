@@ -116,18 +116,29 @@ eat.param(
 
 ---
 
-## 3. High-Performance Native DSP Flags
+## 3. Explicit Native DSP Engine Binding
 
-Setting a top-level boolean flag binds the script directly to high-performance pre-compiled Dart DSP engines:
+Always declare the explicit engine ID in the script header using `# @engine: <id>` or programmatically via `eat.use_engine("<id>")`:
 
-- **TB-303 Acid Bass**: `Eats303 = True`, `JC303 = True`
-- **Roland 808 Drums**: `Analog808Kick = True`, `Analog808Snare = True`, `Analog808HiHat = True`, `Analog808Cowbell = True`, `Analog808Tom = True`
-- **Roland 909 Drums**: `Analog909Kick = True`, `Analog909Snare = True`, `Analog909ClosedHiHat = True`, `Analog909OpenHiHat = True`, `Analog909Clap = True`, `Analog909Rimshot = True`
-- **Acoustic / FM Drums**: `DualMicFmAcousticKick = True`, `DualMicFmAcousticSnare = True`, `ProceduralKick = True`, `ProceduralSnare = True`, `ProceduralHiHat = True`
-- **Pianos & Keyboards**: `RhodesEPiano = True`, `ConcertGrandPiano = True`, `FeltUprightPiano = True`, `HonkyTonkPiano = True`, `DX7EPiano = True`, `ClavinetD6 = True`, `Harpsichord = True`
-- **Plucked Strings**: `SpanishGuitar = True`, `FlamencoGuitar = True`, `SteelAcousticGuitar = True`, `TwelveStringGuitar = True`, `DobroResonator = True`, `SoloViolin = True`, `DoubleBass = True`
-- **Chiptunes**: `SIDSynth = True` (C64 6581/8580), `snesDsp = True` (SNES SPC700), `ym2612 = True` (Sega Genesis FM)
-- **Audio FX**: `Bitcrusher = True`, `StereoDelay = True`, `StereoChorus = True`, `CabDesigner = True`
+```python
+# @id: vintage_epiano
+# @name: Vintage Electric Piano
+# @category: synth
+# @engine: rhodes_epiano
+```
+
+### Canonical Engine IDs:
+- **TB-303 Acid Bass**: `tb303` (or `acid303`)
+- **Roland 808 Drums**: `analog_808_kick`, `analog_808_snare`, `analog_808_hihat`, `analog_808_cowbell`, `analog_808_tom`
+- **Roland 909 Drums**: `analog_909_kick`, `analog_909_snare`, `analog_909_closed_hihat`, `analog_909_open_hihat`, `analog_909_clap`, `analog_909_rimshot`
+- **Acoustic / FM Drums**: `fm_acoustic_kick`, `fm_acoustic_snare`, `fm_acoustic_tom`, `fm_acoustic_hihat`, `procedural_kick`, `procedural_snare`, `procedural_hihat`, `gm_drum_kit`
+- **Pianos & Keyboards**: `rhodes_epiano`, `concert_grand_piano`, `felt_upright_piano`, `honky_tonk_piano`, `toy_piano`, `dx7_epiano`, `clavinet_d6`, `harpsichord`, `glockenspiel`, `music_box`, `xylophone`, `vibraphone`
+- **Plucked Strings**: `spanish_guitar`, `flamenco_guitar`, `steel_acoustic_guitar`, `twelve_string_guitar`, `dobro_resonator`, `pedal_steel_guitar`, `bluegrass_banjo`, `hawaiian_ukulele`, `solo_violin`, `solo_viola`, `solo_cello`, `double_bass`, `string_ensemble`, `sitar`
+- **Bass Synthesizers**: `moog_synth_bass`, `acoustic_bass`, `fretless_bass`, `upright_bass`
+- **Chiptunes**: `c64_sid` (C64 6581/8580), `snes_dsp` (SNES SPC700), `ym2612` (Sega Genesis FM)
+- **Audio FX**: `stereo_delay`, `stereo_chorus`, `snes_downsample`, `bitcrusher`, `tube_distortion`, `cab_designer`
+
+*(Legacy boolean flags like `Eats303 = True` or `RhodesEPiano = True` are still supported for backwards compatibility).*
 
 ---
 

@@ -1,23 +1,28 @@
 # @id: dynamics_compressor
 # @name: Dynamics Compressor
 # @category: audioFx
-# @description: Studio dynamic range compressor with adjustable ratio, soft knee, attack, and release.
+# @engine: compressor
+# @tags: compressor, dynamics, vca, sidechain, mixing, mastering, studio
+# @description: Studio dynamic range compressor with adjustable threshold, ratio, soft knee, attack, release, and auto-makeup gain.
 
 # --- Parameter Definitions ---
 def init():
+    eat.use_engine("compressor")
     return {
-        "Threshold": eat.param("Threshold", -40.0, 0.0, -18.0, step=1.0, allow_variance=False),
-        "Ratio": eat.param("Ratio", 1.0, 20.0, 4.0, step=0.5),
-        "Attack": eat.param("Attack", 0.001, 0.2, 0.02, step=0.005),
-        "Release": eat.param("Release", 0.01, 1.0, 0.25, step=0.01),
-        "Knee": eat.param("Knee", 0.0, 24.0, 12.0, step=1.0, allow_variance=False),
+        "Threshold": eat.param("Threshold", -60.0, 0.0, -18.0, unit="dB"),
+        "Ratio": eat.param("Ratio", 1.0, 20.0, 4.0, unit=":1"),
+        "Attack": eat.param("Attack", 0.001, 0.2, 0.02, unit="s"),
+        "Release": eat.param("Release", 0.01, 1.0, 0.25, unit="s"),
+        "Knee": eat.param("Knee", 0.0, 24.0, 12.0, unit="dB"),
+        "Makeup": eat.param("Makeup", 0.0, 24.0, 0.0, unit="dB"),
+        "Mix": eat.param("Mix", 0.0, 1.0, 1.0, unit=""),
     }
 
 # --- Hardware GUI Layout ---
 def gui():
     return {
         "panel": {
-            "title": "Dynamics Compressor",
+            "title": "DYNAMICS COMPRESSOR",
             "subtitle": "Studio VCA Dynamic Range Compression",
             "background": "dark",
             "accent": "#00FF9D",
@@ -25,34 +30,22 @@ def gui():
                 {
                     "type": "row",
                     "children": [
-                        {
-                            "type": "knob",
-                            "param": "Threshold",
-                            "label": "THRESHOLD",
-                            "unit": "dB",
-                        },
-                        {
-                            "type": "knob",
-                            "param": "Ratio",
-                            "label": "RATIO",
-                            "unit": ":1",
-                        },
-                        {
-                            "type": "knob",
-                            "param": "Attack",
-                            "label": "ATTACK",
-                            "unit": "s",
-                        },
-                        {
-                            "type": "knob",
-                            "param": "Release",
-                            "label": "RELEASE",
-                            "unit": "s",
-                        },
-                    ],
+                        {"type": "knob", "param": "Threshold", "label": "THRESH", "unit": "dB"},
+                        {"type": "knob", "param": "Ratio", "label": "RATIO", "unit": ":1"},
+                        {"type": "knob", "param": "Attack", "label": "ATTACK", "unit": "s"},
+                        {"type": "knob", "param": "Release", "label": "RELEASE", "unit": "s"}
+                    ]
                 },
-            ],
-        },
+                {
+                    "type": "row",
+                    "children": [
+                        {"type": "knob", "param": "Knee", "label": "KNEE", "unit": "dB"},
+                        {"type": "knob", "param": "Makeup", "label": "MAKEUP", "unit": "dB"},
+                        {"type": "knob", "param": "Mix", "label": "MIX"}
+                    ]
+                }
+            ]
+        }
     }
 
 # --- Audio FX DSP Process Hook ---

@@ -249,7 +249,21 @@ class EatParser {
   // ==========================================
 
   EatExpression _expression() {
-    return _orExpression();
+    var expr = _orExpression();
+    if (_match(EatTokenType.kwIf)) {
+      final ifTok = _previous();
+      final condition = _orExpression();
+      _consume(EatTokenType.kwElse, 'Expected "else" in conditional expression');
+      final elseBranch = _expression();
+      return EatConditionalExpr(
+        condition: condition,
+        thenExpr: expr,
+        elseExpr: elseBranch,
+        line: ifTok.line,
+        column: ifTok.column,
+      );
+    }
+    return expr;
   }
 
   EatExpression _orExpression() {

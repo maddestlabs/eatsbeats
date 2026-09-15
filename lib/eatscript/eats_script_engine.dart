@@ -16,40 +16,7 @@ import 'eats_script_library.dart';
 import 'eats_transpiler.dart';
 import 'project_script_engine.dart';
 import 'eats_synth_type.dart';
-
-class EatCompilationResult {
-  final bool isSuccess;
-  final String errorMessage;
-  final int errorLine;
-  final int errorColumn;
-  final List<LuaParamDef> params;
-  final String scriptType;
-  final LuaGuiPanelDef? guiLayout;
-  final EatProgram? program;
-
-  const EatCompilationResult({
-    required this.isSuccess,
-    this.errorMessage = '',
-    this.errorLine = 0,
-    this.errorColumn = 0,
-    required this.params,
-    required this.scriptType,
-    this.guiLayout,
-    this.program,
-  });
-
-  // Compatibility bridge with LuaCompilationResult
-  LuaCompilationResult toLuaCompilationResult() {
-    return LuaCompilationResult(
-      isSuccess: isSuccess,
-      errorMessage: errorMessage,
-      errorLine: errorLine,
-      params: params,
-      scriptType: scriptType,
-      guiLayout: guiLayout,
-    );
-  }
-}
+import 'eats_engine_registry.dart';
 
 class EatScriptEngine {
   static final Map<String, EatCompilationResult> _cache = {};
@@ -251,20 +218,61 @@ class EatScriptEngine {
         guiPanel = LuaGuiParser.parseFromCode(code);
       }
 
+      final detectedEngineId = dryContext.engineId ?? EatEngineRegistry.detectEngineId(code);
+
+      final warnings = <String>[];
+
+      // Diagnostic 1: Check engine ID validity if specified
+      if (detectedEngineId != null && !EatEngineRegistry.isRegistered(detectedEngineId)) {
+        final sampleEngines = EatEngineRegistry.allEngineIds.take(10).join(', ');
+        warnings.add(
+          "Unknown engine ID '$detectedEngineId'. Valid engines include: $sampleEngines... (see docs/api/03_dsp_node_catalog.md)",
+        );
+      }
+
+      // Diagnostic 2: Check GUI widget parameters match declared parameters
+      if (guiPanel != null) {
+        final declaredParamNames = dryContext.params.map((p) => p.name.trim()).toSet();
+        final guiParamNames = <String>{};
+        _collectGuiParamNames(guiPanel.children, guiParamNames);
+
+        for (final gp in guiParamNames) {
+          if (!declaredParamNames.contains(gp)) {
+            warnings.add(
+              "GUI control references undeclared parameter '$gp'. (Declared parameters: ${declaredParamNames.isEmpty ? 'none' : declaredParamNames.join(', ')})",
+            );
+          }
+        }
+      }
+
       String scriptType = 'clip';
-      if (code.contains('eat.add_note') || code.contains('euclidean') || code.contains('arpeggiate')) {
+      if (detectedEngineId != null) {
+        if (EatEngineRegistry.audioFxTypes.containsKey(detectedEngineId)) {
+          scriptType = 'effect';
+        } else if (EatEngineRegistry.specializedSynthTypes.containsKey(detectedEngineId) ||
+            EatEngineRegistry.graphModels.containsKey(detectedEngineId)) {
+          scriptType = 'synth';
+        }
+      } else if (code.contains('eat.add_note') || code.contains('euclidean') || code.contains('arpeggiate')) {
         scriptType = 'generator';
       } else if (code.contains('transpose') || code.contains('humanize') || code.contains('transform')) {
         scriptType = 'transformer';
       }
 
+      String message = 'Compiled successfully (Eatscript Live Engine)! Active parameters: ${dryContext.params.length}';
+      if (warnings.isNotEmpty) {
+        message += '\n[Diagnostics / Warnings]:\n• ' + warnings.join('\n• ');
+      }
+
       final result = EatCompilationResult(
         isSuccess: true,
-        errorMessage: 'Compiled successfully (Eatscript Live Engine)! Active parameters: ${dryContext.params.length}',
+        errorMessage: message,
         params: dryContext.params,
         scriptType: scriptType,
         guiLayout: guiPanel,
         program: program,
+        engineId: detectedEngineId,
+        warnings: warnings,
       );
 
       if (_cache.length > 256) {
@@ -401,6 +409,17 @@ class EatScriptEngine {
       return LuaGuiParser.parseFromMap(map);
     } catch (_) {
       return null;
+    }
+  }
+
+  static void _collectGuiParamNames(List<EatScriptGuiNode> nodes, Set<String> out) {
+    for (final node in nodes) {
+      if (node.param != null && node.param!.trim().isNotEmpty) {
+        out.add(node.param!.trim());
+      }
+      if (node.children.isNotEmpty) {
+        _collectGuiParamNames(node.children, out);
+      }
     }
   }
 

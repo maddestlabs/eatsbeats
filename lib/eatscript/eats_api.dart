@@ -10,13 +10,15 @@ import 'eats_param_model.dart';
 import 'midi_pipeline_engine.dart';
 import 'project_script_engine.dart';
 import 'eats_interpreter.dart';
+import 'eats_engine_registry.dart';
 
 /// The host context in which an Eatscript executes.
 class EatScriptContext {
   final List<Note> notes;
-  final List<LuaParamDef> params;
+  final List<EatParamDef> params;
   final Map<String, dynamic> paramValues;
   Map<String, dynamic>? guiLayout;
+  String? engineId;
   double tempo;
   int keyRoot;
   bool isMinor;
@@ -28,9 +30,10 @@ class EatScriptContext {
 
   EatScriptContext({
     List<Note>? notes,
-    List<LuaParamDef>? params,
+    List<EatParamDef>? params,
     Map<String, dynamic>? paramValues,
     this.guiLayout,
+    this.engineId,
     this.tempo = 120.0,
     this.keyRoot = 0, // C
     this.isMinor = false,
@@ -52,14 +55,77 @@ class EatHostApi {
   static void install(EatInterpreter interpreter, EatScriptContext context) {
     final eat = <String, dynamic>{};
 
+    // 0. Explicit DSP Engine Binding
+    eat['use_engine'] = EatNativeFunction('eat.use_engine', (pos, kw) {
+      if (pos.isNotEmpty) {
+        context.engineId = EatEngineRegistry.normalizeId(pos[0].toString());
+      } else if (kw.containsKey('id')) {
+        context.engineId = EatEngineRegistry.normalizeId(kw['id'].toString());
+      }
+      return context.engineId;
+    });
+    eat['engine'] = eat['use_engine'];
+
     // 1. Parameter Registration
     eat['param'] = EatNativeFunction('eat.param', (pos, kw) {
       if (pos.isEmpty) return null;
       final name = pos[0].toString();
-      final min = pos.length > 1 ? (pos[1] as num).toDouble() : (kw['min'] ?? 0.0).toDouble();
-      final max = pos.length > 2 ? (pos[2] as num).toDouble() : (kw['max'] ?? 1.0).toDouble();
-      final def = pos.length > 3 ? (pos[3] as num).toDouble() : (kw['default'] ?? min).toDouble();
-      final step = pos.length > 4 ? (pos[4] as num).toDouble() : (kw['step'] ?? 0.0).toDouble();
+      double min = 0.0;
+      double max = 1.0;
+      double def = 0.0;
+      double step = 0.0;
+      String unit = (kw['unit'] ?? '').toString();
+
+      if (pos.length == 2) {
+        def = (pos[1] is num) ? (pos[1] as num).toDouble() : (double.tryParse(pos[1].toString()) ?? 0.0);
+        min = (kw['min'] is num) ? (kw['min'] as num).toDouble() : 0.0;
+        max = (kw['max'] is num) ? (kw['max'] as num).toDouble() : 1.0;
+      } else if (pos.length == 3) {
+        min = (pos[1] is num) ? (pos[1] as num).toDouble() : (double.tryParse(pos[1].toString()) ?? 0.0);
+        max = (pos[2] is num) ? (pos[2] as num).toDouble() : (double.tryParse(pos[2].toString()) ?? 1.0);
+        def = (kw['default'] is num) ? (kw['default'] as num).toDouble() : min;
+      } else if (pos.length >= 4) {
+        final a = (pos[1] is num) ? (pos[1] as num).toDouble() : (double.tryParse(pos[1].toString()) ?? 0.0);
+        final b = (pos[2] is num) ? (pos[2] as num).toDouble() : (double.tryParse(pos[2].toString()) ?? 0.0);
+        final c = (pos[3] is num) ? (pos[3] as num).toDouble() : (double.tryParse(pos[3].toString()) ?? 1.0);
+
+        // Disambiguate eat.param(name, default, min, max) vs eat.param(name, min, max, default)
+        if (b < c && a >= b && a <= c) {
+          // (default, min, max)
+          def = a;
+          min = b;
+          max = c;
+        } else {
+          // (min, max, default)
+          min = a;
+          max = b;
+          def = c;
+        }
+
+        if (pos.length > 4) {
+          final p4 = pos[4];
+          if (p4 is num) {
+            step = p4.toDouble();
+          } else if (p4 is String) {
+            final parsedStep = double.tryParse(p4);
+            if (parsedStep != null && !p4.endsWith('Hz') && !p4.endsWith('ms') && !p4.endsWith('s') && !p4.endsWith('%')) {
+              step = parsedStep;
+            } else {
+              unit = p4;
+            }
+          }
+        }
+        if (pos.length > 5 && pos[5] is String) {
+          unit = pos[5].toString();
+        }
+      }
+
+      if (kw.containsKey('min') && kw['min'] is num) min = (kw['min'] as num).toDouble();
+      if (kw.containsKey('max') && kw['max'] is num) max = (kw['max'] as num).toDouble();
+      if (kw.containsKey('default') && kw['default'] is num) def = (kw['default'] as num).toDouble();
+      if (kw.containsKey('step') && kw['step'] is num) step = (kw['step'] as num).toDouble();
+      if (kw.containsKey('unit')) unit = kw['unit'].toString();
+
       final options = kw['options'] is List ? (kw['options'] as List).map((e) => e.toString()).toList() : <String>[];
 
       bool? allowVariance;
@@ -82,6 +148,7 @@ class EatHostApi {
         max: max,
         defaultValue: def,
         step: step,
+        unit: unit,
         options: options,
         allowVariance: allowVariance,
         varianceScale: varianceScale,
@@ -364,6 +431,21 @@ class EatHostApi {
 
     // 5. Rhythm & Transforms
     eat['euclidean'] = EatNativeFunction('eat.euclidean', (pos, kw) {
+      // Overload 1: Pattern generator eat.euclidean(pulses, steps) -> List<int>
+      if (pos.length == 2 && kw.isEmpty) {
+        final pulses = (pos[0] as num).toInt();
+        final steps = (pos[1] as num).toInt();
+        if (steps <= 0) return <int>[];
+        final pattern = List<int>.filled(steps, 0);
+        for (int s = 0; s < steps; s++) {
+          if (pulses >= steps || (pulses > 0 && (s * pulses) % steps < pulses)) {
+            pattern[s] = 1;
+          }
+        }
+        return pattern;
+      }
+
+      // Overload 2: Per-step rhythm test eat.euclidean(step, steps, pulses, shift) -> bool
       final step = (pos.isNotEmpty ? pos[0] : kw['step'] ?? 0) as num;
       final steps = (pos.length > 1 ? pos[1] : kw['steps'] ?? 16) as num;
       final pulses = (pos.length > 2 ? pos[2] : kw['pulses'] ?? 4) as num;

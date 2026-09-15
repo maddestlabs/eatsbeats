@@ -499,7 +499,11 @@ class DawTextureEngine {
     }
   }
 
-  /// Seamless Carbon Fiber 2x2 Twill: Cell size 16px (divides 256 evenly).
+  /// Seamless Carbon Fiber 2x2 Twill:
+  /// Uses authentic 2x2 twill weave geometry (warp goes over 2 weft, under 2 weft,
+  /// stepped diagonally by 1 position each row) with 8px tow cell ribbons,
+  /// 3D cylindrical tow crown shading, anisotropic micro-filament striations,
+  /// and tucking under-shadows. Divides 256 evenly into 32 cells (8 weave periods).
   void _paintSeamlessCarbonFiberTexture(
     Canvas canvas,
     int size, {
@@ -508,28 +512,136 @@ class DawTextureEngine {
   }) {
     final double s = size.toDouble();
 
-    // 1. Carbon base
-    canvas.drawRect(Rect.fromLTWH(0, 0, s, s), Paint()..color = baseColor);
+    // 1. Deep carbon composite matrix base
+    canvas.drawRect(Rect.fromLTWH(0, 0, s, s), Paint()..color = const Color(0xFF0D0E12));
 
-    // 2. 2x2 Twill weave grid
-    const cellSize = 16.0;
-    final darkPaint = Paint()..color = baseColor.withValues(alpha: 0.9);
-    final lightPaint = Paint()..color = weaveColor;
-    final highlightPaint = Paint()..color = Colors.white.withValues(alpha: 0.06);
+    const double cellSize = 8.0;
+    const int cells = 32; // 256 / 8 = 32 cells across
 
-    for (double y = 0; y < s; y += cellSize) {
-      for (double x = 0; x < s; x += cellSize) {
-        final isDiagonal = ((x ~/ cellSize) + (y ~/ cellSize)) % 2 == 0;
-        final rect = Rect.fromLTWH(x, y, cellSize, cellSize);
+    // Anisotropic tow ribbon palettes
+    // Horizontal tows catch specular light perpendicular to vertical tows
+    final hTowBase = Paint()..color = const Color(0xFF1E222A);
+    final vTowBase = Paint()..color = const Color(0xFF14161C);
 
-        if (isDiagonal) {
-          canvas.drawRect(rect, lightPaint);
-          canvas.drawLine(rect.topLeft, rect.bottomRight, highlightPaint);
+    // Micro-filament paints
+    final hHighlightPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.07)
+      ..strokeWidth = 1.0;
+    final hCrownPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.12)
+      ..strokeWidth = 1.2;
+    final hGroovePaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.35)
+      ..strokeWidth = 1.0;
+
+    final vHighlightPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.04)
+      ..strokeWidth = 1.0;
+    final vCrownPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.08)
+      ..strokeWidth = 1.2;
+    final vGroovePaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.40)
+      ..strokeWidth = 1.0;
+
+    // Crevice and tucking shadow paints
+    final crevicePaint = Paint()
+      ..color = const Color(0xFF07080A)
+      ..strokeWidth = 0.8;
+    final tuckShadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.55);
+    final emergeShadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.28);
+
+    for (int iy = 0; iy < cells; iy++) {
+      final double y = iy * cellSize;
+
+      for (int ix = 0; ix < cells; ix++) {
+        final double x = ix * cellSize;
+
+        // Exact 2x2 twill weave pattern:
+        // phase 0, 3: Horizontal tow (warp)
+        // phase 1, 2: Vertical tow (weft)
+        // This shifts by 1 position every row, producing classic 45° diagonal twill stairs.
+        final int phase = (iy - ix) & 3;
+        final bool isHorizontal = (phase == 0 || phase == 3);
+
+        final cellRect = Rect.fromLTWH(x, y, cellSize, cellSize);
+
+        if (isHorizontal) {
+          // --- HORIZONTAL TOW (Yarn spans horizontally across 2 cells) ---
+          canvas.drawRect(cellRect, hTowBase);
+
+          // 3D cylindrical crown shading & micro-filaments (horizontal lines)
+          // Filament 1 (top flank)
+          canvas.drawLine(Offset(x, y + 1.2), Offset(x + cellSize, y + 1.2), hGroovePaint);
+          canvas.drawLine(Offset(x, y + 2.4), Offset(x + cellSize, y + 2.4), hHighlightPaint);
+
+          // Filament 2 (center crown specular sheen)
+          canvas.drawLine(Offset(x, y + 4.0), Offset(x + cellSize, y + 4.0), hCrownPaint);
+
+          // Filament 3 (bottom flank)
+          canvas.drawLine(Offset(x, y + 5.6), Offset(x + cellSize, y + 5.6), hHighlightPaint);
+          canvas.drawLine(Offset(x, y + 6.8), Offset(x + cellSize, y + 6.8), hGroovePaint);
+
+          // Inter-tow seam crevices (top and bottom borders)
+          canvas.drawLine(Offset(x, y), Offset(x + cellSize, y), crevicePaint);
+          canvas.drawLine(Offset(x, y + cellSize), Offset(x + cellSize, y + cellSize), crevicePaint);
+
+          // Tucking under / emerging over perpendicular vertical tows
+          if (phase == 3) {
+            // Right end of the 2-cell span: dives under vertical tow
+            canvas.drawRect(Rect.fromLTWH(x + cellSize - 2.2, y, 2.2, cellSize), tuckShadowPaint);
+          } else if (phase == 0) {
+            // Left start of the 2-cell span: emerges from underneath vertical tow
+            canvas.drawRect(Rect.fromLTWH(x, y, 1.8, cellSize), emergeShadowPaint);
+          }
         } else {
-          canvas.drawRect(rect, darkPaint);
+          // --- VERTICAL TOW (Yarn spans vertically across 2 cells) ---
+          canvas.drawRect(cellRect, vTowBase);
+
+          // 3D cylindrical crown shading & micro-filaments (vertical lines)
+          // Filament 1 (left flank)
+          canvas.drawLine(Offset(x + 1.2, y), Offset(x + 1.2, y + cellSize), vGroovePaint);
+          canvas.drawLine(Offset(x + 2.4, y), Offset(x + 2.4, y + cellSize), vHighlightPaint);
+
+          // Filament 2 (center crown subtle sheen)
+          canvas.drawLine(Offset(x + 4.0, y), Offset(x + 4.0, y + cellSize), vCrownPaint);
+
+          // Filament 3 (right flank)
+          canvas.drawLine(Offset(x + 5.6, y), Offset(x + 5.6, y + cellSize), vHighlightPaint);
+          canvas.drawLine(Offset(x + 6.8, y), Offset(x + 6.8, y + cellSize), vGroovePaint);
+
+          // Inter-tow seam crevices (left and right borders)
+          canvas.drawLine(Offset(x, y), Offset(x, y + cellSize), crevicePaint);
+          canvas.drawLine(Offset(x + cellSize, y), Offset(x + cellSize, y + cellSize), crevicePaint);
+
+          // Tucking under / emerging over perpendicular horizontal tows
+          if (phase == 2) {
+            // Bottom end of the 2-cell span: dives under horizontal tow
+            canvas.drawRect(Rect.fromLTWH(x, y + cellSize - 2.2, cellSize, 2.2), tuckShadowPaint);
+          } else if (phase == 1) {
+            // Top start of the 2-cell span: emerges from underneath horizontal tow
+            canvas.drawRect(Rect.fromLTWH(x, y, cellSize, 1.8), emergeShadowPaint);
+          }
         }
       }
     }
+
+    // 3. Subtle resin clearcoat specular gradient across the 256px tile (seamless)
+    final clearCoatPaint = Paint()
+      ..shader = ui.Gradient.linear(
+        Offset.zero,
+        Offset(s, s),
+        [
+          Colors.white.withValues(alpha: 0.035),
+          Colors.transparent,
+          Colors.white.withValues(alpha: 0.02),
+          Colors.transparent,
+        ],
+        [0.0, 0.45, 0.75, 1.0],
+      );
+    canvas.drawRect(Rect.fromLTWH(0, 0, s, s), clearCoatPaint);
   }
 
   /// Seamless Perforated Mesh Grille: Step 16px (divides 256 evenly).

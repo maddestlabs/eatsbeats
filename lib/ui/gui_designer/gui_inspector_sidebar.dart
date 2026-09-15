@@ -202,34 +202,33 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
 
     final effectiveTrackColor = widget.trackColor ?? const Color(0xFF00E5FF);
 
-    return Container(
-      width: 240,
-      decoration: const BoxDecoration(
-        color: Color(0xFF14171F),
-        border: Border(left: BorderSide(color: Color(0xFF2B3245))),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Material(
+      color: const Color(0xFF14171F),
+      child: Container(
+        width: 240,
+        decoration: const BoxDecoration(
+          border: Border(left: BorderSide(color: Color(0xFF2B3245))),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             color: const Color(0xFF0F1218),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.tune, size: 16, color: EatsTheme.accentGreen),
-                    const SizedBox(width: 8),
-                    Text(
-                      isRowSelected
-                          ? 'ROW PROPERTIES'
-                          : (isWidgetSelected
-                              ? (widget.selectedStackChildIndex != null ? 'STACK ITEM PROPERTIES' : 'WIDGET PROPERTIES')
-                              : 'PANEL PROPERTIES'),
-                      style: EatsTheme.getDisplayFontStyle(fontSize: 11, fontWeight: FontWeight.bold, color: EatsTheme.textLight),
-                    ),
-                  ],
+                Icon(Icons.tune, size: 16, color: EatsTheme.accentGreen),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isRowSelected
+                        ? 'ROW PROPERTIES'
+                        : (isWidgetSelected
+                            ? (widget.selectedStackChildIndex != null ? 'STACK ITEM PROPERTIES' : 'WIDGET PROPERTIES')
+                            : 'PANEL PROPERTIES'),
+                    overflow: TextOverflow.ellipsis,
+                    style: EatsTheme.getDisplayFontStyle(fontSize: 11, fontWeight: FontWeight.bold, color: EatsTheme.textLight),
+                  ),
                 ),
               ],
             ),
@@ -328,6 +327,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       if (v != null) {
                         widget.onPanelUpdated(widget.panel.copyWith(
                           sideCheeks: v == 'none' ? null : v,
+                          clearSideCheeks: v == 'none',
                         ));
                       }
                     },
@@ -723,10 +723,11 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     _buildSectionHeader('SECTION BACKGROUND & INLAY'),
                     const SizedBox(height: 6),
                     _buildDropdown<String>(
-                      label: 'Background Material',
+                      label: 'Background Theme / Texture',
                       value: selectedNode.backgroundStyle != null ? selectedNode.backgroundStyle!.name : 'none',
                       items: const [
                         DropdownMenuItem(value: 'none', child: Text('None (Inherit Chassis)')),
+                        DropdownMenuItem(value: 'dark', child: Text('Dark Studio Plate')),
                         DropdownMenuItem(value: 'walnut', child: Text('Vintage Walnut Wood')),
                         DropdownMenuItem(value: 'mahogany', child: Text('Rich Mahogany Wood')),
                         DropdownMenuItem(value: 'blondePine', child: Text('Blonde Pine / Ash')),
@@ -734,23 +735,90 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                         DropdownMenuItem(value: 'brushedSteel', child: Text('Brushed Steel (Horizontal)')),
                         DropdownMenuItem(value: 'brushedSteelVert', child: Text('Brushed Steel (Vertical)')),
                         DropdownMenuItem(value: 'matteMetal', child: Text('Anodized Sandblast Metal')),
+                        DropdownMenuItem(value: 'grunge', child: Text('Industrial Weathered Patina')),
                         DropdownMenuItem(value: 'tolex', child: Text('Vintage Tolex Amp Vinyl')),
-                        DropdownMenuItem(value: 'carbon', child: Text('Carbon Fiber Weave')),
+                        DropdownMenuItem(value: 'carbon', child: Text('Carbon Fiber Twill Weave')),
                         DropdownMenuItem(value: 'mesh', child: Text('Perforated Mesh Grille')),
                         DropdownMenuItem(value: 'silver', child: Text('Silver Brushed (TB-303)')),
-                        DropdownMenuItem(value: 'grunge', child: Text('Industrial Grunge')),
-                        DropdownMenuItem(value: 'dark', child: Text('Dark Studio Plate')),
+                        DropdownMenuItem(value: 'minimalWhite', child: Text('Minimalist Matte White')),
+                        DropdownMenuItem(value: 'snes', child: Text('SNES Console Cream')),
+                        DropdownMenuItem(value: 'pcbGreen', child: Text('Printed Circuit Board')),
                       ],
                       onChanged: (v) {
                         if (v != null) {
                           final style = v == 'none' ? null : LuaGuiNode.parseBackgroundStyle(v);
-                          _updateSelectedNode(selectedNode.copyWith(backgroundStyle: style));
+                          _updateSelectedNode(selectedNode.copyWith(
+                            backgroundStyle: style,
+                            clearBackgroundStyle: style == null,
+                          ));
                         }
                       },
                     ),
                     const SizedBox(height: 8),
+
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: _buildTextField(
+                            'Background Color Hex (e.g. #1E2430 or empty)',
+                            TextEditingController(
+                              text: selectedNode.backgroundColor != null
+                                  ? '#${selectedNode.backgroundColor!.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}'
+                                  : '',
+                            ),
+                            (v) {
+                              final col = LuaGuiNode.parseColor(v);
+                              _updateSelectedNode(selectedNode.copyWith(
+                                backgroundColor: col,
+                                clearBackgroundColor: col == null,
+                              ));
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 2.0),
+                          child: InkWell(
+                            onTap: () {
+                              _showColorPickerDialog(
+                                context: context,
+                                title: 'Section Background Color',
+                                currentColor: selectedNode.backgroundColor,
+                                defaultColor: EatsTheme.panelBackground,
+                                onColorChanged: (col) {
+                                  _updateSelectedNode(selectedNode.copyWith(
+                                    backgroundColor: col,
+                                    clearBackgroundColor: col == null,
+                                  ));
+                                },
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: selectedNode.backgroundColor ?? Colors.transparent,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.white38),
+                              ),
+                              child: Icon(
+                                Icons.colorize,
+                                size: 14,
+                                color: selectedNode.backgroundColor != null
+                                    ? (selectedNode.backgroundColor!.computeLuminance() > 0.5 ? Colors.black : Colors.white)
+                                    : Colors.white70,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
                     _buildDropdown<double>(
-                      label: 'Grain Rotation',
+                      label: 'Texture / Grain Rotation',
                       value: selectedNode.textureRotation ?? 0.0,
                       items: const [
                         DropdownMenuItem(value: 0.0, child: Text('0° (Horizontal Grain)')),
@@ -762,6 +830,108 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                         if (v != null) {
                           _updateSelectedNode(selectedNode.copyWith(textureRotation: v));
                         }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+
+                    _buildDropdown<double>(
+                      label: 'Corner Radius',
+                      value: selectedNode.cornerRadius ?? 6.0,
+                      items: const [
+                        DropdownMenuItem(value: 0.0, child: Text('0px (Sharp Flush)')),
+                        DropdownMenuItem(value: 4.0, child: Text('4px (Subtle Curve)')),
+                        DropdownMenuItem(value: 6.0, child: Text('6px (Standard Card)')),
+                        DropdownMenuItem(value: 8.0, child: Text('8px (Smooth)')),
+                        DropdownMenuItem(value: 12.0, child: Text('12px (Rounded)')),
+                        DropdownMenuItem(value: 16.0, child: Text('16px (Extra Round)')),
+                        DropdownMenuItem(value: 20.0, child: Text('20px (Pill Soft)')),
+                        DropdownMenuItem(value: 26.0, child: Text('26px (Full Bevel)')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) {
+                          _updateSelectedNode(selectedNode.copyWith(cornerRadius: v));
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'BACKGROUND OPACITY',
+                            style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.textMuted),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          (selectedNode.opacity ?? 1.0) <= 0.0 ? '0% (Transparent)' : '${(((selectedNode.opacity ?? 1.0)) * 100).toInt()}%',
+                          style: EatsTheme.getDisplayFontStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.bold,
+                            color: (selectedNode.opacity ?? 1.0) <= 0.0 ? EatsTheme.primaryCyan : EatsTheme.accentGold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Slider(
+                      value: (selectedNode.opacity ?? 1.0).clamp(0.0, 1.0),
+                      min: 0.0,
+                      max: 1.0,
+                      divisions: 20,
+                      activeColor: EatsTheme.primaryCyan,
+                      onChanged: (v) {
+                        _updateSelectedNode(selectedNode.copyWith(opacity: v));
+                      },
+                    ),
+                    const SizedBox(height: 6),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'BORDER WIDTH',
+                            style: EatsTheme.getDisplayFontStyle(fontSize: 9, color: EatsTheme.textMuted),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          (selectedNode.borderWidth ?? 0.0) <= 0.0 ? '0px (None)' : '${(selectedNode.borderWidth ?? 0.0).toStringAsFixed(1)}px',
+                          style: EatsTheme.getDisplayFontStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.bold,
+                            color: (selectedNode.borderWidth ?? 0.0) <= 0.0 ? EatsTheme.primaryCyan : EatsTheme.accentGold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Slider(
+                      value: (selectedNode.borderWidth ?? 0.0).clamp(0.0, 4.0),
+                      min: 0.0,
+                      max: 4.0,
+                      divisions: 16,
+                      activeColor: EatsTheme.primaryCyan,
+                      onChanged: (v) {
+                        _updateSelectedNode(selectedNode.copyWith(borderWidth: v));
+                      },
+                    ),
+                    const SizedBox(height: 6),
+
+                    _buildTextField(
+                      'Border Hex Color (e.g. #DCDFE6 or empty)',
+                      TextEditingController(
+                        text: selectedNode.borderColor != null
+                            ? '#${selectedNode.borderColor!.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}'
+                            : '',
+                      ),
+                      (v) {
+                        final col = LuaGuiNode.parseColor(v);
+                        _updateSelectedNode(selectedNode.copyWith(
+                          borderColor: col,
+                          clearBorderColor: col == null,
+                        ));
                       },
                     ),
                     const SizedBox(height: 12),
@@ -1234,7 +1404,8 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildRowAlignmentInspector(LuaGuiNode rowNode, int rowIndex) {
@@ -1285,7 +1456,142 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
             _updateSelectedNode(rowNode.copyWith(label: v.isEmpty ? null : v));
           },
         ),
+        const SizedBox(height: 10),
+
+        _buildSectionHeader('ROW BACKGROUND & INLAY'),
+        const SizedBox(height: 6),
+        _buildDropdown<String>(
+          label: 'Background Theme / Texture',
+          value: rowNode.backgroundStyle != null ? rowNode.backgroundStyle!.name : 'none',
+          items: const [
+            DropdownMenuItem(value: 'none', child: Text('None (Inherit / Transparent)')),
+            DropdownMenuItem(value: 'dark', child: Text('Dark Studio Plate')),
+            DropdownMenuItem(value: 'walnut', child: Text('Vintage Walnut Wood')),
+            DropdownMenuItem(value: 'mahogany', child: Text('Rich Mahogany Wood')),
+            DropdownMenuItem(value: 'blondePine', child: Text('Blonde Pine / Ash')),
+            DropdownMenuItem(value: 'rosewood', child: Text('Dark Rosewood')),
+            DropdownMenuItem(value: 'brushedSteel', child: Text('Brushed Steel (Horizontal)')),
+            DropdownMenuItem(value: 'brushedSteelVert', child: Text('Brushed Steel (Vertical)')),
+            DropdownMenuItem(value: 'matteMetal', child: Text('Anodized Sandblast Metal')),
+            DropdownMenuItem(value: 'grunge', child: Text('Industrial Weathered Patina')),
+            DropdownMenuItem(value: 'tolex', child: Text('Vintage Tolex Amp Vinyl')),
+            DropdownMenuItem(value: 'carbon', child: Text('Carbon Fiber Twill Weave')),
+            DropdownMenuItem(value: 'mesh', child: Text('Perforated Mesh Grille')),
+            DropdownMenuItem(value: 'silver', child: Text('Silver Brushed (TB-303)')),
+            DropdownMenuItem(value: 'minimalWhite', child: Text('Minimalist Matte White')),
+            DropdownMenuItem(value: 'snes', child: Text('SNES Console Cream')),
+            DropdownMenuItem(value: 'pcbGreen', child: Text('Printed Circuit Board')),
+          ],
+          onChanged: (v) {
+            if (v != null) {
+              final style = v == 'none' ? null : LuaGuiNode.parseBackgroundStyle(v);
+              _updateSelectedNode(rowNode.copyWith(
+                backgroundStyle: style,
+                clearBackgroundStyle: style == null,
+              ));
+            }
+          },
+        ),
         const SizedBox(height: 8),
+
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: _buildTextField(
+                'Background Color Hex (e.g. #1E2430 or empty)',
+                TextEditingController(
+                  text: rowNode.backgroundColor != null
+                      ? '#${rowNode.backgroundColor!.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}'
+                      : '',
+                ),
+                (v) {
+                  final col = LuaGuiNode.parseColor(v);
+                  _updateSelectedNode(rowNode.copyWith(
+                    backgroundColor: col,
+                    clearBackgroundColor: col == null,
+                  ));
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2.0),
+              child: InkWell(
+                onTap: () {
+                  _showColorPickerDialog(
+                    context: context,
+                    title: 'Row Background Color',
+                    currentColor: rowNode.backgroundColor,
+                    defaultColor: EatsTheme.panelBackground,
+                    onColorChanged: (col) {
+                      _updateSelectedNode(rowNode.copyWith(
+                        backgroundColor: col,
+                        clearBackgroundColor: col == null,
+                      ));
+                    },
+                  );
+                },
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: rowNode.backgroundColor ?? Colors.transparent,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.white38),
+                  ),
+                  child: Icon(
+                    Icons.colorize,
+                    size: 14,
+                    color: rowNode.backgroundColor != null
+                        ? (rowNode.backgroundColor!.computeLuminance() > 0.5 ? Colors.black : Colors.white)
+                        : Colors.white70,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        _buildDropdown<double>(
+          label: 'Texture / Grain Rotation',
+          value: rowNode.textureRotation ?? 0.0,
+          items: const [
+            DropdownMenuItem(value: 0.0, child: Text('0° (Horizontal Grain)')),
+            DropdownMenuItem(value: 90.0, child: Text('90° (Vertical Grain)')),
+            DropdownMenuItem(value: 180.0, child: Text('180° (Inverted Horizontal)')),
+            DropdownMenuItem(value: 270.0, child: Text('270° (Inverted Vertical)')),
+          ],
+          onChanged: (v) {
+            if (v != null) {
+              _updateSelectedNode(rowNode.copyWith(textureRotation: v));
+            }
+          },
+        ),
+        const SizedBox(height: 8),
+
+        _buildDropdown<double>(
+          label: 'Corner Radius',
+          value: rowNode.cornerRadius ?? 6.0,
+          items: const [
+            DropdownMenuItem(value: 0.0, child: Text('0px (Sharp Flush)')),
+            DropdownMenuItem(value: 4.0, child: Text('4px (Subtle Curve)')),
+            DropdownMenuItem(value: 6.0, child: Text('6px (Standard Card)')),
+            DropdownMenuItem(value: 8.0, child: Text('8px (Smooth)')),
+            DropdownMenuItem(value: 12.0, child: Text('12px (Rounded)')),
+            DropdownMenuItem(value: 16.0, child: Text('16px (Extra Round)')),
+            DropdownMenuItem(value: 20.0, child: Text('20px (Pill Soft)')),
+            DropdownMenuItem(value: 26.0, child: Text('26px (Full Bevel)')),
+          ],
+          onChanged: (v) {
+            if (v != null) {
+              _updateSelectedNode(rowNode.copyWith(cornerRadius: v));
+            }
+          },
+        ),
+        const SizedBox(height: 10),
 
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,

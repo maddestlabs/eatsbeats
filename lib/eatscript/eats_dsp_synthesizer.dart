@@ -12,6 +12,8 @@ import '../audio/graph/graph_node.dart';
 import '../audio/sid_dsp_engine.dart';
 import 'eats_synth_type.dart';
 import 'eats_tb303_core.dart';
+import 'eats_engine_registry.dart';
+
 typedef EatSynthBufferExecutor = Float32List Function({
   required double durationSec,
   required double freq,
@@ -29,17 +31,7 @@ typedef EatSynthBufferExecutor = Float32List Function({
   double velocity,
 });
 
-class _GraphModelDescriptor {
-  final GraphNode Function() builder;
-  final double defaultVelocity;
-  final bool isPianoVelocity;
-
-  const _GraphModelDescriptor({
-    required this.builder,
-    this.defaultVelocity = 1.0,
-    this.isPianoVelocity = false,
-  });
-}
+typedef _GraphModelDescriptor = EatGraphModelDescriptor;
 
 
 /// Pure-Dart DSP Synthesis Engine for Eatscript instruments, drums, physical models & automation.
@@ -216,6 +208,13 @@ class EatDspSynthesizer {
   }
 
   static _GraphModelDescriptor? _detectGraphModel(String code) {
+    // 1. Explicit deterministic engine resolution first
+    final explicitId = EatEngineRegistry.detectEngineId(code);
+    if (explicitId != null && EatEngineRegistry.graphModels.containsKey(explicitId)) {
+      return EatEngineRegistry.graphModels[explicitId];
+    }
+
+    // 2. Legacy heuristic fallback
     if (code.contains('FmAcousticKick') ||
         code.contains('NearPitchStart') ||
         code.contains('fm_acoustic_kick') ||
@@ -809,6 +808,189 @@ class EatDspSynthesizer {
   }
 
   static EatSynthBufferExecutor _resolveBufferExecutor(String code) {
+    // 1. Explicit deterministic engine resolution
+    final explicitId = EatEngineRegistry.detectEngineId(code);
+    if (explicitId != null) {
+      if (explicitId == 'tb303' || explicitId == 'acid303' || explicitId == 'eats303' || explicitId == 'jc303') {
+        _synthTypeCache[code] = EatSynthType.acid303;
+        return _bufferExecutorCache[code] = _synthesizeAcid303Buffer;
+      }
+      if (explicitId == 'procedural_kick') {
+        _synthTypeCache[code] = EatSynthType.proceduralKick;
+        return _bufferExecutorCache[code] = _synthesizeProceduralKickBuffer;
+      }
+      if (explicitId == 'procedural_snare') {
+        _synthTypeCache[code] = EatSynthType.proceduralSnare;
+        return _bufferExecutorCache[code] = _synthesizeProceduralSnareBuffer;
+      }
+      if (explicitId == 'procedural_hihat') {
+        _synthTypeCache[code] = EatSynthType.proceduralHiHat;
+        return _bufferExecutorCache[code] = _synthesizeProceduralHiHatBuffer;
+      }
+      if (explicitId == 'fm_synth') {
+        _synthTypeCache[code] = EatSynthType.fmSynth;
+        return _bufferExecutorCache[code] = _synthesizeFmSynthBuffer;
+      }
+      if (explicitId == 'snes_dsp' || explicitId == 'snes_synth') {
+        _synthTypeCache[code] = EatSynthType.snesDsp;
+        return _bufferExecutorCache[code] = ({
+          required double durationSec,
+          required double freq,
+          required int note,
+          required Map<String, double> params,
+          int? targetMidiNote,
+          bool isSlide = false,
+          bool isAccent = false,
+          String? trackId,
+          String? articulation,
+          double releaseVelocity = 0.5,
+          List<List<double>>? pitchBendPoints,
+          List<List<double>>? pressurePoints,
+          List<List<double>>? timbrePoints,
+          double velocity = 0.9,
+        }) => _synthesizeSnesDspBuffer(
+          code: code,
+          durationSec: durationSec,
+          freq: freq,
+          note: note,
+          params: params,
+          targetMidiNote: targetMidiNote,
+          isSlide: isSlide,
+          isAccent: isAccent,
+          trackId: trackId,
+          articulation: articulation,
+          releaseVelocity: releaseVelocity,
+          pitchBendPoints: pitchBendPoints,
+          pressurePoints: pressurePoints,
+          timbrePoints: timbrePoints,
+          velocity: velocity,
+        );
+      }
+      if (explicitId == 'ym2612') {
+        _synthTypeCache[code] = EatSynthType.ym2612;
+        return _bufferExecutorCache[code] = _synthesizeYm2612Buffer;
+      }
+      if (explicitId == 'gm_drum_kit') {
+        _synthTypeCache[code] = EatSynthType.gmDrumKit;
+        return _bufferExecutorCache[code] = ({
+          required double durationSec,
+          required double freq,
+          required int note,
+          required Map<String, double> params,
+          int? targetMidiNote,
+          bool isSlide = false,
+          bool isAccent = false,
+          String? trackId,
+          String? articulation,
+          double releaseVelocity = 0.5,
+          List<List<double>>? pitchBendPoints,
+          List<List<double>>? pressurePoints,
+          List<List<double>>? timbrePoints,
+          double velocity = 0.9,
+        }) => GmDrumKitEngine.synthesizeBuffer(
+          note: note,
+          durationSec: durationSec,
+          velocity: isAccent ? 1.0 : velocity,
+          params: params,
+          isAccent: isAccent,
+          trackId: trackId,
+        );
+      }
+      if (explicitId == 'snes_drum_kit') {
+        _synthTypeCache[code] = EatSynthType.snesDrumKit;
+        return _bufferExecutorCache[code] = ({
+          required double durationSec,
+          required double freq,
+          required int note,
+          required Map<String, double> params,
+          int? targetMidiNote,
+          bool isSlide = false,
+          bool isAccent = false,
+          String? trackId,
+          String? articulation,
+          double releaseVelocity = 0.5,
+          List<List<double>>? pitchBendPoints,
+          List<List<double>>? pressurePoints,
+          List<List<double>>? timbrePoints,
+          double velocity = 0.9,
+        }) => SNESDrumKitEngine.synthesizeBuffer(
+          note: note,
+          durationSec: durationSec,
+          velocity: isAccent ? 1.0 : velocity,
+          params: params,
+          isAccent: isAccent,
+        );
+      }
+      if (explicitId == 'sid_drum_kit') {
+        _synthTypeCache[code] = EatSynthType.sidDrumKit;
+        return _bufferExecutorCache[code] = ({
+          required double durationSec,
+          required double freq,
+          required int note,
+          required Map<String, double> params,
+          int? targetMidiNote,
+          bool isSlide = false,
+          bool isAccent = false,
+          String? trackId,
+          String? articulation,
+          double releaseVelocity = 0.5,
+          List<List<double>>? pitchBendPoints,
+          List<List<double>>? pressurePoints,
+          List<List<double>>? timbrePoints,
+          double velocity = 0.9,
+        }) => SIDDrumKitEngine.synthesizeBuffer(
+          note: note,
+          durationSec: durationSec,
+          velocity: isAccent ? 1.0 : velocity,
+          params: params,
+        );
+      }
+      if (EatEngineRegistry.graphModels.containsKey(explicitId)) {
+        final desc = EatEngineRegistry.graphModels[explicitId]!;
+        _synthTypeCache[code] = EatSynthType.physicalModel;
+        return _bufferExecutorCache[code] = ({
+          required double durationSec,
+          required double freq,
+          required int note,
+          required Map<String, double> params,
+          int? targetMidiNote,
+          bool isSlide = false,
+          bool isAccent = false,
+          String? trackId,
+          String? articulation,
+          double releaseVelocity = 0.5,
+          List<List<double>>? pitchBendPoints,
+          List<List<double>>? pressurePoints,
+          List<List<double>>? timbrePoints,
+          double velocity = 0.9,
+        }) {
+          final vel = desc.isPianoVelocity
+              ? (isAccent && velocity <= 0.85 ? (velocity * 1.2).clamp(0.0, 1.0) : velocity)
+              : (desc.defaultVelocity != 1.0
+                  ? (isAccent ? 1.0 : desc.defaultVelocity)
+                  : (isAccent ? 1.0 : velocity));
+
+          return GraphEvaluator.evaluate(
+            root: desc.builder(),
+            durationSec: durationSec,
+            freq: freq,
+            note: note,
+            params: params,
+            velocity: vel,
+            isAccent: isAccent,
+            isSlide: isSlide,
+            targetMidiNote: targetMidiNote,
+            articulation: articulation,
+            releaseVelocity: releaseVelocity,
+            pitchBendPoints: pitchBendPoints,
+            pressurePoints: pressurePoints,
+            timbrePoints: timbrePoints,
+          );
+        };
+      }
+    }
+
+    // 2. Legacy heuristic fallback
     // 0a. General MIDI Standard Drum Kit & Modular Drum Machine (Notes 35–81)
     if (code.contains('gm_standard_drum_kit') ||
         code.contains('GmStandardDrumKit') ||
@@ -1479,6 +1661,19 @@ class EatDspSynthesizer {
       }
       return buffer;
   }
+  static double _resolveParam(Map<String, double> params, List<String> aliases, double fallback) {
+    for (final a in aliases) {
+      if (params.containsKey(a)) return params[a]!;
+    }
+    for (final a in aliases) {
+      final lower = a.toLowerCase();
+      for (final entry in params.entries) {
+        if (entry.key.toLowerCase() == lower) return entry.value;
+      }
+    }
+    return fallback;
+  }
+
   static Float32List _synthesizeFallbackSynthBuffer({
     required double durationSec,
     required double freq,
@@ -1499,42 +1694,117 @@ class EatDspSynthesizer {
     final buffer = Float32List(numSamples);
 
     if (freq <= 0) return buffer;
-    final cutoff = params['Cutoff'] ?? 3000.0;
-    final cutoffNorm = cutoff / 5000.0;
+
+    // 1. Resolve User / Synthesizer Parameters flexibly
+    final double rawWaveform = _resolveParam(params, ['waveform', 'osc_type', 'shape', 'osc'], 0.0);
+    final double pulseWidth = _resolveParam(params, ['pulse_width', 'pw', 'pwm'], 0.5).clamp(0.05, 0.95);
+    final double subLevel = _resolveParam(params, ['sub_osc', 'sub', 'sub_level'], 0.0).clamp(0.0, 1.0);
+    final double noiseLevel = _resolveParam(params, ['noise', 'noise_level'], 0.0).clamp(0.0, 1.0);
+
+    final double attack = _resolveParam(params, ['attack', 'amp_attack'], 0.005).clamp(0.0005, 5.0);
+    final double decay = _resolveParam(params, ['decay', 'amp_decay'], 0.15).clamp(0.005, 10.0);
+    final double sustain = _resolveParam(params, ['sustain', 'amp_sustain'], 0.75).clamp(0.0, 1.0);
+    final double release = _resolveParam(params, ['release', 'amp_release'], 0.15).clamp(0.005, 10.0);
+
+    final double cutoff = _resolveParam(params, ['cutoff', 'filter_cutoff', 'fc'], 4000.0).clamp(20.0, 20000.0);
+    final double resonance = _resolveParam(params, ['resonance', 'reso', 'q'], 0.7).clamp(0.1, 10.0);
+    final double envMod = _resolveParam(params, ['env_mod', 'filter_env', 'mod_depth'], 0.0).clamp(-2.0, 2.0);
+    final double drive = _resolveParam(params, ['drive', 'distortion', 'saturation'], 0.0).clamp(0.0, 10.0);
 
     final art = articulation?.toLowerCase();
     final isStaccato = (art == 'muted' || art == 'palm_mute' || art == 'staccato');
     final baseFreq = (art == 'harmonics') ? freq * 2.0 : freq;
-    final attack = 0.005;
-    final release = 0.12;
-    final gateTime = isStaccato ? 0.08 : math.max(attack, durationSec - release);
+    final double? targetFreq = (isSlide && targetMidiNote != null && targetMidiNote > 0)
+        ? 440.0 * math.pow(2.0, (targetMidiNote - 69) / 12.0)
+        : null;
+
+    double phase = 0.0;
+    double subPhase = 0.0;
+    double low = 0.0;
+    double band = 0.0;
 
     for (int i = 0; i < numSamples; i++) {
       final time = i / 44100.0;
       final normTime = numSamples > 1 ? i / (numSamples - 1) : 0.0;
+
       final bend = Note.interpolateCurve(pitchBendPoints, normTime, 0.0);
       final press = Note.interpolateCurve(pressurePoints, normTime, velocity);
       final timbre = Note.interpolateCurve(timbrePoints, normTime, 0.5);
-      final curFreq = baseFreq * math.pow(2.0, bend / 12.0);
 
-      final phase = time * curFreq;
-      final saw = 2.0 * (phase - (phase + 0.5).floorToDouble());
-      final sub = math.sin(2.0 * math.pi * (curFreq * 0.5) * time);
+      // Pitch glide interpolation
+      double curF = baseFreq;
+      if (targetFreq != null) {
+        final glideNorm = (normTime * 1.5).clamp(0.0, 1.0);
+        curF = baseFreq + (targetFreq - baseFreq) * glideNorm;
+      }
+      final curFreq = math.max(10.0, curF * math.pow(2.0, bend / 12.0));
 
-      double env;
-      if (isStaccato) {
-        env = math.exp(-time / 0.08);
-      } else if (time < attack) {
-        env = time / attack;
-      } else if (time < gateTime) {
-        env = 0.85;
+      // Phase accumulation
+      phase = (phase + (curFreq / 44100.0)) % 1.0;
+      subPhase = (subPhase + ((curFreq * 0.5) / 44100.0)) % 1.0;
+
+      // Oscillator wave generation
+      final double saw = 2.0 * phase - 1.0;
+      final double sqr = phase < pulseWidth ? 1.0 : -1.0;
+      final double tri = 2.0 * (2.0 * (phase - (phase + 0.5).floorToDouble())).abs() - 1.0;
+      final double sin = math.sin(2.0 * math.pi * phase);
+
+      // Multi-waveform morphing / selection
+      double osc;
+      final w = rawWaveform.clamp(0.0, 3.0);
+      if (w <= 1.0) {
+        osc = saw * (1.0 - w) + sqr * w;
+      } else if (w <= 2.0) {
+        final t = w - 1.0;
+        osc = sqr * (1.0 - t) + tri * t;
       } else {
-        final relT = time - gateTime;
-        env = (0.85 * math.exp(-relT / release)).clamp(0.0, 1.0);
+        final t = w - 2.0;
+        osc = tri * (1.0 - t) + sin * t;
       }
 
-      final raw = (saw * (0.5 + 0.4 * timbre) + sub * 0.3) * env * press;
-      buffer[i] = (raw * cutoffNorm).clamp(-1.0, 1.0);
+      // Add Sub-Oscillator & Noise
+      if (subLevel > 0.001) {
+        osc += math.sin(2.0 * math.pi * subPhase) * subLevel * 0.6;
+      }
+      if (noiseLevel > 0.001) {
+        osc += _fastRnd(i * 1103515245 + 12345) * noiseLevel * 0.5;
+      }
+
+      // Dynamic Envelope
+      double env = evaluateAdsr(time, attack, decay, sustain, release, durationSec);
+      if (isStaccato) {
+        env *= math.exp(-time / 0.08);
+      }
+
+      // Resonant State-Variable Lowpass Filter (Chamberlin SVF)
+      final double dynCutoff = (cutoff * math.pow(2.0, envMod * 2.5 * env + (timbre - 0.5) * 1.5)).clamp(20.0, 20000.0);
+      final double f = (2.0 * math.sin(math.pi * (dynCutoff / 44100.0))).clamp(0.001, 0.85);
+      final double q = (1.0 / resonance).clamp(0.1, 10.0);
+
+      low += f * band;
+      final double high = osc - low - q * band;
+      band += f * high;
+      final double filtered = low;
+
+      // Soft Saturation / Overdrive
+      double out;
+      if (drive > 0.001) {
+        out = _tanh(filtered * (1.0 + drive * 2.5));
+      } else {
+        out = filtered.clamp(-1.0, 1.0);
+      }
+
+      // Apply Envelope, Pressure, Dynamics & Accent
+      out *= env * press * (isAccent ? 1.2 : 1.0);
+
+      // Boundary fade-in/fade-out to eliminate clicks
+      if (i < 64) {
+        out *= (i / 64.0);
+      } else if (i > numSamples - 64) {
+        out *= ((numSamples - i) / 64.0);
+      }
+
+      buffer[i] = out.clamp(-1.0, 1.0);
     }
     return buffer;
   }
@@ -1868,14 +2138,35 @@ class EatDspSynthesizer {
       default: {
         if (freq <= 0) return 0.0;
 
-        final cutoff = params['Cutoff'] ?? 3000.0;
-        final phase = time * freq;
-        final saw = 2.0 * (phase - (phase + 0.5).floorToDouble());
-        final sub = math.sin(2.0 * math.pi * (freq * 0.5) * time);
+        final double rawWaveform = _resolveParam(params, ['waveform', 'osc_type', 'shape', 'osc'], 0.0);
+        final double pulseWidth = _resolveParam(params, ['pulse_width', 'pw', 'pwm'], 0.5).clamp(0.05, 0.95);
+        final double attack = _resolveParam(params, ['attack', 'amp_attack'], 0.005).clamp(0.0005, 5.0);
+        final double decay = _resolveParam(params, ['decay', 'amp_decay'], 0.15).clamp(0.005, 10.0);
+        final double sustain = _resolveParam(params, ['sustain', 'amp_sustain'], 0.75).clamp(0.0, 1.0);
+        final double release = _resolveParam(params, ['release', 'amp_release'], 0.15).clamp(0.005, 10.0);
+        final double cutoff = _resolveParam(params, ['cutoff', 'filter_cutoff', 'fc'], 4000.0).clamp(20.0, 20000.0);
+        final double drive = _resolveParam(params, ['drive', 'distortion'], 0.0).clamp(0.0, 10.0);
 
-        final env = math.exp(-time / 0.3);
-        final raw = (saw * 0.7 + sub * 0.3) * env;
-        return (raw * (cutoff / 5000.0)).clamp(-1.0, 1.0);
+        final phase = (time * freq) % 1.0;
+        final saw = 2.0 * phase - 1.0;
+        final sqr = phase < pulseWidth ? 1.0 : -1.0;
+        final tri = 2.0 * (2.0 * (phase - (phase + 0.5).floorToDouble())).abs() - 1.0;
+        final sin = math.sin(2.0 * math.pi * phase);
+
+        double osc;
+        final w = rawWaveform.clamp(0.0, 3.0);
+        if (w <= 1.0) {
+          osc = saw * (1.0 - w) + sqr * w;
+        } else if (w <= 2.0) {
+          osc = sqr * (2.0 - w) + tri * (w - 1.0);
+        } else {
+          osc = tri * (3.0 - w) + sin * (w - 2.0);
+        }
+
+        final env = evaluateAdsr(time, attack, decay, sustain, release, 0.4);
+        final filtered = osc * (cutoff / 5000.0).clamp(0.1, 1.2);
+        final raw = drive > 0.001 ? _tanh(filtered * (1.0 + drive * 2.0)) : filtered;
+        return (raw * env).clamp(-1.0, 1.0);
       }
     }
   }
@@ -1945,6 +2236,11 @@ class EatDspSynthesizer {
   }
 
   static EatFxType _detectFxType(String code) {
+    final explicitId = EatEngineRegistry.detectEngineId(code);
+    if (explicitId != null && EatEngineRegistry.audioFxTypes.containsKey(explicitId)) {
+      return EatEngineRegistry.audioFxTypes[explicitId]!;
+    }
+
     final lower = code.toLowerCase().replaceAll(' ', '').replaceAll('_', '');
 
     if (lower.contains('stereodelay') || lower.contains('delay') || lower.contains('timems')) {

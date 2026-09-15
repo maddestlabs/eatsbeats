@@ -4530,6 +4530,28 @@ class GraphEvaluator {
 
     return const GainNode(input: neckAirSheen, staticGain: 1.10);
   }
+
+  /// Lush 7-Unison Detuned Analog Ambient Pad Synthesizer
+  static GraphNode buildAmbientPad() {
+    return const MultiOscillatorPadNode(
+      attack: 0.85,
+      attackParam: 'Attack',
+      decay: 1.5,
+      decayParam: 'Decay',
+      sustain: 0.85,
+      sustainParam: 'Sustain',
+      release: 2.5,
+      releaseParam: 'Release',
+      cutoff: 2400.0,
+      cutoffParam: 'Cutoff',
+      resonance: 0.55,
+      resonanceParam: 'Resonance',
+      detuneCents: 14.0,
+      detuneParam: 'Detune',
+      warmth: 0.65,
+      warmthParam: 'Warmth',
+    );
+  }
 }
 
 

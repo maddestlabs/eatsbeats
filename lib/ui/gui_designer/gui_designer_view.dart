@@ -888,25 +888,12 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           ];
         }
 
-        return GestureDetector(
-          onTap: () {
-            setState(() {
-              _selectedRowIndex = rowIndex;
-              _selectedChildIndex = null;
-              _selectedStackChildIndex = null;
-            });
-          },
-          child: Container(
-            margin: isMinimalGroup ? const EdgeInsets.symmetric(horizontal: 4, vertical: 4) : EdgeInsets.zero,
-            padding: isMinimalGroup ? const EdgeInsets.symmetric(horizontal: 14, vertical: 14) : const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-            decoration: BoxDecoration(
-              color: isDropHovered ? EatsTheme.primaryCyan.withOpacity(0.18) : cardBg,
-              borderRadius: BorderRadius.circular(rowNode.cornerRadius ?? (isMinimalGroup ? 26.0 : 6.0)),
-              border: cardBorder,
-              boxShadow: cardShadows,
-            ),
-            child: Stack(
-              children: [
+        final rowBorderRadius = BorderRadius.circular(rowNode.cornerRadius ?? (isMinimalGroup ? 26.0 : 6.0));
+        final rowMargin = isMinimalGroup ? const EdgeInsets.symmetric(horizontal: 4, vertical: 4) : EdgeInsets.zero;
+        final rowPadding = isMinimalGroup ? const EdgeInsets.symmetric(horizontal: 14, vertical: 14) : const EdgeInsets.symmetric(horizontal: 10, vertical: 12);
+
+        final rowContent = Stack(
+          children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -1025,8 +1012,45 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
                   ),
                 ),
               ],
+            );
+
+        Widget rowCard;
+        if (rowNode.backgroundStyle != null && opacityFactor > 0.0) {
+          rowCard = DawTexturedContainer(
+            backgroundStyle: rowNode.backgroundStyle,
+            color: isDropHovered ? EatsTheme.primaryCyan.withOpacity(0.18) : cardBg,
+            textureRotation: rowNode.textureRotation ?? 0.0,
+            textureScale: rowNode.textureScale ?? 1.0,
+            borderRadius: rowBorderRadius,
+            border: cardBorder,
+            margin: rowMargin,
+            padding: rowPadding,
+            child: rowContent,
+          );
+        } else {
+          rowCard = Container(
+            margin: rowMargin,
+            padding: rowPadding,
+            decoration: BoxDecoration(
+              color: isDropHovered ? EatsTheme.primaryCyan.withOpacity(0.18) : cardBg,
+              borderRadius: rowBorderRadius,
+              border: cardBorder,
+              boxShadow: cardShadows,
             ),
-          ),
+            child: rowContent,
+          );
+        }
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            setState(() {
+              _selectedRowIndex = rowIndex;
+              _selectedChildIndex = null;
+              _selectedStackChildIndex = null;
+            });
+          },
+          child: rowCard,
         );
       },
     );
@@ -1049,6 +1073,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
         _selectedStackChildIndex == stackChildIndex;
 
     final widgetSlot = GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         setState(() {
           _selectedRowIndex = rowIndex;
@@ -1074,7 +1099,9 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            _renderMockWidget(node, isLight, accent),
+            IgnorePointer(
+              child: _renderMockWidget(node, isLight, accent),
+            ),
 
             if (isSelected)
               Positioned(
@@ -1173,33 +1200,105 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
       builder: (context, candidateData, rejectedData) {
         final isHovered = candidateData.isNotEmpty;
 
-        return GestureDetector(
-          onTap: () {
-            setState(() {
-              _selectedRowIndex = rowIndex;
-              _selectedChildIndex = childIndex;
-              _selectedStackChildIndex = null;
-            });
-          },
-          child: Container(
+        final double colOpacity = node.opacity ?? 1.0;
+        final double colBorderWidth = node.borderWidth ?? (node.borderColor != null ? 1.0 : (node.backgroundStyle != null || node.backgroundColor != null ? 1.0 : 0.0));
+        Color colBg = node.backgroundColor ??
+            (isHovered
+                ? EatsTheme.primaryCyan.withOpacity(0.2)
+                : (isStackSelected
+                    ? EatsTheme.primaryCyan.withOpacity(0.12)
+                    : (isMinimal
+                        ? const Color(0xFFFBFBFC)
+                        : (isLight ? Colors.black.withOpacity(0.04) : Colors.black.withOpacity(0.2)))));
+        if (colOpacity <= 0.0) {
+          colBg = Colors.transparent;
+        } else if (colOpacity < 1.0) {
+          colBg = colBg.withOpacity((colBg.opacity * colOpacity).clamp(0.0, 1.0));
+        }
+
+        final Border stackBorder = (isHovered || isStackSelected)
+            ? Border.all(color: EatsTheme.primaryCyan, width: 2.0)
+            : Border.all(
+                color: node.borderColor ?? (isMinimal ? const Color(0xFFE4E7EE) : (isLight ? Colors.black26 : Colors.white24)),
+                width: colBorderWidth > 0.0 ? colBorderWidth : 1.0,
+              );
+        final stackBorderRadius = BorderRadius.circular(node.cornerRadius ?? (isMinimal ? 16.0 : 6.0));
+
+        final stackContent = Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: _parseMainAxisAlignment(node.align),
+          crossAxisAlignment: _parseCrossAxisAlignment(node.crossAlign),
+          children: [
+            // Stack Header & Add Button
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.view_column, size: 12, color: accent),
+                const SizedBox(width: 4),
+                Text(
+                  'STACK (${node.children.length})',
+                  style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: accent),
+                ),
+                const SizedBox(width: 6),
+                PopupMenuButton<GuiPaletteItem>(
+                  tooltip: 'Add item into this stack',
+                  color: const Color(0xFF1E2430),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                  icon: Icon(Icons.add_circle_outline, size: 14, color: EatsTheme.accentGreen),
+                  onSelected: (item) => _addWidgetToStack(rowIndex, childIndex, item),
+                  itemBuilder: (context) => GuiWidgetPalette.items
+                      .where((i) => i.id != 'column')
+                      .map((i) => PopupMenuItem(
+                            value: i,
+                            child: Row(
+                              children: [
+                                Icon(i.icon, size: 14, color: EatsTheme.accentGreen),
+                                const SizedBox(width: 8),
+                                Text(i.title, style: const TextStyle(fontSize: 11, color: Colors.white)),
+                              ],
+                            ),
+                          ))
+                      .toList(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+
+            // Stack Children
+            if (node.children.isEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Text('Drop or + Add widgets', style: TextStyle(fontSize: 8.5, color: isLight ? Colors.black38 : Colors.white38)),
+              ),
+            ] else ...[
+              for (int sc = 0; sc < node.children.length; sc++) ...[
+                _buildStackChildSlot(rowIndex, childIndex, sc, node.children[sc], isLight, accent),
+                if (sc < node.children.length - 1) const SizedBox(height: 4),
+              ],
+            ],
+          ],
+        );
+
+        Widget stackCard;
+        if (node.backgroundStyle != null && colOpacity > 0.0) {
+          stackCard = DawTexturedContainer(
+            backgroundStyle: node.backgroundStyle,
+            color: colBg,
+            textureRotation: node.textureRotation ?? 0.0,
+            textureScale: node.textureScale ?? 1.0,
+            borderRadius: stackBorderRadius,
+            border: stackBorder,
+            padding: EdgeInsets.all(isMinimal ? 10 : 6),
+            child: stackContent,
+          );
+        } else {
+          stackCard = Container(
             padding: EdgeInsets.all(isMinimal ? 10 : 6),
             decoration: BoxDecoration(
-              color: isHovered
-                  ? EatsTheme.primaryCyan.withOpacity(0.2)
-                  : (isStackSelected
-                      ? EatsTheme.primaryCyan.withOpacity(0.12)
-                      : (isMinimal
-                          ? const Color(0xFFFBFBFC)
-                          : (isLight ? Colors.black.withOpacity(0.04) : Colors.black.withOpacity(0.2)))),
-              borderRadius: BorderRadius.circular(isMinimal ? 16 : 6),
-              border: Border.all(
-                color: isHovered
-                    ? EatsTheme.primaryCyan
-                    : (isStackSelected
-                        ? EatsTheme.primaryCyan
-                        : (isMinimal ? const Color(0xFFE4E7EE) : (isLight ? Colors.black26 : Colors.white24))),
-                width: (isHovered || isStackSelected) ? 2.0 : 1.0,
-              ),
+              color: colBg,
+              borderRadius: stackBorderRadius,
+              border: stackBorder,
               boxShadow: (isMinimal && !isHovered && !isStackSelected)
                   ? [
                       BoxShadow(
@@ -1210,62 +1309,20 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
                     ]
                   : null,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: _parseMainAxisAlignment(node.align),
-              crossAxisAlignment: _parseCrossAxisAlignment(node.crossAlign),
-              children: [
-                // Stack Header & Add Button
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.view_column, size: 12, color: accent),
-                    const SizedBox(width: 4),
-                    Text(
-                      'STACK (${node.children.length})',
-                      style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: accent),
-                    ),
-                    const SizedBox(width: 6),
-                    PopupMenuButton<GuiPaletteItem>(
-                      tooltip: 'Add item into this stack',
-                      color: const Color(0xFF1E2430),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-                      icon: Icon(Icons.add_circle_outline, size: 14, color: EatsTheme.accentGreen),
-                      onSelected: (item) => _addWidgetToStack(rowIndex, childIndex, item),
-                      itemBuilder: (context) => GuiWidgetPalette.items
-                          .where((i) => i.id != 'column')
-                          .map((i) => PopupMenuItem(
-                                value: i,
-                                child: Row(
-                                  children: [
-                                    Icon(i.icon, size: 14, color: EatsTheme.accentGreen),
-                                    const SizedBox(width: 8),
-                                    Text(i.title, style: const TextStyle(fontSize: 11, color: Colors.white)),
-                                  ],
-                                ),
-                              ))
-                          .toList(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
+            child: stackContent,
+          );
+        }
 
-                // Stack Children
-                if (node.children.isEmpty) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: Text('Drop or + Add widgets', style: TextStyle(fontSize: 8.5, color: isLight ? Colors.black38 : Colors.white38)),
-                  ),
-                ] else ...[
-                  for (int sc = 0; sc < node.children.length; sc++) ...[
-                    _buildStackChildSlot(rowIndex, childIndex, sc, node.children[sc], isLight, accent),
-                    if (sc < node.children.length - 1) const SizedBox(height: 4),
-                  ],
-                ],
-              ],
-            ),
-          ),
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            setState(() {
+              _selectedRowIndex = rowIndex;
+              _selectedChildIndex = childIndex;
+              _selectedStackChildIndex = null;
+            });
+          },
+          child: stackCard,
         );
       },
     );
@@ -1284,6 +1341,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
         _selectedStackChildIndex == stackChildIndex;
 
     final childSlot = GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         setState(() {
           _selectedRowIndex = rowIndex;
@@ -1301,7 +1359,9 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
             width: 1.5,
           ),
         ),
-        child: _renderMockWidget(childNode, isLight, accent),
+        child: IgnorePointer(
+          child: _renderMockWidget(childNode, isLight, accent),
+        ),
       ),
     );
 

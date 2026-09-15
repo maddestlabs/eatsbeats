@@ -23,7 +23,7 @@ void main() {
           .where((f) => f.path.endsWith('.eats'))
           .toList();
 
-      expect(files.length, equals(122));
+      expect(files.length, equals(129));
 
       final missing = <String>[];
       for (final file in files) {

@@ -629,10 +629,16 @@ class EatGuiSerializer {
         if (node.accentColor != null) {
           buffer.writeln('$indent    "accent": "${_hex(node.accentColor!)}",');
         }
-        if (node.backgroundColor != null) {
-          buffer.writeln('$indent    "background": "${_hex(node.backgroundColor!)}",');
-        } else if (node.backgroundStyle != null) {
+        if (node.backgroundStyle != null) {
           buffer.writeln('$indent    "background": "${_backgroundStyleToString(node.backgroundStyle!)}",');
+        } else if (node.backgroundColor != null) {
+          buffer.writeln('$indent    "background": "${_hex(node.backgroundColor!)}",');
+        }
+        if (node.backgroundStyle != null && node.backgroundColor != null) {
+          buffer.writeln('$indent    "backgroundColor": "${_hex(node.backgroundColor!)}",');
+        }
+        if (node.textureRotation != null && node.textureRotation != 0.0) {
+          buffer.writeln('$indent    "textureRotation": ${node.textureRotation!.toInt()},');
         }
         if (node.opacity != null) {
           buffer.writeln('$indent    "opacity": ${node.opacity},');

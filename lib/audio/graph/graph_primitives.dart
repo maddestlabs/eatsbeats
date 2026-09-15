@@ -6,6 +6,10 @@ import 'tr909_rom_data.dart';
 import 'piano_physical_tables.dart';
 import '../dx7_fm_engine.dart';
 import '../sid_dsp_engine.dart';
+import '../dsp/multi_mode_filter.dart';
+import '../dsp/parametric_eq.dart';
+import '../dsp/dynamics_processor.dart';
+import '../dsp/modulated_delay.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  OSCILLATORS & SOURCES
@@ -6927,6 +6931,279 @@ class ModalCavityBankNode extends GraphNode {
     ctx.releaseScratch();
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  STUDIO FX & DYNAMICS GRAPH NODES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Node-Graph Multi-Mode Biquad Filter (LP, HP, BP, Notch, Allpass, Shelf, Peaking).
+class MultiModeFilterNode extends GraphNode {
+  final GraphNode input;
+  final MultiModeFilterType type;
+  final double cutoff;
+  final String? cutoffParam;
+  final double q;
+  final String? qParam;
+  final double gainDb;
+  final String? gainDbParam;
+
+  const MultiModeFilterNode({
+    required this.input,
+    this.type = MultiModeFilterType.lowpass,
+    this.cutoff = 1000.0,
+    this.cutoffParam,
+    this.q = 0.707,
+    this.qParam,
+    this.gainDb = 0.0,
+    this.gainDbParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+    final fc = cutoffParam != null ? ctx.getParam(cutoffParam!, cutoff) : cutoff;
+    final res = qParam != null ? ctx.getParam(qParam!, q) : q;
+    final g = gainDbParam != null ? ctx.getParam(gainDbParam!, gainDb) : gainDb;
+
+    final filter = MultiModeFilter(
+      type: type,
+      cutoff: fc,
+      q: res,
+      gainDb: g,
+      sampleRate: ctx.sampleRate,
+    );
+    filter.processBuffer(outBuffer);
+  }
+}
+
+/// Node-Graph Studio Dynamic Range Compressor with external sidechain support.
+class CompressorNode extends GraphNode {
+  final GraphNode input;
+  final GraphNode? sidechainInput;
+  final double thresholdDb;
+  final String? thresholdParam;
+  final double ratio;
+  final String? ratioParam;
+  final double attackMs;
+  final String? attackParam;
+  final double releaseMs;
+  final String? releaseParam;
+  final double makeupGainDb;
+  final String? makeupParam;
+  final double mix;
+  final String? mixParam;
+
+  const CompressorNode({
+    required this.input,
+    this.sidechainInput,
+    this.thresholdDb = -18.0,
+    this.thresholdParam,
+    this.ratio = 4.0,
+    this.ratioParam,
+    this.attackMs = 15.0,
+    this.attackParam,
+    this.releaseMs = 100.0,
+    this.releaseParam,
+    this.makeupGainDb = 0.0,
+    this.makeupParam,
+    this.mix = 1.0,
+    this.mixParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+
+    Float32List? scBuf;
+    if (sidechainInput != null) {
+      scBuf = ctx.acquireScratch(outBuffer.length);
+      sidechainInput!.process(ctx, scBuf);
+    }
+
+    final thresh = thresholdParam != null ? ctx.getParam(thresholdParam!, thresholdDb) : thresholdDb;
+    final rat = ratioParam != null ? ctx.getParam(ratioParam!, ratio) : ratio;
+    final att = attackParam != null ? ctx.getParam(attackParam!, attackMs) : attackMs;
+    final rel = releaseParam != null ? ctx.getParam(releaseParam!, releaseMs) : releaseMs;
+    final mk = makeupParam != null ? ctx.getParam(makeupParam!, makeupGainDb) : makeupGainDb;
+    final mx = mixParam != null ? ctx.getParam(mixParam!, mix) : mix;
+
+    final comp = EatCompressor(
+      sampleRate: ctx.sampleRate,
+      thresholdDb: thresh,
+      ratio: rat,
+      attackMs: att,
+      releaseMs: rel,
+      makeupGainDb: mk,
+      mix: mx,
+    );
+
+    comp.process(outBuffer, sidechainBuffer: scBuf);
+
+    if (scBuf != null) {
+      ctx.releaseScratch();
+    }
+  }
+}
+
+/// Node-Graph Zero-Overshoot Brickwall Peak Limiter.
+class LimiterNode extends GraphNode {
+  final GraphNode input;
+  final double ceilingDb;
+  final String? ceilingParam;
+  final double releaseMs;
+  final String? releaseParam;
+  final double lookaheadMs;
+
+  const LimiterNode({
+    required this.input,
+    this.ceilingDb = -0.1,
+    this.ceilingParam,
+    this.releaseMs = 50.0,
+    this.releaseParam,
+    this.lookaheadMs = 2.0,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+    final ceil = ceilingParam != null ? ctx.getParam(ceilingParam!, ceilingDb) : ceilingDb;
+    final rel = releaseParam != null ? ctx.getParam(releaseParam!, releaseMs) : releaseMs;
+
+    final lim = EatLimiter(
+      sampleRate: ctx.sampleRate,
+      ceilingDb: ceil,
+      releaseMs: rel,
+      lookaheadMs: lookaheadMs,
+    );
+    lim.process(outBuffer);
+  }
+}
+
+/// 7-Unison Detuned Analog Ambient Pad Synthesizer Node.
+class MultiOscillatorPadNode extends GraphNode {
+  final double attack;
+  final String? attackParam;
+  final double decay;
+  final String? decayParam;
+  final double sustain;
+  final String? sustainParam;
+  final double release;
+  final String? releaseParam;
+  final double cutoff;
+  final String? cutoffParam;
+  final double resonance;
+  final String? resonanceParam;
+  final double detuneCents;
+  final String? detuneParam;
+  final double warmth;
+  final String? warmthParam;
+
+  const MultiOscillatorPadNode({
+    this.attack = 0.8,
+    this.attackParam,
+    this.decay = 1.2,
+    this.decayParam,
+    this.sustain = 0.85,
+    this.sustainParam,
+    this.release = 2.2,
+    this.releaseParam,
+    this.cutoff = 2200.0,
+    this.cutoffParam,
+    this.resonance = 0.5,
+    this.resonanceParam,
+    this.detuneCents = 12.0,
+    this.detuneParam,
+    this.warmth = 0.6,
+    this.warmthParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final double sr = ctx.sampleRate;
+    final double baseF = ctx.freq > 0 ? ctx.freq : 440.0;
+
+    final att = attackParam != null ? ctx.getParam(attackParam!, attack) : attack;
+    final dec = decayParam != null ? ctx.getParam(decayParam!, decay) : decay;
+    final sus = sustainParam != null ? ctx.getParam(sustainParam!, sustain) : sustain;
+    final rel = releaseParam != null ? ctx.getParam(releaseParam!, release) : release;
+    final fc = cutoffParam != null ? ctx.getParam(cutoffParam!, cutoff) : cutoff;
+    final reso = resonanceParam != null ? ctx.getParam(resonanceParam!, resonance) : resonance;
+    final det = detuneParam != null ? ctx.getParam(detuneParam!, detuneCents) : detuneCents;
+    final wrm = warmthParam != null ? ctx.getParam(warmthParam!, warmth) : warmth;
+
+    final double cFactor = det / 1200.0;
+    final double fCenter = baseF;
+    final double fL1 = baseF * math.pow(2.0, cFactor * 0.4);
+    final double fR1 = baseF * math.pow(2.0, -cFactor * 0.4);
+    final double fL2 = baseF * math.pow(2.0, cFactor * 0.9);
+    final double fR2 = baseF * math.pow(2.0, -cFactor * 0.9);
+    final double fL3 = baseF * math.pow(2.0, cFactor * 1.5);
+    final double fR3 = baseF * math.pow(2.0, -cFactor * 1.5);
+    final double fSub = baseF * 0.5;
+
+    double pCenter = 0.0, pL1 = 0.0, pR1 = 0.0, pL2 = 0.0, pR2 = 0.0, pL3 = 0.0, pR3 = 0.0, pSub = 0.0;
+
+    double low = 0.0, band = 0.0;
+    final double qInv = 1.0 / reso.clamp(0.1, 10.0);
+
+    for (int i = 0; i < len; i++) {
+      final double time = i / sr;
+
+      final double env = ctx.velocity * _evalAdsr(time, att, dec, sus, rel, ctx.durationSec);
+
+      pCenter = (pCenter + (fCenter / sr)) % 1.0;
+      pL1 = (pL1 + (fL1 / sr)) % 1.0;
+      pR1 = (pR1 + (fR1 / sr)) % 1.0;
+      pL2 = (pL2 + (fL2 / sr)) % 1.0;
+      pR2 = (pR2 + (fR2 / sr)) % 1.0;
+      pL3 = (pL3 + (fL3 / sr)) % 1.0;
+      pR3 = (pR3 + (fR3 / sr)) % 1.0;
+      pSub = (pSub + (fSub / sr)) % 1.0;
+
+      final double sawC = 2.0 * pCenter - 1.0;
+      final double sawL1 = 2.0 * pL1 - 1.0;
+      final double sawR1 = 2.0 * pR1 - 1.0;
+      final double sawL2 = 2.0 * pL2 - 1.0;
+      final double sawR2 = 2.0 * pR2 - 1.0;
+      final double sawL3 = 2.0 * pL3 - 1.0;
+      final double sawR3 = 2.0 * pR3 - 1.0;
+      final double sub = math.sin(2.0 * math.pi * pSub);
+
+      final double oscSum = (sawC * 0.22 +
+          (sawL1 + sawR1) * 0.16 +
+          (sawL2 + sawR2) * 0.13 +
+          (sawL3 + sawR3) * 0.10 +
+          sub * 0.20 * wrm);
+
+      final double lfo = math.sin(2.0 * math.pi * 0.25 * time) * 0.25;
+      final double dynCutoff = (fc * (1.0 + lfo)).clamp(20.0, 20000.0);
+      final double f = (2.0 * math.sin(math.pi * (dynCutoff / sr))).clamp(0.001, 0.85);
+
+      low += f * band;
+      final double high = oscSum - low - qInv * band;
+      band += f * high;
+
+      final double filtered = low;
+      final double out = DistortionNode._tanh(filtered * (1.0 + wrm * 0.5)) * env;
+      outBuffer[i] = out.clamp(-1.0, 1.0);
+    }
+  }
+
+  static double _evalAdsr(double t, double a, double d, double s, double r, double dur) {
+    if (t < a) {
+      return a <= 0.001 ? 1.0 : t / a;
+    } else if (t < a + d) {
+      return 1.0 - ((t - a) / d) * (1.0 - s);
+    } else if (t < dur) {
+      return s;
+    } else {
+      final relT = t - dur;
+      return (s * math.max(0.0, 1.0 - relT / r)).clamp(0.0, 1.0);
+    }
+  }
+}
+
 
 
 

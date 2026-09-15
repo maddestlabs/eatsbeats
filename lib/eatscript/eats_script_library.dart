@@ -1,5 +1,6 @@
 import 'gm_standard_drum_kit_preset.dart';
 import 'modular_drumpad_kit_preset.dart';
+import 'ambient_pad_preset.dart';
 import 'pipe_family_presets.dart';
 import 'brass_reed_family_presets.dart';
 import 'eats_builtin_presets.g.dart';
