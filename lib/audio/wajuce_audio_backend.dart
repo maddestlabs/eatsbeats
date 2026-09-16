@@ -214,18 +214,30 @@ class TrackChannelStrip {
   double _baseTapeDelay = 0.020;
   double _baseCutoffLp = 18000.0;
   bool _isTapeStopTriggered = false;
+  bool _isDisposed = false;
+  bool get isDisposed => _isDisposed;
   Timer? _lfoTimer;
   final Map<String, double> _vintageLfoParams = {};
 
+  static final Expando<bool> _disposedNodeObjects = Expando<bool>();
   static final Set<int> _disposedNodeIds = <int>{};
+
+  /// Returns true if the node is null or has already been disposed.
+  static bool isNodeDisposed(WANode? node) {
+    if (node == null) return true;
+    if (_disposedNodeObjects[node] == true) return true;
+    if (_disposedNodeIds.contains(node.nodeId)) return true;
+    return false;
+  }
 
   /// Safely disposes a native Web Audio / JUCE node, guaranteeing that no node ID can ever be disposed twice.
   static void safeDisposeNode(WANode? node) {
     if (node == null) return;
-    if (_disposedNodeIds.contains(node.nodeId)) return;
+    if (isNodeDisposed(node)) return;
+    _disposedNodeObjects[node] = true;
     _disposedNodeIds.add(node.nodeId);
-    if (_disposedNodeIds.length > 4096) {
-      _disposedNodeIds.removeAll(_disposedNodeIds.take(1024).toList());
+    if (_disposedNodeIds.length > 65536) {
+      _disposedNodeIds.removeAll(_disposedNodeIds.take(16384).toList());
     }
     try {
       if (node is WABufferSourceNode) {
@@ -361,6 +373,10 @@ class TrackChannelStrip {
     // 1. Deceleration Phase
     int step = 0;
     Timer.periodic(Duration(milliseconds: dtMs), (decelTimer) {
+      if (_isDisposed) {
+        decelTimer.cancel();
+        return;
+      }
       step++;
       final t = (step / steps).clamp(0.0, 1.0);
       final decel = t * t; // Quadratic deceleration curve
@@ -374,11 +390,16 @@ class TrackChannelStrip {
 
         // 2. Brief Hold, then Spin-Up Phase
         Future.delayed(const Duration(milliseconds: 60), () {
+          if (_isDisposed) return;
           final spinSteps = (spinUpTime * 60).round().clamp(10, 120);
           final spinDtMs = math.max(8, ((spinUpTime * 1000) / spinSteps).round());
           int spinStep = 0;
 
           Timer.periodic(Duration(milliseconds: spinDtMs), (spinTimer) {
+            if (_isDisposed) {
+              spinTimer.cancel();
+              return;
+            }
             spinStep++;
             final st = (spinStep / spinSteps).clamp(0.0, 1.0);
             final accel = 1.0 - math.pow(1.0 - st, 3); // Cubic ease out acceleration
@@ -411,6 +432,10 @@ class TrackChannelStrip {
 
     eqHighShelfNode.disconnect();
     for (final node in _fxNodes) {
+      if (node is WABufferSourceNode) {
+        node.onEnded = null;
+        try { node.stop(); } catch (_) {}
+      }
       safeDisposeNode(node);
     }
     _fxNodes.clear();
@@ -816,7 +841,7 @@ class TrackChannelStrip {
         channels: [fallbackL, fallbackR],
       );
       loadIrAsync(irName).then((wabuf) {
-        if (wabuf != null) {
+        if (!_isDisposed && wabuf != null && !isNodeDisposed(convolver)) {
           try { convolver.buffer = wabuf; } catch (_) {}
         }
       });
@@ -1068,7 +1093,8 @@ class TrackChannelStrip {
 
     const dtSec = 0.016; // 60 FPS tick rate
     _lfoTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
-      if (_isTapeStopTriggered) return;
+      if (_isDisposed || _isTapeStopTriggered) return;
+      if (isNodeDisposed(delNode) || isNodeDisposed(stopGain)) return;
 
       final wowDepth = (_vintageLfoParams['WowDepth'] ?? 25.0).clamp(0.0, 100.0) / 100.0;
       final flutterDepth = (_vintageLfoParams['FlutterDepth'] ?? 15.0).clamp(0.0, 100.0) / 100.0;
@@ -1298,6 +1324,7 @@ class TrackChannelStrip {
   }
 
   void dispose() {
+    _isDisposed = true;
     try {
       _lfoTimer?.cancel();
       _lfoTimer = null;
@@ -1310,6 +1337,10 @@ class TrackChannelStrip {
       pannerNode.disconnect();
       try { analyserNode.disconnect(); } catch (_) {}
       for (final node in _fxNodes) {
+        if (node is WABufferSourceNode) {
+          node.onEnded = null;
+          try { node.stop(); } catch (_) {}
+        }
         safeDisposeNode(node);
       }
       _fxNodes.clear();
@@ -1669,6 +1700,24 @@ class WajuceAudioBackend {
     }
   }
 
+  TrackChannelStrip? _ensureTrackStrip(String trackId) {
+    if (_isClearingStrips) return null;
+    final existing = _channelStrips[trackId];
+    if (existing != null) return existing;
+    final ctx = _ctx;
+    if (ctx == null) return null;
+    final destination = _masterInputBus ?? _masterGain;
+    if (destination == null) return null;
+    return _channelStrips.putIfAbsent(
+      trackId,
+      () => TrackChannelStrip(
+        trackId: trackId,
+        ctx: ctx,
+        destination: destination,
+      ),
+    );
+  }
+
   void updateTrackEq(
     String trackId, {
     required bool enabled,
@@ -1679,7 +1728,7 @@ class WajuceAudioBackend {
     required double midQ,
     required double highGain,
   }) {
-    final strip = _channelStrips[trackId];
+    final strip = _ensureTrackStrip(trackId);
     if (strip != null) {
       strip.updateEq(
         enabled: enabled,
@@ -1704,7 +1753,7 @@ class WajuceAudioBackend {
   }
 
   void updateTrackFx(String trackId, List<FXInsert> fxRack, {double volume = 1.0, double pan = 0.0}) {
-    final strip = _channelStrips[trackId];
+    final strip = _ensureTrackStrip(trackId);
     if (strip != null) {
       strip.update(
         volume: volume,
@@ -1763,6 +1812,8 @@ class WajuceAudioBackend {
       }
       _channelStrips.clear();
       _bufferCache.clear();
+      _irPending.clear();
+      _irCache.clear();
       _masterStrip?.resetFxChain();
     } finally {
       _isClearingStrips = false;
@@ -1775,6 +1826,9 @@ class WajuceAudioBackend {
       strip.dispose();
     }
     _channelStrips.clear();
+    _bufferCache.clear();
+    _irPending.clear();
+    _irCache.clear();
     _masterStrip?.dispose();
     _masterStrip = null;
     _masterInputBus?.dispose();
@@ -1788,25 +1842,8 @@ class WajuceAudioBackend {
   WAAnalyserNode? getAnalyser({String? targetId}) {
     if (_isClearingStrips) return null;
     if (targetId != null && targetId != 'master' && targetId != 'master_bus') {
-      final strip = _channelStrips[targetId];
-      if (strip != null) return strip.analyserNode;
-      if (_isClearingStrips) return null;
-      final ctx = _ctx;
-      if (ctx != null) {
-        final destination = _masterInputBus ?? _masterGain;
-        if (destination != null) {
-          final newStrip = _channelStrips.putIfAbsent(
-            targetId,
-            () => TrackChannelStrip(
-              trackId: targetId,
-              ctx: ctx,
-              destination: destination,
-            ),
-          );
-          return newStrip.analyserNode;
-        }
-      }
-      return null;
+      final strip = _ensureTrackStrip(targetId);
+      return strip?.analyserNode;
     }
     return _analyser;
   }
@@ -1895,6 +1932,7 @@ class WajuceAudioBackend {
     List<FXInsert> fxRack, {
     String? bufferCacheKey,
   }) {
+    if (samples.isEmpty) return;
     final ctx = _ctx;
     final masterGain = _masterGain;
     if (!_initialized || ctx == null || masterGain == null) return;
@@ -1981,6 +2019,7 @@ class WajuceAudioBackend {
       final trackSources = _activeTrackSources.putIfAbsent(effectiveTrackId, () => []);
       while (trackSources.length >= 16) {
         final oldest = trackSources.removeAt(0);
+        oldest.onEnded = null;
         try { oldest.stop(); } catch (_) {}
         TrackChannelStrip.safeDisposeNode(oldest);
       }
@@ -2017,6 +2056,7 @@ class WajuceAudioBackend {
     String? bufferCacheKey,
     bool loop = true,
   }) {
+    if (samples.isEmpty) return;
     final ctx = _ctx;
     final masterGain = _masterGain;
     if (!_initialized || ctx == null || masterGain == null) return;
@@ -2028,6 +2068,7 @@ class WajuceAudioBackend {
         final oldestKey = _activeLiveNoteSources.keys.first;
         final oldest = _activeLiveNoteSources.remove(oldestKey);
         if (oldest != null) {
+          oldest.source.onEnded = null;
           try { oldest.source.stop(); } catch (_) {}
           TrackChannelStrip.safeDisposeNode(oldest.source);
           TrackChannelStrip.safeDisposeNode(oldest.voiceGain);
@@ -2041,6 +2082,7 @@ class WajuceAudioBackend {
       } else {
         final prev = _activeLiveNoteSources.remove(voiceKey);
         if (prev != null) {
+          prev.source.onEnded = null;
           try { prev.source.stop(); } catch (_) {}
           TrackChannelStrip.safeDisposeNode(prev.source);
           TrackChannelStrip.safeDisposeNode(prev.voiceGain);
@@ -2154,18 +2196,21 @@ class WajuceAudioBackend {
         for (final k in keysToRemove) {
           final binding = _activeLiveNoteSources.remove(k);
           if (binding != null) {
+            binding.source.onEnded = null;
             try { binding.source.stop(); } catch (_) {}
             TrackChannelStrip.safeDisposeNode(binding.source);
             TrackChannelStrip.safeDisposeNode(binding.voiceGain);
           }
         }
       } else {
-        for (final binding in _activeLiveNoteSources.values) {
+        final bindings = _activeLiveNoteSources.values.toList();
+        _activeLiveNoteSources.clear();
+        for (final binding in bindings) {
+          binding.source.onEnded = null;
           try { binding.source.stop(); } catch (_) {}
           TrackChannelStrip.safeDisposeNode(binding.source);
           TrackChannelStrip.safeDisposeNode(binding.voiceGain);
         }
-        _activeLiveNoteSources.clear();
       }
     } catch (_) {}
   }
@@ -2174,13 +2219,15 @@ class WajuceAudioBackend {
     try {
       final list = _activeTrackSources.remove(trackId);
       if (list != null) {
-        for (final s in list) {
+        for (final s in list.toList()) {
+          s.onEnded = null;
           try { s.stop(); } catch (_) {}
           TrackChannelStrip.safeDisposeNode(s);
         }
       }
       final src = _activeSources.remove(trackId);
       if (src != null) {
+        src.onEnded = null;
         try { src.stop(); } catch (_) {}
         TrackChannelStrip.safeDisposeNode(src);
       }
@@ -2285,29 +2332,41 @@ class WajuceAudioBackend {
   /// Stops all active frozen audio streams.
   void stopAllFrozenStreams() {
     try {
-      for (final src in _frozenSources.values) {
+      final sources = _frozenSources.values.toList();
+      _frozenSources.clear();
+      for (final src in sources) {
+        src.onEnded = null;
         try { src.stop(); } catch (_) {}
         TrackChannelStrip.safeDisposeNode(src);
       }
-      _frozenSources.clear();
     } catch (_) {}
   }
 
   /// Panic: Stops all active audio source nodes immediately.
   void stopAllSound() {
     try {
+      // 1. Snapshot and disarm track buffer sources
+      final allTrackSources = <WABufferSourceNode>[];
       for (final list in _activeTrackSources.values) {
-        for (final src in list) {
-          try { src.stop(); } catch (_) {}
-          TrackChannelStrip.safeDisposeNode(src);
-        }
+        allTrackSources.addAll(list);
       }
       _activeTrackSources.clear();
-      for (final src in _activeSources.values) {
+      for (final src in allTrackSources) {
+        src.onEnded = null;
         try { src.stop(); } catch (_) {}
         TrackChannelStrip.safeDisposeNode(src);
       }
+
+      // 2. Snapshot and disarm monophonic sources
+      final activeSources = _activeSources.values.toList();
       _activeSources.clear();
+      for (final src in activeSources) {
+        src.onEnded = null;
+        try { src.stop(); } catch (_) {}
+        TrackChannelStrip.safeDisposeNode(src);
+      }
+
+      // 3. Stop live notes and frozen streams
       stopAllLiveNotes();
       stopAllFrozenStreams();
     } catch (_) {}
@@ -2347,6 +2406,10 @@ class WajuceAudioBackend {
           sampleRate: 44100,
           channels: [irDataL, irDataR],
         );
+        if (_isClearingStrips) {
+          _irPending.remove(irName);
+          return null;
+        }
         _irCache[irName] = wabuf;
         _irPending.remove(irName);
         return wabuf;

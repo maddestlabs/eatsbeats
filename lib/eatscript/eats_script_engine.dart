@@ -31,6 +31,7 @@ class EatScriptEngine {
     required int note,
     required Map<String, double> params,
     int? targetMidiNote,
+    int? fromMidiNote,
     bool isSlide = false,
     bool isAccent = false,
     String? trackId,
@@ -48,6 +49,7 @@ class EatScriptEngine {
     note: note,
     params: params,
     targetMidiNote: targetMidiNote,
+    fromMidiNote: fromMidiNote,
     isSlide: isSlide,
     isAccent: isAccent,
     trackId: trackId,
@@ -69,6 +71,9 @@ class EatScriptEngine {
 
   /// Resets voice DSP states.
   static void resetVoiceStates([String? trackId]) => EatDspSynthesizer.resetVoiceStates(trackId);
+
+  /// Clears cached DSP buffer executors, synth/FX type detectors, and param regexes.
+  static void clearDispatchCaches() => EatDspSynthesizer.clearDispatchCaches();
 
   /// Evaluates synth sample-by-sample.
   static double evaluateSynth({

@@ -70,6 +70,9 @@ class EatEngine {
   /// Resets persistent DSP voice states for a given [trackId] or all tracks when loading/transitioning songs.
   static void resetVoiceStates([String? trackId]) => EatDspSynthesizer.resetVoiceStates(trackId);
 
+  /// Clears cached DSP buffer executors, synth/FX type detectors, and param regexes.
+  static void clearDispatchCaches() => EatDspSynthesizer.clearDispatchCaches();
+
   // Fast synthesis of complete buffer avoiding redundant per-sample parsing
   static Float32List synthesizeBuffer({
     required String code,
@@ -78,6 +81,7 @@ class EatEngine {
     required int note,
     required Map<String, double> params,
     int? targetMidiNote,
+    int? fromMidiNote,
     bool isSlide = false,
     bool isAccent = false,
     String? trackId,
@@ -95,6 +99,7 @@ class EatEngine {
     note: note,
     params: params,
     targetMidiNote: targetMidiNote,
+    fromMidiNote: fromMidiNote,
     isSlide: isSlide,
     isAccent: isAccent,
     trackId: trackId,

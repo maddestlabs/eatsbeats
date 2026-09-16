@@ -157,6 +157,7 @@ class EatDspSynthesizer {
     required int note,
     required Map<String, double> params,
     int? targetMidiNote,
+    int? fromMidiNote,
     bool isSlide = false,
     bool isAccent = false,
     String? trackId,
@@ -168,6 +169,27 @@ class EatDspSynthesizer {
     double velocity = 0.9,
     EatSynthType? synthType,
   }) {
+    final effSynthType = synthType ?? resolveSynthType(code);
+    if (effSynthType == EatSynthType.acid303) {
+      return _synthesizeAcid303Buffer(
+        durationSec: durationSec,
+        freq: freq,
+        note: note,
+        params: params,
+        targetMidiNote: targetMidiNote,
+        fromMidiNote: fromMidiNote,
+        isSlide: isSlide,
+        isAccent: isAccent,
+        trackId: trackId,
+        articulation: articulation,
+        releaseVelocity: releaseVelocity,
+        pitchBendPoints: pitchBendPoints,
+        pressurePoints: pressurePoints,
+        timbrePoints: timbrePoints,
+        velocity: velocity,
+      );
+    }
+
     final cached = _bufferExecutorCache[code];
     if (cached != null) {
       return cached(
@@ -1270,6 +1292,7 @@ class EatDspSynthesizer {
     required int note,
     required Map<String, double> params,
     int? targetMidiNote,
+    int? fromMidiNote,
     bool isSlide = false,
     bool isAccent = false,
     String? trackId,
@@ -1286,6 +1309,7 @@ class EatDspSynthesizer {
       note: note,
       params: params,
       targetMidiNote: targetMidiNote,
+      fromMidiNote: fromMidiNote,
       isSlide: isSlide,
       isAccent: isAccent,
       trackId: trackId,

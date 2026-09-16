@@ -87,6 +87,13 @@ class AudioEngine {
     _activeVoices.clear();
   }
 
+  void resetTrackPeaks() {
+    _leftPeak = 0.0;
+    _rightPeak = 0.0;
+    _trackLeftPeaks.clear();
+    _trackRightPeaks.clear();
+  }
+
   // High-performance PCM buffer cache.
   // Stores synthesized Float32List buffers for notes to eliminate per-note DSP overhead.
   final Map<String, Float32List> _pcmCache = {};
@@ -498,6 +505,7 @@ class AudioEngine {
     double durationSec = 0.4,
     double? scheduledTime,
     int? targetMidiNote,
+    int? fromMidiNote,
     bool isSlide = false,
     bool isAccent = false,
     bool loop = false,
@@ -519,6 +527,7 @@ class AudioEngine {
           durationSec: durationSec,
           scheduledTime: scheduledTime,
           targetMidiNote: targetMidiNote,
+          fromMidiNote: fromMidiNote,
           isSlide: isSlide,
           isAccent: isAccent,
           loop: loop,
@@ -557,6 +566,7 @@ class AudioEngine {
       velocity: velocity,
       durationSec: durationSec,
       targetMidiNote: targetMidiNote,
+      fromMidiNote: fromMidiNote,
       isSlide: isSlide,
       isAccent: activeAccent,
       articulation: articulation,
@@ -723,6 +733,7 @@ class AudioEngine {
     required double velocity,
     required double durationSec,
     int? targetMidiNote,
+    int? fromMidiNote,
     bool isSlide = false,
     bool isAccent = false,
     String? articulation,
@@ -733,6 +744,7 @@ class AudioEngine {
   }) {
     final durMs = (durationSec * 1000).round();
     final pHash = _computeParamsHash(track);
+    final fromPitchStr = (isSlide && fromMidiNote != null) ? '_from$fromMidiNote' : '';
     final targetPitchStr = (isSlide && targetMidiNote != null) ? '_tgt$targetMidiNote' : '';
     final artStr = (articulation != null && articulation.isNotEmpty) ? '_art$articulation' : '';
     final hasMpe = (pitchBendPoints != null && pitchBendPoints.isNotEmpty) ||
@@ -743,7 +755,7 @@ class AudioEngine {
         (track.luaParams['Humanize'] ?? track.luaParams['humanize'] ?? 0.0) > 0.001;
     final cacheKey = (hasMpe || hasVariance)
         ? null // Do not cache dynamic MPE curves or note-to-note variance to preserve acoustic variation
-        : '${track.id}_${midiNote}${targetPitchStr}${artStr}_${durMs}_${isAccent ? 1 : 0}_${isSlide ? 1 : 0}_$pHash';
+        : '${track.id}_${midiNote}${fromPitchStr}${targetPitchStr}${artStr}_${durMs}_${isAccent ? 1 : 0}_${isSlide ? 1 : 0}_$pHash';
 
     if (cacheKey != null) {
       final cached = _pcmCacheGet(cacheKey);
@@ -759,6 +771,7 @@ class AudioEngine {
       velocity: velocity,
       durationSec: durationSec,
       targetMidiNote: targetMidiNote,
+      fromMidiNote: fromMidiNote,
       isSlide: isSlide,
       isAccent: isAccent,
       articulation: articulation,
@@ -785,6 +798,7 @@ class AudioEngine {
     required double velocity,
     required double durationSec,
     int? targetMidiNote,
+    int? fromMidiNote,
     bool isSlide = false,
     bool isAccent = false,
     String? articulation,
@@ -830,6 +844,7 @@ class AudioEngine {
         note: midiNote,
         params: track.luaParams,
         targetMidiNote: targetMidiNote,
+        fromMidiNote: fromMidiNote,
         isSlide: isSlide,
         isAccent: isAccent,
         trackId: track.id,
@@ -842,14 +857,16 @@ class AudioEngine {
         synthType: track.resolvedSynthType,
       );
     } else {
+      final effectiveStartNote = (isSlide && fromMidiNote != null) ? fromMidiNote : midiNote;
+      final effectiveTargetNote = (isSlide && fromMidiNote != null) ? midiNote : targetMidiNote;
       return PolySynth.generateSynthToneBuffer(
-        midiNote: midiNote,
+        midiNote: effectiveStartNote,
         waveform: track.synthWaveform,
         cutoff: track.cutoff,
         attack: track.attack,
         release: track.release,
         lengthSec: durationSec,
-        targetMidiNote: targetMidiNote,
+        targetMidiNote: effectiveTargetNote,
         isSlide: isSlide,
       );
     }
@@ -1033,7 +1050,8 @@ class AudioEngine {
       _backend.preloadIrSamples(activeIrNames);
     }
 
-    final int endStep = eagerAll ? 999999 : (startStep + lookaheadSteps);
+    final int effectiveLookahead = eagerAll ? lookaheadSteps : math.min(32, math.max(4, lookaheadSteps));
+    final int endStep = eagerAll ? 999999 : (startStep + effectiveLookahead);
 
     for (final track in tracks) {
       if (track.isMuted) continue;

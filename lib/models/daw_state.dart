@@ -1496,30 +1496,49 @@ class DawState extends ChangeNotifier {
   }
 
   void loadFromEatsLua(String eatsLuaCode) {
+    _stopSmoothPlayheadTicker();
     if (isPlaying) {
       stop();
+    } else {
+      audioEngine.stopAllSound();
     }
-    // Always reset playhead position to 0 on song load
-    seekToArrangerStep(0.0);
+    audioEngine.clearActiveVoices();
+    audioEngine.clearPcmCache();
+    audioEngine.resetTrackPeaks();
+
+    // Silently reset playhead internal state before parsing new project
     _currentStep = 0;
     _arrangerStep = 0;
     _currentBar = 0;
     _playbackStartStep = 0.0;
-    currentStepNotifier.value = 0;
-    arrangerStepNotifier.value = 0;
-    continuousArrangerStepNotifier.value = 0.0;
-    currentBarNotifier.value = 0;
+    _visualElapsedSec = 0.0;
+    _lastTickDuration = null;
 
     _songBlueprint = null;
     _songBlueprintSeed = null;
 
     audioEngine.clearChannelStrips();
     EatScriptEngine.resetVoiceStates();
+    EatScriptEngine.clearDispatchCaches();
+    EatScriptEngine.clearCache();
     history.pauseRecording();
     try {
       projectName = EatsLuaParser.populateDawState(this, eatsLuaCode);
       migrateAllScriptsToEatscript();
       resetActiveIndices();
+
+      // Ensure playhead remains reset to 0 after parsing
+      seekToArrangerStep(0.0);
+      _currentStep = 0;
+      _arrangerStep = 0;
+      _currentBar = 0;
+      _playbackStartStep = 0.0;
+      _visualElapsedSec = 0.0;
+      _lastTickDuration = null;
+      currentStepNotifier.value = 0;
+      arrangerStepNotifier.value = 0;
+      continuousArrangerStepNotifier.value = 0.0;
+      currentBarNotifier.value = 0;
 
       // Re-bake any procedural Room / Cabinet IRs across all tracks & master bus (deduplicated by track and fx ID)
       final Set<String> processedFxKeys = <String>{};
@@ -1540,15 +1559,26 @@ class DawState extends ChangeNotifier {
         }
       }
 
-      // Re-apply master FX & track FX now that all custom impulse responses are baked in ConvolverEngine
+      // Re-apply master FX, track FX, and track EQ now that all custom impulse responses are baked in ConvolverEngine
       audioEngine.updateMasterFx(masterTrack.fxRack);
       for (final track in activePattern.tracks) {
         audioEngine.updateTrackFx(track.id, track.fxRack, volume: track.volume, pan: track.pan);
+        audioEngine.updateTrackEq(
+          track.id,
+          enabled: track.eqEnabled,
+          hpf: track.eqHpf,
+          lowGain: track.eqLowGain,
+          midFreq: track.eqMidFreq,
+          midGain: track.eqMidGain,
+          midQ: track.eqMidQ,
+          highGain: track.eqHighGain,
+        );
       }
     } finally {
       history.resumeRecording();
     }
     triggerAutoSave();
+    notifyListeners();
   }
 
   /// One-shot converter that ensures all track DSPs, audio FX, MIDI FX,
@@ -2811,7 +2841,7 @@ def gui():
       // Step duration changed — re-warm the cache at the new BPM so the
       // restarted scheduler immediately finds correctly-sized buffers.
       final double stepDurationSec = 60.0 / _bpm / 4.0;
-      final int lookahead = math.max(64, _isLooping ? (_loopEndBar - _loopStartBar) * 16 : 64);
+      final int lookahead = _isLooping ? math.min(32, (_loopEndBar - _loopStartBar) * 16) : 16;
       audioEngine.prewarmPatternCache(
         activePattern.tracks,
         stepDurationSec,
@@ -2937,7 +2967,7 @@ def gui():
       _playbackBaseAudioTime = audioEngine.currentTime;
       _nextNoteTime = _playbackBaseAudioTime + 0.02;
       final double stepDurationSec = 60.0 / _bpm / 4.0;
-      final int lookahead = math.max(64, _isLooping ? (_loopEndBar - _loopStartBar) * 16 : 64);
+      final int lookahead = _isLooping ? math.min(32, (_loopEndBar - _loopStartBar) * 16) : 16;
       audioEngine.prewarmPatternCache(
         activePattern.tracks,
         stepDurationSec,
@@ -2979,7 +3009,7 @@ def gui():
       _playbackBaseAudioTime = audioEngine.currentTime;
       _nextNoteTime = _playbackBaseAudioTime + 0.02;
       final double stepDurationSec = 60.0 / _bpm / 4.0;
-      final int lookahead = math.max(64, _isLooping ? (_loopEndBar - _loopStartBar) * 16 : 64);
+      final int lookahead = _isLooping ? math.min(32, (_loopEndBar - _loopStartBar) * 16) : 16;
       audioEngine.prewarmPatternCache(
         activePattern.tracks,
         stepDurationSec,
@@ -3099,7 +3129,7 @@ def gui():
       // from the current playhead step. This ensures 0ms delay when pressing play
       // even for lengthy 24+ bar clips, while keeping beat 1 timing sub-millisecond.
       final double stepDurationSec = 60.0 / _bpm / 4.0;
-      final int lookahead = math.max(64, _isLooping ? (_loopEndBar - _loopStartBar) * 16 : 64);
+      final int lookahead = _isLooping ? math.min(32, (_loopEndBar - _loopStartBar) * 16) : 16;
       audioEngine.prewarmPatternCache(
         activePattern.tracks,
         stepDurationSec,
@@ -3189,7 +3219,8 @@ def gui():
 
     // The audio hardware DAC clock is the single authoritative master clock
     final double currentAudioTime = audioEngine.currentTime;
-    final double stepDurationSec = 60.0 / _bpm / 4.0; // 16th note step length in seconds
+    final double safeBpm = _bpm > 10.0 ? _bpm : 120.0;
+    final double stepDurationSec = 60.0 / safeBpm / 4.0; // 16th note step length in seconds
     final int maxSteps = totalTimelineBars * 16;
 
     // Safety: If nextNoteTime fell behind or drifted far ahead of current audio time, re-anchor cleanly
@@ -3200,7 +3231,7 @@ def gui():
     int loopGuard = 0;
     bool stepAdvanced = false;
     while (_nextNoteTime < currentAudioTime + _scheduleAheadTime) {
-      if (++loopGuard > 32) {
+      if (++loopGuard > 4) {
         _nextNoteTime = currentAudioTime + 0.02;
         break;
       }
@@ -3367,6 +3398,10 @@ def gui():
               }
 
               if (hasMatch) {
+                final hasSlideParam = (track.luaParams['Slide'] ?? 0.0) > 0.01 ||
+                    (track.luaParams['Portamento'] ?? 0.0) > 0.01 ||
+                    (track.luaParams['Glide'] ?? 0.0) > 0.01;
+
                 if (track.isMonophonicTrack) {
                   // Collect matching notes into a fixed-size temp buffer (no heap List).
                   final matchBuf = <Note>[];
@@ -3375,33 +3410,25 @@ def gui():
                   }
                   matchBuf.sort((a, b) => a.startStep.compareTo(b.startStep));
 
-                  final hasSlideParam = (track.luaParams['Slide'] ?? 0.0) > 0.01 ||
-                      (track.luaParams['Portamento'] ?? 0.0) > 0.01 ||
-                      (track.luaParams['Glide'] ?? 0.0) > 0.01;
+                  final bool hasSimultaneous = matchBuf.length > 1;
 
                   for (int mIdx = 0; mIdx < matchBuf.length; mIdx++) {
                     final note = matchBuf[mIdx];
                     final double subOffset = (note.startStep - localStep).clamp(0.0, 0.99);
                     final double noteHardwareTime = hardwareTime + (subOffset * stepDurationSec);
 
-                    // Determine target slide pitch without allocating extra lists.
-                    int? rawTargetPitch;
-                    final bool hasSimultaneous = matchBuf.length > 1;
-                    if (hasSimultaneous && (mIdx < matchBuf.length - 1 || matchBuf.length > 1)) {
-                      final targetSimNote = (matchBuf.last != note) ? matchBuf.last : matchBuf.first;
-                      rawTargetPitch = targetSimNote.pitch;
-                    } else {
-                      // Find first note after this one within slide window (no toList).
-                      final double slideWindow = note.startStep + math.max(1.5, note.durationSteps + 0.5);
-                      for (final n in effectiveNotes) {
-                        if (n.startStep > note.startStep && n.startStep <= slideWindow) {
-                          rawTargetPitch = n.pitch;
-                          break;
+                    // Find immediately preceding note (ending within 1.25 steps of this note, or overlapping)
+                    Note? priorNote;
+                    for (final n in effectiveNotes) {
+                      if (n.startStep < note.startStep) {
+                        if (priorNote == null || n.startStep > priorNote.startStep) {
+                          if ((note.startStep - (n.startStep + n.durationSteps)) <= 1.25 ||
+                              (n.startStep + n.durationSteps) >= note.startStep) {
+                            priorNote = n;
+                          }
                         }
                       }
                     }
-
-                    final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
 
                     // Overlap check without allocating a list.
                     bool hasPrevOverlap = false;
@@ -3412,21 +3439,17 @@ def gui():
                       }
                     }
 
-                    // nextNotes non-empty check without allocating a list.
-                    bool hasNextNote = false;
-                    final double slideWin2 = note.startStep + math.max(1.5, note.durationSteps + 0.5);
-                    for (final n in effectiveNotes) {
-                      if (n.startStep > note.startStep && n.startStep <= slideWin2) {
-                        hasNextNote = true;
-                        break;
-                      }
-                    }
-
                     final bool isSlideNote = note.isSlide ||
                         hasPrevOverlap ||
                         hasSimultaneous ||
                         hasSlideParam ||
-                        (hasNextNote && (note.isSlide || hasSlideParam));
+                        (priorNote != null && priorNote.isSlide);
+
+                    int? fromPitch;
+                    if (isSlideNote && priorNote != null && priorNote.pitch != note.pitch) {
+                      fromPitch = remapPitch(priorNote.pitch);
+                    }
+
                     final bool isAccentNote = note.hasAccent;
                     final effectiveMidi = remapPitch(note.pitch);
                     final double noteDurSec = math.max(0.02, math.min(3.0, note.durationSteps * stepDurationSec));
@@ -3434,7 +3457,8 @@ def gui():
                     audioEngine.playNoteOrSample(
                       track: track,
                       midiNote: effectiveMidi,
-                      targetMidiNote: targetPitch,
+                      targetMidiNote: null,
+                      fromMidiNote: fromPitch,
                       isSlide: isSlideNote,
                       isAccent: isAccentNote,
                       velocity: note.velocity,
@@ -3451,23 +3475,31 @@ def gui():
                     final bool isAccentNote = note.hasAccent;
                     final effectiveMidi = remapPitch(note.pitch);
 
-                    // Polyphonic slide resolution per tracker column (no toList).
-                    int? rawTargetPitch;
-                    final double slideWindow = note.startStep + math.max(1.5, note.durationSteps + 0.5);
+                    // Polyphonic slide resolution per tracker column
+                    Note? priorColNote;
                     for (final n in effectiveNotes) {
-                      if (n.column == note.column && n.startStep > note.startStep && n.startStep <= slideWindow && n.isSlide) {
-                        rawTargetPitch = n.pitch;
-                        break;
+                      if (n.column == note.column && n.startStep < note.startStep) {
+                        if (priorColNote == null || n.startStep > priorColNote.startStep) {
+                          if ((note.startStep - (n.startStep + n.durationSteps)) <= 1.25 ||
+                              (n.startStep + n.durationSteps) >= note.startStep) {
+                            priorColNote = n;
+                          }
+                        }
                       }
                     }
-                    final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
-                    final bool isSlideNote = note.isSlide || targetPitch != null;
+
+                    final bool isSlideNote = note.isSlide || hasSlideParam || (priorColNote != null && priorColNote.isSlide);
+                    int? fromPitch;
+                    if (isSlideNote && priorColNote != null && priorColNote.pitch != note.pitch) {
+                      fromPitch = remapPitch(priorColNote.pitch);
+                    }
                     final double noteDurSec = math.max(0.02, math.min(3.0, note.durationSteps * stepDurationSec));
 
                     audioEngine.playNoteOrSample(
                       track: track,
                       midiNote: effectiveMidi,
-                      targetMidiNote: targetPitch,
+                      targetMidiNote: null,
+                      fromMidiNote: fromPitch,
                       isSlide: isSlideNote,
                       isAccent: isAccentNote,
                       velocity: note.velocity,
@@ -3483,10 +3515,10 @@ def gui():
                 final nextStep = track.steps[(localStep + 1) % track.steps.length];
                 final prevStep = track.steps[(localStep - 1 + track.steps.length) % track.steps.length];
                 final bool isSlideStep = step.isSlide ||
-                    (track.isMonophonicTrack && nextStep.active) ||
-                    (track.isMonophonicTrack && prevStep.active);
-                final int? rawTargetPitch = nextStep.active ? nextStep.pitch : null;
-                final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
+                    (track.isMonophonicTrack && prevStep.active && (prevStep.isSlide || step.isSlide));
+                final int? fromPitch = (isSlideStep && prevStep.active && prevStep.pitch != step.pitch)
+                    ? remapPitch(prevStep.pitch)
+                    : null;
                 final bool isAccentStep = step.hasAccent;
 
                 final effectiveMidi = remapPitch(step.pitch);
@@ -3494,7 +3526,7 @@ def gui():
                 audioEngine.playNoteOrSample(
                   track: track,
                   midiNote: effectiveMidi,
-                  targetMidiNote: targetPitch,
+                  fromMidiNote: fromPitch,
                   isSlide: isSlideStep,
                   isAccent: isAccentStep,
                   velocity: step.velocity,
@@ -3577,34 +3609,23 @@ def gui():
                 final double subOffset = (note.startStep - localStep).clamp(0.0, 0.99);
                 final double noteHardwareTime = hardwareTime + (subOffset * stepDurationSec);
 
-                int? rawTargetPitch;
                 final bool hasSimultaneous2 = matchBuf2.length > 1;
-                if (hasSimultaneous2 && (mIdx < matchBuf2.length - 1 || matchBuf2.length > 1)) {
-                  final targetSimNote = (matchBuf2.last != note) ? matchBuf2.last : matchBuf2.first;
-                  rawTargetPitch = targetSimNote.pitch;
-                } else {
-                  final double slideWindow = note.startStep + math.max(1.5, note.durationSteps + 0.5);
-                  for (final n in effectiveNotes) {
-                    if (n.startStep > note.startStep && n.startStep <= slideWindow) {
-                      rawTargetPitch = n.pitch;
-                      break;
+                Note? priorNote;
+                for (final n in effectiveNotes) {
+                  if (n.startStep < note.startStep) {
+                    if (priorNote == null || n.startStep > priorNote.startStep) {
+                      if ((note.startStep - (n.startStep + n.durationSteps)) <= 1.25 ||
+                          (n.startStep + n.durationSteps) >= note.startStep) {
+                        priorNote = n;
+                      }
                     }
                   }
                 }
 
-                final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
                 bool hasPrevOverlap = false;
                 for (final n in effectiveNotes) {
                   if (n.startStep < note.startStep && (n.startStep + n.durationSteps) > note.startStep) {
                     hasPrevOverlap = true;
-                    break;
-                  }
-                }
-                bool hasNextNote = false;
-                final double slideWin2 = note.startStep + math.max(1.5, note.durationSteps + 0.5);
-                for (final n in effectiveNotes) {
-                  if (n.startStep > note.startStep && n.startStep <= slideWin2) {
-                    hasNextNote = true;
                     break;
                   }
                 }
@@ -3613,19 +3634,26 @@ def gui():
                     hasPrevOverlap ||
                     hasSimultaneous2 ||
                     hasSlideParam ||
-                    (note.durationSteps > 1.0) ||
-                    (hasNextNote && (note.isSlide || hasSlideParam || note.durationSteps >= 1.0));
+                    (priorNote != null && priorNote.isSlide);
+
+                int? fromPitch;
+                if (isSlideNote && priorNote != null && priorNote.pitch != note.pitch) {
+                  fromPitch = remapPitch(priorNote.pitch);
+                }
+
                 final bool isAccentNote = note.hasAccent;
                 final effectiveMidi = remapPitch(note.pitch);
+                final double noteDurSec = math.max(0.02, math.min(3.0, note.durationSteps * stepDurationSec));
 
                 audioEngine.playNoteOrSample(
                   track: track,
                   midiNote: effectiveMidi,
-                  targetMidiNote: targetPitch,
+                  targetMidiNote: null,
+                  fromMidiNote: fromPitch,
                   isSlide: isSlideNote,
                   isAccent: isAccentNote,
                   velocity: note.velocity,
-                  durationSec: math.max(0.02, note.durationSteps * stepDurationSec),
+                  durationSec: noteDurSec,
                   scheduledTime: noteHardwareTime,
                 );
               }
@@ -3637,13 +3665,34 @@ def gui():
                 final bool isAccentNote = note.hasAccent;
                 final effectiveMidi = remapPitch(note.pitch);
 
+                Note? priorColNote;
+                for (final n in effectiveNotes) {
+                  if (n.column == note.column && n.startStep < note.startStep) {
+                    if (priorColNote == null || n.startStep > priorColNote.startStep) {
+                      if ((note.startStep - (n.startStep + n.durationSteps)) <= 1.25 ||
+                          (n.startStep + n.durationSteps) >= note.startStep) {
+                        priorColNote = n;
+                      }
+                    }
+                  }
+                }
+
+                final bool isSlideNote = note.isSlide || (priorColNote != null && priorColNote.isSlide);
+                int? fromPitch;
+                if (isSlideNote && priorColNote != null && priorColNote.pitch != note.pitch) {
+                  fromPitch = remapPitch(priorColNote.pitch);
+                }
+                final double noteDurSec = math.max(0.02, math.min(3.0, note.durationSteps * stepDurationSec));
+
                 audioEngine.playNoteOrSample(
                   track: track,
                   midiNote: effectiveMidi,
-                  isSlide: note.isSlide,
+                  targetMidiNote: null,
+                  fromMidiNote: fromPitch,
+                  isSlide: isSlideNote,
                   isAccent: isAccentNote,
                   velocity: note.velocity,
-                  durationSec: math.max(0.02, note.durationSteps * stepDurationSec),
+                  durationSec: noteDurSec,
                   scheduledTime: noteHardwareTime,
                 );
               }
@@ -3652,13 +3701,12 @@ def gui():
         } else if (localStep < track.steps.length) {
           final step = track.steps[localStep % track.steps.length];
           if (step.active) {
-            final nextStep = track.steps[(localStep + 1) % track.steps.length];
             final prevStep = track.steps[(localStep - 1 + track.steps.length) % track.steps.length];
             final bool isSlideStep = step.isSlide ||
-                (track.isMonophonicTrack && nextStep.active) ||
-                (track.isMonophonicTrack && prevStep.active);
-            final int? rawTargetPitch = nextStep.active ? nextStep.pitch : null;
-            final int? targetPitch = rawTargetPitch != null ? remapPitch(rawTargetPitch) : null;
+                (track.isMonophonicTrack && prevStep.active && (prevStep.isSlide || step.isSlide));
+            final int? fromPitch = (isSlideStep && prevStep.active && prevStep.pitch != step.pitch)
+                ? remapPitch(prevStep.pitch)
+                : null;
             final bool isAccentStep = step.hasAccent;
 
             final effectiveMidi = remapPitch(step.pitch);
@@ -3666,7 +3714,8 @@ def gui():
             audioEngine.playNoteOrSample(
               track: track,
               midiNote: effectiveMidi,
-              targetMidiNote: targetPitch,
+              targetMidiNote: null,
+              fromMidiNote: fromPitch,
               isSlide: isSlideStep,
               isAccent: isAccentStep,
               velocity: step.velocity,

@@ -89,6 +89,7 @@ class EatsTb303Core {
     required int note,
     required Map<String, double> params,
     int? targetMidiNote,
+    int? fromMidiNote,
     bool isSlide = false,
     bool isAccent = false,
     String? trackId,
@@ -147,7 +148,10 @@ class EatsTb303Core {
 
     final effectiveFreq = freq * math.pow(2.0, octaveShift + (tuningOffset / 12.0));
 
-    if (!isSlide && slideParam <= 0.01) {
+    if (fromMidiNote != null && fromMidiNote > 0 && (isSlide || slideParam > 0.01)) {
+      // Authentic TB-303 backward-looking slide: starts at prior note's pitch and glides to this note!
+      vState.startFreq = 440.0 * math.pow(2.0, ((fromMidiNote + octaveShift * 12) - 69 + tuningOffset) / 12.0);
+    } else if (!isSlide && slideParam <= 0.01) {
       vState.reset();
       vState.startFreq = effectiveFreq;
     } else {
@@ -161,12 +165,8 @@ class EatsTb303Core {
     final double activeDecayMs = hasAccent ? 200.0 : decayMs;
 
     double targetFreq = effectiveFreq;
-    if (targetMidiNote != null && targetMidiNote > 0) {
+    if (targetMidiNote != null && targetMidiNote > 0 && targetMidiNote != note) {
       targetFreq = 440.0 * math.pow(2.0, ((targetMidiNote + octaveShift * 12) - 69 + tuningOffset) / 12.0);
-    } else if (isSlide || slideParam > 0.01) {
-      targetFreq = targetMidiNote != null
-          ? (440.0 * math.pow(2.0, ((targetMidiNote + octaveShift * 12) - 69 + tuningOffset) / 12.0))
-          : effectiveFreq;
     }
 
     // 2. Open303 Scaler and Offset calculations

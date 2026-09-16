@@ -159,4 +159,47 @@ return Eats303
     dawState.loadFromEatsLua(midnightBitesSong);
     expect(dawState.projectName, 'Midnight Bites');
   });
+
+  test('Playhead is guaranteed to reset to 0 on new song load or default song load', () {
+    final dawState = DawState();
+    // Default song loaded in constructor must have playhead at step 0
+    expect(dawState.currentStep, 0);
+    expect(dawState.arrangerStep, 0);
+    expect(dawState.currentBar, 0);
+    expect(dawState.continuousArrangerStepNotifier.value, 0.0);
+
+    // Advance playhead manually to step 24
+    dawState.seekToArrangerStep(24.0);
+    expect(dawState.arrangerStep, 24);
+    expect(dawState.continuousArrangerStepNotifier.value, 24.0);
+
+    // Rapid play-stop-play
+    dawState.togglePlay();
+    expect(dawState.isPlaying, isTrue);
+    dawState.stop();
+    expect(dawState.isPlaying, isFalse);
+    expect(dawState.currentStep, 0);
+    expect(dawState.continuousArrangerStepNotifier.value, 0.0);
+
+    dawState.seekToArrangerStep(16.0);
+    expect(dawState.arrangerStep, 16);
+
+    // Loading default song resets playhead to 0
+    dawState.loadFromEatsLua(DefaultSong.midnightBites);
+    expect(dawState.currentStep, 0);
+    expect(dawState.arrangerStep, 0);
+    expect(dawState.currentBar, 0);
+    expect(dawState.continuousArrangerStepNotifier.value, 0.0);
+
+    // Advance again
+    dawState.seekToArrangerStep(32.0);
+    expect(dawState.arrangerStep, 32);
+
+    // Loading another project resets playhead to 0
+    dawState.loadFromEatsLua(DefaultSong.midnightBitesLua);
+    expect(dawState.currentStep, 0);
+    expect(dawState.arrangerStep, 0);
+    expect(dawState.currentBar, 0);
+    expect(dawState.continuousArrangerStepNotifier.value, 0.0);
+  });
 }

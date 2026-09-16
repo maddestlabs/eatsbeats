@@ -9,6 +9,7 @@ import '../audio/procgen/procedural_piano_engine.dart';
 import '../audio/procgen/procedural_drum_engine.dart';
 import '../audio/procgen/procedural_song_engine.dart';
 import '../audio/procgen/procedural_ensemble_engine.dart';
+import '../audio/procgen/procedural_acid_engine.dart';
 import '../services/gemini_service.dart';
 
 /// Result of executing a project script.
@@ -265,6 +266,14 @@ class ProjectScriptEngine {
         code.contains('non-destructive takes arranger') ||
         code.contains('loop to song')) {
       return _runNonDestructiveArrangement(dawState, p);
+    }
+
+    // 4d. Procedural Acid 303 Pattern Generator Script
+    if (scriptId == 'action_procedural_acid_303' ||
+        scriptId.contains('procedural_acid') ||
+        code.contains('procedural acid') ||
+        script.name.toLowerCase().contains('acid 303 pattern generator')) {
+      return ProceduralAcidEngine.generateToDawState(dawState, p);
     }
 
     // 5. Groove & Velocity Humanizer Script
