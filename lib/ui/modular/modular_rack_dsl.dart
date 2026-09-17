@@ -101,7 +101,7 @@ class ModularRackDefinition {
   }
 }
 
-/// Bi-directional Parser and Serializer between Lua Script code and the Modular Rack Canvas.
+/// Bi-directional Parser and Serializer between EatScript code and the Modular Rack Canvas.
 class ModularRackDsl {
   /// Converts a semantic [EatscriptGraphDef] into a full [ModularRackDefinition] for visual canvas rendering.
   static ModularRackDefinition fromEatscriptGraph(EatscriptGraphDef graph) {
@@ -364,7 +364,7 @@ class ModularRackDsl {
     );
   }
 
-  /// Parses an Eatscript or legacy Lua script for declarative modular rack definitions.
+  /// Parses an Eatscript or Eatscript script for declarative modular rack definitions.
   static ModularRackDefinition? parse(String scriptCode) {
     if (scriptCode.contains('def graph') || (EatScriptEngine.isEatScript(scriptCode) && !scriptCode.contains('function'))) {
       final graph = EatscriptGraphDef.parse(scriptCode);
@@ -457,7 +457,7 @@ class ModularRackDsl {
     }
   }
 
-  /// Detects the preset topology signature from Lua code or track name.
+  /// Detects the preset topology signature from Eatscript code or track name.
   static String detectSignature(String code, {String trackName = ''}) {
     final cleanCode = code.toLowerCase();
     final cleanName = trackName.toLowerCase();
@@ -486,8 +486,8 @@ class ModularRackDsl {
     if (code.contains('SoundFontSampler') || cleanName.contains('soundfont') || cleanName.contains('sf2')) return 'soundfont_sampler';
     if (code.contains('DrumKitSampler') || cleanName.contains('drum sampler') || cleanName.contains('drum kit')) return 'drum_kit_sampler';
     if (code.contains('SamplerInstrument') || cleanName.contains('sampler')) return 'sampler_instrument';
-    if (code.contains('StereoDelay') || cleanName.contains('delay')) return 'lua_delay';
-    if (code.contains('StereoChorus') || cleanName.contains('chorus')) return 'lua_chorus';
+    if (code.contains('StereoDelay') || cleanName.contains('delay')) return 'eat_delay';
+    if (code.contains('StereoChorus') || cleanName.contains('chorus')) return 'eat_chorus';
     if (code.contains('Bitcrusher') || cleanName.contains('crusher') || cleanName.contains('bit')) return 'bitcrusher_fx';
     if (code.contains('TubeDistortion') || cleanName.contains('tube') || cleanName.contains('distortion')) return 'tube_distortion';
     return 'generic';
@@ -770,7 +770,7 @@ class ModularRackDsl {
     );
   }
 
-  /// Serializes the current modular rack state into standard, readable Lua or Eatscript code.
+  /// Serializes the current modular rack state into standard, readable Eatscript code.
   /// If [existingScriptCode] is provided, replaces or injects the modular graph definition.
   static String serialize({
     required int totalRows,
@@ -885,7 +885,7 @@ class ModularRackDsl {
     final rackBlock = buffer.toString();
 
     if (existingScriptCode == null || existingScriptCode.trim().isEmpty) {
-      return '-- @name: $instrumentName\nlocal $tableName = {}\n\n$rackBlock\n\nreturn $tableName\n';
+      return '# @name: $instrumentName\nlocal $tableName = {}\n\n$rackBlock\n\nreturn $tableName\n';
     }
 
     // Check if function <Name>.rack() already exists and replace it

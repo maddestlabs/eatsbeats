@@ -971,8 +971,8 @@ class ProceduralSongEngine {
       type: TrackType.eatScript,
       volume: 0.90,
       pan: 0.0,
-      luaScriptCode: drumCode,
-      luaParams: {
+      eatScriptCode: drumCode,
+      eatScriptParams: {
         ...config.drumParams,
         'Swing': swing,
         'Humanize': humanize,
@@ -1081,8 +1081,8 @@ class ProceduralSongEngine {
       type: TrackType.eatScript,
       volume: 0.85,
       pan: 0.0,
-      luaScriptCode: bassCode,
-      luaParams: Map<String, double>.from(config.bassParams),
+      eatScriptCode: bassCode,
+      eatScriptParams: Map<String, double>.from(config.bassParams),
     );
 
     final rng = Mulberry32Rng(seed);
@@ -1334,8 +1334,8 @@ class ProceduralSongEngine {
       type: TrackType.eatScript,
       volume: 0.82,
       pan: -0.15,
-      luaScriptCode: chordCode,
-      luaParams: Map<String, double>.from(config.chordParams),
+      eatScriptCode: chordCode,
+      eatScriptParams: Map<String, double>.from(config.chordParams),
     );
 
     final rng = Mulberry32Rng(seed);
@@ -1499,8 +1499,8 @@ class ProceduralSongEngine {
       type: TrackType.eatScript,
       volume: 0.80,
       pan: 0.15,
-      luaScriptCode: leadCode,
-      luaParams: Map<String, double>.from(config.leadParams),
+      eatScriptCode: leadCode,
+      eatScriptParams: Map<String, double>.from(config.leadParams),
     );
 
     final rng = Mulberry32Rng(seed);

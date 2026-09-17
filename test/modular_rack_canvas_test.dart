@@ -106,9 +106,9 @@ void main() {
       final track = TrackChannel(
         id: 'modular_edit_track',
         name: 'Acid 303',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFFFF8C00),
-        luaScriptCode: '-- @name: Acid 303\nlocal Acid303 = {}',
+        eatScriptCode: '# @name: Acid 303\nlocal Acid303 = {}',
       );
 
       await tester.pumpWidget(
@@ -152,9 +152,9 @@ void main() {
       final track = TrackChannel(
         id: 'modular_connect_track',
         name: 'Acid 303',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFFFF8C00),
-        luaScriptCode: '-- @name: Acid 303\nlocal Acid303 = {}',
+        eatScriptCode: '# @name: Acid 303\nlocal Acid303 = {}',
       );
 
       await tester.pumpWidget(
@@ -201,9 +201,9 @@ void main() {
       final track = TrackChannel(
         id: 'drag_track',
         name: 'Acid 303',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFFFF8C00),
-        luaScriptCode: '-- @name: Acid 303\nlocal Acid303 = {}',
+        eatScriptCode: '# @name: Acid 303\nlocal Acid303 = {}',
       );
 
       await tester.pumpWidget(
@@ -245,9 +245,9 @@ void main() {
       final track = TrackChannel(
         id: 'design_303',
         name: 'Acid 303',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFFFF8C00),
-        luaScriptCode: '-- @name: Acid 303\nlocal Acid303 = {}',
+        eatScriptCode: '# @name: Acid 303\nlocal Acid303 = {}',
       );
       dawState.activePattern.tracks.add(track);
       dawState.activeTrackIndex = dawState.activePattern.tracks.indexOf(track);
@@ -302,9 +302,9 @@ void main() {
       final track = TrackChannel(
         id: 'search_module_track',
         name: 'Acid 303',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFFFF8C00),
-        luaScriptCode: '-- @name: Acid 303\nlocal Acid303 = {}',
+        eatScriptCode: '# @name: Acid 303\nlocal Acid303 = {}',
       );
 
       await tester.pumpWidget(
@@ -340,8 +340,8 @@ void main() {
       await tester.tap(find.text('SCRIPT DSP'));
       await tester.pumpAndSettle();
 
-      expect(find.text('CUSTOM LUA DSP'), findsOneWidget);
-      expect(find.text('MIDI LUA TRANSFORM'), findsOneWidget);
+      expect(find.text('CUSTOM EATSCRIPT DSP'), findsOneWidget);
+      expect(find.text('MIDI EATSCRIPT TRANSFORM'), findsOneWidget);
 
       // Search by text "tape delay"
       await tester.ensureVisible(find.text('ALL'));
@@ -362,7 +362,7 @@ void main() {
       expect(find.text('TAPE DELAY FX'), findsOneWidget);
     });
 
-    testWidgets('Custom or generic Lua script tracks render programmable LUA SCRIPT DSP CORE', (tester) async {
+    testWidgets('Custom or generic Eatscript tracks render programmable EATSCRIPT DSP CORE', (tester) async {
       tester.view.physicalSize = const Size(1200, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -371,10 +371,10 @@ void main() {
       final track = TrackChannel(
         id: 'custom_dsp_track',
         name: 'Custom Math Synth',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFF00E5FF),
-        luaScriptCode: '-- @name: Custom Math Synth\nfunction process(s) return s end',
-        luaParams: {
+        eatScriptCode: '# @name: Custom Math Synth\nfunction process(s) return s end',
+        eatScriptParams: {
           'Harmonics': 0.75,
           'Feedback': 0.42,
         },
@@ -395,8 +395,8 @@ void main() {
         ),
       );
 
-      // Verify LUA SCRIPT DSP CORE faceplate renders
-      expect(find.text('LUA SCRIPT DSP CORE'), findsOneWidget);
+      // Verify EATSCRIPT DSP CORE faceplate renders
+      expect(find.text('EATSCRIPT DSP CORE'), findsOneWidget);
       expect(find.text('CUSTOM MATH SYNTH'), findsOneWidget);
       expect(find.text('DSP ACTIVE'), findsOneWidget);
       expect(find.text('2 PARAMS'), findsOneWidget);
@@ -413,9 +413,9 @@ void main() {
       final track = TrackChannel(
         id: 'script_edit_track',
         name: 'Acid 303',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFFFF8C00),
-        luaScriptCode: '-- @name: Acid 303\nlocal Acid303 = {}',
+        eatScriptCode: '# @name: Acid 303\nlocal Acid303 = {}',
       );
 
       await tester.pumpWidget(
@@ -442,13 +442,13 @@ void main() {
       await tester.tap(find.text('SCRIPT DSP'));
       await tester.pumpAndSettle();
 
-      // Add CUSTOM LUA DSP
-      await tester.ensureVisible(find.text('CUSTOM LUA DSP'));
-      await tester.tap(find.text('CUSTOM LUA DSP'));
+      // Add CUSTOM EATSCRIPT DSP
+      await tester.ensureVisible(find.text('CUSTOM EATSCRIPT DSP'));
+      await tester.tap(find.text('CUSTOM EATSCRIPT DSP'));
       await tester.pumpAndSettle();
 
       // Module is rendered in rack
-      expect(find.text('CUSTOM LUA DSP'), findsOneWidget);
+      expect(find.text('CUSTOM EATSCRIPT DSP'), findsOneWidget);
 
       // Tap EDIT on the module's DSP ACTIVE banner
       final editBtn = find.text('EDIT');
@@ -457,19 +457,19 @@ void main() {
       await tester.pumpAndSettle();
 
       // Script code modal opens
-      expect(find.text('SCRIPT: CUSTOM LUA DSP'), findsOneWidget);
+      expect(find.text('SCRIPT: CUSTOM EATSCRIPT DSP'), findsOneWidget);
       expect(find.textContaining('function process(sample, cv1, cv2)'), findsOneWidget);
 
       // Close modal
       await tester.tap(find.text('CLOSE'));
       await tester.pumpAndSettle();
 
-      expect(find.text('SCRIPT: CUSTOM LUA DSP'), findsNothing);
+      expect(find.text('SCRIPT: CUSTOM EATSCRIPT DSP'), findsNothing);
     });
 
-    test('ModularRackDsl parses and serializes declarative Lua rack tables', () {
-      const sampleLua = '''
--- @name: SynthLab
+    test('ModularRackDsl parses and serializes declarative Eatscript rack tables', () {
+      const sampleEatScript = '''
+# @name: SynthLab
 local SynthLab = {}
 
 function SynthLab.init()
@@ -493,7 +493,7 @@ end
 return SynthLab
 ''';
 
-      final parsed = ModularRackDsl.parse(sampleLua);
+      final parsed = ModularRackDsl.parse(sampleEatScript);
       expect(parsed, isNotNull);
       expect(parsed!.totalRows, greaterThanOrEqualTo(1));
       expect(parsed.modulesByRow[1]?.length, 2);
@@ -518,7 +518,7 @@ return SynthLab
             color: ModularTheme.cableAudio,
           )
         ],
-        existingScriptCode: sampleLua,
+        existingScriptCode: sampleEatScript,
         instrumentName: 'SynthLab',
       );
 
@@ -539,7 +539,7 @@ return SynthLab
       expect(genericRack.cables.length, greaterThanOrEqualTo(2));
     });
 
-    testWidgets('Adding a module visually on ModularRackCanvas automatically serializes rack() into track.luaScriptCode', (tester) async {
+    testWidgets('Adding a module visually on ModularRackCanvas automatically serializes rack() into track.eatScriptCode', (tester) async {
       tester.view.physicalSize = const Size(1200, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -548,9 +548,9 @@ return SynthLab
       final track = TrackChannel(
         id: 'bidirectional_track',
         name: 'Super Synth',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFF00E5FF),
-        luaScriptCode: '-- @name: Super Synth\nlocal SuperSynth = {}\n\nfunction SuperSynth.init()\n  Param.add("Gain", 0, 1, 0.8)\nend\n\nreturn SuperSynth\n',
+        eatScriptCode: '# @name: Super Synth\nlocal SuperSynth = {}\n\nfunction SuperSynth.init()\n  Param.add("Gain", 0, 1, 0.8)\nend\n\nreturn SuperSynth\n',
       );
 
       await tester.pumpWidget(
@@ -568,8 +568,8 @@ return SynthLab
         ),
       );
 
-      // Verify Lua Sync toolbar chip renders
-      expect(find.text('LUA SYNC: OK'), findsOneWidget);
+      // Verify Eatscript Sync toolbar chip renders
+      expect(find.text('EATSCRIPT SYNC: OK'), findsOneWidget);
 
       // Add a module via + ADD MODULE
       await tester.tap(find.text('+ ADD').first);
@@ -582,10 +582,10 @@ return SynthLab
       await tester.tap(find.text('TAPE DELAY FX'));
       await tester.pumpAndSettle();
 
-      // Verify track.luaScriptCode now contains serialized function SuperSynth.rack()
-      expect(track.luaScriptCode, contains('function SuperSynth.rack()'));
-      expect(track.luaScriptCode, contains('TAPE DELAY FX'));
-      expect(track.luaScriptCode, contains('return SuperSynth'));
+      // Verify track.eatScriptCode now contains serialized function SuperSynth.rack()
+      expect(track.eatScriptCode, contains('function SuperSynth.rack()'));
+      expect(track.eatScriptCode, contains('TAPE DELAY FX'));
+      expect(track.eatScriptCode, contains('return SuperSynth'));
     });
 
     testWidgets('Clicking Code icon on FloatingInstrumentWindow navigates directly to that specific track script', (tester) async {
@@ -622,7 +622,7 @@ return SynthLab
       expect(dawState.activeScriptTarget.trackId, track2.id);
     });
 
-    test('DawState.getScriptCodeForTarget retrieves full populated Lua code for all targets', () {
+    test('DawState.getScriptCodeForTarget retrieves full populated Eatscript code for all targets', () {
       final dawState = DawState();
       final allTargets = dawState.getAllScriptTargets();
 
@@ -642,7 +642,7 @@ return SynthLab
     });
 
     test('ModularRackDsl.ensureRackBlock automatically injects .rack() block into scripts without one', () {
-      const legacyCode = '''-- @name: Simple Synth
+      const legacyCode = '''# @name: Simple Synth
 local SimpleSynth = {}
 
 function SimpleSynth.init()
@@ -664,13 +664,13 @@ return SimpleSynth
     });
 
     test('SNES Synth and SNES Sfxr contain complete modular DSP and Eatscript definitions', () {
-      final snesSynth = LuaPresetLibrary.getPresetById('snes_console_synth');
+      final snesSynth = EatScriptLibrary.getPresetById('snes_console_synth');
       expect(snesSynth, isNotNull);
       expect(snesSynth!.code, contains('def process('));
       expect(snesSynth.code, contains('def init('));
       expect(snesSynth.code, contains('def gui('));
 
-      final snesSfx = LuaPresetLibrary.getPresetById('eats_sfxr');
+      final snesSfx = EatScriptLibrary.getPresetById('eats_sfxr');
       expect(snesSfx, isNotNull);
       expect(snesSfx!.code, contains('def process('));
       expect(snesSfx.code, contains('def init('));

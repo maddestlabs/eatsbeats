@@ -68,25 +68,25 @@ void main() {
       final track = dawState.activeTrack;
       // Simulate track created from MIDI with super_small_font.sf2
       track.sampleName = 'super_small_font.sf2';
-      track.type = TrackType.luaScript;
-      final sfPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'soundfont_sampler');
-      track.luaScriptCode = sfPreset.code;
+      track.type = TrackType.eatScript;
+      final sfPreset = EatScriptLibrary.presets.firstWhere((p) => p.id == 'soundfont_sampler');
+      track.eatScriptCode = sfPreset.code;
 
       expect(track.sampleName, 'super_small_font.sf2');
 
       // Now apply Acid 303 Bass instrument
-      final acidPreset = LuaPresetLibrary.presets.firstWhere(
+      final acidPreset = EatScriptLibrary.presets.firstWhere(
         (p) => p.id == 'acid_bass',
-        orElse: () => LuaPresetLibrary.presets.firstWhere((p) => p.isInstrument && p.id != 'soundfont_sampler'),
+        orElse: () => EatScriptLibrary.presets.firstWhere((p) => p.isInstrument && p.id != 'soundfont_sampler'),
       );
 
       dawState.applyPreset(acidPreset, targetTrack: track);
 
       // sampleName should be cleared so it no longer routes to SoundFont
       expect(track.sampleName, '');
-      expect(track.luaScriptCode, acidPreset.code);
+      expect(track.eatScriptCode, acidPreset.code);
 
-      // Calling playNoteOrSample should synthesize via Lua synth without errors
+      // Calling playNoteOrSample should synthesize via Eatscript synth without errors
       expect(
         () => dawState.audioEngine.playNoteOrSample(
           track: track,

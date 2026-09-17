@@ -131,9 +131,9 @@ void main() {
     });
 
     test('Changing seed produces deterministic variation of sound effect', () {
-      final sfxr = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'eats_sfxr');
+      final sfxr = EatScriptLibrary.presets.firstWhere((p) => p.id == 'eats_sfxr');
 
-      final bufSeedA1 = LuaEngine.synthesizeBuffer(
+      final bufSeedA1 = EatEngine.synthesizeBuffer(
         code: sfxr.code,
         durationSec: 0.15,
         freq: 440.0,
@@ -141,7 +141,7 @@ void main() {
         params: {'SFXType': 0.0, 'Seed': 101.0},
       );
 
-      final bufSeedA2 = LuaEngine.synthesizeBuffer(
+      final bufSeedA2 = EatEngine.synthesizeBuffer(
         code: sfxr.code,
         durationSec: 0.15,
         freq: 440.0,
@@ -149,7 +149,7 @@ void main() {
         params: {'SFXType': 0.0, 'Seed': 101.0},
       );
 
-      final bufSeedB = LuaEngine.synthesizeBuffer(
+      final bufSeedB = EatEngine.synthesizeBuffer(
         code: sfxr.code,
         durationSec: 0.15,
         freq: 440.0,
@@ -174,9 +174,9 @@ void main() {
     });
 
     test('Live parameter overlays dynamically modify synthesized SFXR buffer', () {
-      final sfxr = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'eats_sfxr');
+      final sfxr = EatScriptLibrary.presets.firstWhere((p) => p.id == 'eats_sfxr');
 
-      final buf1 = LuaEngine.synthesizeBuffer(
+      final buf1 = EatEngine.synthesizeBuffer(
         code: sfxr.code,
         durationSec: 0.15,
         freq: 440.0,
@@ -184,7 +184,7 @@ void main() {
         params: {'SFXType': 0.0, 'Seed': 42.0, 'PitchSweep': 0.0},
       );
 
-      final buf2 = LuaEngine.synthesizeBuffer(
+      final buf2 = EatEngine.synthesizeBuffer(
         code: sfxr.code,
         durationSec: 0.15,
         freq: 440.0,
@@ -203,10 +203,10 @@ void main() {
     });
   });
 
-  group('Lua Preset Library SNES Presets Tests', () {
+  group('Eatscript Preset Library SNES Presets Tests', () {
     test('SFXType is the first parameter in SNES SFXR preset and contains all 11 choices', () {
-      final sfxr = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'eats_sfxr');
-      final defs = LuaEngine.compile(sfxr.code);
+      final sfxr = EatScriptLibrary.presets.firstWhere((p) => p.id == 'eats_sfxr');
+      final defs = EatEngine.compile(sfxr.code);
 
       expect(defs.params.isNotEmpty, isTrue);
       expect(defs.params.first.name, equals('SFXType'));
@@ -222,13 +222,13 @@ void main() {
     });
 
     test('SNES Synth preset compiles with valid parameters', () {
-      final synth = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'snes_console_synth');
-      final defs = LuaEngine.compile(synth.code);
+      final synth = EatScriptLibrary.presets.firstWhere((p) => p.id == 'snes_console_synth');
+      final defs = EatEngine.compile(synth.code);
 
       expect(defs.params.any((d) => d.name == 'Waveform'), isTrue);
       expect(defs.params.any((d) => d.name == 'EchoFeedback'), isTrue);
 
-      final buf = LuaEngine.synthesizeBuffer(
+      final buf = EatEngine.synthesizeBuffer(
         code: synth.code,
         durationSec: 0.1,
         freq: 440.0,

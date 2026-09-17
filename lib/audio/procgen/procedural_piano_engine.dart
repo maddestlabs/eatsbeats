@@ -1011,10 +1011,10 @@ class ProceduralPianoEngine {
     pattern.lengthSteps = totalSteps.clamp(16, 512);
 
     // Look up Concert Grand Piano physical model preset
-    final pianoPreset = LuaPresetLibrary.getPresetById('concert_grand_piano') ??
-        LuaPresetLibrary.presets.firstWhere(
+    final pianoPreset = EatScriptLibrary.getPresetById('concert_grand_piano') ??
+        EatScriptLibrary.presets.firstWhere(
           (p) => p.isInstrument && (p.name.contains('Grand Piano') || p.name.contains('Concert Grand')),
-          orElse: () => LuaPresetLibrary.presets.first,
+          orElse: () => EatScriptLibrary.presets.first,
         );
 
     final timingOffsets = performTimingOffsets(piece);
@@ -1024,9 +1024,9 @@ class ProceduralPianoEngine {
       final rightTrack = TrackChannel(
         id: 'track_piano_rh_${DateTime.now().millisecondsSinceEpoch}',
         name: 'Concert Grand (Right Hand)',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFF21F4E8),
-        luaScriptCode: pianoPreset.code,
+        eatScriptCode: pianoPreset.code,
         volume: 0.88,
       );
       final rightClip = TrackClip(
@@ -1041,9 +1041,9 @@ class ProceduralPianoEngine {
       final leftTrack = TrackChannel(
         id: 'track_piano_lh_${DateTime.now().millisecondsSinceEpoch + 1}',
         name: 'Concert Grand (Left Hand)',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFF00FF66),
-        luaScriptCode: pianoPreset.code,
+        eatScriptCode: pianoPreset.code,
         volume: 0.78,
       );
       final leftClip = TrackClip(
@@ -1084,9 +1084,9 @@ class ProceduralPianoEngine {
       final unifiedTrack = TrackChannel(
         id: 'track_piano_unified_${DateTime.now().millisecondsSinceEpoch}',
         name: 'Concert Grand Piano',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFF21F4E8),
-        luaScriptCode: pianoPreset.code,
+        eatScriptCode: pianoPreset.code,
         volume: 0.85,
       );
       final clip = TrackClip(

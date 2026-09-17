@@ -21,7 +21,7 @@ enum MidiFxType {
 /// Implements persistent Voice ID tracking to prevent stuck notes when parameters
 /// or pitch mappings are transformed dynamically.
 class MidiPipelineEngine {
-  final Object? luaEngine;
+  final Object? eatEngine;
 
   static final Map<String, MidiFxType> _midiFxTypeCache = {};
   static final Map<String, MidiFxType> _clipScriptTypeCache = {};
@@ -78,7 +78,7 @@ class MidiPipelineEngine {
     return MidiFxType.passthrough;
   }
 
-  MidiPipelineEngine({this.luaEngine});
+  MidiPipelineEngine({this.eatEngine});
 
   /// Processes a [TrackClip] through its base notes and the track's [MidiFXInsert] chain.
   List<Note> processClip({
@@ -91,7 +91,7 @@ class MidiPipelineEngine {
 
     // 2. Process Track MIDI FX Rack sequentially
     for (final midiFX in track.midiFXRack) {
-      if (!midiFX.enabled || midiFX.luaScriptCode.trim().isEmpty) continue;
+      if (!midiFX.enabled || midiFX.eatScriptCode.trim().isEmpty) continue;
       activeNotes = _evaluateMidiFX(midiFX, activeNotes, timeContext);
     }
 
@@ -108,7 +108,7 @@ class MidiPipelineEngine {
   }) {
     List<Note> activeNotes = notes.map((n) => n.copyWith()).toList();
     for (final midiFX in track.midiFXRack) {
-      if (!midiFX.enabled || midiFX.luaScriptCode.trim().isEmpty) continue;
+      if (!midiFX.enabled || midiFX.eatScriptCode.trim().isEmpty) continue;
       activeNotes = _evaluateMidiFX(midiFX, activeNotes, timeContext);
     }
     return activeNotes;
@@ -134,7 +134,7 @@ class MidiPipelineEngine {
     List<Note> baseNotes,
     TimeContext timeContext,
   ) {
-    final script = clip.luaScriptCode.trim();
+    final script = clip.eatScriptCode.trim();
     final fxType = _clipScriptTypeCache.putIfAbsent(script, () => _detectClipScriptType(script));
 
     switch (fxType) {
@@ -142,7 +142,7 @@ class MidiPipelineEngine {
         final generatedNotes = EatScriptEngine.executeClipScript(
           script,
           baseNotes,
-          paramValues: clip.luaParams,
+          paramValues: clip.eatScriptParams,
           tempo: timeContext.bpm,
           keyRoot: timeContext.songKeyRoot,
           isMinor: timeContext.isSongKeyMinor,
@@ -152,7 +152,7 @@ class MidiPipelineEngine {
         return baseNotes;
 
       case MidiFxType.chordFollow:
-        final rawMode = clip.luaParams['mode'] ?? 0.0;
+        final rawMode = clip.eatScriptParams['mode'] ?? 0.0;
         String modeStr = 'chord';
         if (rawMode == 1.0) {
           modeStr = 'bass';
@@ -164,22 +164,22 @@ class MidiPipelineEngine {
         return applyChordFollow(baseNotes, timeContext, mode: modeStr);
 
       case MidiFxType.chordArp:
-        final rate = clip.luaParams['rate'] ?? clip.luaParams['Rate'] ?? 1.0;
-        final octaves = (clip.luaParams['octaves'] ?? clip.luaParams['Octaves'] ?? 1.0).toInt();
-        final pattern = _parsePattern(clip.luaParams['pattern'] ?? clip.luaParams['Pattern']);
-        final gate = clip.luaParams['gate'] ?? clip.luaParams['Gate'] ?? 0.85;
-        final swing = clip.luaParams['swing'] ?? clip.luaParams['Swing'] ?? 0.0;
+        final rate = clip.eatScriptParams['rate'] ?? clip.eatScriptParams['Rate'] ?? 1.0;
+        final octaves = (clip.eatScriptParams['octaves'] ?? clip.eatScriptParams['Octaves'] ?? 1.0).toInt();
+        final pattern = _parsePattern(clip.eatScriptParams['pattern'] ?? clip.eatScriptParams['Pattern']);
+        final gate = clip.eatScriptParams['gate'] ?? clip.eatScriptParams['Gate'] ?? 0.85;
+        final swing = clip.eatScriptParams['swing'] ?? clip.eatScriptParams['Swing'] ?? 0.0;
         return applyChordArpeggiate(baseNotes, timeContext, stepRate: rate, octaves: octaves, pattern: pattern, gate: gate, swing: swing);
 
       case MidiFxType.chordStabs:
         return generateChordVoicings(baseNotes, timeContext);
 
       case MidiFxType.arpeggiator:
-        final rate = clip.luaParams['rate'] ?? clip.luaParams['Rate'] ?? 1.0;
-        final octaves = (clip.luaParams['octaves'] ?? clip.luaParams['Octaves'] ?? 2.0).toInt();
-        final pattern = _parsePattern(clip.luaParams['pattern'] ?? clip.luaParams['Pattern']);
-        final gate = clip.luaParams['gate'] ?? clip.luaParams['Gate'] ?? 0.85;
-        final swing = clip.luaParams['swing'] ?? clip.luaParams['Swing'] ?? 0.0;
+        final rate = clip.eatScriptParams['rate'] ?? clip.eatScriptParams['Rate'] ?? 1.0;
+        final octaves = (clip.eatScriptParams['octaves'] ?? clip.eatScriptParams['Octaves'] ?? 2.0).toInt();
+        final pattern = _parsePattern(clip.eatScriptParams['pattern'] ?? clip.eatScriptParams['Pattern']);
+        final gate = clip.eatScriptParams['gate'] ?? clip.eatScriptParams['Gate'] ?? 0.85;
+        final swing = clip.eatScriptParams['swing'] ?? clip.eatScriptParams['Swing'] ?? 0.0;
         return applyArpeggiator(
           baseNotes,
           stepRate: rate,
@@ -191,7 +191,7 @@ class MidiPipelineEngine {
         );
 
       case MidiFxType.transpose:
-        final semitones = (clip.luaParams['semitones'] ?? 0.0).round();
+        final semitones = (clip.eatScriptParams['semitones'] ?? 0.0).round();
         return baseNotes.map((n) => n.copyWith(pitch: (n.pitch + semitones).clamp(0, 127))).toList();
 
       case MidiFxType.scaleSnap:
@@ -207,7 +207,7 @@ class MidiPipelineEngine {
     List<Note> notes,
     TimeContext timeContext,
   ) {
-    final code = midiFX.luaScriptCode.trim();
+    final code = midiFX.eatScriptCode.trim();
     final nameLower = midiFX.name.toLowerCase();
     final cacheKey = '$nameLower\u0000$code';
     final fxType = _midiFxTypeCache.putIfAbsent(cacheKey, () => _detectMidiFxType(code, nameLower));
@@ -217,7 +217,7 @@ class MidiPipelineEngine {
         final generatedNotes = EatScriptEngine.executeClipScript(
           code,
           notes,
-          paramValues: midiFX.luaParams,
+          paramValues: midiFX.eatScriptParams,
           tempo: timeContext.bpm,
           keyRoot: timeContext.songKeyRoot,
           isMinor: timeContext.isSongKeyMinor,
@@ -227,7 +227,7 @@ class MidiPipelineEngine {
         return notes;
 
       case MidiFxType.chordFollow:
-        final rawMode = midiFX.luaParams['Mode'] ?? midiFX.luaParams['mode'] ?? 0.0;
+        final rawMode = midiFX.eatScriptParams['Mode'] ?? midiFX.eatScriptParams['mode'] ?? 0.0;
         String modeStr = 'chord';
         final modeInt = rawMode.round();
         if (modeInt == 1) {
@@ -240,17 +240,17 @@ class MidiPipelineEngine {
         return applyChordFollow(notes, timeContext, mode: modeStr);
 
       case MidiFxType.chordArp:
-        final rate = midiFX.luaParams['Rate'] ?? midiFX.luaParams['rate'] ?? 1.0;
-        final octaves = (midiFX.luaParams['Octaves'] ?? midiFX.luaParams['octaves'] ?? 1.0).toInt();
-        final pattern = _parsePattern(midiFX.luaParams['Pattern'] ?? midiFX.luaParams['pattern']);
-        final gate = midiFX.luaParams['Gate'] ?? midiFX.luaParams['gate'] ?? 0.85;
-        final swing = midiFX.luaParams['Swing'] ?? midiFX.luaParams['swing'] ?? 0.0;
+        final rate = midiFX.eatScriptParams['Rate'] ?? midiFX.eatScriptParams['rate'] ?? 1.0;
+        final octaves = (midiFX.eatScriptParams['Octaves'] ?? midiFX.eatScriptParams['octaves'] ?? 1.0).toInt();
+        final pattern = _parsePattern(midiFX.eatScriptParams['Pattern'] ?? midiFX.eatScriptParams['pattern']);
+        final gate = midiFX.eatScriptParams['Gate'] ?? midiFX.eatScriptParams['gate'] ?? 0.85;
+        final swing = midiFX.eatScriptParams['Swing'] ?? midiFX.eatScriptParams['swing'] ?? 0.0;
         return applyChordArpeggiate(notes, timeContext, stepRate: rate, octaves: octaves, pattern: pattern, gate: gate, swing: swing);
 
       case MidiFxType.scaleSnap:
-        final key = (midiFX.luaParams['Key'] ?? midiFX.luaParams['key'] ?? timeContext.songKeyRoot).round();
-        final isMinor = (midiFX.luaParams['Minor'] != null)
-            ? (midiFX.luaParams['Minor']! > 0.5)
+        final key = (midiFX.eatScriptParams['Key'] ?? midiFX.eatScriptParams['key'] ?? timeContext.songKeyRoot).round();
+        final isMinor = (midiFX.eatScriptParams['Minor'] != null)
+            ? (midiFX.eatScriptParams['Minor']! > 0.5)
             : timeContext.isSongKeyMinor;
         return notes.map((n) {
           final snappedPitch = isMinor
@@ -260,11 +260,11 @@ class MidiPipelineEngine {
         }).toList();
 
       case MidiFxType.arpeggiator:
-        final rate = midiFX.luaParams['Rate'] ?? midiFX.luaParams['rate'] ?? 1.0;
-        final octaves = (midiFX.luaParams['Octaves'] ?? midiFX.luaParams['octaves'] ?? 2.0).toInt();
-        final pattern = _parsePattern(midiFX.luaParams['Pattern'] ?? midiFX.luaParams['pattern']);
-        final gate = midiFX.luaParams['Gate'] ?? midiFX.luaParams['gate'] ?? 0.85;
-        final swing = midiFX.luaParams['Swing'] ?? midiFX.luaParams['swing'] ?? 0.0;
+        final rate = midiFX.eatScriptParams['Rate'] ?? midiFX.eatScriptParams['rate'] ?? 1.0;
+        final octaves = (midiFX.eatScriptParams['Octaves'] ?? midiFX.eatScriptParams['octaves'] ?? 2.0).toInt();
+        final pattern = _parsePattern(midiFX.eatScriptParams['Pattern'] ?? midiFX.eatScriptParams['pattern']);
+        final gate = midiFX.eatScriptParams['Gate'] ?? midiFX.eatScriptParams['gate'] ?? 0.85;
+        final swing = midiFX.eatScriptParams['Swing'] ?? midiFX.eatScriptParams['swing'] ?? 0.0;
         return applyArpeggiator(
           notes,
           stepRate: rate,
@@ -276,8 +276,8 @@ class MidiPipelineEngine {
         );
 
       case MidiFxType.humanize:
-        final timingAmount = midiFX.luaParams['timing'] ?? midiFX.luaParams['Timing'] ?? 0.04; // max offset in steps
-        final velAmount = midiFX.luaParams['velocity'] ?? midiFX.luaParams['Velocity'] ?? 0.15;
+        final timingAmount = midiFX.eatScriptParams['timing'] ?? midiFX.eatScriptParams['Timing'] ?? 0.04; // max offset in steps
+        final velAmount = midiFX.eatScriptParams['velocity'] ?? midiFX.eatScriptParams['Velocity'] ?? 0.15;
         final rand = math.Random(nHashCode(notes));
 
         return notes.map((n) {
@@ -646,10 +646,10 @@ class MidiPipelineEngine {
     return notes.fold(17, (acc, n) => acc * 37 + n.pitch.hashCode);
   }
 
-  /// Serializes a list of [Note] objects into clean Lua table format.
+  /// Serializes a list of [Note] objects into clean Eatscript format.
   /// If [existingCode] contains a custom process() function or clip params,
   /// it updates the `notes = { ... }` block while preserving the rest of the code.
-  static String serializeNotesToLua(List<Note> notes, {String? existingCode}) {
+  static String serializeNotesToScript(List<Note> notes, {String? existingCode}) {
     final notesBuffer = StringBuffer();
     notesBuffer.writeln('-- Clip Notes Data (eatsbeats.v1)');
     notesBuffer.writeln('notes = {');
@@ -680,8 +680,8 @@ class MidiPipelineEngine {
     return '${notesBuffer.toString()}\n\n$code';
   }
 
-  /// Parses declarative `notes = { ... }` tables from Lua script code into Dart [Note]s.
-  static List<Note> parseNotesFromLuaTable(String luaCode) {
+  /// Parses declarative `notes = { ... }` tables from Eatscript code into Dart [Note]s.
+  static List<Note> parseNotesFromScript(String eatScriptCode) {
     final List<Note> notes = [];
     final rowRegex = RegExp(
       r'\{\s*pitch\s*=\s*(\d+)\s*,\s*start\s*=\s*([\d\.]+)\s*,\s*duration\s*=\s*([\d\.]+)\s*,\s*vel\s*=\s*([\d\.]+)\s*\}',
@@ -689,7 +689,7 @@ class MidiPipelineEngine {
     );
 
     int counter = 0;
-    for (final match in rowRegex.allMatches(luaCode)) {
+    for (final match in rowRegex.allMatches(eatScriptCode)) {
       final pitch = int.tryParse(match.group(1)!) ?? 60;
       final start = double.tryParse(match.group(2)!) ?? 0.0;
       final dur = double.tryParse(match.group(3)!) ?? 1.0;

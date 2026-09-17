@@ -11,8 +11,6 @@ import 'eats_synth_type.dart';
 export 'eats_param_model.dart';
 
 // Backwards-compatibility alias
-typedef LuaEngine = EatEngine;
-
 class EatEngine {
   /// Evaluates a 4-stage ADSR envelope at [time] seconds.
   /// [attack]: Attack time in seconds (0.0 to N)
@@ -63,8 +61,8 @@ class EatEngine {
     EatScriptEngine.clearCache();
   }
 
-  static LuaCompilationResult compile(String code) {
-    return EatScriptEngine.compile(code).toLuaCompilationResult();
+  static EatCompilationResult compile(String code) {
+    return EatScriptEngine.compile(code);
   }
 
   /// Resets persistent DSP voice states for a given [trackId] or all tracks when loading/transitioning songs.

@@ -129,10 +129,10 @@ void main() {
     });
 
     test('Live parameters directly modulate active SFXR synthesized buffer', () {
-      final sfxr = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'eats_sfxr');
+      final sfxr = EatScriptLibrary.presets.firstWhere((p) => p.id == 'eats_sfxr');
 
       // Base Laser
-      final buf1 = LuaEngine.synthesizeBuffer(
+      final buf1 = EatEngine.synthesizeBuffer(
         code: sfxr.code,
         durationSec: 0.15,
         freq: 440.0,
@@ -141,7 +141,7 @@ void main() {
       );
 
       // Same Laser but modified PitchSweep
-      final buf2 = LuaEngine.synthesizeBuffer(
+      final buf2 = EatEngine.synthesizeBuffer(
         code: sfxr.code,
         durationSec: 0.15,
         freq: 440.0,
@@ -162,9 +162,9 @@ void main() {
     });
 
     test('Changing seed produces deterministic variation of sound effect', () {
-      final sfxr = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'eats_sfxr');
+      final sfxr = EatScriptLibrary.presets.firstWhere((p) => p.id == 'eats_sfxr');
 
-      final bufSeedA1 = LuaEngine.synthesizeBuffer(
+      final bufSeedA1 = EatEngine.synthesizeBuffer(
         code: sfxr.code,
         durationSec: 0.15,
         freq: 440.0,
@@ -172,7 +172,7 @@ void main() {
         params: {'SFXType': 0.0, 'Seed': 101.0},
       );
 
-      final bufSeedA2 = LuaEngine.synthesizeBuffer(
+      final bufSeedA2 = EatEngine.synthesizeBuffer(
         code: sfxr.code,
         durationSec: 0.15,
         freq: 440.0,
@@ -180,7 +180,7 @@ void main() {
         params: {'SFXType': 0.0, 'Seed': 101.0},
       );
 
-      final bufSeedB = LuaEngine.synthesizeBuffer(
+      final bufSeedB = EatEngine.synthesizeBuffer(
         code: sfxr.code,
         durationSec: 0.15,
         freq: 440.0,
@@ -205,10 +205,10 @@ void main() {
     });
   });
 
-  group('Lua Preset Library Integration Tests', () {
+  group('Eatscript Preset Library Integration Tests', () {
     test('SFXType is the first parameter in SFXR preset', () {
-      final sfxr = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'eats_sfxr');
-      final compiled = LuaEngine.compile(sfxr.code);
+      final sfxr = EatScriptLibrary.presets.firstWhere((p) => p.id == 'eats_sfxr');
+      final compiled = EatEngine.compile(sfxr.code);
 
       expect(compiled.isSuccess, isTrue);
       expect(compiled.params.first.name, equals('SFXType'));

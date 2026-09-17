@@ -46,7 +46,7 @@ class _HardwareListBoxWidgetState extends State<HardwareListBoxWidget> {
   @override
   void didUpdateWidget(covariant HardwareListBoxWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.track.luaParams[oldWidget.paramName] != widget.track.luaParams[widget.paramName] ||
+    if (oldWidget.track.eatScriptParams[oldWidget.paramName] != widget.track.eatScriptParams[widget.paramName] ||
         oldWidget.paramName != widget.paramName) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected(animate: true));
     }
@@ -59,7 +59,7 @@ class _HardwareListBoxWidgetState extends State<HardwareListBoxWidget> {
   }
 
   int get _selectedIndex {
-    final rawVal = widget.track.luaParams[widget.paramName] ?? 0.0;
+    final rawVal = widget.track.eatScriptParams[widget.paramName] ?? 0.0;
     return rawVal.round().clamp(0, widget.options.isEmpty ? 0 : widget.options.length - 1);
   }
 
@@ -86,8 +86,8 @@ class _HardwareListBoxWidgetState extends State<HardwareListBoxWidget> {
       '${widget.paramName} (${widget.options[index]})',
       icon: Icons.list,
     );
-    widget.track.luaParams[widget.paramName] = index.toDouble();
-    widget.dawState.updateLuaParam(widget.paramName, index.toDouble(), widget.track);
+    widget.track.eatScriptParams[widget.paramName] = index.toDouble();
+    widget.dawState.updateScriptParam(widget.paramName, index.toDouble(), widget.track);
     widget.dawState.commitHistoryTransaction();
     widget.onSelectionChanged?.call(index);
     if (mounted) {

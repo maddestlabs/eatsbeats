@@ -25,7 +25,7 @@ song = {
           "id": "t_kick",
           "name": "Eats Kick",
           "color": 4294901882,
-          "type": "luaScript",
+          "type": "eatScript",
           "volume": 0.95,
           "pan": 0.0,
           "isMuted": false,
@@ -38,8 +38,8 @@ song = {
           "release": 0.3,
           "trackerColumns": 4,
           "activeView": "pianoRoll",
-          "luaScriptCode": "# --- Procedural Sub Kick Drum (Eatscript) ---\nimport math\n\ndef init():\n    eat.param(\"StartFreq\", min=100.0, max=300.0, default=160.0)\n    eat.param(\"EndFreq\", min=30.0, max=60.0, default=42.0)\n    eat.param(\"PitchDecay\", min=0.01, max=0.2, default=0.035)\n    eat.param(\"AmpDecay\", min=0.05, max=4.0, default=0.35)\n    eat.param(\"Click\", min=0.0, max=1.0, default=0.0)\n\ndef process(time, freq, note, params):\n    startF = params.get(\"StartFreq\", 160.0)\n    endF = params.get(\"EndFreq\", 42.0)\n    pDecay = params.get(\"PitchDecay\", 0.035)\n    aDecay = params.get(\"AmpDecay\", 0.35)\n    click = params.get(\"Click\", 0.0)\n\n    curFreq = endF + (startF - endF) * math.exp(-time / max(0.005, pDecay))\n    phase = 2.0 * math.pi * curFreq * time\n    subSine = math.sin(phase)\n\n    clickTransient = (math.random() * 2.0 - 1.0) * math.exp(-time * 150.0) * click\n    env = math.exp(-time * 4.0 / max(0.01, aDecay))\n    rawOutput = (subSine * 0.85 + clickTransient * 0.15) * env\n\n    maxDur = max(0.1, aDecay)\n    fadeStart = maxDur - 0.04\n    edgeFade = 1.0\n    if time > fadeStart:\n        norm = max(0.0, min(1.0, (maxDur - time) / 0.04))\n        edgeFade = 0.5 * (1.0 - math.cos(math.pi * norm))\n    if time >= maxDur:\n        edgeFade = 0.0\n    return math.tanh(rawOutput * edgeFade * 1.3)\n\ndef gui():\n    return {\n        \"panel\": {\n            \"title\": \"EATS KICK\",\n            \"subtitle\": \"Sub Kick Drum Generator\",\n            \"accent\": \"#FF4444\",\n            \"layout\": [\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"knob\", \"param\": \"StartFreq\", \"label\": \"START\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"EndFreq\", \"label\": \"END\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"PitchDecay\", \"label\": \"P.DECAY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"AmpDecay\", \"label\": \"DECAY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Click\", \"label\": \"CLICK\", \"size\": 52},\n                    ]\n                }\n            ]\n        }\n    }\n\nProceduralKick = True\n",
-          "luaParams": {
+          "eatScriptCode": "# --- Procedural Sub Kick Drum (Eatscript) ---\nimport math\n\ndef init():\n    eat.param(\"StartFreq\", min=100.0, max=300.0, default=160.0)\n    eat.param(\"EndFreq\", min=30.0, max=60.0, default=42.0)\n    eat.param(\"PitchDecay\", min=0.01, max=0.2, default=0.035)\n    eat.param(\"AmpDecay\", min=0.05, max=4.0, default=0.35)\n    eat.param(\"Click\", min=0.0, max=1.0, default=0.0)\n\ndef process(time, freq, note, params):\n    startF = params.get(\"StartFreq\", 160.0)\n    endF = params.get(\"EndFreq\", 42.0)\n    pDecay = params.get(\"PitchDecay\", 0.035)\n    aDecay = params.get(\"AmpDecay\", 0.35)\n    click = params.get(\"Click\", 0.0)\n\n    curFreq = endF + (startF - endF) * math.exp(-time / max(0.005, pDecay))\n    phase = 2.0 * math.pi * curFreq * time\n    subSine = math.sin(phase)\n\n    clickTransient = (math.random() * 2.0 - 1.0) * math.exp(-time * 150.0) * click\n    env = math.exp(-time * 4.0 / max(0.01, aDecay))\n    rawOutput = (subSine * 0.85 + clickTransient * 0.15) * env\n\n    maxDur = max(0.1, aDecay)\n    fadeStart = maxDur - 0.04\n    edgeFade = 1.0\n    if time > fadeStart:\n        norm = max(0.0, min(1.0, (maxDur - time) / 0.04))\n        edgeFade = 0.5 * (1.0 - math.cos(math.pi * norm))\n    if time >= maxDur:\n        edgeFade = 0.0\n    return math.tanh(rawOutput * edgeFade * 1.3)\n\ndef gui():\n    return {\n        \"panel\": {\n            \"title\": \"EATS KICK\",\n            \"subtitle\": \"Sub Kick Drum Generator\",\n            \"accent\": \"#FF4444\",\n            \"layout\": [\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"knob\", \"param\": \"StartFreq\", \"label\": \"START\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"EndFreq\", \"label\": \"END\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"PitchDecay\", \"label\": \"P.DECAY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"AmpDecay\", \"label\": \"DECAY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Click\", \"label\": \"CLICK\", \"size\": 52},\n                    ]\n                }\n            ]\n        }\n    }\n\nProceduralKick = True\n",
+          "eatScriptParams": {
             "StartFreq": 120.1709,
             "EndFreq": 56.373,
             "PitchDecay": 0.0311,
@@ -303,7 +303,7 @@ song = {
           "id": "t_snare",
           "name": "Eats Snare",
           "color": 4294937600,
-          "type": "luaScript",
+          "type": "eatScript",
           "volume": 0.85,
           "pan": 0.0,
           "isMuted": false,
@@ -316,8 +316,8 @@ song = {
           "release": 0.3,
           "trackerColumns": 4,
           "activeView": "pianoRoll",
-          "luaScriptCode": "# --- Procedural Snare Drum (Eatscript) ---\nimport math\n\ndef init():\n    eat.param(\"ToneFreq\", min=100.0, max=320.0, default=185.0)\n    eat.param(\"Snappy\", min=0.0, max=1.0, default=0.65)\n    eat.param(\"Decay\", min=0.05, max=0.8, default=0.18)\n    eat.param(\"Variation\", min=0.0, max=1.0, default=0.0)\n\ndef process(time, freq, note, params):\n    toneFreq = params.get(\"ToneFreq\", 185.0)\n    snappy = params.get(\"Snappy\", 0.65)\n    decay = params.get(\"Decay\", 0.18)\n    variation = params.get(\"Variation\", 0.0)\n\n    if variation > 0.001:\n        vOffset = (math.sin(note * 12.9898) * 0.5 + 0.5) * variation\n        toneFreq = toneFreq * (1.0 + (vOffset - 0.5 * variation) * 0.08)\n        decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.15)\n\n    sweepFreq = toneFreq * (1.0 + 1.2 * math.exp(-time * 60.0))\n    body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 22.0)\n    overtone = math.sin(2.0 * math.pi * (toneFreq * 1.75) * time) * math.exp(-time * 30.0) * 0.35\n    tonalCore = body + overtone\n\n    noise = (math.random() * 2.0 - 1.0) * math.exp(-time / max(0.01, decay))\n    click = (math.random() * 2.0 - 1.0) * math.exp(-time * 250.0) * 0.25\n\n    output = tonalCore * (1.0 - snappy * 0.6) + noise * (snappy * 1.2) + click\n    return math.tanh(output * 1.3)\n\ndef gui():\n    return {\n        \"panel\": {\n            \"title\": \"EATS SNARE\",\n            \"subtitle\": \"Snare Drum Synthesizer\",\n            \"accent\": \"#00FFCC\",\n            \"layout\": [\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"knob\", \"param\": \"ToneFreq\", \"label\": \"TONE\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Snappy\", \"label\": \"SNAPPY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Decay\", \"label\": \"DECAY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Variation\", \"label\": \"VAR\", \"size\": 52},\n                    ]\n                }\n            ]\n        }\n    }\n\nProceduralSnare = True\n",
-          "luaParams": {
+          "eatScriptCode": "# --- Procedural Snare Drum (Eatscript) ---\nimport math\n\ndef init():\n    eat.param(\"ToneFreq\", min=100.0, max=320.0, default=185.0)\n    eat.param(\"Snappy\", min=0.0, max=1.0, default=0.65)\n    eat.param(\"Decay\", min=0.05, max=0.8, default=0.18)\n    eat.param(\"Variation\", min=0.0, max=1.0, default=0.0)\n\ndef process(time, freq, note, params):\n    toneFreq = params.get(\"ToneFreq\", 185.0)\n    snappy = params.get(\"Snappy\", 0.65)\n    decay = params.get(\"Decay\", 0.18)\n    variation = params.get(\"Variation\", 0.0)\n\n    if variation > 0.001:\n        vOffset = (math.sin(note * 12.9898) * 0.5 + 0.5) * variation\n        toneFreq = toneFreq * (1.0 + (vOffset - 0.5 * variation) * 0.08)\n        decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.15)\n\n    sweepFreq = toneFreq * (1.0 + 1.2 * math.exp(-time * 60.0))\n    body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 22.0)\n    overtone = math.sin(2.0 * math.pi * (toneFreq * 1.75) * time) * math.exp(-time * 30.0) * 0.35\n    tonalCore = body + overtone\n\n    noise = (math.random() * 2.0 - 1.0) * math.exp(-time / max(0.01, decay))\n    click = (math.random() * 2.0 - 1.0) * math.exp(-time * 250.0) * 0.25\n\n    output = tonalCore * (1.0 - snappy * 0.6) + noise * (snappy * 1.2) + click\n    return math.tanh(output * 1.3)\n\ndef gui():\n    return {\n        \"panel\": {\n            \"title\": \"EATS SNARE\",\n            \"subtitle\": \"Snare Drum Synthesizer\",\n            \"accent\": \"#00FFCC\",\n            \"layout\": [\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"knob\", \"param\": \"ToneFreq\", \"label\": \"TONE\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Snappy\", \"label\": \"SNAPPY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Decay\", \"label\": \"DECAY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Variation\", \"label\": \"VAR\", \"size\": 52},\n                    ]\n                }\n            ]\n        }\n    }\n\nProceduralSnare = True\n",
+          "eatScriptParams": {
             "ToneFreq": 300.0,
             "Snappy": 0.1201,
             "Decay": 0.05
@@ -467,7 +467,7 @@ song = {
           "id": "t_hihat",
           "name": "Eats Hats",
           "color": 4294948608,
-          "type": "luaScript",
+          "type": "eatScript",
           "volume": 0.75,
           "pan": 0.0,
           "isMuted": false,
@@ -480,8 +480,8 @@ song = {
           "release": 0.3,
           "trackerColumns": 4,
           "activeView": "pianoRoll",
-          "luaScriptCode": "-- --- Procedural Hi-Hat Synth Script (Lua) ---\nlocal ProceduralHiHat = {}\n\nfunction ProceduralHiHat.init()\n  Param.add(\"Cutoff\", 3000.0, 14000.0, 7500.0)\n  Param.add(\"Decay\", 0.01, 0.6, 0.06)\n  Param.add(\"Metallic\", 0.0, 1.0, 0.15)\n  Param.add(\"Variation\", 0.0, 1.0, 0.0)\nend\n\nfunction ProceduralHiHat.process(time, freq, note, params)\n  local cutoff = params[\"Cutoff\"] or 7500.0\n  local decay = params[\"Decay\"] or 0.06\n  local metallic = params[\"Metallic\"] or 0.15\n  local variation = params[\"Variation\"] or 0.0\n\n  if variation > 0.001 then\n    local vOffset = (math.sin(note * 78.233) * 0.5 + 0.5) * variation\n    cutoff = cutoff * (1.0 + (vOffset - 0.5 * variation) * 0.12)\n    decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.18)\n  end\n\n  local env = math.exp(-time / math.max(0.005, decay))\n\n  local ring1 = math.sin(2.0 * math.pi * 320.0 * time)\n  local ring2 = math.sin(2.0 * math.pi * 540.0 * time)\n  local ring3 = math.sin(2.0 * math.pi * 890.0 * time)\n  local metallicRing = (ring1 + ring2 + ring3) * 0.333\n\n  local noise = (math.random() * 2.0 - 1.0)\n  local rawSignal = noise * (1.0 - metallic * 0.3) + metallicRing * (metallic * 0.3)\n  local filtered = DSP.highpass(rawSignal, cutoff, 1.4)\n\n  return math.tanh(filtered * env * 1.1)\nend\n\nreturn ProceduralHiHat",
-          "luaParams": {
+          "eatScriptCode": "# --- Procedural Hi-Hat Synth Script (Eatscript) ---\nlocal ProceduralHiHat = {}\n\nfunction ProceduralHiHat.init()\n  Param.add(\"Cutoff\", 3000.0, 14000.0, 7500.0)\n  Param.add(\"Decay\", 0.01, 0.6, 0.06)\n  Param.add(\"Metallic\", 0.0, 1.0, 0.15)\n  Param.add(\"Variation\", 0.0, 1.0, 0.0)\nend\n\nfunction ProceduralHiHat.process(time, freq, note, params)\n  local cutoff = params[\"Cutoff\"] or 7500.0\n  local decay = params[\"Decay\"] or 0.06\n  local metallic = params[\"Metallic\"] or 0.15\n  local variation = params[\"Variation\"] or 0.0\n\n  if variation > 0.001 then\n    local vOffset = (math.sin(note * 78.233) * 0.5 + 0.5) * variation\n    cutoff = cutoff * (1.0 + (vOffset - 0.5 * variation) * 0.12)\n    decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.18)\n  end\n\n  local env = math.exp(-time / math.max(0.005, decay))\n\n  local ring1 = math.sin(2.0 * math.pi * 320.0 * time)\n  local ring2 = math.sin(2.0 * math.pi * 540.0 * time)\n  local ring3 = math.sin(2.0 * math.pi * 890.0 * time)\n  local metallicRing = (ring1 + ring2 + ring3) * 0.333\n\n  local noise = (math.random() * 2.0 - 1.0)\n  local rawSignal = noise * (1.0 - metallic * 0.3) + metallicRing * (metallic * 0.3)\n  local filtered = DSP.highpass(rawSignal, cutoff, 1.4)\n\n  return math.tanh(filtered * env * 1.1)\nend\n\nreturn ProceduralHiHat",
+          "eatScriptParams": {
             "Cutoff": 4051.2821,
             "Decay": 0.0156,
             "Metallic": 1.0
@@ -951,10 +951,10 @@ song = {
           ]
         },
         {
-          "id": "t_lua_303",
+          "id": "t_eat_303",
           "name": "Eats-303",
           "color": 4278255462,
-          "type": "luaScript",
+          "type": "eatScript",
           "volume": 0.9,
           "pan": 0.0,
           "isMuted": false,
@@ -967,8 +967,8 @@ song = {
           "release": 0.3,
           "trackerColumns": 4,
           "activeView": "pianoRoll",
-          "luaScriptCode": "# --- Eats-303 Acid Bassline (Eatscript) ---\nimport math\n\ndef init():\n    eat.param(\"Waveform\", min=0.0, max=1.0, default=0.0, step=1.0)\n    eat.param(\"Pitch\", min=-12.0, max=12.0, default=0.0, step=1.0)\n    eat.param(\"Cutoff\", min=200.0, max=4500.0, default=1400.0)\n    eat.param(\"Resonance\", min=0.5, max=16.0, default=9.2)\n    eat.param(\"EnvMod\", min=0.0, max=1.0, default=0.75)\n    eat.param(\"Decay\", min=0.05, max=1.2, default=0.28)\n    eat.param(\"Accent\", min=0.0, max=1.0, default=0.78)\n    eat.param(\"Octave\", min=-2.0, max=0.0, default=0.0, step=1.0)\n    eat.param(\"SubWaveform\", min=0.0, max=1.0, default=0.0, step=1.0)\n    eat.param(\"SubVolume\", min=0.0, max=1.0, default=0.0)\n    eat.param(\"Drive\", min=0.0, max=1.0, default=0.25)\n    eat.param(\"Slide\", min=0.0, max=1.0, default=0.0)\n\ndef process(time, freq, note, params, targetNote=0, isSlide=False, isAccent=False):\n    waveType = params.get(\"Waveform\", 0.0)\n    pitch = params.get(\"Pitch\", 0.0)\n    cutoff = params.get(\"Cutoff\", 1400.0)\n    res = params.get(\"Resonance\", 9.2)\n    envMod = params.get(\"EnvMod\", 0.75)\n    decay = params.get(\"Decay\", 0.28)\n    accent = params.get(\"Accent\", 0.78)\n    drive = params.get(\"Drive\", 0.25)\n    octave = int(params.get(\"Octave\", 0.0) + 0.5)\n    subWave = params.get(\"SubWaveform\", 0.0)\n    subVol = params.get(\"SubVolume\", 0.0)\n\n    baseFreq = freq * (2.0 ** (octave + pitch / 12.0))\n    phase = time * baseFreq\n    normPhase = phase - math.floor(phase)\n    sawRaw = 2.0 * normPhase - 1.0\n    sawHP = sawRaw - 0.85 * math.exp(-time * 12.0)\n    sqrRaw = 0.78 if normPhase < 0.48 else -0.78\n    osc = (1.0 - waveType) * sawHP + waveType * sqrRaw\n\n    hasAccent = isAccent or (accent > 0.7 and not isSlide)\n    activeDecay = 0.200 if hasAccent else decay\n    softAttack = 1.0 - math.exp(-time / 0.003)\n    env = softAttack * math.exp(-time / activeDecay)\n    accentPulse = (accent * 0.55 * math.exp(-time / 0.035)) if hasAccent else 0.0\n\n    output = osc * env\n    if drive > 0.02:\n        output = math.tanh(output * (1.0 + drive * 3.5))\n    return output\n\ndef gui():\n    return {\n        \"panel\": {\n            \"title\": \"EATS-303 ACID BASSLINE\",\n            \"subtitle\": \"Eats-303 Acid Synth • (JC-303 & Open303 DSP)\",\n            \"background\": \"silver\",\n            \"accent\": \"#000000\",\n            \"knobStyle\": \"chrome\",\n            \"layout\": [\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"switch\", \"param\": \"Waveform\", \"label\": \"WAVEFORM\", \"options\": [\"SAW\", \"SQR\"]},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 62},\n                        {\"type\": \"knob\", \"param\": \"Pitch\", \"label\": \"PITCH\", \"size\": 52, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Cutoff\", \"label\": \"CUTOFF\", \"size\": 58, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Resonance\", \"label\": \"RESONANCE\", \"size\": 58, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"EnvMod\", \"label\": \"ENV MOD\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Decay\", \"label\": \"DECAY\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Accent\", \"label\": \"ACCENT\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                    ]\n                },\n                {\"type\": \"divider\", \"orientation\": \"horizontal\"},\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"knob\", \"param\": \"Octave\", \"label\": \"OCTAVE\", \"size\": 50, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 56},\n                        {\"type\": \"switch\", \"param\": \"SubWaveform\", \"label\": \"SUB OSC\", \"options\": [\"SIN\", \"SQR\"]},\n                        {\"type\": \"knob\", \"param\": \"SubVolume\", \"label\": \"SUB VOL\", \"size\": 52, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 56},\n                        {\"type\": \"slider\", \"param\": \"Slide\", \"label\": \"PORTAMENTO SLIDE\", \"orientation\": \"horizontal\", \"size\": 140},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 56},\n                        {\"type\": \"knob\", \"param\": \"Drive\", \"label\": \"DRIVE\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                    ]\n                }\n            ]\n        }\n    }\n\nEats303 = True\nJC303 = True\n",
-          "luaParams": {
+          "eatScriptCode": "# --- Eats-303 Acid Bassline (Eatscript) ---\nimport math\n\ndef init():\n    eat.param(\"Waveform\", min=0.0, max=1.0, default=0.0, step=1.0)\n    eat.param(\"Pitch\", min=-12.0, max=12.0, default=0.0, step=1.0)\n    eat.param(\"Cutoff\", min=200.0, max=4500.0, default=1400.0)\n    eat.param(\"Resonance\", min=0.5, max=16.0, default=9.2)\n    eat.param(\"EnvMod\", min=0.0, max=1.0, default=0.75)\n    eat.param(\"Decay\", min=0.05, max=1.2, default=0.28)\n    eat.param(\"Accent\", min=0.0, max=1.0, default=0.78)\n    eat.param(\"Octave\", min=-2.0, max=0.0, default=0.0, step=1.0)\n    eat.param(\"SubWaveform\", min=0.0, max=1.0, default=0.0, step=1.0)\n    eat.param(\"SubVolume\", min=0.0, max=1.0, default=0.0)\n    eat.param(\"Drive\", min=0.0, max=1.0, default=0.25)\n    eat.param(\"Slide\", min=0.0, max=1.0, default=0.0)\n\ndef process(time, freq, note, params, targetNote=0, isSlide=False, isAccent=False):\n    waveType = params.get(\"Waveform\", 0.0)\n    pitch = params.get(\"Pitch\", 0.0)\n    cutoff = params.get(\"Cutoff\", 1400.0)\n    res = params.get(\"Resonance\", 9.2)\n    envMod = params.get(\"EnvMod\", 0.75)\n    decay = params.get(\"Decay\", 0.28)\n    accent = params.get(\"Accent\", 0.78)\n    drive = params.get(\"Drive\", 0.25)\n    octave = int(params.get(\"Octave\", 0.0) + 0.5)\n    subWave = params.get(\"SubWaveform\", 0.0)\n    subVol = params.get(\"SubVolume\", 0.0)\n\n    baseFreq = freq * (2.0 ** (octave + pitch / 12.0))\n    phase = time * baseFreq\n    normPhase = phase - math.floor(phase)\n    sawRaw = 2.0 * normPhase - 1.0\n    sawHP = sawRaw - 0.85 * math.exp(-time * 12.0)\n    sqrRaw = 0.78 if normPhase < 0.48 else -0.78\n    osc = (1.0 - waveType) * sawHP + waveType * sqrRaw\n\n    hasAccent = isAccent or (accent > 0.7 and not isSlide)\n    activeDecay = 0.200 if hasAccent else decay\n    softAttack = 1.0 - math.exp(-time / 0.003)\n    env = softAttack * math.exp(-time / activeDecay)\n    accentPulse = (accent * 0.55 * math.exp(-time / 0.035)) if hasAccent else 0.0\n\n    output = osc * env\n    if drive > 0.02:\n        output = math.tanh(output * (1.0 + drive * 3.5))\n    return output\n\ndef gui():\n    return {\n        \"panel\": {\n            \"title\": \"EATS-303 ACID BASSLINE\",\n            \"subtitle\": \"Eats-303 Acid Synth • (JC-303 & Open303 DSP)\",\n            \"background\": \"silver\",\n            \"accent\": \"#000000\",\n            \"knobStyle\": \"chrome\",\n            \"layout\": [\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"switch\", \"param\": \"Waveform\", \"label\": \"WAVEFORM\", \"options\": [\"SAW\", \"SQR\"]},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 62},\n                        {\"type\": \"knob\", \"param\": \"Pitch\", \"label\": \"PITCH\", \"size\": 52, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Cutoff\", \"label\": \"CUTOFF\", \"size\": 58, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Resonance\", \"label\": \"RESONANCE\", \"size\": 58, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"EnvMod\", \"label\": \"ENV MOD\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Decay\", \"label\": \"DECAY\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Accent\", \"label\": \"ACCENT\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                    ]\n                },\n                {\"type\": \"divider\", \"orientation\": \"horizontal\"},\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"knob\", \"param\": \"Octave\", \"label\": \"OCTAVE\", \"size\": 50, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 56},\n                        {\"type\": \"switch\", \"param\": \"SubWaveform\", \"label\": \"SUB OSC\", \"options\": [\"SIN\", \"SQR\"]},\n                        {\"type\": \"knob\", \"param\": \"SubVolume\", \"label\": \"SUB VOL\", \"size\": 52, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 56},\n                        {\"type\": \"slider\", \"param\": \"Slide\", \"label\": \"PORTAMENTO SLIDE\", \"orientation\": \"horizontal\", \"size\": 140},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 56},\n                        {\"type\": \"knob\", \"param\": \"Drive\", \"label\": \"DRIVE\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                    ]\n                }\n            ]\n        }\n    }\n\nEats303 = True\nJC303 = True\n",
+          "eatScriptParams": {
             "Waveform": 0.0,
             "Cutoff": 268.0808,
             "Resonance": 15.2148,
@@ -1236,7 +1236,7 @@ song = {
             {
               "id": "c_w1",
               "name": "Acid 303 Riff",
-              "trackId": "t_lua_303",
+              "trackId": "t_eat_303",
               "startBar": 0,
               "barLength": 4,
               "notes": [
@@ -1422,7 +1422,7 @@ song = {
           "id": "p1_k",
           "name": "Eats Kick",
           "color": 4294901882,
-          "type": "luaScript",
+          "type": "eatScript",
           "volume": 0.95,
           "pan": 0.0,
           "isMuted": false,
@@ -1435,8 +1435,8 @@ song = {
           "release": 0.3,
           "trackerColumns": 4,
           "activeView": "pianoRoll",
-          "luaScriptCode": "# --- Procedural Sub Kick Drum (Eatscript) ---\nimport math\n\ndef init():\n    eat.param(\"StartFreq\", min=100.0, max=300.0, default=160.0)\n    eat.param(\"EndFreq\", min=30.0, max=60.0, default=42.0)\n    eat.param(\"PitchDecay\", min=0.01, max=0.2, default=0.035)\n    eat.param(\"AmpDecay\", min=0.05, max=4.0, default=0.35)\n    eat.param(\"Click\", min=0.0, max=1.0, default=0.0)\n\ndef process(time, freq, note, params):\n    startF = params.get(\"StartFreq\", 160.0)\n    endF = params.get(\"EndFreq\", 42.0)\n    pDecay = params.get(\"PitchDecay\", 0.035)\n    aDecay = params.get(\"AmpDecay\", 0.35)\n    click = params.get(\"Click\", 0.0)\n\n    curFreq = endF + (startF - endF) * math.exp(-time / max(0.005, pDecay))\n    phase = 2.0 * math.pi * curFreq * time\n    subSine = math.sin(phase)\n\n    clickTransient = (math.random() * 2.0 - 1.0) * math.exp(-time * 150.0) * click\n    env = math.exp(-time * 4.0 / max(0.01, aDecay))\n    rawOutput = (subSine * 0.85 + clickTransient * 0.15) * env\n\n    maxDur = max(0.1, aDecay)\n    fadeStart = maxDur - 0.04\n    edgeFade = 1.0\n    if time > fadeStart:\n        norm = max(0.0, min(1.0, (maxDur - time) / 0.04))\n        edgeFade = 0.5 * (1.0 - math.cos(math.pi * norm))\n    if time >= maxDur:\n        edgeFade = 0.0\n    return math.tanh(rawOutput * edgeFade * 1.3)\n\ndef gui():\n    return {\n        \"panel\": {\n            \"title\": \"EATS KICK\",\n            \"subtitle\": \"Sub Kick Drum Generator\",\n            \"accent\": \"#FF4444\",\n            \"layout\": [\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"knob\", \"param\": \"StartFreq\", \"label\": \"START\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"EndFreq\", \"label\": \"END\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"PitchDecay\", \"label\": \"P.DECAY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"AmpDecay\", \"label\": \"DECAY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Click\", \"label\": \"CLICK\", \"size\": 52},\n                    ]\n                }\n            ]\n        }\n    }\n\nProceduralKick = True\n",
-          "luaParams": {
+          "eatScriptCode": "# --- Procedural Sub Kick Drum (Eatscript) ---\nimport math\n\ndef init():\n    eat.param(\"StartFreq\", min=100.0, max=300.0, default=160.0)\n    eat.param(\"EndFreq\", min=30.0, max=60.0, default=42.0)\n    eat.param(\"PitchDecay\", min=0.01, max=0.2, default=0.035)\n    eat.param(\"AmpDecay\", min=0.05, max=4.0, default=0.35)\n    eat.param(\"Click\", min=0.0, max=1.0, default=0.0)\n\ndef process(time, freq, note, params):\n    startF = params.get(\"StartFreq\", 160.0)\n    endF = params.get(\"EndFreq\", 42.0)\n    pDecay = params.get(\"PitchDecay\", 0.035)\n    aDecay = params.get(\"AmpDecay\", 0.35)\n    click = params.get(\"Click\", 0.0)\n\n    curFreq = endF + (startF - endF) * math.exp(-time / max(0.005, pDecay))\n    phase = 2.0 * math.pi * curFreq * time\n    subSine = math.sin(phase)\n\n    clickTransient = (math.random() * 2.0 - 1.0) * math.exp(-time * 150.0) * click\n    env = math.exp(-time * 4.0 / max(0.01, aDecay))\n    rawOutput = (subSine * 0.85 + clickTransient * 0.15) * env\n\n    maxDur = max(0.1, aDecay)\n    fadeStart = maxDur - 0.04\n    edgeFade = 1.0\n    if time > fadeStart:\n        norm = max(0.0, min(1.0, (maxDur - time) / 0.04))\n        edgeFade = 0.5 * (1.0 - math.cos(math.pi * norm))\n    if time >= maxDur:\n        edgeFade = 0.0\n    return math.tanh(rawOutput * edgeFade * 1.3)\n\ndef gui():\n    return {\n        \"panel\": {\n            \"title\": \"EATS KICK\",\n            \"subtitle\": \"Sub Kick Drum Generator\",\n            \"accent\": \"#FF4444\",\n            \"layout\": [\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"knob\", \"param\": \"StartFreq\", \"label\": \"START\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"EndFreq\", \"label\": \"END\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"PitchDecay\", \"label\": \"P.DECAY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"AmpDecay\", \"label\": \"DECAY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Click\", \"label\": \"CLICK\", \"size\": 52},\n                    ]\n                }\n            ]\n        }\n    }\n\nProceduralKick = True\n",
+          "eatScriptParams": {
             "StartFreq": 160.0,
             "EndFreq": 42.0,
             "PitchDecay": 0.035,
@@ -1687,7 +1687,7 @@ song = {
           "id": "p1_s",
           "name": "Eats Snare",
           "color": 4294937600,
-          "type": "luaScript",
+          "type": "eatScript",
           "volume": 0.85,
           "pan": 0.0,
           "isMuted": false,
@@ -1700,8 +1700,8 @@ song = {
           "release": 0.3,
           "trackerColumns": 4,
           "activeView": "pianoRoll",
-          "luaScriptCode": "# --- Procedural Snare Drum (Eatscript) ---\nimport math\n\ndef init():\n    eat.param(\"ToneFreq\", min=100.0, max=320.0, default=185.0)\n    eat.param(\"Snappy\", min=0.0, max=1.0, default=0.65)\n    eat.param(\"Decay\", min=0.05, max=0.8, default=0.18)\n    eat.param(\"Variation\", min=0.0, max=1.0, default=0.0)\n\ndef process(time, freq, note, params):\n    toneFreq = params.get(\"ToneFreq\", 185.0)\n    snappy = params.get(\"Snappy\", 0.65)\n    decay = params.get(\"Decay\", 0.18)\n    variation = params.get(\"Variation\", 0.0)\n\n    if variation > 0.001:\n        vOffset = (math.sin(note * 12.9898) * 0.5 + 0.5) * variation\n        toneFreq = toneFreq * (1.0 + (vOffset - 0.5 * variation) * 0.08)\n        decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.15)\n\n    sweepFreq = toneFreq * (1.0 + 1.2 * math.exp(-time * 60.0))\n    body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 22.0)\n    overtone = math.sin(2.0 * math.pi * (toneFreq * 1.75) * time) * math.exp(-time * 30.0) * 0.35\n    tonalCore = body + overtone\n\n    noise = (math.random() * 2.0 - 1.0) * math.exp(-time / max(0.01, decay))\n    click = (math.random() * 2.0 - 1.0) * math.exp(-time * 250.0) * 0.25\n\n    output = tonalCore * (1.0 - snappy * 0.6) + noise * (snappy * 1.2) + click\n    return math.tanh(output * 1.3)\n\ndef gui():\n    return {\n        \"panel\": {\n            \"title\": \"EATS SNARE\",\n            \"subtitle\": \"Snare Drum Synthesizer\",\n            \"accent\": \"#00FFCC\",\n            \"layout\": [\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"knob\", \"param\": \"ToneFreq\", \"label\": \"TONE\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Snappy\", \"label\": \"SNAPPY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Decay\", \"label\": \"DECAY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Variation\", \"label\": \"VAR\", \"size\": 52},\n                    ]\n                }\n            ]\n        }\n    }\n\nProceduralSnare = True\n",
-          "luaParams": {
+          "eatScriptCode": "# --- Procedural Snare Drum (Eatscript) ---\nimport math\n\ndef init():\n    eat.param(\"ToneFreq\", min=100.0, max=320.0, default=185.0)\n    eat.param(\"Snappy\", min=0.0, max=1.0, default=0.65)\n    eat.param(\"Decay\", min=0.05, max=0.8, default=0.18)\n    eat.param(\"Variation\", min=0.0, max=1.0, default=0.0)\n\ndef process(time, freq, note, params):\n    toneFreq = params.get(\"ToneFreq\", 185.0)\n    snappy = params.get(\"Snappy\", 0.65)\n    decay = params.get(\"Decay\", 0.18)\n    variation = params.get(\"Variation\", 0.0)\n\n    if variation > 0.001:\n        vOffset = (math.sin(note * 12.9898) * 0.5 + 0.5) * variation\n        toneFreq = toneFreq * (1.0 + (vOffset - 0.5 * variation) * 0.08)\n        decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.15)\n\n    sweepFreq = toneFreq * (1.0 + 1.2 * math.exp(-time * 60.0))\n    body = math.sin(2.0 * math.pi * sweepFreq * time) * math.exp(-time * 22.0)\n    overtone = math.sin(2.0 * math.pi * (toneFreq * 1.75) * time) * math.exp(-time * 30.0) * 0.35\n    tonalCore = body + overtone\n\n    noise = (math.random() * 2.0 - 1.0) * math.exp(-time / max(0.01, decay))\n    click = (math.random() * 2.0 - 1.0) * math.exp(-time * 250.0) * 0.25\n\n    output = tonalCore * (1.0 - snappy * 0.6) + noise * (snappy * 1.2) + click\n    return math.tanh(output * 1.3)\n\ndef gui():\n    return {\n        \"panel\": {\n            \"title\": \"EATS SNARE\",\n            \"subtitle\": \"Snare Drum Synthesizer\",\n            \"accent\": \"#00FFCC\",\n            \"layout\": [\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"knob\", \"param\": \"ToneFreq\", \"label\": \"TONE\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Snappy\", \"label\": \"SNAPPY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Decay\", \"label\": \"DECAY\", \"size\": 52},\n                        {\"type\": \"knob\", \"param\": \"Variation\", \"label\": \"VAR\", \"size\": 52},\n                    ]\n                }\n            ]\n        }\n    }\n\nProceduralSnare = True\n",
+          "eatScriptParams": {
             "ToneFreq": 185.0,
             "Snappy": 0.65,
             "Decay": 0.1
@@ -1838,7 +1838,7 @@ song = {
           "id": "p1_h",
           "name": "Eats Hats",
           "color": 4294948608,
-          "type": "luaScript",
+          "type": "eatScript",
           "volume": 0.75,
           "pan": 0.0,
           "isMuted": false,
@@ -1851,8 +1851,8 @@ song = {
           "release": 0.3,
           "trackerColumns": 4,
           "activeView": "pianoRoll",
-          "luaScriptCode": "-- --- Procedural Hi-Hat Synth Script (Lua) ---\nlocal ProceduralHiHat = {}\n\nfunction ProceduralHiHat.init()\n  Param.add(\"Cutoff\", 3000.0, 14000.0, 7500.0)\n  Param.add(\"Decay\", 0.01, 0.6, 0.06)\n  Param.add(\"Metallic\", 0.0, 1.0, 0.15)\n  Param.add(\"Variation\", 0.0, 1.0, 0.0)\nend\n\nfunction ProceduralHiHat.process(time, freq, note, params)\n  local cutoff = params[\"Cutoff\"] or 7500.0\n  local decay = params[\"Decay\"] or 0.06\n  local metallic = params[\"Metallic\"] or 0.15\n  local variation = params[\"Variation\"] or 0.0\n\n  if variation > 0.001 then\n    local vOffset = (math.sin(note * 78.233) * 0.5 + 0.5) * variation\n    cutoff = cutoff * (1.0 + (vOffset - 0.5 * variation) * 0.12)\n    decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.18)\n  end\n\n  local env = math.exp(-time / math.max(0.005, decay))\n\n  local ring1 = math.sin(2.0 * math.pi * 320.0 * time)\n  local ring2 = math.sin(2.0 * math.pi * 540.0 * time)\n  local ring3 = math.sin(2.0 * math.pi * 890.0 * time)\n  local metallicRing = (ring1 + ring2 + ring3) * 0.333\n\n  local noise = (math.random() * 2.0 - 1.0)\n  local rawSignal = noise * (1.0 - metallic * 0.3) + metallicRing * (metallic * 0.3)\n  local filtered = DSP.highpass(rawSignal, cutoff, 1.4)\n\n  return math.tanh(filtered * env * 1.1)\nend\n\nreturn ProceduralHiHat",
-          "luaParams": {
+          "eatScriptCode": "# --- Procedural Hi-Hat Synth Script (Eatscript) ---\nlocal ProceduralHiHat = {}\n\nfunction ProceduralHiHat.init()\n  Param.add(\"Cutoff\", 3000.0, 14000.0, 7500.0)\n  Param.add(\"Decay\", 0.01, 0.6, 0.06)\n  Param.add(\"Metallic\", 0.0, 1.0, 0.15)\n  Param.add(\"Variation\", 0.0, 1.0, 0.0)\nend\n\nfunction ProceduralHiHat.process(time, freq, note, params)\n  local cutoff = params[\"Cutoff\"] or 7500.0\n  local decay = params[\"Decay\"] or 0.06\n  local metallic = params[\"Metallic\"] or 0.15\n  local variation = params[\"Variation\"] or 0.0\n\n  if variation > 0.001 then\n    local vOffset = (math.sin(note * 78.233) * 0.5 + 0.5) * variation\n    cutoff = cutoff * (1.0 + (vOffset - 0.5 * variation) * 0.12)\n    decay = decay * (1.0 + (vOffset - 0.5 * variation) * 0.18)\n  end\n\n  local env = math.exp(-time / math.max(0.005, decay))\n\n  local ring1 = math.sin(2.0 * math.pi * 320.0 * time)\n  local ring2 = math.sin(2.0 * math.pi * 540.0 * time)\n  local ring3 = math.sin(2.0 * math.pi * 890.0 * time)\n  local metallicRing = (ring1 + ring2 + ring3) * 0.333\n\n  local noise = (math.random() * 2.0 - 1.0)\n  local rawSignal = noise * (1.0 - metallic * 0.3) + metallicRing * (metallic * 0.3)\n  local filtered = DSP.highpass(rawSignal, cutoff, 1.4)\n\n  return math.tanh(filtered * env * 1.1)\nend\n\nreturn ProceduralHiHat",
+          "eatScriptParams": {
             "Cutoff": 8500.0,
             "Decay": 0.05,
             "Metallic": 0.15
@@ -2274,7 +2274,7 @@ song = {
           "id": "p1_w",
           "name": "Eats-303",
           "color": 4278255462,
-          "type": "luaScript",
+          "type": "eatScript",
           "volume": 0.9,
           "pan": 0.0,
           "isMuted": false,
@@ -2287,8 +2287,8 @@ song = {
           "release": 0.3,
           "trackerColumns": 4,
           "activeView": "pianoRoll",
-          "luaScriptCode": "# --- Eats-303 Acid Bassline (Eatscript) ---\nimport math\n\ndef init():\n    eat.param(\"Waveform\", min=0.0, max=1.0, default=0.0, step=1.0)\n    eat.param(\"Pitch\", min=-12.0, max=12.0, default=0.0, step=1.0)\n    eat.param(\"Cutoff\", min=200.0, max=4500.0, default=1400.0)\n    eat.param(\"Resonance\", min=0.5, max=16.0, default=9.2)\n    eat.param(\"EnvMod\", min=0.0, max=1.0, default=0.75)\n    eat.param(\"Decay\", min=0.05, max=1.2, default=0.28)\n    eat.param(\"Accent\", min=0.0, max=1.0, default=0.78)\n    eat.param(\"Octave\", min=-2.0, max=0.0, default=0.0, step=1.0)\n    eat.param(\"SubWaveform\", min=0.0, max=1.0, default=0.0, step=1.0)\n    eat.param(\"SubVolume\", min=0.0, max=1.0, default=0.0)\n    eat.param(\"Drive\", min=0.0, max=1.0, default=0.25)\n    eat.param(\"Slide\", min=0.0, max=1.0, default=0.0)\n\ndef process(time, freq, note, params, targetNote=0, isSlide=False, isAccent=False):\n    waveType = params.get(\"Waveform\", 0.0)\n    pitch = params.get(\"Pitch\", 0.0)\n    cutoff = params.get(\"Cutoff\", 1400.0)\n    res = params.get(\"Resonance\", 9.2)\n    envMod = params.get(\"EnvMod\", 0.75)\n    decay = params.get(\"Decay\", 0.28)\n    accent = params.get(\"Accent\", 0.78)\n    drive = params.get(\"Drive\", 0.25)\n    octave = int(params.get(\"Octave\", 0.0) + 0.5)\n    subWave = params.get(\"SubWaveform\", 0.0)\n    subVol = params.get(\"SubVolume\", 0.0)\n\n    baseFreq = freq * (2.0 ** (octave + pitch / 12.0))\n    phase = time * baseFreq\n    normPhase = phase - math.floor(phase)\n    sawRaw = 2.0 * normPhase - 1.0\n    sawHP = sawRaw - 0.85 * math.exp(-time * 12.0)\n    sqrRaw = 0.78 if normPhase < 0.48 else -0.78\n    osc = (1.0 - waveType) * sawHP + waveType * sqrRaw\n\n    hasAccent = isAccent or (accent > 0.7 and not isSlide)\n    activeDecay = 0.200 if hasAccent else decay\n    softAttack = 1.0 - math.exp(-time / 0.003)\n    env = softAttack * math.exp(-time / activeDecay)\n    accentPulse = (accent * 0.55 * math.exp(-time / 0.035)) if hasAccent else 0.0\n\n    output = osc * env\n    if drive > 0.02:\n        output = math.tanh(output * (1.0 + drive * 3.5))\n    return output\n\ndef gui():\n    return {\n        \"panel\": {\n            \"title\": \"EATS-303 ACID BASSLINE\",\n            \"subtitle\": \"Eats-303 Acid Synth • (JC-303 & Open303 DSP)\",\n            \"background\": \"silver\",\n            \"accent\": \"#000000\",\n            \"knobStyle\": \"chrome\",\n            \"layout\": [\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"switch\", \"param\": \"Waveform\", \"label\": \"WAVEFORM\", \"options\": [\"SAW\", \"SQR\"]},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 62},\n                        {\"type\": \"knob\", \"param\": \"Pitch\", \"label\": \"PITCH\", \"size\": 52, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Cutoff\", \"label\": \"CUTOFF\", \"size\": 58, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Resonance\", \"label\": \"RESONANCE\", \"size\": 58, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"EnvMod\", \"label\": \"ENV MOD\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Decay\", \"label\": \"DECAY\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Accent\", \"label\": \"ACCENT\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                    ]\n                },\n                {\"type\": \"divider\", \"orientation\": \"horizontal\"},\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"knob\", \"param\": \"Octave\", \"label\": \"OCTAVE\", \"size\": 50, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 56},\n                        {\"type\": \"switch\", \"param\": \"SubWaveform\", \"label\": \"SUB OSC\", \"options\": [\"SIN\", \"SQR\"]},\n                        {\"type\": \"knob\", \"param\": \"SubVolume\", \"label\": \"SUB VOL\", \"size\": 52, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 56},\n                        {\"type\": \"slider\", \"param\": \"Slide\", \"label\": \"PORTAMENTO SLIDE\", \"orientation\": \"horizontal\", \"size\": 140},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 56},\n                        {\"type\": \"knob\", \"param\": \"Drive\", \"label\": \"DRIVE\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                    ]\n                }\n            ]\n        }\n    }\n\nEats303 = True\nJC303 = True\n",
-          "luaParams": {
+          "eatScriptCode": "# --- Eats-303 Acid Bassline (Eatscript) ---\nimport math\n\ndef init():\n    eat.param(\"Waveform\", min=0.0, max=1.0, default=0.0, step=1.0)\n    eat.param(\"Pitch\", min=-12.0, max=12.0, default=0.0, step=1.0)\n    eat.param(\"Cutoff\", min=200.0, max=4500.0, default=1400.0)\n    eat.param(\"Resonance\", min=0.5, max=16.0, default=9.2)\n    eat.param(\"EnvMod\", min=0.0, max=1.0, default=0.75)\n    eat.param(\"Decay\", min=0.05, max=1.2, default=0.28)\n    eat.param(\"Accent\", min=0.0, max=1.0, default=0.78)\n    eat.param(\"Octave\", min=-2.0, max=0.0, default=0.0, step=1.0)\n    eat.param(\"SubWaveform\", min=0.0, max=1.0, default=0.0, step=1.0)\n    eat.param(\"SubVolume\", min=0.0, max=1.0, default=0.0)\n    eat.param(\"Drive\", min=0.0, max=1.0, default=0.25)\n    eat.param(\"Slide\", min=0.0, max=1.0, default=0.0)\n\ndef process(time, freq, note, params, targetNote=0, isSlide=False, isAccent=False):\n    waveType = params.get(\"Waveform\", 0.0)\n    pitch = params.get(\"Pitch\", 0.0)\n    cutoff = params.get(\"Cutoff\", 1400.0)\n    res = params.get(\"Resonance\", 9.2)\n    envMod = params.get(\"EnvMod\", 0.75)\n    decay = params.get(\"Decay\", 0.28)\n    accent = params.get(\"Accent\", 0.78)\n    drive = params.get(\"Drive\", 0.25)\n    octave = int(params.get(\"Octave\", 0.0) + 0.5)\n    subWave = params.get(\"SubWaveform\", 0.0)\n    subVol = params.get(\"SubVolume\", 0.0)\n\n    baseFreq = freq * (2.0 ** (octave + pitch / 12.0))\n    phase = time * baseFreq\n    normPhase = phase - math.floor(phase)\n    sawRaw = 2.0 * normPhase - 1.0\n    sawHP = sawRaw - 0.85 * math.exp(-time * 12.0)\n    sqrRaw = 0.78 if normPhase < 0.48 else -0.78\n    osc = (1.0 - waveType) * sawHP + waveType * sqrRaw\n\n    hasAccent = isAccent or (accent > 0.7 and not isSlide)\n    activeDecay = 0.200 if hasAccent else decay\n    softAttack = 1.0 - math.exp(-time / 0.003)\n    env = softAttack * math.exp(-time / activeDecay)\n    accentPulse = (accent * 0.55 * math.exp(-time / 0.035)) if hasAccent else 0.0\n\n    output = osc * env\n    if drive > 0.02:\n        output = math.tanh(output * (1.0 + drive * 3.5))\n    return output\n\ndef gui():\n    return {\n        \"panel\": {\n            \"title\": \"EATS-303 ACID BASSLINE\",\n            \"subtitle\": \"Eats-303 Acid Synth • (JC-303 & Open303 DSP)\",\n            \"background\": \"silver\",\n            \"accent\": \"#000000\",\n            \"knobStyle\": \"chrome\",\n            \"layout\": [\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"switch\", \"param\": \"Waveform\", \"label\": \"WAVEFORM\", \"options\": [\"SAW\", \"SQR\"]},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 62},\n                        {\"type\": \"knob\", \"param\": \"Pitch\", \"label\": \"PITCH\", \"size\": 52, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Cutoff\", \"label\": \"CUTOFF\", \"size\": 58, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Resonance\", \"label\": \"RESONANCE\", \"size\": 58, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"EnvMod\", \"label\": \"ENV MOD\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Decay\", \"label\": \"DECAY\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"knob\", \"param\": \"Accent\", \"label\": \"ACCENT\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                    ]\n                },\n                {\"type\": \"divider\", \"orientation\": \"horizontal\"},\n                {\n                    \"type\": \"row\",\n                    \"children\": [\n                        {\"type\": \"knob\", \"param\": \"Octave\", \"label\": \"OCTAVE\", \"size\": 50, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 56},\n                        {\"type\": \"switch\", \"param\": \"SubWaveform\", \"label\": \"SUB OSC\", \"options\": [\"SIN\", \"SQR\"]},\n                        {\"type\": \"knob\", \"param\": \"SubVolume\", \"label\": \"SUB VOL\", \"size\": 52, \"knobStyle\": \"chrome\"},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 56},\n                        {\"type\": \"slider\", \"param\": \"Slide\", \"label\": \"PORTAMENTO SLIDE\", \"orientation\": \"horizontal\", \"size\": 140},\n                        {\"type\": \"divider\", \"orientation\": \"vertical\", \"height\": 56},\n                        {\"type\": \"knob\", \"param\": \"Drive\", \"label\": \"DRIVE\", \"size\": 54, \"knobStyle\": \"chrome\"},\n                    ]\n                }\n            ]\n        }\n    }\n\nEats303 = True\nJC303 = True\n",
+          "eatScriptParams": {
             "Waveform": 0.0,
             "Cutoff": 1800.0,
             "Resonance": 8.0,
@@ -2501,7 +2501,7 @@ song = {
             {
               "id": "c_w1",
               "name": "Acid 303 Riff",
-              "trackId": "t_lua_303",
+              "trackId": "t_eat_303",
               "startBar": 0,
               "barLength": 4,
               "notes": [
@@ -2630,12 +2630,11 @@ song = {
 ''';
 
   /// Backwards-compatibility aliases
-  static const String midnightBitesEat = midnightBites;
   static const String midnightBitesEats = midnightBites;
 
-  /// Legacy Lua demo song retained for backwards-compatibility tests
-  static const String midnightBitesLua = r'''-- Eatsbeats Song File: "Midnight Bites"
--- Generated by Eatsbeats DAW
+  /// Legacy demo song retained for backwards-compatibility tests
+  static const String midnightBitesEat = r'''# Eatsbeats Song File: "Midnight Bites"
+# Generated by Eatsbeats DAW
 
 return eatsbeats.song {
   version = "1.0",
@@ -2660,7 +2659,7 @@ return eatsbeats.song {
           id = "t_kick",
           name = "Eats Kick",
           color = 0xffff007a,
-          type = "luaScript",
+          type = "eatScript",
           volume = 0.950,
           pan = 0.000,
           isMuted = false,
@@ -2673,8 +2672,8 @@ return eatsbeats.song {
           release = 0.300,
           trackerColumns = 4,
           activeView = "pianoRoll",
-          luaScriptCode = [[
--- --- Procedural Sub Kick Drum Script (Lua) ---
+          eatScriptCode = [[
+# --- Procedural Sub Kick Drum Script (Eatscript) ---
 local ProceduralKick = {}
 
 function ProceduralKick.init()
@@ -2719,7 +2718,7 @@ end
 return ProceduralKick
 
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["StartFreq"] = 120.1709,
             ["EndFreq"] = 56.3730,
             ["PitchDecay"] = 0.0311,
@@ -2773,7 +2772,7 @@ return ProceduralKick
           id = "t_snare",
           name = "Eats Snare",
           color = 0xffff8c00,
-          type = "luaScript",
+          type = "eatScript",
           volume = 0.850,
           pan = 0.000,
           isMuted = false,
@@ -2786,8 +2785,8 @@ return ProceduralKick
           release = 0.300,
           trackerColumns = 4,
           activeView = "pianoRoll",
-          luaScriptCode = [[
--- --- Procedural Snare Drum Script (Lua) ---
+          eatScriptCode = [[
+# --- Procedural Snare Drum Script (Eatscript) ---
 local ProceduralSnare = {}
 
 function ProceduralSnare.init()
@@ -2826,7 +2825,7 @@ end
 return ProceduralSnare
 
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["ToneFreq"] = 300.0000,
             ["Snappy"] = 0.1201,
             ["Decay"] = 0.0500,
@@ -2866,7 +2865,7 @@ return ProceduralSnare
           id = "t_hihat",
           name = "Eats Hats",
           color = 0xffffb700,
-          type = "luaScript",
+          type = "eatScript",
           volume = 0.750,
           pan = 0.000,
           isMuted = false,
@@ -2879,8 +2878,8 @@ return ProceduralSnare
           release = 0.300,
           trackerColumns = 4,
           activeView = "pianoRoll",
-          luaScriptCode = [[
--- --- Procedural Hi-Hat Synth Script (Lua) ---
+          eatScriptCode = [[
+# --- Procedural Hi-Hat Synth Script (Eatscript) ---
 local ProceduralHiHat = {}
 
 function ProceduralHiHat.init()
@@ -2919,7 +2918,7 @@ end
 return ProceduralHiHat
 
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["Cutoff"] = 4051.2821,
             ["Decay"] = 0.0156,
             ["Metallic"] = 1.0000,
@@ -2989,10 +2988,10 @@ return ProceduralHiHat
           },
         },
         {
-          id = "t_lua_303",
+          id = "t_eat_303",
           name = "Eats-303",
           color = 0xff00ff66,
-          type = "luaScript",
+          type = "eatScript",
           volume = 0.900,
           pan = 0.000,
           isMuted = false,
@@ -3005,7 +3004,7 @@ return ProceduralHiHat
           release = 0.300,
           trackerColumns = 4,
           activeView = "pianoRoll",
-          luaScriptCode = [[
+          eatScriptCode = [[
 -- --- Eats-303 Acid Bassline (JC-303 & Open303 DSP) ---
 local Eats303 = {}
 
@@ -3137,7 +3136,7 @@ JC303 = Eats303
 return Eats303
 
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["Waveform"] = 0.0000,
             ["Cutoff"] = 268.0808,
             ["Resonance"] = 15.2148,
@@ -3185,7 +3184,7 @@ return Eats303
             {
               id = "c_w1",
               name = "Acid 303 Riff",
-              trackId = "t_lua_303",
+              trackId = "t_eat_303",
               startBar = 0,
               barLength = 4,
               notes = {
@@ -3221,7 +3220,7 @@ return Eats303
           id = "p1_k",
           name = "Eats Kick",
           color = 0xffff007a,
-          type = "luaScript",
+          type = "eatScript",
           volume = 0.950,
           pan = 0.000,
           isMuted = false,
@@ -3234,8 +3233,8 @@ return Eats303
           release = 0.300,
           trackerColumns = 4,
           activeView = "pianoRoll",
-          luaScriptCode = [[
--- --- Procedural Sub Kick Drum Script (Lua) ---
+          eatScriptCode = [[
+# --- Procedural Sub Kick Drum Script (Eatscript) ---
 local ProceduralKick = {}
 
 function ProceduralKick.init()
@@ -3280,7 +3279,7 @@ end
 return ProceduralKick
 
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["StartFreq"] = 160.0000,
             ["EndFreq"] = 42.0000,
             ["PitchDecay"] = 0.0350,
@@ -3331,7 +3330,7 @@ return ProceduralKick
           id = "p1_s",
           name = "Eats Snare",
           color = 0xffff8c00,
-          type = "luaScript",
+          type = "eatScript",
           volume = 0.850,
           pan = 0.000,
           isMuted = false,
@@ -3344,8 +3343,8 @@ return ProceduralKick
           release = 0.300,
           trackerColumns = 4,
           activeView = "pianoRoll",
-          luaScriptCode = [[
--- --- Procedural Snare Drum Script (Lua) ---
+          eatScriptCode = [[
+# --- Procedural Snare Drum Script (Eatscript) ---
 local ProceduralSnare = {}
 
 function ProceduralSnare.init()
@@ -3384,7 +3383,7 @@ end
 return ProceduralSnare
 
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["ToneFreq"] = 185.0000,
             ["Snappy"] = 0.6500,
             ["Decay"] = 0.1000,
@@ -3421,7 +3420,7 @@ return ProceduralSnare
           id = "p1_h",
           name = "Eats Hats",
           color = 0xffffb700,
-          type = "luaScript",
+          type = "eatScript",
           volume = 0.750,
           pan = 0.000,
           isMuted = false,
@@ -3434,8 +3433,8 @@ return ProceduralSnare
           release = 0.300,
           trackerColumns = 4,
           activeView = "pianoRoll",
-          luaScriptCode = [[
--- --- Procedural Hi-Hat Synth Script (Lua) ---
+          eatScriptCode = [[
+# --- Procedural Hi-Hat Synth Script (Eatscript) ---
 local ProceduralHiHat = {}
 
 function ProceduralHiHat.init()
@@ -3474,7 +3473,7 @@ end
 return ProceduralHiHat
 
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["Cutoff"] = 8500.0000,
             ["Decay"] = 0.0500,
             ["Metallic"] = 0.1500,
@@ -3537,7 +3536,7 @@ return ProceduralHiHat
           id = "p1_w",
           name = "Eats-303",
           color = 0xff00ff66,
-          type = "luaScript",
+          type = "eatScript",
           volume = 0.900,
           pan = 0.000,
           isMuted = false,
@@ -3550,7 +3549,7 @@ return ProceduralHiHat
           release = 0.300,
           trackerColumns = 4,
           activeView = "pianoRoll",
-          luaScriptCode = [[
+          eatScriptCode = [[
 -- --- Eats-303 Acid Bassline (JC-303 & Open303 DSP) ---
 local Eats303 = {}
 
@@ -3681,7 +3680,7 @@ JC303 = Eats303
 
 return Eats303
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["Waveform"] = 0.0000,
             ["Cutoff"] = 1800.0000,
             ["Resonance"] = 8.0000,
@@ -3724,7 +3723,7 @@ return Eats303
             {
               id = "c_w1",
               name = "Acid 303 Riff",
-              trackId = "t_lua_303",
+              trackId = "t_eat_303",
               startBar = 0,
               barLength = 4,
               notes = {

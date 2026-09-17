@@ -197,15 +197,15 @@ class AutomationPoint {
 }
 
 /// An automation lane governing a single parameter target across time.
-/// Supports both declarative breakpoint interpolation and Lua scripted generators.
+/// Supports both declarative breakpoint interpolation and Eatscript generators.
 class AutomationLane {
   final String id;
   String name;
   AutomationTarget target;
   bool enabled;
   List<AutomationPoint> points;
-  String luaScriptCode;
-  bool isCustomLua; // If true, Lua script drives value instead of breakpoints
+  String eatScriptCode;
+  bool isCustomEatScript; // If true, Eatscript drives value instead of breakpoints
 
   AutomationLane({
     required this.id,
@@ -213,8 +213,8 @@ class AutomationLane {
     required this.target,
     this.enabled = true,
     List<AutomationPoint>? points,
-    this.luaScriptCode = '',
-    this.isCustomLua = false,
+    this.eatScriptCode = '',
+    this.isCustomEatScript = false,
   }) : points = points ?? [];
 
   /// Evaluates parameter value at a given [step] position.
@@ -274,8 +274,8 @@ class AutomationLane {
         : interpolated.clamp(target.min, target.max);
   }
 
-  /// Automatically generates executable Lua script code representing this automation lane.
-  String generateLuaScript() {
+  /// Automatically generates executable Eatscript code representing this automation lane.
+  String generateEatScript() {
     final sb = StringBuffer();
     sb.writeln('-- Eatsbeats Automation Script: ${target.name} (${target.id})');
     sb.writeln('-- Generated automatically from automation curve points');
@@ -313,8 +313,8 @@ class AutomationLane {
     AutomationTarget? target,
     bool? enabled,
     List<AutomationPoint>? points,
-    String? luaScriptCode,
-    bool? isCustomLua,
+    String? eatScriptCode,
+    bool? isCustomEatScript,
   }) {
     return AutomationLane(
       id: id ?? this.id,
@@ -322,8 +322,8 @@ class AutomationLane {
       target: target ?? this.target,
       enabled: enabled ?? this.enabled,
       points: points ?? this.points.map((p) => p.copyWith()).toList(),
-      luaScriptCode: luaScriptCode ?? this.luaScriptCode,
-      isCustomLua: isCustomLua ?? this.isCustomLua,
+      eatScriptCode: eatScriptCode ?? this.eatScriptCode,
+      isCustomEatScript: isCustomEatScript ?? this.isCustomEatScript,
     );
   }
 
@@ -333,8 +333,8 @@ class AutomationLane {
     'target': target.toJson(),
     'enabled': enabled,
     'points': points.map((p) => p.toJson()).toList(),
-    'luaScriptCode': luaScriptCode,
-    'isCustomLua': isCustomLua,
+    'eatScriptCode': eatScriptCode,
+    'isCustomEatScript': isCustomEatScript,
   };
 
   factory AutomationLane.fromJson(Map<String, dynamic> json) => AutomationLane(
@@ -348,7 +348,7 @@ class AutomationLane {
             ?.map((p) => AutomationPoint.fromJson(p))
             .toList() ??
         [],
-    luaScriptCode: json['luaScriptCode'] ?? '',
-    isCustomLua: json['isCustomLua'] ?? false,
+    eatScriptCode: json['eatScriptCode'] ?? '',
+    isCustomEatScript: json['isCustomEatScript'] ?? false,
   );
 }

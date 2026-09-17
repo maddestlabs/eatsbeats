@@ -9,7 +9,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('CPU Meter & GUI Performance Optimization Tests', () {
-    test('LuaEngine caches compilation results for identical scripts', () {
+    test('EatEngine caches compilation results for identical scripts', () {
       const script = '''
 local TestSynth = {}
 function TestSynth.init()
@@ -21,9 +21,9 @@ end
 return TestSynth
 ''';
 
-      LuaEngine.clearCompilationCache();
-      final res1 = LuaEngine.compile(script);
-      final res2 = LuaEngine.compile(script);
+      EatEngine.clearCompilationCache();
+      final res1 = EatEngine.compile(script);
+      final res2 = EatEngine.compile(script);
 
       expect(res1.isSuccess, isTrue);
       expect(identical(res1, res2), isTrue); // Same cached instance returned in O(1)

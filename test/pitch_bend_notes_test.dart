@@ -50,7 +50,7 @@ void main() {
       expect(fromJson.column, equals(1));
     });
 
-    test('Lua serialization roundtrip preserves isSlide for polyphonic notes', () {
+    test('Eatscript serialization roundtrip preserves isSlide for polyphonic notes', () {
       final state = DawState();
       final track = state.activeTrack;
       track.notes.clear();
@@ -60,12 +60,12 @@ void main() {
         Note(id: 'n3', pitch: 64, startStep: 0, durationSteps: 4, column: 1, isSlide: false),
       ]);
 
-      final luaString = EatsLuaSerializer.serializeNotes(track.notes, relativeSteps: false);
-      expect(luaString.contains('isSlide = true'), isTrue);
+      final eatScriptString = EatProjectSerializer.serializeNotes(track.notes, relativeSteps: false);
+      expect(eatScriptString.contains('isSlide = true'), isTrue);
 
-      final songLua = state.exportToEatsLua();
+      final songEatScript = state.exportToEats();
       final newState = DawState();
-      newState.loadFromEatsLua(songLua);
+      newState.loadFromEats(songEatScript);
 
       final loadedTrack = newState.patterns.first.tracks.firstWhere((t) => t.id == track.id);
       final restoredNotes = loadedTrack.notes;

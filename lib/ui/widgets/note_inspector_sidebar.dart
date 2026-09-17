@@ -714,8 +714,8 @@ class _NoteInspectorSidebarState extends State<NoteInspectorSidebar> {
         children: [
           _buildActionButton(
             icon: Icons.copy,
-            label: 'Copy Lua',
-            tooltip: 'Copy selected notes as Lua code (Ctrl+C)',
+            label: 'Copy Script',
+            tooltip: 'Copy selected notes as Eatscript code (Ctrl+C)',
             onTap: () async {
               await widget.dawState.copyNotesToClipboard(track, noteIds);
               if (mounted) {

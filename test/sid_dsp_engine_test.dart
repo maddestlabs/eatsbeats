@@ -204,12 +204,12 @@ void main() {
       expect(sw.elapsedMilliseconds, lessThan(80));
     });
 
-    test('GraphEvaluator and LuaEngine compile and synthesize c64_sid_synth preset', () {
-      final preset = LuaPresetLibrary.getPresetById('c64_sid_synth')!;
-      final compilation = LuaEngine.compile(preset.code);
+    test('GraphEvaluator and EatEngine compile and synthesize c64_sid_synth preset', () {
+      final preset = EatScriptLibrary.getPresetById('c64_sid_synth')!;
+      final compilation = EatEngine.compile(preset.code);
       expect(compilation.isSuccess, isTrue);
 
-      final buffer = LuaEngine.synthesizeBuffer(
+      final buffer = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.3,
         freq: 440.0,

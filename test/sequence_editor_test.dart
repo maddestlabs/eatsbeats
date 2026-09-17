@@ -146,13 +146,13 @@ void main() {
     });
   });
 
-  group('Lua Serialization & Parser Tests for Pattern Index', () {
-    test('eats_lua_serializer and eats_lua_parser preserve patternIndex', () {
+  group('Eatscript Serialization & Parser Tests for Pattern Index', () {
+    test('eats_project_serializer and eats_project_parser preserve patternIndex', () {
       final daw = DawState();
       final track = daw.activeTrack;
       track.clips.clear();
       track.clips.add(TrackClip(
-        id: 'lua_clip_test',
+        id: 'eat_clip_test',
         name: 'Lead Melody',
         trackId: track.id,
         startBar: 2,
@@ -160,13 +160,13 @@ void main() {
         patternIndex: 43,
       ));
 
-      final luaString = daw.exportToEatsLua();
-      expect(luaString.contains('patternIndex = 43'), isTrue);
+      final eatScriptString = daw.exportToEats();
+      expect(eatScriptString.contains('patternIndex = 43'), isTrue);
 
       final restoredState = DawState();
-      EatsLuaParser.populateDawState(restoredState, luaString);
+      EatProjectParser.populateDawState(restoredState, eatScriptString);
       final parsedTrack = restoredState.activePattern.tracks.firstWhere((t) => t.id == track.id);
-      final parsedClip = parsedTrack.clips.firstWhere((c) => c.id == 'lua_clip_test');
+      final parsedClip = parsedTrack.clips.firstWhere((c) => c.id == 'eat_clip_test');
 
       expect(parsedClip.patternIndex, 43);
       expect(parsedClip.patternHex, '2B');

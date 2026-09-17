@@ -8,12 +8,12 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Bowed String Family Physical Modeling & Presets Test', () {
-    test('All 5 bowed string presets are registered in LuaScriptLibrary', () {
-      final violin = LuaScriptLibrary.getPresetById('solo_violin');
-      final viola = LuaScriptLibrary.getPresetById('solo_viola');
-      final cello = LuaScriptLibrary.getPresetById('solo_cello');
-      final bass = LuaScriptLibrary.getPresetById('double_bass');
-      final ensemble = LuaScriptLibrary.getPresetById('string_ensemble');
+    test('All 5 bowed string presets are registered in EatScriptLibrary', () {
+      final violin = EatScriptLibrary.getPresetById('solo_violin');
+      final viola = EatScriptLibrary.getPresetById('solo_viola');
+      final cello = EatScriptLibrary.getPresetById('solo_cello');
+      final bass = EatScriptLibrary.getPresetById('double_bass');
+      final ensemble = EatScriptLibrary.getPresetById('string_ensemble');
 
       expect(violin, isNotNull);
       expect(viola, isNotNull);
@@ -29,11 +29,11 @@ void main() {
     });
 
     test('findMatchingPreset identifies bowed string signatures', () {
-      expect(LuaScriptLibrary.findMatchingPreset('', fallbackName: 'Solo Violin')?.id, equals('solo_violin'));
-      expect(LuaScriptLibrary.findMatchingPreset('', fallbackName: 'Solo Viola')?.id, equals('solo_viola'));
-      expect(LuaScriptLibrary.findMatchingPreset('', fallbackName: 'Solo Cello')?.id, equals('solo_cello'));
-      expect(LuaScriptLibrary.findMatchingPreset('', fallbackName: 'Orchestral Double Bass')?.id, equals('double_bass'));
-      expect(LuaScriptLibrary.findMatchingPreset('', fallbackName: 'Symphonic String Ensemble')?.id, equals('string_ensemble'));
+      expect(EatScriptLibrary.findMatchingPreset('', fallbackName: 'Solo Violin')?.id, equals('solo_violin'));
+      expect(EatScriptLibrary.findMatchingPreset('', fallbackName: 'Solo Viola')?.id, equals('solo_viola'));
+      expect(EatScriptLibrary.findMatchingPreset('', fallbackName: 'Solo Cello')?.id, equals('solo_cello'));
+      expect(EatScriptLibrary.findMatchingPreset('', fallbackName: 'Orchestral Double Bass')?.id, equals('double_bass'));
+      expect(EatScriptLibrary.findMatchingPreset('', fallbackName: 'Symphonic String Ensemble')?.id, equals('string_ensemble'));
     });
 
     test('GraphEvaluator renders valid audio buffers for all bowed instruments', () {
@@ -193,9 +193,9 @@ void main() {
       expect(slapPluck, isNot(equals(normalPluck)));
     });
 
-    test('LuaEngine processAudio synthesizes bowed string instruments via fast path', () {
-      final violinPreset = LuaScriptLibrary.getPresetById('solo_violin')!;
-      final buffer = LuaEngine.synthesizeBuffer(
+    test('EatEngine processAudio synthesizes bowed string instruments via fast path', () {
+      final violinPreset = EatScriptLibrary.getPresetById('solo_violin')!;
+      final buffer = EatEngine.synthesizeBuffer(
         code: violinPreset.code,
         freq: 440.0,
         note: 69,

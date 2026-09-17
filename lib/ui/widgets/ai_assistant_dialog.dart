@@ -875,7 +875,7 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
               final mgr = AiTaskManager.instance;
               if (mgr.status == AiTaskStatus.readyForReview &&
                   mgr.taskType == AiTaskType.songArrangement &&
-                  (mgr.pendingBlueprint != null || mgr.pendingLuaScript != null)) {
+                  (mgr.pendingBlueprint != null || mgr.pendingEatScript != null)) {
                 final bp = mgr.pendingBlueprint;
 
                 return Column(
@@ -962,7 +962,7 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                         ),
                         child: SingleChildScrollView(
                           child: Text(
-                            mgr.pendingLuaScript!,
+                            mgr.pendingEatScript!,
                             style: const TextStyle(fontFamily: 'Courier', fontSize: 10, color: Color(0xFF00FF66)),
                           ),
                         ),
@@ -1634,7 +1634,7 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
             animation: AiTaskManager.instance,
             builder: (context, _) {
               final mgr = AiTaskManager.instance;
-              if (mgr.status == AiTaskStatus.readyForReview && (mgr.taskType == AiTaskType.soundInstrument || mgr.taskType == AiTaskType.soundFx) && mgr.pendingLuaScript != null) {
+              if (mgr.status == AiTaskStatus.readyForReview && (mgr.taskType == AiTaskType.soundInstrument || mgr.taskType == AiTaskType.soundFx) && mgr.pendingEatScript != null) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -1656,7 +1656,7 @@ class _AiAssistantDialogState extends State<AiAssistantDialog> {
                       ),
                       child: SingleChildScrollView(
                         child: Text(
-                          mgr.pendingLuaScript!,
+                          mgr.pendingEatScript!,
                           style: const TextStyle(fontFamily: 'Courier', fontSize: 10, color: Color(0xFF00FF66)),
                         ),
                       ),

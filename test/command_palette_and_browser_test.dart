@@ -56,7 +56,7 @@ void main() {
       expect(dawState.isBrowserOpen, isFalse);
 
       // Apply instrument preset to active track
-      final synthPreset = LuaPresetLibrary.getPresetsByCategory(LuaPresetCategory.instrument).first;
+      final synthPreset = EatScriptLibrary.getPresetsByCategory(EatScriptCategory.instrument).first;
       dawState.applyPreset(synthPreset);
       expect(dawState.activeTrack.name, equals(synthPreset.name));
 

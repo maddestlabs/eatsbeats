@@ -12,26 +12,26 @@ import 'package:eatsbeats/ui/widgets/interactive_game_canvas_widget.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('Lua GUI Model & Parser Canvas Extensions', () {
-    test('LuaGuiNodeType.parseType recognizes canvas, dpad, and gamepad variants', () {
-      expect(LuaGuiNode.parseType('canvas'), LuaGuiNodeType.canvas);
-      expect(LuaGuiNode.parseType('gamecanvas'), LuaGuiNodeType.canvas);
-      expect(LuaGuiNode.parseType('screen'), LuaGuiNodeType.canvas);
-      expect(LuaGuiNode.parseType('viewport'), LuaGuiNodeType.canvas);
-      expect(LuaGuiNode.parseType('display'), LuaGuiNodeType.canvas);
-      expect(LuaGuiNode.parseType('framebuffer'), LuaGuiNodeType.canvas);
+  group('Eatscript GUI Model & Parser Canvas Extensions', () {
+    test('EatScriptGuiNodeType.parseType recognizes canvas, dpad, and gamepad variants', () {
+      expect(EatScriptGuiNode.parseType('canvas'), EatScriptGuiNodeType.canvas);
+      expect(EatScriptGuiNode.parseType('gamecanvas'), EatScriptGuiNodeType.canvas);
+      expect(EatScriptGuiNode.parseType('screen'), EatScriptGuiNodeType.canvas);
+      expect(EatScriptGuiNode.parseType('viewport'), EatScriptGuiNodeType.canvas);
+      expect(EatScriptGuiNode.parseType('display'), EatScriptGuiNodeType.canvas);
+      expect(EatScriptGuiNode.parseType('framebuffer'), EatScriptGuiNodeType.canvas);
 
-      expect(LuaGuiNode.parseType('dpad'), LuaGuiNodeType.dpad);
-      expect(LuaGuiNode.parseType('joystick'), LuaGuiNodeType.dpad);
-      expect(LuaGuiNode.parseType('directional'), LuaGuiNodeType.dpad);
+      expect(EatScriptGuiNode.parseType('dpad'), EatScriptGuiNodeType.dpad);
+      expect(EatScriptGuiNode.parseType('joystick'), EatScriptGuiNodeType.dpad);
+      expect(EatScriptGuiNode.parseType('directional'), EatScriptGuiNodeType.dpad);
 
-      expect(LuaGuiNode.parseType('gamepad'), LuaGuiNodeType.gamepad);
-      expect(LuaGuiNode.parseType('arcadebuttons'), LuaGuiNodeType.gamepad);
-      expect(LuaGuiNode.parseType('actionbuttons'), LuaGuiNodeType.gamepad);
+      expect(EatScriptGuiNode.parseType('gamepad'), EatScriptGuiNodeType.gamepad);
+      expect(EatScriptGuiNode.parseType('arcadebuttons'), EatScriptGuiNodeType.gamepad);
+      expect(EatScriptGuiNode.parseType('actionbuttons'), EatScriptGuiNodeType.gamepad);
     });
 
-    test('LuaGuiParser correctly parses canvas properties from Lua GUI tables', () {
-      const luaScript = '''
+    test('EatGuiParser correctly parses canvas properties from Eatscript GUI tables', () {
+      const eatScript = '''
 function Nibbles.gui()
   return {
     panel = {
@@ -55,13 +55,13 @@ function Nibbles.gui()
 end
 ''';
 
-      final panel = LuaGuiParser.parseFromCode(luaScript);
+      final panel = EatGuiParser.parseFromCode(eatScript);
       expect(panel, isNotNull);
       expect(panel!.title, 'FT2 Nibbles');
       expect(panel.children.length, 1);
 
       final canvasNode = panel.children.first;
-      expect(canvasNode.type, LuaGuiNodeType.canvas);
+      expect(canvasNode.type, EatScriptGuiNodeType.canvas);
       expect(canvasNode.canvasMode, 'grid');
       expect(canvasNode.cols, 32);
       expect(canvasNode.rows, 24);
@@ -74,11 +74,11 @@ end
 
   group('Built-in Throwback Presets', () {
     test('Eats-Nibbles preset compiles and has valid GUI layout', () {
-      final preset = LuaPresetLibrary.getPresetById('eats_nibbles');
+      final preset = EatScriptLibrary.getPresetById('eats_nibbles');
       expect(preset, isNotNull);
       expect(preset!.name, 'Eats-Nibbles');
 
-      final compilation = LuaEngine.compile(preset.code);
+      final compilation = EatEngine.compile(preset.code);
       expect(compilation.isSuccess, isTrue);
       expect(compilation.params.any((p) => p.name == 'Speed'), isTrue);
       expect(compilation.params.any((p) => p.name == 'SFXType'), isTrue);
@@ -86,15 +86,15 @@ end
 
       final gui = compilation.guiLayout!;
       expect(gui.title, 'Eats-Nibbles');
-      expect(gui.children.any((n) => n.type == LuaGuiNodeType.canvas), isTrue);
+      expect(gui.children.any((n) => n.type == EatScriptGuiNodeType.canvas), isTrue);
     });
 
     test('Eats-Runner preset compiles and has valid GUI layout', () {
-      final preset = LuaPresetLibrary.getPresetById('eats_runner');
+      final preset = EatScriptLibrary.getPresetById('eats_runner');
       expect(preset, isNotNull);
       expect(preset!.name, 'Eats-Runner');
 
-      final compilation = LuaEngine.compile(preset.code);
+      final compilation = EatEngine.compile(preset.code);
       expect(compilation.isSuccess, isTrue);
       expect(compilation.params.any((p) => p.name == 'Jump'), isTrue);
       expect(compilation.params.any((p) => p.name == 'Speed'), isTrue);
@@ -102,45 +102,45 @@ end
 
       final gui = compilation.guiLayout!;
       expect(gui.title, 'Eats-Runner');
-      expect(gui.children.any((n) => n.type == LuaGuiNodeType.canvas), isTrue);
+      expect(gui.children.any((n) => n.type == EatScriptGuiNodeType.canvas), isTrue);
     });
 
     test('Eats-Scope & Eats-Spectrum visualizer FX compile and have valid GUI layout', () {
-      final scope = LuaPresetLibrary.getPresetById('eats_scope');
+      final scope = EatScriptLibrary.getPresetById('eats_scope');
       expect(scope, isNotNull);
       expect(scope!.name, 'Eats-Scope');
       expect(scope.isAudioFx, isTrue);
 
-      final scopeCompilation = LuaEngine.compile(scope.code);
+      final scopeCompilation = EatEngine.compile(scope.code);
       expect(scopeCompilation.isSuccess, isTrue);
       expect(scopeCompilation.guiLayout!.title, 'Eats-Scope');
       expect(scopeCompilation.guiLayout!.children.first.canvasMode, 'vector');
 
-      final spectrum = LuaPresetLibrary.getPresetById('eats_spectrum');
+      final spectrum = EatScriptLibrary.getPresetById('eats_spectrum');
       expect(spectrum, isNotNull);
       expect(spectrum!.name, 'Eats-Spectrum');
       expect(spectrum.isAudioFx, isTrue);
 
-      final spectrumCompilation = LuaEngine.compile(spectrum.code);
+      final spectrumCompilation = EatEngine.compile(spectrum.code);
       expect(spectrumCompilation.isSuccess, isTrue);
       expect(spectrumCompilation.guiLayout!.title, 'Eats-Spectrum');
       expect(spectrumCompilation.guiLayout!.children.first.canvasMode, 'spectrum');
     });
 
     test('findMatchingPreset identifies Eats-Nibbles, Eats-Runner, Eats-Scope, and Eats-Spectrum', () {
-      final nibbles = LuaPresetLibrary.findMatchingPreset("local Nibbles = {}\nfunction Nibbles.init() end");
+      final nibbles = EatScriptLibrary.findMatchingPreset("local Nibbles = {}\nfunction Nibbles.init() end");
       expect(nibbles, isNotNull);
       expect(nibbles!.id, 'eats_nibbles');
 
-      final runner = LuaPresetLibrary.findMatchingPreset("local CyberRunner = {}\nfunction CyberRunner.init() end");
+      final runner = EatScriptLibrary.findMatchingPreset("local CyberRunner = {}\nfunction CyberRunner.init() end");
       expect(runner, isNotNull);
       expect(runner!.id, 'eats_runner');
 
-      final scope = LuaPresetLibrary.findMatchingPreset("local Scope = {}\n-- @name: Eats-Scope");
+      final scope = EatScriptLibrary.findMatchingPreset("local Scope = {}\n# @name: Eats-Scope");
       expect(scope, isNotNull);
       expect(scope!.id, 'eats_scope');
 
-      final spectrum = LuaPresetLibrary.findMatchingPreset("local Spectrum = {}\n-- @name: Eats-Spectrum");
+      final spectrum = EatScriptLibrary.findMatchingPreset("local Spectrum = {}\n# @name: Eats-Spectrum");
       expect(spectrum, isNotNull);
       expect(spectrum!.id, 'eats_spectrum');
     });
@@ -149,13 +149,13 @@ end
   group('Interactive Game Canvas Widget Tests', () {
     testWidgets('Renders Eats-Nibbles canvas and virtual D-Pad controls in DynamicInstrumentGuiWidget', (tester) async {
       final dawState = DawState();
-      final nibblesPreset = LuaPresetLibrary.getPresetById('eats_nibbles')!;
+      final nibblesPreset = EatScriptLibrary.getPresetById('eats_nibbles')!;
       final track = TrackChannel(
         id: 'track_1',
         name: 'Eats-Nibbles',
         type: TrackType.synth,
         color: const Color(0xFF00FF9D),
-        luaScriptCode: nibblesPreset.code,
+        eatScriptCode: nibblesPreset.code,
       );
 
       await tester.pumpWidget(
@@ -197,13 +197,13 @@ end
 
     testWidgets('Renders Eats-Runner canvas and Jump controls', (tester) async {
       final dawState = DawState();
-      final runnerPreset = LuaPresetLibrary.getPresetById('eats_runner')!;
+      final runnerPreset = EatScriptLibrary.getPresetById('eats_runner')!;
       final track = TrackChannel(
         id: 'track_2',
         name: 'Eats-Runner',
         type: TrackType.synth,
         color: const Color(0xFF00E5FF),
-        luaScriptCode: runnerPreset.code,
+        eatScriptCode: runnerPreset.code,
       );
 
       await tester.pumpWidget(

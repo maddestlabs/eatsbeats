@@ -1,4 +1,4 @@
--- Eatsbeats Song File: "Yamaha DX7 — 1983 Tokyo Nights"
+# Eatsbeats Song File: "Yamaha DX7 — 1983 Tokyo Nights"
 -- Showcasing the 6-Operator Yamaha DX7 FM Sound Engine (E.PIANO 1, BASS 1, TUB BELLS)
 
 return eatsbeats.song {
@@ -32,17 +32,17 @@ return eatsbeats.song {
           id = "tr_dx7_epiano",
           name = "DX7 E-Piano 1",
           color = 0xff00e5ff,
-          type = "luaScript",
+          type = "eatScript",
           presetId = "dx7_epiano",
           volume = 0.88,
           pan = -0.10,
           isMuted = false,
           isSoloed = false,
-          luaScriptCode = [[
--- @id: dx7_epiano
--- @name: Yamaha DX7 E-Piano
--- @category: instrument
--- @description: Authentic 1983 Yamaha DX7 6-Operator FM Electric Piano (Algorithm 5 FullTines).
+          eatScriptCode = [[
+# @id: dx7_epiano
+# @name: Yamaha DX7 E-Piano
+# @category: instrument
+# @description: Authentic 1983 Yamaha DX7 6-Operator FM Electric Piano (Algorithm 5 FullTines).
 local DX7EPiano = {}
 function DX7EPiano.init()
   Param.add("TineBell", 0.0, 1.0, 0.72)
@@ -66,7 +66,7 @@ function DX7EPiano.process(time, freq, note, params)
 end
 return DX7EPiano
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["TineBell"] = 0.75,
             ["BodyWarmth"] = 0.68,
             ["DynamicTouch"] = 0.85,
@@ -117,15 +117,15 @@ return DX7EPiano
           id = "tr_dx7_bass",
           name = "DX7 Bass 1",
           color = 0xff26a69a,
-          type = "luaScript",
+          type = "eatScript",
           presetId = "dx7_epiano",
           volume = 0.92,
           pan = 0.00,
           isMuted = false,
           isSoloed = false,
-          luaScriptCode = [[
--- @name: DX7 Bass 1
--- @category: instrument
+          eatScriptCode = [[
+# @name: DX7 Bass 1
+# @category: instrument
 local DX7Bass = {}
 function DX7Bass.init()
   Param.add("TineBell", 0.0, 1.0, 0.40)
@@ -140,7 +140,7 @@ function DX7Bass.process(time, freq, note, params)
 end
 return DX7Bass
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["TineBell"] = 0.40,
             ["BodyWarmth"] = 0.90,
             ["Feedback"] = 5.0,
@@ -182,15 +182,15 @@ return DX7Bass
           id = "tr_dx7_bells",
           name = "DX7 Tub Bells",
           color = 0xffffd700,
-          type = "luaScript",
+          type = "eatScript",
           presetId = "dx7_epiano",
           volume = 0.76,
           pan = 0.25,
           isMuted = false,
           isSoloed = false,
-          luaScriptCode = [[
--- @name: DX7 Tub Bells
--- @category: instrument
+          eatScriptCode = [[
+# @name: DX7 Tub Bells
+# @category: instrument
 local DX7Bells = {}
 function DX7Bells.init()
   Param.add("TineBell", 0.0, 1.0, 0.95)
@@ -204,7 +204,7 @@ function DX7Bells.process(time, freq, note, params)
 end
 return DX7Bells
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["TineBell"] = 0.95,
             ["BodyWarmth"] = 0.50,
             ["Feedback"] = 4.0,

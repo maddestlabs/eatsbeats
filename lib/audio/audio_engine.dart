@@ -222,7 +222,7 @@ class AudioEngine {
   }
 
   /// Clears cached PCM audio buffers for a track whose parameters or script changed.
-  void invalidateLuaCache(String trackId, [TrackChannel? track]) {
+  void invalidateEatScriptCache(String trackId, [TrackChannel? track]) {
     track?.invalidateParamsHash();
     _pcmCache.removeWhere((key, _) => key.startsWith('${trackId}_'));
   }
@@ -245,7 +245,7 @@ class AudioEngine {
 
   void disposeTrack(String trackId) {
     _backend.disposeTrackStrip(trackId);
-    invalidateLuaCache(trackId);
+    invalidateEatScriptCache(trackId);
     _trackLeftPeaks.remove(trackId);
     _trackRightPeaks.remove(trackId);
   }
@@ -705,9 +705,9 @@ class AudioEngine {
     bool isAccent = false,
     String? articulation,
   }) {
-    final hasVariance = (track.luaParams['Variance'] ?? track.luaParams['variance'] ?? 0.0) > 0.001 ||
-        (track.luaParams['Variation'] ?? track.luaParams['variation'] ?? 0.0) > 0.001 ||
-        (track.luaParams['Humanize'] ?? track.luaParams['humanize'] ?? 0.0) > 0.001;
+    final hasVariance = (track.eatScriptParams['Variance'] ?? track.eatScriptParams['variance'] ?? 0.0) > 0.001 ||
+        (track.eatScriptParams['Variation'] ?? track.eatScriptParams['variation'] ?? 0.0) > 0.001 ||
+        (track.eatScriptParams['Humanize'] ?? track.eatScriptParams['humanize'] ?? 0.0) > 0.001;
     if (hasVariance) return false;
 
     final durMs = (durationSec * 1000).round();
@@ -750,9 +750,9 @@ class AudioEngine {
     final hasMpe = (pitchBendPoints != null && pitchBendPoints.isNotEmpty) ||
         (pressurePoints != null && pressurePoints.isNotEmpty) ||
         (timbrePoints != null && timbrePoints.isNotEmpty);
-    final hasVariance = (track.luaParams['Variance'] ?? track.luaParams['variance'] ?? 0.0) > 0.001 ||
-        (track.luaParams['Variation'] ?? track.luaParams['variation'] ?? 0.0) > 0.001 ||
-        (track.luaParams['Humanize'] ?? track.luaParams['humanize'] ?? 0.0) > 0.001;
+    final hasVariance = (track.eatScriptParams['Variance'] ?? track.eatScriptParams['variance'] ?? 0.0) > 0.001 ||
+        (track.eatScriptParams['Variation'] ?? track.eatScriptParams['variation'] ?? 0.0) > 0.001 ||
+        (track.eatScriptParams['Humanize'] ?? track.eatScriptParams['humanize'] ?? 0.0) > 0.001;
     final cacheKey = (hasMpe || hasVariance)
         ? null // Do not cache dynamic MPE curves or note-to-note variance to preserve acoustic variation
         : '${track.id}_${midiNote}${fromPitchStr}${targetPitchStr}${artStr}_${durMs}_${isAccent ? 1 : 0}_${isSlide ? 1 : 0}_$pHash';
@@ -808,15 +808,15 @@ class AudioEngine {
     List<List<double>>? timbrePoints,
   }) {
     final isSfTrack = (track.type == TrackType.sampler && track.sampleName.toLowerCase().endsWith('.sf2')) ||
-        (track.type == TrackType.luaScript &&
-            (track.luaScriptCode.contains('SoundFontSampler') || track.luaScriptCode.contains('SoundFont.readZone')));
+        (track.type == TrackType.eatScript &&
+            (track.eatScriptCode.contains('SoundFontSampler') || track.eatScriptCode.contains('SoundFont.readZone')));
 
     if (isSfTrack) {
       final fontId = track.sampleName.isNotEmpty ? track.sampleName : 'super_small_font.sf2';
       final sfBuffer = SoundFontEngine.instance.getPitchShiftedBuffer(
         fontId: fontId,
-        presetNum: (track.luaParams['PresetNum'] ?? 0.0).toInt(),
-        bankNum: (track.luaParams['BankNum'] ?? 0.0).toInt(),
+        presetNum: (track.eatScriptParams['PresetNum'] ?? 0.0).toInt(),
+        bankNum: (track.eatScriptParams['BankNum'] ?? 0.0).toInt(),
         midiNote: midiNote,
         velocity: velocity,
         targetDurationSec: durationSec,
@@ -835,14 +835,14 @@ class AudioEngine {
       } else {
         return _generateDrumBuffer(track.sampleName);
       }
-    } else if (track.type == TrackType.luaScript) {
+    } else if (track.type == TrackType.eatScript) {
       final double freq = PolySynth.midiToFreq(midiNote);
       return EatScriptEngine.synthesizeBuffer(
-        code: track.luaScriptCode,
+        code: track.eatScriptCode,
         durationSec: durationSec,
         freq: freq,
         note: midiNote,
-        params: track.luaParams,
+        params: track.eatScriptParams,
         targetMidiNote: targetMidiNote,
         fromMidiNote: fromMidiNote,
         isSlide: isSlide,
@@ -927,9 +927,9 @@ class AudioEngine {
 
     final bool isDrumLike = track.isDrumTrack ||
         track.sampleName.toLowerCase().contains('drum') ||
-        track.luaScriptCode.contains('gm_standard_drum_kit') ||
-        track.luaScriptCode.contains('modular_drumpad_kit') ||
-        track.luaScriptCode.contains('GmDrumKitEngine');
+        track.eatScriptCode.contains('gm_standard_drum_kit') ||
+        track.eatScriptCode.contains('modular_drumpad_kit') ||
+        track.eatScriptCode.contains('GmDrumKitEngine');
     final bool effectiveLoop = isDrumLike ? false : loop;
 
     if (!_backend.isInitialized) {
@@ -1108,9 +1108,9 @@ class AudioEngine {
             effectiveTargetPitch = ChordTheory.remapPitchForChord(targetPitch, chord, track.chordFollowMode.name);
           }
 
-          final hasSlideParam = (track.luaParams['Slide'] ?? 0.0) > 0.01 ||
-              (track.luaParams['Portamento'] ?? 0.0) > 0.01 ||
-              (track.luaParams['Glide'] ?? 0.0) > 0.01;
+          final hasSlideParam = (track.eatScriptParams['Slide'] ?? 0.0) > 0.01 ||
+              (track.eatScriptParams['Portamento'] ?? 0.0) > 0.01 ||
+              (track.eatScriptParams['Glide'] ?? 0.0) > 0.01;
           final bool isSlideNote = note.isSlide || hasSlideParam || effectiveTargetPitch != null;
           final bool isAccentNote = note.isAccent || note.velocity > 0.75;
           final double noteDurSec = math.max(0.02, math.min(3.0, stepDurationSec * note.durationSteps));

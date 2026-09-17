@@ -114,7 +114,7 @@ void main() {
       final initialFxCount = track.fxRack.length;
 
       // Find Stereo Delay audio FX preset
-      final delayPreset = LuaPresetLibrary.getPresetById('stereo_delay')!;
+      final delayPreset = EatScriptLibrary.getPresetById('stereo_delay')!;
 
       // Find the first DragTarget corresponding to the active track
       final dragTargets = tester.widgetList<DragTarget<Object>>(find.byType(DragTarget<Object>)).toList();
@@ -139,7 +139,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final initialMasterFxCount = dawState.masterTrack.fxRack.length;
-      final limiterPreset = LuaPresetLibrary.getPresetById('master_limiter')!;
+      final limiterPreset = EatScriptLibrary.getPresetById('master_limiter')!;
 
       dawState.addAudioFXFromPreset(dawState.masterTrack, limiterPreset);
       await tester.pumpAndSettle();

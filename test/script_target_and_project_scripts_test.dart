@@ -28,7 +28,7 @@ void main() {
 
       // Add a MIDI FX to active track and verify it appears in script targets
       final track = dawState.activeTrack;
-      dawState.addMidiFXInsert(track, name: 'Acid Arpeggiator', luaScriptCode: '-- Arp script\nfunction process() end');
+      dawState.addMidiFXInsert(track, name: 'Acid Arpeggiator', eatScriptCode: '-- Arp script\nfunction process() end');
 
       final updatedTargets = dawState.getAllScriptTargets();
       final mfxTarget = updatedTargets.where((t) => t.type == ScriptTargetType.midiFx && t.title.contains('Acid Arpeggiator')).firstOrNull;
@@ -38,7 +38,7 @@ void main() {
       // Add a Clip with script and verify it appears in script targets
       if (track.clips.isNotEmpty) {
         final clip = track.clips.first;
-        clip.luaScriptCode = '-- Clip generator\nclip:registerParam("rate", 0.1, 1.0, 0.25)\nfunction process() end';
+        clip.eatScriptCode = '-- Clip generator\nclip:registerParam("rate", 0.1, 1.0, 0.25)\nfunction process() end';
         final clipTargets = dawState.getAllScriptTargets();
         final clipTarget = clipTargets.where((t) => t.type == ScriptTargetType.clipScript && t.secondaryId == clip.id).firstOrNull;
         expect(clipTarget, isNotNull);
@@ -50,7 +50,7 @@ void main() {
       final initialHistoryDepth = dawState.history.past.length;
 
       final track = dawState.activeTrack;
-      dawState.addMidiFXInsert(track, name: 'Scale Snapper', luaScriptCode: '-- Initial code');
+      dawState.addMidiFXInsert(track, name: 'Scale Snapper', eatScriptCode: '-- Initial code');
 
       final mfxTarget = dawState.getAllScriptTargets().firstWhere((t) => t.type == ScriptTargetType.midiFx && t.title.contains('Scale Snapper'));
       
@@ -97,7 +97,7 @@ end
         clipName: clip.name,
       );
 
-      const generativeLuaCode = '''
+      const generativeEatScriptCode = '''
 -- Generative Clip Script
 clip:registerParam("steps", 4, 16, 8)
 notes = {
@@ -107,10 +107,10 @@ notes = {
 }
 ''';
 
-      dawState.compileScriptTarget(clipTarget, generativeLuaCode);
+      dawState.compileScriptTarget(clipTarget, generativeEatScriptCode);
 
       expect(dawState.compilationResult.isSuccess, isTrue);
-      expect(clip.luaParams.containsKey('steps'), isTrue);
+      expect(clip.eatScriptParams.containsKey('steps'), isTrue);
       expect(clip.notes.length, equals(3));
       expect(clip.notes.first.pitch, equals(60));
     });

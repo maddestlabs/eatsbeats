@@ -39,7 +39,7 @@ void main() {
     test('EatBuiltinPresets has descriptions populated for all bundled presets', () {
       for (final preset in EatBuiltinPresets.presets) {
         expect(preset.description, isNotEmpty);
-        expect(preset.description, isNot(equals('User imported Lua script')));
+        expect(preset.description, isNot(equals('User imported Eatscript')));
         expect(preset.description, isNot(equals('')));
       }
     });

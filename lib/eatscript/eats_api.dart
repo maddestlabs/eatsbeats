@@ -258,7 +258,7 @@ class EatHostApi {
 
       // Avoid duplicate registrations
       context.params.removeWhere((p) => p.name == name);
-      final paramDef = LuaParamDef(
+      final paramDef = EatParamDef(
         name: name,
         min: min,
         max: max,
@@ -292,7 +292,7 @@ class EatHostApi {
       for (int i = 0; i < context.params.length; i++) {
         if (context.params[i].name == name) {
           final p = context.params[i];
-          context.params[i] = LuaParamDef(
+          context.params[i] = EatParamDef(
             name: p.name,
             min: p.min,
             max: p.max,
@@ -355,7 +355,7 @@ class EatHostApi {
       }
 
       // Check if parameter definition exists and whether it allows variance
-      final def = context.params.firstWhere((p) => p.name == name, orElse: () => LuaParamDef(name: name, min: 0, max: 1, defaultValue: val));
+      final def = context.params.firstWhere((p) => p.name == name, orElse: () => EatParamDef(name: name, min: 0, max: 1, defaultValue: val));
       if (!def.allowVariance || def.varianceScale <= 0.0) {
         return val;
       }
@@ -1026,7 +1026,7 @@ class EatDawTrackWrapper {
       if (pos.isNotEmpty) {
         final key = pos[0].toString();
         final val = pos.length > 1 ? (pos[1] as num).toDouble() : (kw['val'] ?? kw['value'] ?? 0.0) as num;
-        track.luaParams[key] = val.toDouble();
+        track.eatScriptParams[key] = val.toDouble();
       }
       return null;
     });

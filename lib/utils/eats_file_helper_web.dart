@@ -30,7 +30,7 @@ Future<String?> downloadWebFileImpl(String content, String fileName) async {
     final bytes = utf8.encode(content);
     final blob = html.Blob([bytes], 'text/plain;charset=utf-8');
     final url = html.Url.createObjectUrlFromBlob(blob);
-    final cleanName = fileName.endsWith('.eats') || fileName.endsWith('.eats.lua')
+    final cleanName = fileName.endsWith('.eats') || fileName.endsWith('.eats')
         ? fileName
         : '$fileName.eats';
     final anchor = html.AnchorElement()
@@ -51,7 +51,7 @@ Future<String?> downloadWebFileImpl(String content, String fileName) async {
 Future<String?> saveEatsZipFileImpl(Uint8List bytes, String fileName) =>
     downloadWebZipImpl(bytes, fileName);
 
-Future<String?> saveEatsLuaFileImpl(String content, String fileName) =>
+Future<String?> saveEatsFileImpl(String content, String fileName) =>
     downloadWebFileImpl(content, fileName);
 
 void pickEatsFileWebImpl(
@@ -59,7 +59,7 @@ void pickEatsFileWebImpl(
   try {
     final uploadInput = html.InputElement()
       ..type = 'file'
-      ..accept = '.eats.zip,.zip,.sf2,.wav,.mp3,.mid,.midi,.lua,.eats,.txt,application/zip,application/x-zip-compressed,application/octet-stream,audio/midi,audio/x-midi,text/plain'
+      ..accept = '.eats.zip,.zip,.sf2,.wav,.mp3,.mid,.midi,.eats,.txt,application/zip,application/x-zip-compressed,application/octet-stream,audio/midi,audio/x-midi,text/plain'
       ..style.display = 'none';
 
     // Must attach to body so iOS Safari / WebKit does not garbage-collect the node while file picker sheet is open

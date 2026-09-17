@@ -105,8 +105,8 @@ void main() {
       expect(toms.notes.first.pitch, equals(45));
     });
 
-    test('LuaScriptLibrary contains noteSplitter category presets', () {
-      final presets = LuaScriptLibrary.getPresetsByCategory(LuaScriptCategory.noteSplitter);
+    test('EatScriptLibrary contains noteSplitter category presets', () {
+      final presets = EatScriptLibrary.getPresetsByCategory(EatScriptCategory.noteSplitter);
       expect(presets.isNotEmpty, isTrue);
       expect(presets.any((p) => p.name.contains('3-Way Voice')), isTrue);
       expect(presets.any((p) => p.name.contains('Bass & Treble Clef')), isTrue);
@@ -126,7 +126,7 @@ void main() {
       );
 
       final initialTrackCount = dawState.activePattern.tracks.length;
-      final preset = LuaScriptLibrary.getPresetsByCategory(LuaScriptCategory.noteSplitter).first;
+      final preset = EatScriptLibrary.getPresetsByCategory(EatScriptCategory.noteSplitter).first;
 
       final created = dawState.splitClipNotesWithPreset(clip, preset);
       expect(created.isNotEmpty, isTrue);

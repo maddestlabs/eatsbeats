@@ -37,7 +37,7 @@ void main() {
       expect(zipBytes.isNotEmpty, isTrue);
 
       final importedState = DawState();
-      importedState.loadFromEatsZipOrLua(zipBytes: zipBytes);
+      importedState.loadFromEatsZipOrProject(zipBytes: zipBytes);
       expect(importedState.projectName, equals('iOS Test Project'));
 
       dawState.dispose();

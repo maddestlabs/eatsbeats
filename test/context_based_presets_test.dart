@@ -19,22 +19,22 @@ void main() {
       final initialTrackCount = state.activePattern.tracks.length;
 
       // 1. Attempt creating track with Audio FX -> should be rejected
-      final audioFxPreset = LuaPresetLibrary.presets.firstWhere((p) => p.isAudioFx);
+      final audioFxPreset = EatScriptLibrary.presets.firstWhere((p) => p.isAudioFx);
       state.addNewPresetTrack(audioFxPreset);
       expect(state.activePattern.tracks.length, equals(initialTrackCount));
 
       // 2. Attempt creating track with MIDI FX -> should be rejected
-      final midiFxPreset = LuaPresetLibrary.presets.firstWhere((p) => p.isMidiFx);
+      final midiFxPreset = EatScriptLibrary.presets.firstWhere((p) => p.isMidiFx);
       state.addNewPresetTrack(midiFxPreset);
       expect(state.activePattern.tracks.length, equals(initialTrackCount));
 
       // 3. Attempt creating track with MIDI SEQ -> should be rejected
-      final midiSeqPreset = LuaPresetLibrary.presets.firstWhere((p) => p.isMidiSeq);
+      final midiSeqPreset = EatScriptLibrary.presets.firstWhere((p) => p.isMidiSeq);
       state.addNewPresetTrack(midiSeqPreset);
       expect(state.activePattern.tracks.length, equals(initialTrackCount));
 
       // 4. Create track with Instrument preset -> should succeed
-      final instrumentPreset = LuaPresetLibrary.presets.firstWhere((p) => p.isInstrument);
+      final instrumentPreset = EatScriptLibrary.presets.firstWhere((p) => p.isInstrument);
       state.addNewPresetTrack(instrumentPreset);
       expect(state.activePattern.tracks.length, equals(initialTrackCount + 1));
       expect(state.activeTrack.name, equals(instrumentPreset.name));
@@ -44,8 +44,8 @@ void main() {
       final track = state.activeTrack;
       track.fxRack.clear();
 
-      final bitcrusherPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'bitcrusher');
-      final waveshaperPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'waveshaper');
+      final bitcrusherPreset = EatScriptLibrary.presets.firstWhere((p) => p.id == 'bitcrusher');
+      final waveshaperPreset = EatScriptLibrary.presets.firstWhere((p) => p.id == 'waveshaper');
 
       // Add first FX
       state.applyPreset(bitcrusherPreset, targetTrack: track);
@@ -65,7 +65,7 @@ void main() {
       final clip = track.clips.first;
       clip.barLength = 2;
 
-      final seq4ToFloor = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'seq_4_to_floor');
+      final seq4ToFloor = EatScriptLibrary.presets.firstWhere((p) => p.id == 'seq_4_to_floor');
       state.applyPresetToClip(track, clip, seq4ToFloor);
 
       expect(clip.name, equals(seq4ToFloor.name));
@@ -86,7 +86,7 @@ void main() {
       }
 
       // Also create a new instrument track
-      final synthPreset = LuaPresetLibrary.presets.firstWhere((p) => p.isInstrument);
+      final synthPreset = EatScriptLibrary.presets.firstWhere((p) => p.isInstrument);
       state.addNewPresetTrack(synthPreset);
       final newTrack = state.activeTrack;
       expect(newTrack.midiFXRack, isEmpty);
@@ -102,12 +102,12 @@ void main() {
         Note(id: 'n1', pitch: 60, startStep: 0, durationSteps: 4, velocity: 0.8),
       ];
 
-      final arpFx = LuaPresetLibrary.presets.firstWhere((p) => p.isMidiFx);
+      final arpFx = EatScriptLibrary.presets.firstWhere((p) => p.isMidiFx);
       state.applyPresetToClip(track, clip, arpFx);
 
       expect(track.midiFXRack, isNotEmpty);
       expect(track.midiFXRack.first.name, equals(arpFx.name));
-      expect(clip.luaScriptCode, isEmpty);
+      expect(clip.eatScriptCode, isEmpty);
       expect(clip.evaluatedNotesCache, isNotNull);
       expect(clip.evaluatedNotesCache!, isNotEmpty);
     });
@@ -121,17 +121,17 @@ void main() {
     });
 
     test('Arranger and Inspector preset acceptance rules', () {
-      final instrumentPreset = LuaPresetLibrary.presets.firstWhere((p) => p.isInstrument);
-      final audioFxPreset = LuaPresetLibrary.presets.firstWhere((p) => p.isAudioFx);
-      final midiFxPreset = LuaPresetLibrary.presets.firstWhere((p) => p.isMidiFx);
-      final midiSeqPreset = LuaPresetLibrary.presets.firstWhere((p) => p.isMidiSeq);
+      final instrumentPreset = EatScriptLibrary.presets.firstWhere((p) => p.isInstrument);
+      final audioFxPreset = EatScriptLibrary.presets.firstWhere((p) => p.isAudioFx);
+      final midiFxPreset = EatScriptLibrary.presets.firstWhere((p) => p.isMidiFx);
+      final midiSeqPreset = EatScriptLibrary.presets.firstWhere((p) => p.isMidiSeq);
       final soundFontItem = SoundFontDragItem(fontId: 'sf2.sf2', displayName: 'SF2');
 
       // 1. Track list empty area / "+ Add track" target:
       // Accepts: instrument, SoundFont. Rejects: audioFx, midiFx, midiSeq
       bool trackListAccepts(Object data) {
         if (data is SoundFontDragItem) return true;
-        if (data is LuaPreset) return data.isInstrument;
+        if (data is EatScriptDef) return data.isInstrument;
         return false;
       }
       expect(trackListAccepts(instrumentPreset), isTrue);
@@ -144,7 +144,7 @@ void main() {
       // Accepts: instrument, audioFx, midiFx, SoundFont. Rejects: midiSeq
       bool trackHeaderAccepts(Object data) {
         if (data is SoundFontDragItem) return true;
-        if (data is LuaPreset) return data.isInstrument || data.isAudioFx || data.isMidiFx;
+        if (data is EatScriptDef) return data.isInstrument || data.isAudioFx || data.isMidiFx;
         return false;
       }
       expect(trackHeaderAccepts(instrumentPreset), isTrue);
@@ -156,7 +156,7 @@ void main() {
       // 3. Clip target:
       // Accepts: midiSeq, midiFx. Rejects: instrument, audioFx, SoundFont
       bool clipAccepts(Object data) {
-        if (data is LuaPreset) {
+        if (data is EatScriptDef) {
           return data.isMidiSeq || data.isMidiFx;
         }
         return false;
@@ -169,7 +169,7 @@ void main() {
 
       // 4. Modular FX Rack target:
       // Accepts: audioFx only
-      bool modularFxAccepts(LuaPreset data) {
+      bool modularFxAccepts(EatScriptDef data) {
         return data.isAudioFx;
       }
       expect(modularFxAccepts(audioFxPreset), isTrue);

@@ -58,12 +58,12 @@ enum ArrangerViewMode { timeline, sequence }
 
 class DawState extends ChangeNotifier {
   final AudioEngine audioEngine = AudioEngine();
-  final LuaEngine luaEngine = LuaEngine();
+  final EatEngine eatEngine = EatEngine();
   final HistoryManager history = HistoryManager();
 
   /// Compiles Eatscript or legacy scripts into a unified compilation result.
-  static LuaCompilationResult compileScript(String code) {
-    return EatScriptEngine.compile(code).toLuaCompilationResult();
+  static EatCompilationResult compileScript(String code) {
+    return EatScriptEngine.compile(code);
   }
 
   String projectName = 'Untitled Song';
@@ -389,8 +389,8 @@ class DawState extends ChangeNotifier {
       startBar: 0,
       barLength: math.max(patBars, 2),
       notes: activeTrack.notes,
-      luaScriptCode: '',
-      luaParams: {},
+      eatScriptCode: '',
+      eatScriptParams: {},
     );
   }
 
@@ -638,8 +638,8 @@ class DawState extends ChangeNotifier {
   /// Calculates the exact natural content height of a track's GUI
   /// to eliminate any letterboxing or empty padding in floating windows.
   double getTrackNaturalGuiHeight(TrackChannel track) {
-    final compilation = track.luaScriptCode.isNotEmpty
-        ? compileScript(track.luaScriptCode)
+    final compilation = track.eatScriptCode.isNotEmpty
+        ? compileScript(track.eatScriptCode)
         : compilationResult;
     final gui = compilation.guiLayout;
 
@@ -659,9 +659,9 @@ class DawState extends ChangeNotifier {
     return 160.0;
   }
 
-  static double _estimateGuiNodeHeight(LuaGuiNode node) {
+  static double _estimateGuiNodeHeight(EatScriptGuiNode node) {
     switch (node.type) {
-      case LuaGuiNodeType.row:
+      case EatScriptGuiNodeType.row:
         if (node.children.isEmpty) return 0.0;
         double maxChildH = 0.0;
         for (final c in node.children) {
@@ -671,7 +671,7 @@ class DawState extends ChangeNotifier {
         final hasBg = node.backgroundStyle != null || node.backgroundColor != null;
         return maxChildH + (hasBg ? 16.0 : 0.0);
 
-      case LuaGuiNodeType.column:
+      case EatScriptGuiNodeType.column:
         if (node.children.isEmpty) return 0.0;
         double sumChildH = 0.0;
         if (node.action == 'bypass' || node.param == 'bypass' || node.param == 'power') {
@@ -683,7 +683,7 @@ class DawState extends ChangeNotifier {
         final hasBg = node.backgroundStyle != null || node.backgroundColor != null || node.width != null;
         return sumChildH + (hasBg ? 24.0 : 0.0);
 
-      case LuaGuiNodeType.group:
+      case EatScriptGuiNodeType.group:
         double groupH = (node.label != null && node.label != 'bypass') ? 26.0 : 0.0;
         if (node.action == 'bypass' || node.param == 'bypass' || node.param == 'power') {
           groupH += 44.0;
@@ -693,16 +693,16 @@ class DawState extends ChangeNotifier {
         }
         return groupH + 28.0;
 
-      case LuaGuiNodeType.knob:
+      case EatScriptGuiNodeType.knob:
         final baseSize = node.size ?? 56.0;
         final labelH = node.showLabel ? 16.0 : 0.0;
         final valueH = node.showValue ? 14.0 : 0.0;
         return baseSize + labelH + valueH + 6.0;
 
-      case LuaGuiNodeType.slider:
-      case LuaGuiNodeType.fader:
+      case EatScriptGuiNodeType.slider:
+      case EatScriptGuiNodeType.fader:
         final isVertical = node.orientation == 'vertical' ||
-            node.type == LuaGuiNodeType.fader ||
+            node.type == EatScriptGuiNodeType.fader ||
             (node.sliderStyle == SliderStyle.minimalPill && node.orientation != 'horizontal');
         if (isVertical) {
           final h = node.height ?? 100.0;
@@ -710,60 +710,60 @@ class DawState extends ChangeNotifier {
         }
         return 38.0;
 
-      case LuaGuiNodeType.segmentedPill:
+      case EatScriptGuiNodeType.segmentedPill:
         final labelH = (node.label != null && node.label!.isNotEmpty && node.showLabel) ? 16.0 : 0.0;
         return labelH + 34.0;
 
-      case LuaGuiNodeType.switchToggle:
+      case EatScriptGuiNodeType.switchToggle:
         return (node.orientation == 'vertical') ? 72.0 : 40.0;
 
-      case LuaGuiNodeType.button:
+      case EatScriptGuiNodeType.button:
         return (node.height ?? node.size ?? 32.0) + 4.0;
 
-      case LuaGuiNodeType.listBox:
+      case EatScriptGuiNodeType.listBox:
         return (node.height ?? 76.0) + 4.0;
 
-      case LuaGuiNodeType.nixie:
-      case LuaGuiNodeType.lcd:
+      case EatScriptGuiNodeType.nixie:
+      case EatScriptGuiNodeType.lcd:
         return (node.height ?? 46.0);
 
-      case LuaGuiNodeType.meter:
+      case EatScriptGuiNodeType.meter:
         return (node.height ?? 40.0);
 
-      case LuaGuiNodeType.label:
+      case EatScriptGuiNodeType.label:
         return 20.0;
 
-      case LuaGuiNodeType.oscilloscope:
-      case LuaGuiNodeType.spectrum:
+      case EatScriptGuiNodeType.oscilloscope:
+      case EatScriptGuiNodeType.spectrum:
         return (node.height ?? 100.0) + 4.0;
 
-      case LuaGuiNodeType.spaceVisualizer:
+      case EatScriptGuiNodeType.spaceVisualizer:
         return (node.height ?? 140.0) + 4.0;
 
-      case LuaGuiNodeType.waveshaperCanvas:
+      case EatScriptGuiNodeType.waveshaperCanvas:
         return (node.height ?? 160.0) + 4.0;
 
-      case LuaGuiNodeType.canvas:
+      case EatScriptGuiNodeType.canvas:
         if (node.showDpad || node.showActionButtons) return 220.0;
         return (node.height ?? 120.0) + 4.0;
 
-      case LuaGuiNodeType.dpad:
-      case LuaGuiNodeType.gamepad:
+      case EatScriptGuiNodeType.dpad:
+      case EatScriptGuiNodeType.gamepad:
         return (node.height ?? 160.0) + 4.0;
 
-      case LuaGuiNodeType.divider:
+      case EatScriptGuiNodeType.divider:
         if (node.orientation == 'vertical') {
           return node.height ?? node.size ?? 68.0;
         }
         return (node.height ?? 2.0) + 16.0;
 
-      case LuaGuiNodeType.spacer:
+      case EatScriptGuiNodeType.spacer:
         return node.size ?? 16.0;
 
-      case LuaGuiNodeType.drumPads:
+      case EatScriptGuiNodeType.drumPads:
         return 280.0;
 
-      case LuaGuiNodeType.unknown:
+      case EatScriptGuiNodeType.unknown:
         return 0.0;
     }
   }
@@ -890,9 +890,9 @@ class DawState extends ChangeNotifier {
     _autoSaveDebounceTimer = Timer(const Duration(milliseconds: 1500), () async {
       if (_isDisposed) return;
       try {
-        final luaScript = exportToEatsLua();
-        await EatsStorageHelper.saveSessionLua(luaScript);
-        debugPrint('DawState: Autosaved session (${luaScript.length} chars)');
+        final eatScript = exportToEats();
+        await EatsStorageHelper.saveSessionEatScript(eatScript);
+        debugPrint('DawState: Autosaved session (${eatScript.length} chars)');
       } catch (e) {
         debugPrint('DawState: Autosave error: $e');
       }
@@ -903,9 +903,9 @@ class DawState extends ChangeNotifier {
     if (_isDisposed || !_autoSaveEnabled) return;
     _autoSaveDebounceTimer?.cancel();
     try {
-      final luaScript = exportToEatsLua();
-      await EatsStorageHelper.saveSessionLua(luaScript);
-      debugPrint('DawState: Immediate saved session (${luaScript.length} chars)');
+      final eatScript = exportToEats();
+      await EatsStorageHelper.saveSessionEatScript(eatScript);
+      debugPrint('DawState: Immediate saved session (${eatScript.length} chars)');
     } catch (e) {
       debugPrint('DawState: Immediate save error: $e');
     }
@@ -954,10 +954,10 @@ class DawState extends ChangeNotifier {
 
   Future<bool> restoreSavedSession() async {
     try {
-      final savedLua = await EatsStorageHelper.loadSessionLua();
+      final savedEatScript = await EatsStorageHelper.loadSessionEatScript();
       unawaited(convertAllLegacyProjectsOnDisk());
-      if (savedLua != null && savedLua.trim().isNotEmpty) {
-        loadFromEatsLua(savedLua);
+      if (savedEatScript != null && savedEatScript.trim().isNotEmpty) {
+        loadFromEats(savedEatScript);
         debugPrint('DawState: Restored saved session successfully.');
         return true;
       }
@@ -968,7 +968,7 @@ class DawState extends ChangeNotifier {
   }
 
   Future<void> clearSavedSession() async {
-    await EatsStorageHelper.clearSessionLua();
+    await EatsStorageHelper.clearSessionEatScript();
     debugPrint('DawState: Cleared saved session.');
   }
 
@@ -980,12 +980,12 @@ class DawState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void applyScript(LuaScriptDef script, {TrackChannel? targetTrack}) {
+  void applyScript(EatScriptDef script, {TrackChannel? targetTrack}) {
     final track = targetTrack ?? activeTrack;
     if (script.isInstrument) {
       track.name = script.name;
-      track.type = TrackType.luaScript;
-      track.luaScriptCode = script.eatCode;
+      track.type = TrackType.eatScript;
+      track.eatScriptCode = script.eatCode;
       track.tags = List<String>.from(script.effectiveTags);
       if (script.id == 'soundfont_sampler') {
         if (!track.sampleName.toLowerCase().endsWith('.sf2')) {
@@ -995,16 +995,16 @@ class DawState extends ChangeNotifier {
         track.sampleName = '';
       }
       final compiled = compileScript(script.eatCode);
-      track.luaParams.clear();
+      track.eatScriptParams.clear();
       for (final p in compiled.params) {
-        track.luaParams[p.name] = p.defaultValue;
+        track.eatScriptParams[p.name] = p.defaultValue;
       }
       if (track.id == activeTrack.id) {
-        luaCode = script.eatCode;
+        eatScriptCode = script.eatCode;
         compilationResult = compiled;
       }
       audioEngine.clearPcmCache();
-      audioEngine.invalidateLuaCache(track.id);
+      audioEngine.invalidateEatScriptCache(track.id);
       recordHistory('Applied instrument "${script.name}" to ${track.name}', icon: Icons.piano);
     } else if (script.isAudioFx) {
       addAudioFXFromPreset(track, script);
@@ -1013,7 +1013,7 @@ class DawState extends ChangeNotifier {
       addMidiFXInsert(
         track,
         name: script.name,
-        luaScriptCode: script.eatCode,
+        eatScriptCode: script.eatCode,
       );
       recordHistory('Add MIDI FX "${script.name}" to ${track.name}', icon: Icons.music_note);
     } else if (script.isMidiSeq) {
@@ -1023,42 +1023,42 @@ class DawState extends ChangeNotifier {
         applyScriptToClip(track, track.clips.first, script);
       }
     } else {
-      track.luaScriptCode = script.eatCode;
-      compileLuaCode(script.eatCode);
+      track.eatScriptCode = script.eatCode;
+      compileScriptCode(script.eatCode);
     }
     notifyListeners();
   }
 
-  void applyPreset(LuaPreset preset, {TrackChannel? targetTrack}) => applyScript(preset, targetTrack: targetTrack);
+  void applyPreset(EatScriptDef preset, {TrackChannel? targetTrack}) => applyScript(preset, targetTrack: targetTrack);
 
   /// Applies a saved sound patch / parameter snapshot to a track.
   void applyScriptPreset(TrackChannel track, ScriptPreset preset) {
-    final currentScript = LuaScriptLibrary.findMatchingScript(track.luaScriptCode, fallbackName: track.name);
+    final currentScript = EatScriptLibrary.findMatchingScript(track.eatScriptCode, fallbackName: track.name);
     if (currentScript == null || currentScript.id != preset.scriptId) {
-      final targetScript = LuaScriptLibrary.getScriptById(preset.scriptId);
+      final targetScript = EatScriptLibrary.getScriptById(preset.scriptId);
       if (targetScript != null) {
-        track.luaScriptCode = targetScript.eatCode;
-        track.type = TrackType.luaScript;
+        track.eatScriptCode = targetScript.eatCode;
+        track.type = TrackType.eatScript;
       }
     }
 
     for (final entry in preset.params.entries) {
-      track.luaParams[entry.key] = entry.value;
+      track.eatScriptParams[entry.key] = entry.value;
     }
 
     if (track.id == activeTrack.id) {
-      luaCode = track.luaScriptCode;
-      compilationResult = compileScript(track.luaScriptCode);
+      eatScriptCode = track.eatScriptCode;
+      compilationResult = compileScript(track.eatScriptCode);
     }
 
-    audioEngine.invalidateLuaCache(track.id);
+    audioEngine.invalidateEatScriptCache(track.id);
     recordHistory('Loaded preset "${preset.name}" on ${track.name}', icon: Icons.tune);
     notifyListeners();
   }
 
   /// Saves the current track's parameter configuration as a user preset.
   void saveTrackScriptPreset(TrackChannel track, String presetName, String category, {String? author}) {
-    final script = LuaScriptLibrary.findMatchingScript(track.luaScriptCode, fallbackName: track.name);
+    final script = EatScriptLibrary.findMatchingScript(track.eatScriptCode, fallbackName: track.name);
     final scriptId = script?.id ?? track.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
     
     final newPreset = ScriptPreset(
@@ -1068,7 +1068,7 @@ class DawState extends ChangeNotifier {
       category: category.trim(),
       author: author ?? 'User',
       isStock: false,
-      params: Map<String, double>.from(track.luaParams),
+      params: Map<String, double>.from(track.eatScriptParams),
     );
 
     ScriptPresetLibrary.instance.saveUserPreset(newPreset);
@@ -1078,16 +1078,16 @@ class DawState extends ChangeNotifier {
 
   /// Returns all presets applicable to the given track's current script/instrument.
   List<ScriptPreset> getPresetsForTrack(TrackChannel track) {
-    final script = LuaScriptLibrary.findMatchingScript(track.luaScriptCode, fallbackName: track.name);
+    final script = EatScriptLibrary.findMatchingScript(track.eatScriptCode, fallbackName: track.name);
     if (script == null) return [];
     return ScriptPresetLibrary.instance.getPresetsForScript(script.id);
   }
 
   bool isPresetUpgradeAvailable(TrackChannel track) {
-    if (track.type != TrackType.luaScript && track.luaScriptCode.trim().isEmpty) {
+    if (track.type != TrackType.eatScript && track.eatScriptCode.trim().isEmpty) {
       return false;
     }
-    return LuaPresetLibrary.isUpgradeAvailable(track.luaScriptCode, trackName: track.name);
+    return EatScriptLibrary.isUpgradeAvailable(track.eatScriptCode, trackName: track.name);
   }
 
   List<TrackChannel> get tracks => activePattern.tracks;
@@ -1101,28 +1101,28 @@ class DawState extends ChangeNotifier {
   }
 
   void upgradeTrackPreset(TrackChannel track) {
-    final preset = LuaPresetLibrary.findMatchingPreset(track.luaScriptCode, fallbackName: track.name);
+    final preset = EatScriptLibrary.findMatchingPreset(track.eatScriptCode, fallbackName: track.name);
     if (preset == null) return;
 
     beginHistoryTransaction('Upgrade ${track.name} to latest preset', icon: Icons.upgrade);
 
-    final oldParams = Map<String, double>.from(track.luaParams);
-    track.luaScriptCode = preset.eatCode;
-    track.type = TrackType.luaScript;
+    final oldParams = Map<String, double>.from(track.eatScriptParams);
+    track.eatScriptCode = preset.eatCode;
+    track.type = TrackType.eatScript;
     final compiled = compileScript(preset.eatCode);
 
     final newParams = <String, double>{};
     for (final p in compiled.params) {
       newParams[p.name] = oldParams[p.name] ?? p.defaultValue;
     }
-    track.luaParams = newParams;
+    track.eatScriptParams = newParams;
 
     if (track.id == activeTrack.id) {
-      luaCode = preset.eatCode;
+      eatScriptCode = preset.eatCode;
       compilationResult = compiled;
     }
 
-    audioEngine.invalidateLuaCache(track.id);
+    audioEngine.invalidateEatScriptCache(track.id);
     commitHistoryTransaction();
     triggerAutoSave();
     notifyListeners();
@@ -1135,24 +1135,24 @@ class DawState extends ChangeNotifier {
     beginHistoryTransaction('Upgrade ${upgradableTracks.length} tracks to latest presets', icon: Icons.auto_awesome);
 
     for (final track in upgradableTracks) {
-      final preset = LuaPresetLibrary.findMatchingPreset(track.luaScriptCode, fallbackName: track.name);
+      final preset = EatScriptLibrary.findMatchingPreset(track.eatScriptCode, fallbackName: track.name);
       if (preset != null) {
-        final oldParams = Map<String, double>.from(track.luaParams);
-        track.luaScriptCode = preset.eatCode;
-        track.type = TrackType.luaScript;
+        final oldParams = Map<String, double>.from(track.eatScriptParams);
+        track.eatScriptCode = preset.eatCode;
+        track.type = TrackType.eatScript;
         final compiled = compileScript(preset.eatCode);
 
         final newParams = <String, double>{};
         for (final p in compiled.params) {
           newParams[p.name] = oldParams[p.name] ?? p.defaultValue;
         }
-        track.luaParams = newParams;
+        track.eatScriptParams = newParams;
 
         if (track.id == activeTrack.id) {
-          luaCode = preset.eatCode;
+          eatScriptCode = preset.eatCode;
           compilationResult = compiled;
         }
-        audioEngine.invalidateLuaCache(track.id);
+        audioEngine.invalidateEatScriptCache(track.id);
       }
     }
 
@@ -1161,7 +1161,7 @@ class DawState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addNewPresetTrack(LuaPreset preset) {
+  void addNewPresetTrack(EatScriptDef preset) {
     if (!preset.isInstrument) {
       debugPrint('DawState: Cannot create a new track from non-instrument preset "${preset.name}" (${preset.category.displayName})');
       return;
@@ -1186,10 +1186,10 @@ class DawState extends ChangeNotifier {
     final newTrack = TrackChannel(
       id: trackId,
       name: preset.name,
-      type: TrackType.luaScript,
+      type: TrackType.eatScript,
       color: color,
-      luaScriptCode: preset.code,
-      luaParams: initialParams,
+      eatScriptCode: preset.code,
+      eatScriptParams: initialParams,
     );
 
     final clip = TrackClip(
@@ -1203,7 +1203,7 @@ class DawState extends ChangeNotifier {
     newTrack.clips.add(clip);
     activePattern.tracks.add(newTrack);
     _activeTrackIndex = activePattern.tracks.length - 1;
-    luaCode = preset.eatCode;
+    eatScriptCode = preset.eatCode;
     compilationResult = compiled;
     activeClip = null;
     recordHistory('Added track "${preset.name}"', icon: Icons.add);
@@ -1215,14 +1215,14 @@ class DawState extends ChangeNotifier {
     if (renameTrack && displayName != null && displayName.isNotEmpty) {
       track.name = displayName;
     }
-    track.luaParams['PresetNum'] = 0.0;
-    track.luaParams['BankNum'] = 0.0;
-    final sfPreset = LuaPresetLibrary.presets.firstWhere(
+    track.eatScriptParams['PresetNum'] = 0.0;
+    track.eatScriptParams['BankNum'] = 0.0;
+    final sfPreset = EatScriptLibrary.presets.firstWhere(
       (p) => p.id == 'soundfont_sampler',
-      orElse: () => LuaPresetLibrary.presets.first,
+      orElse: () => EatScriptLibrary.presets.first,
     );
-    track.luaScriptCode = sfPreset.eatCode;
-    compileLuaCode(sfPreset.eatCode);
+    track.eatScriptCode = sfPreset.eatCode;
+    compileScriptCode(sfPreset.eatCode);
     notifyListeners();
   }
 
@@ -1232,9 +1232,9 @@ class DawState extends ChangeNotifier {
   }
 
   void addNewSoundFontTrack(String fontId, {String? displayName}) {
-    final sfPreset = LuaPresetLibrary.presets.firstWhere(
+    final sfPreset = EatScriptLibrary.presets.firstWhere(
       (p) => p.id == 'soundfont_sampler',
-      orElse: () => LuaPresetLibrary.presets.first,
+      orElse: () => EatScriptLibrary.presets.first,
     );
 
     final trackId = 'track_${DateTime.now().millisecondsSinceEpoch}';
@@ -1251,10 +1251,10 @@ class DawState extends ChangeNotifier {
     final newTrack = TrackChannel(
       id: trackId,
       name: name,
-      type: TrackType.luaScript,
+      type: TrackType.eatScript,
       color: color,
       sampleName: fontId,
-      luaScriptCode: sfPreset.code,
+      eatScriptCode: sfPreset.code,
     );
 
     final clip = TrackClip(
@@ -1268,7 +1268,7 @@ class DawState extends ChangeNotifier {
     newTrack.clips.add(clip);
     activePattern.tracks.add(newTrack);
     activeTrackIndex = activePattern.tracks.length - 1;
-    compileLuaCode(sfPreset.code);
+    compileScriptCode(sfPreset.code);
     notifyListeners();
   }
 
@@ -1335,9 +1335,9 @@ class DawState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setAutomationScript(AutomationLane lane, String luaCode) {
-    lane.luaScriptCode = luaCode;
-    lane.isCustomLua = luaCode.trim().isNotEmpty;
+  void setAutomationScript(AutomationLane lane, String eatScriptCode) {
+    lane.eatScriptCode = eatScriptCode;
+    lane.isCustomEatScript = eatScriptCode.trim().isNotEmpty;
     triggerAutoSave();
     notifyListeners();
   }
@@ -1348,7 +1348,7 @@ class DawState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void applyLuaTheme(Map<String, dynamic> themeConfig) {
+  void applyScriptTheme(Map<String, dynamic> themeConfig) {
     if (themeConfig.containsKey('preset')) {
       final pName = themeConfig['preset']?.toString();
       for (final p in EatsThemePreset.values) {
@@ -1434,15 +1434,15 @@ class DawState extends ChangeNotifier {
     _activePatternIndex = 0;
     _activeTrackIndex = 0;
     activeClip = null;
-    if (activeTrack.luaScriptCode.isNotEmpty) {
-      luaCode = activeTrack.luaScriptCode;
-      compilationResult = compileScript(luaCode);
+    if (activeTrack.eatScriptCode.isNotEmpty) {
+      eatScriptCode = activeTrack.eatScriptCode;
+      compilationResult = compileScript(eatScriptCode);
     }
     notifyListeners();
   }
 
-  String exportToEatsLua() {
-    return EatsLuaSerializer.serialize(this, projectName: projectName);
+  String exportToEats() {
+    return EatProjectSerializer.serialize(this, projectName: projectName);
   }
 
   /// Computes a fast O(N) integer fingerprint of active song state
@@ -1478,7 +1478,7 @@ class DawState extends ChangeNotifier {
             (track.eqMidFreq * 10).round() ^
             (track.eqMidGain * 10).round() ^
             (track.eqHighGain * 10).round();
-        for (final entry in track.luaParams.entries) {
+        for (final entry in track.eatScriptParams.entries) {
           h = (h * 31) ^ entry.key.hashCode ^ (entry.value * 100).round();
         }
         for (final clip in track.clips) {
@@ -1495,7 +1495,7 @@ class DawState extends ChangeNotifier {
     return h;
   }
 
-  void loadFromEatsLua(String eatsLuaCode) {
+  void loadFromEats(String eatsCode) {
     _stopSmoothPlayheadTicker();
     if (isPlaying) {
       stop();
@@ -1523,7 +1523,7 @@ class DawState extends ChangeNotifier {
     EatScriptEngine.clearCache();
     history.pauseRecording();
     try {
-      projectName = EatsLuaParser.populateDawState(this, eatsLuaCode);
+      projectName = EatProjectParser.populateDawState(this, eatsCode);
       migrateAllScriptsToEatscript();
       resetActiveIndices();
 
@@ -1586,40 +1586,40 @@ class DawState extends ChangeNotifier {
   void migrateAllScriptsToEatscript() {
     for (final pattern in patterns) {
       for (final track in pattern.tracks) {
-        if (track.luaScriptCode.isNotEmpty && !EatScriptEngine.isEatScript(track.luaScriptCode)) {
-          track.luaScriptCode = EatTranspiler.transpileLuaPreset(track.luaScriptCode);
+        if (track.eatScriptCode.isNotEmpty && !EatScriptEngine.isEatScript(track.eatScriptCode)) {
+          track.eatScriptCode = EatTranspiler.transpileEatScriptPreset(track.eatScriptCode);
         }
         for (final fx in track.fxRack) {
-          if (fx.luaScriptCode != null &&
-              fx.luaScriptCode!.isNotEmpty &&
-              !EatScriptEngine.isEatScript(fx.luaScriptCode!)) {
-            fx.luaScriptCode = EatTranspiler.transpileLuaPreset(fx.luaScriptCode!);
+          if (fx.eatScriptCode != null &&
+              fx.eatScriptCode!.isNotEmpty &&
+              !EatScriptEngine.isEatScript(fx.eatScriptCode!)) {
+            fx.eatScriptCode = EatTranspiler.transpileEatScriptPreset(fx.eatScriptCode!);
           }
         }
         for (final mfx in track.midiFXRack) {
-          if (mfx.luaScriptCode.isNotEmpty && !EatScriptEngine.isEatScript(mfx.luaScriptCode)) {
-            mfx.luaScriptCode = EatTranspiler.transpileLuaPreset(mfx.luaScriptCode);
+          if (mfx.eatScriptCode.isNotEmpty && !EatScriptEngine.isEatScript(mfx.eatScriptCode)) {
+            mfx.eatScriptCode = EatTranspiler.transpileEatScriptPreset(mfx.eatScriptCode);
           }
         }
         for (final clip in track.clips) {
-          if (clip.luaScriptCode.isNotEmpty && !EatScriptEngine.isEatScript(clip.luaScriptCode)) {
-            clip.luaScriptCode = EatTranspiler.transpileLuaPreset(clip.luaScriptCode);
+          if (clip.eatScriptCode.isNotEmpty && !EatScriptEngine.isEatScript(clip.eatScriptCode)) {
+            clip.eatScriptCode = EatTranspiler.transpileEatScriptPreset(clip.eatScriptCode);
           }
         }
       }
     }
 
     for (final fx in masterTrack.fxRack) {
-      if (fx.luaScriptCode != null &&
-          fx.luaScriptCode!.isNotEmpty &&
-          !EatScriptEngine.isEatScript(fx.luaScriptCode!)) {
-        fx.luaScriptCode = EatTranspiler.transpileLuaPreset(fx.luaScriptCode!);
+      if (fx.eatScriptCode != null &&
+          fx.eatScriptCode!.isNotEmpty &&
+          !EatScriptEngine.isEatScript(fx.eatScriptCode!)) {
+        fx.eatScriptCode = EatTranspiler.transpileEatScriptPreset(fx.eatScriptCode!);
       }
     }
   }
 
   /// Scans all saved projects in local storage and Projects/ directory,
-  /// converting any legacy Lua project files or scripts to pure Eatscript format.
+  /// converting any Eatscript project files or scripts to pure Eatscript format.
   /// Returns the number of migrated projects.
   Future<int> convertAllLegacyProjectsOnDisk() async {
     int migratedCount = 0;
@@ -1628,15 +1628,15 @@ class DawState extends ChangeNotifier {
       for (final p in projects) {
         final content = await EatsStorageHelper.loadProjectFile(p);
         if (content != null && content.isNotEmpty) {
-          final isLegacy = p.fileName.toLowerCase().endsWith('.eats.lua') ||
+          final isLegacy = p.fileName.toLowerCase().endsWith('.eats') ||
               content.contains('return eatsbeats.song') ||
               content.contains('function init(') ||
               content.contains('function process(');
           if (isLegacy) {
             final tempDaw = DawState();
-            EatsLuaParser.populateDawState(tempDaw, content);
+            EatProjectParser.populateDawState(tempDaw, content);
             tempDaw.migrateAllScriptsToEatscript();
-            final convertedCode = tempDaw.exportToEatsLua();
+            final convertedCode = tempDaw.exportToEats();
             final baseName = p.name;
             await EatsStorageHelper.saveProjectFile(baseName, convertedCode);
             migratedCount++;
@@ -1664,26 +1664,26 @@ class DawState extends ChangeNotifier {
           : null;
       final baseParams = basePresetName != null ? ProceduralIRGenerator.presets[basePresetName] : null;
 
-      final matIdx = (fx.params['Material'] ?? (fx.luaParams['Material'] ?? (baseParams?.material.index.toDouble() ?? 0.0))).toInt().clamp(0, AcousticMaterialType.values.length - 1);
+      final matIdx = (fx.params['Material'] ?? (fx.eatScriptParams['Material'] ?? (baseParams?.material.index.toDouble() ?? 0.0))).toInt().clamp(0, AcousticMaterialType.values.length - 1);
       final spaceParams = AcousticSpaceParams(
         name: customName,
-        width: fx.params['Width'] ?? (fx.luaParams['Width'] ?? (baseParams?.width ?? (isCab ? 0.76 : 12.0))),
-        length: fx.params['Length'] ?? (fx.luaParams['Length'] ?? (baseParams?.length ?? (isCab ? 0.76 : 15.0))),
-        height: fx.params['Height'] ?? (fx.luaParams['Height'] ?? (baseParams?.height ?? (isCab ? 0.36 : 4.0))),
-        sourceX: fx.params['SourceX'] ?? (fx.luaParams['SourceX'] ?? (baseParams?.sourceX ?? 0.5)),
-        sourceY: fx.params['SourceY'] ?? (fx.luaParams['SourceY'] ?? (baseParams?.sourceY ?? 0.5)),
-        sourceZ: fx.params['SourceZ'] ?? (fx.luaParams['SourceZ'] ?? (baseParams?.sourceZ ?? 0.5)),
-        listenerX: fx.params['ListenerX'] ?? (fx.luaParams['ListenerX'] ?? (baseParams?.listenerX ?? 0.5)),
-        listenerY: fx.params['ListenerY'] ?? (fx.luaParams['ListenerY'] ?? (baseParams?.listenerY ?? 0.8)),
-        listenerZ: fx.params['ListenerZ'] ?? (fx.luaParams['ListenerZ'] ?? (baseParams?.listenerZ ?? 0.5)),
-        stereoWidth: fx.params['StereoWidth'] ?? (fx.luaParams['StereoWidth'] ?? (baseParams?.stereoWidth ?? (isCab ? 0.08 : 0.20))),
+        width: fx.params['Width'] ?? (fx.eatScriptParams['Width'] ?? (baseParams?.width ?? (isCab ? 0.76 : 12.0))),
+        length: fx.params['Length'] ?? (fx.eatScriptParams['Length'] ?? (baseParams?.length ?? (isCab ? 0.76 : 15.0))),
+        height: fx.params['Height'] ?? (fx.eatScriptParams['Height'] ?? (baseParams?.height ?? (isCab ? 0.36 : 4.0))),
+        sourceX: fx.params['SourceX'] ?? (fx.eatScriptParams['SourceX'] ?? (baseParams?.sourceX ?? 0.5)),
+        sourceY: fx.params['SourceY'] ?? (fx.eatScriptParams['SourceY'] ?? (baseParams?.sourceY ?? 0.5)),
+        sourceZ: fx.params['SourceZ'] ?? (fx.eatScriptParams['SourceZ'] ?? (baseParams?.sourceZ ?? 0.5)),
+        listenerX: fx.params['ListenerX'] ?? (fx.eatScriptParams['ListenerX'] ?? (baseParams?.listenerX ?? 0.5)),
+        listenerY: fx.params['ListenerY'] ?? (fx.eatScriptParams['ListenerY'] ?? (baseParams?.listenerY ?? 0.8)),
+        listenerZ: fx.params['ListenerZ'] ?? (fx.eatScriptParams['ListenerZ'] ?? (baseParams?.listenerZ ?? 0.5)),
+        stereoWidth: fx.params['StereoWidth'] ?? (fx.eatScriptParams['StereoWidth'] ?? (baseParams?.stereoWidth ?? (isCab ? 0.08 : 0.20))),
         material: AcousticMaterialType.values[matIdx],
-        rt60: isCab ? 0.035 : (fx.params['RT60'] ?? (fx.luaParams['RT60'] ?? (baseParams?.rt60 ?? 1.8))),
-        damping: fx.params['Damping'] ?? (fx.luaParams['Damping'] ?? (baseParams?.damping ?? (isCab ? 0.55 : 0.30))),
+        rt60: isCab ? 0.035 : (fx.params['RT60'] ?? (fx.eatScriptParams['RT60'] ?? (baseParams?.rt60 ?? 1.8))),
+        damping: fx.params['Damping'] ?? (fx.eatScriptParams['Damping'] ?? (baseParams?.damping ?? (isCab ? 0.55 : 0.30))),
         isCabinetMode: isCab,
-        micDistance: fx.params['MicDistance'] ?? (fx.luaParams['MicDistance'] ?? (baseParams?.micDistance ?? 0.05)),
-        micAngleDeg: fx.params['MicAngle'] ?? (fx.luaParams['MicAngle'] ?? (baseParams?.micAngleDeg ?? 0.0)),
-        isOpenBack: (fx.params['OpenBack'] ?? (fx.luaParams['OpenBack'] ?? (baseParams?.isOpenBack == true ? 1.0 : 0.0))) == 1.0,
+        micDistance: fx.params['MicDistance'] ?? (fx.eatScriptParams['MicDistance'] ?? (baseParams?.micDistance ?? 0.05)),
+        micAngleDeg: fx.params['MicAngle'] ?? (fx.eatScriptParams['MicAngle'] ?? (baseParams?.micAngleDeg ?? 0.0)),
+        isOpenBack: (fx.params['OpenBack'] ?? (fx.eatScriptParams['OpenBack'] ?? (baseParams?.isOpenBack == true ? 1.0 : 0.0))) == 1.0,
       );
       if (!ConvolverEngine.instance.hasIrSample(customName)) {
         ConvolverEngine.instance.bakeCustomSpace(spaceParams);
@@ -1693,7 +1693,7 @@ class DawState extends ChangeNotifier {
     } else if (fx.presetId == 'convolution_reverb' || fx.name.toLowerCase().contains('convolution') || fx.type == FXType.convolutionReverb) {
       if (fx.irSampleName == null || fx.irSampleName!.isEmpty || fx.irSampleName!.startsWith('Conv:')) {
         final allIrs = ConvolverEngine.instance.getAvailableIrNames();
-        final idx = (fx.params['IRSample'] ?? (fx.luaParams['IRSample'] ?? 0.0)).toInt().clamp(0, allIrs.isEmpty ? 0 : allIrs.length - 1);
+        final idx = (fx.params['IRSample'] ?? (fx.eatScriptParams['IRSample'] ?? 0.0)).toInt().clamp(0, allIrs.isEmpty ? 0 : allIrs.length - 1);
         fx.irSampleName = allIrs.isNotEmpty ? allIrs[idx] : 'Great Hall';
       }
       audioEngine.invalidateIrCache(fx.irSampleName);
@@ -1761,17 +1761,17 @@ class DawState extends ChangeNotifier {
       activeTrack.notes = matchingClip.notes.map((n) => n.copyWith()).toList();
     }
 
-    if (activeTrack.luaScriptCode.isNotEmpty) {
-      luaCode = activeTrack.luaScriptCode;
-      compilationResult = compileScript(luaCode);
+    if (activeTrack.eatScriptCode.isNotEmpty) {
+      eatScriptCode = activeTrack.eatScriptCode;
+      compilationResult = compileScript(eatScriptCode);
       for (final p in compilationResult.params) {
-        activeTrack.luaParams.putIfAbsent(p.name, () => p.defaultValue);
+        activeTrack.eatScriptParams.putIfAbsent(p.name, () => p.defaultValue);
       }
     } else {
-      luaCode = '';
-      compilationResult = LuaCompilationResult(
+      eatScriptCode = '';
+      compilationResult = EatCompilationResult(
         isSuccess: true,
-        errorMessage: 'No active Lua script on channel',
+        errorMessage: 'No active Eatscript on channel',
         params: [],
         scriptType: 'synth',
       );
@@ -1786,10 +1786,10 @@ class DawState extends ChangeNotifier {
   ];
 
   // Script Editor Active Code & Logs
-  String luaCode = LuaPresetLibrary.presets.first.eatCode;
-  String get scriptCode => luaCode;
-  set scriptCode(String val) => luaCode = val;
-  LuaCompilationResult compilationResult = compileScript(LuaPresetLibrary.presets.first.eatCode);
+  String eatScriptCode = EatScriptLibrary.presets.first.eatCode;
+  String get scriptCode => eatScriptCode;
+  set scriptCode(String val) => eatScriptCode = val;
+  EatCompilationResult compilationResult = compileScript(EatScriptLibrary.presets.first.eatCode);
 
   static bool get isTestEnvironment => PlatformEnvHelper.isFlutterTest;
 
@@ -1858,8 +1858,8 @@ class DawState extends ChangeNotifier {
     _autoSaveDebounceTimer?.cancel();
     if (_autoSaveEnabled && !isTestEnvironment) {
       try {
-        final luaScript = exportToEatsLua();
-        EatsStorageHelper.saveSessionLua(luaScript);
+        final eatScript = exportToEats();
+        EatsStorageHelper.saveSessionEatScript(eatScript);
       } catch (_) {}
     }
     _meterTimer?.cancel();
@@ -1881,7 +1881,7 @@ class DawState extends ChangeNotifier {
   }
 
   void _initDemoTracks() {
-    loadFromEatsLua(DefaultSong.midnightBites);
+    loadFromEats(DefaultSong.midnightBites);
   }
 
   /// Generates an authentic procedural multi-track song (e.g. Lo-Fi Hip Hop, Synthwave)
@@ -1946,7 +1946,7 @@ class DawState extends ChangeNotifier {
           id: 'track_${track.id}_dsp',
           type: ScriptTargetType.trackDsp,
           title: '${track.name} (Synth DSP)',
-          subtitle: track.luaScriptCode.isNotEmpty ? 'Custom Eatscript Synth / DSP' : 'Instrument DSP Script',
+          subtitle: track.eatScriptCode.isNotEmpty ? 'Custom Eatscript Synth / DSP' : 'Instrument DSP Script',
           trackId: track.id,
           trackName: track.name,
           trackColor: track.color,
@@ -2020,7 +2020,7 @@ class DawState extends ChangeNotifier {
     }
 
     // 6. Project-Wide Action & Procedural Generation Scripts
-    final projectScripts = LuaScriptLibrary.getScriptsByCategory(LuaScriptCategory.projectAction);
+    final projectScripts = EatScriptLibrary.getScriptsByCategory(EatScriptCategory.projectAction);
     for (final ps in projectScripts) {
       list.add(
         ScriptTarget(
@@ -2048,20 +2048,20 @@ class DawState extends ChangeNotifier {
     final track = _getTrackForScriptTarget(target);
     switch (target.type) {
       case ScriptTargetType.trackDsp:
-        if (track.luaScriptCode.isNotEmpty) {
-          if (!EatScriptEngine.isEatScript(track.luaScriptCode)) {
-            track.luaScriptCode = EatTranspiler.transpileLuaPreset(track.luaScriptCode);
+        if (track.eatScriptCode.isNotEmpty) {
+          if (!EatScriptEngine.isEatScript(track.eatScriptCode)) {
+            track.eatScriptCode = EatTranspiler.transpileEatScriptPreset(track.eatScriptCode);
           }
-          final codeWithRack = ModularRackDsl.ensureRackBlock(track.luaScriptCode, trackName: track.name);
-          if (codeWithRack != track.luaScriptCode) {
-            track.luaScriptCode = codeWithRack;
+          final codeWithRack = ModularRackDsl.ensureRackBlock(track.eatScriptCode, trackName: track.name);
+          if (codeWithRack != track.eatScriptCode) {
+            track.eatScriptCode = codeWithRack;
           }
-          return track.luaScriptCode;
+          return track.eatScriptCode;
         }
-        final matchingPreset = LuaPresetLibrary.findMatchingPreset(track.luaScriptCode, fallbackName: track.name);
+        final matchingPreset = EatScriptLibrary.findMatchingPreset(track.eatScriptCode, fallbackName: track.name);
         if (matchingPreset != null) {
           final codeWithRack = ModularRackDsl.ensureRackBlock(matchingPreset.eatCode, trackName: track.name);
-          track.luaScriptCode = codeWithRack;
+          track.eatScriptCode = codeWithRack;
           return codeWithRack;
         }
         final defaultTrackCode = '''# @name: ${track.name}
@@ -2093,21 +2093,21 @@ def gui():
     }
 ''';
         final defaultWithRack = ModularRackDsl.ensureRackBlock(defaultTrackCode, trackName: track.name);
-        track.luaScriptCode = defaultWithRack;
+        track.eatScriptCode = defaultWithRack;
         return defaultWithRack;
 
       case ScriptTargetType.audioFx:
         final fx = track.fxRack.where((f) => f.id == target.secondaryId).firstOrNull;
         if (fx != null) {
-          if (fx.luaScriptCode != null && fx.luaScriptCode!.isNotEmpty) {
-            if (!EatScriptEngine.isEatScript(fx.luaScriptCode!)) {
-              fx.luaScriptCode = EatTranspiler.transpileLuaPreset(fx.luaScriptCode!);
+          if (fx.eatScriptCode != null && fx.eatScriptCode!.isNotEmpty) {
+            if (!EatScriptEngine.isEatScript(fx.eatScriptCode!)) {
+              fx.eatScriptCode = EatTranspiler.transpileEatScriptPreset(fx.eatScriptCode!);
             }
-            return fx.luaScriptCode!;
+            return fx.eatScriptCode!;
           }
-          final matchingPreset = LuaPresetLibrary.findMatchingPreset(fx.name, fallbackName: fx.name);
+          final matchingPreset = EatScriptLibrary.findMatchingPreset(fx.name, fallbackName: fx.name);
           if (matchingPreset != null) {
-            fx.luaScriptCode = matchingPreset.eatCode;
+            fx.eatScriptCode = matchingPreset.eatCode;
             return matchingPreset.eatCode;
           }
           final defaultFxCode = '''# @name: ${fx.name}
@@ -2137,7 +2137,7 @@ def gui():
         }
     }
 ''';
-          fx.luaScriptCode = defaultFxCode;
+          fx.eatScriptCode = defaultFxCode;
           return defaultFxCode;
         }
         return '';
@@ -2145,15 +2145,15 @@ def gui():
       case ScriptTargetType.midiFx:
         final mfx = track.midiFXRack.where((f) => f.id == target.secondaryId).firstOrNull;
         if (mfx != null) {
-          if (mfx.luaScriptCode != null && mfx.luaScriptCode!.isNotEmpty) {
-            if (!EatScriptEngine.isEatScript(mfx.luaScriptCode!)) {
-              mfx.luaScriptCode = EatTranspiler.transpileLuaPreset(mfx.luaScriptCode!);
+          if (mfx.eatScriptCode != null && mfx.eatScriptCode!.isNotEmpty) {
+            if (!EatScriptEngine.isEatScript(mfx.eatScriptCode!)) {
+              mfx.eatScriptCode = EatTranspiler.transpileEatScriptPreset(mfx.eatScriptCode!);
             }
-            return mfx.luaScriptCode!;
+            return mfx.eatScriptCode!;
           }
-          final matchingPreset = LuaPresetLibrary.findMatchingPreset(mfx.name, fallbackName: mfx.name);
+          final matchingPreset = EatScriptLibrary.findMatchingPreset(mfx.name, fallbackName: mfx.name);
           if (matchingPreset != null) {
-            mfx.luaScriptCode = matchingPreset.eatCode;
+            mfx.eatScriptCode = matchingPreset.eatCode;
             return matchingPreset.eatCode;
           }
           final defaultMfxCode = '''# @name: ${mfx.name}
@@ -2183,7 +2183,7 @@ def gui():
         }
     }
 ''';
-          mfx.luaScriptCode = defaultMfxCode;
+          mfx.eatScriptCode = defaultMfxCode;
           return defaultMfxCode;
         }
         return '';
@@ -2191,20 +2191,20 @@ def gui():
       case ScriptTargetType.clipScript:
         final clip = track.clips.where((c) => c.id == target.secondaryId).firstOrNull;
         if (clip != null) {
-          if (clip.luaScriptCode.isNotEmpty) {
-            if (!EatScriptEngine.isEatScript(clip.luaScriptCode)) {
-              clip.luaScriptCode = EatTranspiler.transpileLuaPreset(clip.luaScriptCode);
+          if (clip.eatScriptCode.isNotEmpty) {
+            if (!EatScriptEngine.isEatScript(clip.eatScriptCode)) {
+              clip.eatScriptCode = EatTranspiler.transpileEatScriptPreset(clip.eatScriptCode);
             }
-            return clip.luaScriptCode;
+            return clip.eatScriptCode;
           }
           final serialized = MidiPipelineEngine.serializeNotesToEat(clip.notes);
-          clip.luaScriptCode = serialized;
+          clip.eatScriptCode = serialized;
           return serialized;
         }
         return '';
 
       case ScriptTargetType.projectAction:
-        final script = LuaScriptLibrary.scripts.where((s) => s.id == target.secondaryId).firstOrNull;
+        final script = EatScriptLibrary.scripts.where((s) => s.id == target.secondaryId).firstOrNull;
         return script?.eatCode ?? '';
     }
   }
@@ -2213,16 +2213,16 @@ def gui():
     final track = _getTrackForScriptTarget(target);
     switch (target.type) {
       case ScriptTargetType.trackDsp:
-        return track.luaParams;
+        return track.eatScriptParams;
       case ScriptTargetType.audioFx:
         final fx = track.fxRack.where((f) => f.id == target.secondaryId).firstOrNull;
-        return fx?.luaParams ?? {};
+        return fx?.eatScriptParams ?? {};
       case ScriptTargetType.midiFx:
         final mfx = track.midiFXRack.where((f) => f.id == target.secondaryId).firstOrNull;
-        return mfx?.luaParams ?? {};
+        return mfx?.eatScriptParams ?? {};
       case ScriptTargetType.clipScript:
         final clip = track.clips.where((c) => c.id == target.secondaryId).firstOrNull;
-        return clip?.luaParams ?? {};
+        return clip?.eatScriptParams ?? {};
       case ScriptTargetType.projectAction:
         return {};
     }
@@ -2232,7 +2232,7 @@ def gui():
     final track = _getTrackForScriptTarget(target);
     switch (target.type) {
       case ScriptTargetType.trackDsp:
-        track.luaParams[paramName] = value;
+        track.eatScriptParams[paramName] = value;
         break;
       case ScriptTargetType.audioFx:
         updateFXParam(track, target.secondaryId ?? '', paramName, value);
@@ -2243,7 +2243,7 @@ def gui():
       case ScriptTargetType.clipScript:
         final clip = track.clips.where((c) => c.id == target.secondaryId).firstOrNull;
         if (clip != null) {
-          clip.luaParams[paramName] = value;
+          clip.eatScriptParams[paramName] = value;
           final pipeline = MidiPipelineEngine();
           pipeline.processClip(clip: clip, track: track, timeContext: timeContext);
         }
@@ -2260,8 +2260,8 @@ def gui():
     if (tIdx != -1 && tIdx != _activeTrackIndex) {
       _activeTrackIndex = tIdx;
     }
-    luaCode = getScriptCodeForTarget(target);
-    compilationResult = compileScript(luaCode);
+    eatScriptCode = getScriptCodeForTarget(target);
+    compilationResult = compileScript(eatScriptCode);
     notifyListeners();
   }
 
@@ -2271,12 +2271,12 @@ def gui():
     notifyListeners();
   }
 
-  // Lua Engine Compilation & Hot Swap across all script types
+  // Eatscript Engine Compilation & Hot Swap across all script types
   void compileScriptTarget(ScriptTarget target, String code) {
     // 1. SAVE STATE BEFORE RECOMPILING FOR HISTORY MANAGER
     recordHistory('Compile ${target.typeBadge}: ${target.title}', icon: Icons.code, force: true);
 
-    luaCode = code;
+    eatScriptCode = code;
     compilationResult = compileScript(code);
 
     final track = _getTrackForScriptTarget(target);
@@ -2284,25 +2284,25 @@ def gui():
     if (compilationResult.isSuccess) {
       switch (target.type) {
         case ScriptTargetType.trackDsp:
-          track.luaScriptCode = code;
-          track.type = TrackType.luaScript;
+          track.eatScriptCode = code;
+          track.type = TrackType.eatScript;
           final newParams = <String, double>{};
           for (final p in compilationResult.params) {
-            newParams[p.name] = track.luaParams[p.name] ?? p.defaultValue;
+            newParams[p.name] = track.eatScriptParams[p.name] ?? p.defaultValue;
           }
-          track.luaParams = newParams;
-          audioEngine.invalidateLuaCache(track.id);
+          track.eatScriptParams = newParams;
+          audioEngine.invalidateEatScriptCache(track.id);
           break;
 
         case ScriptTargetType.audioFx:
           final fx = track.fxRack.where((f) => f.id == target.secondaryId).firstOrNull;
           if (fx != null) {
-            fx.luaScriptCode = code;
+            fx.eatScriptCode = code;
             final newParams = <String, double>{};
             for (final p in compilationResult.params) {
-              newParams[p.name] = fx.luaParams[p.name] ?? p.defaultValue;
+              newParams[p.name] = fx.eatScriptParams[p.name] ?? p.defaultValue;
             }
-            fx.luaParams = newParams;
+            fx.eatScriptParams = newParams;
             _syncFxAudio(track);
           }
           break;
@@ -2310,29 +2310,29 @@ def gui():
         case ScriptTargetType.midiFx:
           final mfx = track.midiFXRack.where((f) => f.id == target.secondaryId).firstOrNull;
           if (mfx != null) {
-            mfx.luaScriptCode = code;
+            mfx.eatScriptCode = code;
             final newParams = <String, double>{};
             for (final p in compilationResult.params) {
-              newParams[p.name] = mfx.luaParams[p.name] ?? p.defaultValue;
+              newParams[p.name] = mfx.eatScriptParams[p.name] ?? p.defaultValue;
             }
-            mfx.luaParams = newParams;
+            mfx.eatScriptParams = newParams;
           }
           break;
 
         case ScriptTargetType.clipScript:
           final clip = track.clips.where((c) => c.id == target.secondaryId).firstOrNull;
           if (clip != null) {
-            clip.luaScriptCode = code;
+            clip.eatScriptCode = code;
             final newParams = <String, double>{};
             for (final p in compilationResult.params) {
-              newParams[p.name] = clip.luaParams[p.name] ?? p.defaultValue;
+              newParams[p.name] = clip.eatScriptParams[p.name] ?? p.defaultValue;
             }
-            clip.luaParams = newParams;
+            clip.eatScriptParams = newParams;
             if (code.contains('eat.') || code.contains('def ') || code.contains('for ')) {
               final generatedNotes = EatScriptEngine.executeClipScript(
                 code,
                 clip.notes,
-                paramValues: clip.luaParams,
+                paramValues: clip.eatScriptParams,
                 tempo: bpm,
                 keyRoot: songKeyRoot,
                 isMinor: isSongKeyMinor,
@@ -2342,7 +2342,7 @@ def gui():
                 track.notes = generatedNotes;
               }
             } else {
-              final parsedNotes = MidiPipelineEngine.parseNotesFromLuaTable(code);
+              final parsedNotes = MidiPipelineEngine.parseNotesFromScript(code);
               if (parsedNotes.isNotEmpty) {
                 clip.notes = parsedNotes;
                 track.notes = parsedNotes;
@@ -2354,16 +2354,16 @@ def gui():
           break;
 
         case ScriptTargetType.projectAction:
-          final existing = LuaScriptLibrary.scripts.where((s) => s.id == target.secondaryId).firstOrNull;
+          final existing = EatScriptLibrary.scripts.where((s) => s.id == target.secondaryId).firstOrNull;
           if (existing != null) {
-            final updated = LuaScriptDef(
+            final updated = EatScriptDef(
               id: existing.id,
               name: existing.name,
-              category: LuaScriptCategory.projectAction,
+              category: EatScriptCategory.projectAction,
               description: existing.description,
               code: code,
             );
-            LuaScriptLibrary.registerCustomScript(updated);
+            EatScriptLibrary.registerCustomScript(updated);
           }
           break;
       }
@@ -2371,8 +2371,8 @@ def gui():
     notifyListeners();
   }
 
-  /// Runs a project action Eatscript or Lua script with undo snapshot history recording.
-  ProjectScriptResult runProjectScript(LuaScriptDef script, {Map<String, dynamic> params = const {}}) {
+  /// Runs a project action Eatscript with undo snapshot history recording.
+  ProjectScriptResult runProjectScript(EatScriptDef script, {Map<String, dynamic> params = const {}}) {
     recordHistory('Before ${script.name}', icon: Icons.auto_awesome, force: true);
     history.pauseRecording();
     try {
@@ -2389,7 +2389,7 @@ def gui():
     }
   }
 
-  void compileLuaCode(String code) {
+  void compileScriptCode(String code) {
     compileScriptTarget(activeScriptTarget, code);
   }
 
@@ -2436,8 +2436,8 @@ def gui():
       barLength: 2,
       patternIndex: pIdx,
       notes: [],
-      luaScriptCode: '',
-      luaParams: {},
+      eatScriptCode: '',
+      eatScriptParams: {},
     );
     track.clips.add(newClip);
     activeClip = newClip;
@@ -2470,8 +2470,8 @@ def gui():
       barLength: clip.barLength,
       patternIndex: pIdx,
       notes: clip.notes.map((n) => n.copyWith()).toList(),
-      luaScriptCode: clip.luaScriptCode,
-      luaParams: Map.from(clip.luaParams),
+      eatScriptCode: clip.eatScriptCode,
+      eatScriptParams: Map.from(clip.eatScriptParams),
     );
     track.clips.add(duplicated);
     activeClip = duplicated;
@@ -2515,8 +2515,8 @@ def gui():
       barLength: 1,
       patternIndex: patternIdx.clamp(0, 255),
       notes: [],
-      luaScriptCode: '',
-      luaParams: {},
+      eatScriptCode: '',
+      eatScriptParams: {},
     );
     track.clips.add(newClip);
     activeClip = newClip;
@@ -2705,17 +2705,17 @@ def gui():
     for (final fx in track.fxRack) {
       fx.enabled = enableAll;
     }
-    audioEngine.invalidateLuaCache(track.id);
+    audioEngine.invalidateEatScriptCache(track.id);
     recordHistory('${enableAll ? "Enable" : "Bypass"} Audio FX Rack on ${track.name}', icon: Icons.tune);
     notifyListeners();
   }
 
-  void applyScriptToClip(TrackChannel track, TrackClip clip, LuaScriptDef script) {
+  void applyScriptToClip(TrackChannel track, TrackClip clip, EatScriptDef script) {
     if (script.isMidiFx) {
       addMidiFXInsert(
         track,
         name: script.name,
-        luaScriptCode: script.code,
+        eatScriptCode: script.code,
       );
       recordHistory('Add MIDI FX "${script.name}" to ${track.name}', icon: Icons.music_note);
       notifyListeners();
@@ -2723,10 +2723,10 @@ def gui():
     }
 
     clip.name = script.name;
-    clip.luaScriptCode = script.code;
+    clip.eatScriptCode = script.code;
 
     // Parse notes from sequence script if present
-    final parsedNotes = MidiPipelineEngine.parseNotesFromLuaTable(script.code);
+    final parsedNotes = MidiPipelineEngine.parseNotesFromScript(script.code);
     if (parsedNotes.isNotEmpty) {
       if (clip.barLength > 1) {
         // Tile 1-bar (16 steps) sequence across multi-bar clips
@@ -2763,10 +2763,10 @@ def gui():
     notifyListeners();
   }
 
-  void applyPresetToClip(TrackChannel track, TrackClip clip, LuaPreset preset) => applyScriptToClip(track, clip, preset);
+  void applyPresetToClip(TrackChannel track, TrackClip clip, EatScriptDef preset) => applyScriptToClip(track, clip, preset);
 
-  void addClipWithPresetToTrack(TrackChannel track, int startBar, LuaPreset preset, {int barLength = 1}) {
-    final parsedNotes = MidiPipelineEngine.parseNotesFromLuaTable(preset.code);
+  void addClipWithPresetToTrack(TrackChannel track, int startBar, EatScriptDef preset, {int barLength = 1}) {
+    final parsedNotes = MidiPipelineEngine.parseNotesFromScript(preset.code);
     final clipId = 'c_${DateTime.now().millisecondsSinceEpoch}';
     final List<Note> initialNotes = [];
 
@@ -2789,8 +2789,8 @@ def gui():
       startBar: startBar,
       barLength: barLength,
       notes: initialNotes,
-      luaScriptCode: preset.code,
-      luaParams: {},
+      eatScriptCode: preset.code,
+      eatScriptParams: {},
     );
 
     track.clips.add(newClip);
@@ -3289,7 +3289,7 @@ def gui():
     for (final track in currentPattern.tracks) {
       if (track.isMuted) continue;
       if (hasSolo && !track.isSoloed) continue;
-      if (track.hasValidBake) continue; // Streamed continuously via WABufferSourceNode without Lua synthesis overhead
+      if (track.hasValidBake) continue; // Streamed continuously via WABufferSourceNode without synthesis overhead
 
       int remapPitch(int pitch) {
         if (activeChord != null && track.chordFollowMode != ChordFollowMode.off) {
@@ -3332,13 +3332,13 @@ def gui():
             // Trigger TTS speech ONLY if track is a TTS Voice Synth instrument or enabled
             final isTtsInstrument = track.type == TrackType.tts ||
                 track.enableTts ||
-                track.luaScriptCode.contains('TtsSynth') ||
+                track.eatScriptCode.contains('TtsSynth') ||
                 track.sampleName.toLowerCase().contains('tts');
 
             if (isTtsInstrument) {
-              final double effPitch = track.luaParams['Pitch'] ?? track.ttsPitch;
-              final double effRate = track.luaParams['Rate'] ?? track.ttsRate;
-              final double effVol = (track.luaParams['Volume'] ?? track.ttsVolume) * track.volume;
+              final double effPitch = track.eatScriptParams['Pitch'] ?? track.ttsPitch;
+              final double effRate = track.eatScriptParams['Rate'] ?? track.ttsRate;
+              final double effVol = (track.eatScriptParams['Volume'] ?? track.ttsVolume) * track.volume;
 
               // 1. Check track-level lyric cues
               final matchingTrackLyrics = track.lyrics.where(
@@ -3398,9 +3398,9 @@ def gui():
               }
 
               if (hasMatch) {
-                final hasSlideParam = (track.luaParams['Slide'] ?? 0.0) > 0.01 ||
-                    (track.luaParams['Portamento'] ?? 0.0) > 0.01 ||
-                    (track.luaParams['Glide'] ?? 0.0) > 0.01;
+                final hasSlideParam = (track.eatScriptParams['Slide'] ?? 0.0) > 0.01 ||
+                    (track.eatScriptParams['Portamento'] ?? 0.0) > 0.01 ||
+                    (track.eatScriptParams['Glide'] ?? 0.0) > 0.01;
 
                 if (track.isMonophonicTrack) {
                   // Collect matching notes into a fixed-size temp buffer (no heap List).
@@ -3544,13 +3544,13 @@ def gui():
 
         final isTtsInstrument = track.type == TrackType.tts ||
             track.enableTts ||
-            track.luaScriptCode.contains('TtsSynth') ||
+            track.eatScriptCode.contains('TtsSynth') ||
             track.sampleName.toLowerCase().contains('tts');
 
         if (isTtsInstrument) {
-          final double effPitch = track.luaParams['Pitch'] ?? track.ttsPitch;
-          final double effRate = track.luaParams['Rate'] ?? track.ttsRate;
-          final double effVol = (track.luaParams['Volume'] ?? track.ttsVolume) * track.volume;
+          final double effPitch = track.eatScriptParams['Pitch'] ?? track.ttsPitch;
+          final double effRate = track.eatScriptParams['Rate'] ?? track.ttsRate;
+          final double effVol = (track.eatScriptParams['Volume'] ?? track.ttsVolume) * track.volume;
 
           final matchingLyrics = track.lyrics.where(
             (l) => l.startStep >= localStep && l.startStep < (localStep + 1.0),
@@ -3600,9 +3600,9 @@ def gui():
               }
               matchBuf2.sort((a, b) => a.startStep.compareTo(b.startStep));
 
-              final hasSlideParam = (track.luaParams['Slide'] ?? 0.0) > 0.01 ||
-                  (track.luaParams['Portamento'] ?? 0.0) > 0.01 ||
-                  (track.luaParams['Glide'] ?? 0.0) > 0.01;
+              final hasSlideParam = (track.eatScriptParams['Slide'] ?? 0.0) > 0.01 ||
+                  (track.eatScriptParams['Portamento'] ?? 0.0) > 0.01 ||
+                  (track.eatScriptParams['Glide'] ?? 0.0) > 0.01;
 
               for (int mIdx = 0; mIdx < matchBuf2.length; mIdx++) {
                 final note = matchBuf2[mIdx];
@@ -3739,8 +3739,8 @@ def gui():
       startBar: 0,
       barLength: activePattern.barLength > 0 ? activePattern.barLength : 2,
       notes: track.notes,
-      luaScriptCode: '',
-      luaParams: {},
+      eatScriptCode: '',
+      eatScriptParams: {},
     );
     track.clips.add(newClip);
     activeClip = newClip;
@@ -4091,7 +4091,7 @@ def gui():
     }
   }
 
-  // Note Clipboard State & Operations (Universal Cross-Platform Lua Clipboard)
+  // Note Clipboard State & Operations (Universal Cross-Platform Script Clipboard)
   List<Note> noteClipboard = [];
 
   Future<String> copyNotesToClipboard(TrackChannel track, Iterable<String> noteIds) async {
@@ -4102,14 +4102,14 @@ def gui():
 
     if (notesToCopy.isEmpty) return '';
 
-    final luaCode = EatsLuaSerializer.serializeNotes(notesToCopy, relativeSteps: true);
+    final eatScriptCode = EatProjectSerializer.serializeNotes(notesToCopy, relativeSteps: true);
     noteClipboard = notesToCopy;
 
     try {
-      await Clipboard.setData(ClipboardData(text: luaCode));
+      await Clipboard.setData(ClipboardData(text: eatScriptCode));
     } catch (_) {}
 
-    return luaCode;
+    return eatScriptCode;
   }
 
   Future<void> cutNotesToClipboard(TrackChannel track, Iterable<String> noteIds) async {
@@ -4137,14 +4137,14 @@ def gui():
 
     if (notesInBlock.isEmpty) return '';
 
-    final luaCode = EatsLuaSerializer.serializeNotes(notesInBlock, relativeSteps: true);
+    final eatScriptCode = EatProjectSerializer.serializeNotes(notesInBlock, relativeSteps: true);
     noteClipboard = notesInBlock;
 
     try {
-      await Clipboard.setData(ClipboardData(text: luaCode));
+      await Clipboard.setData(ClipboardData(text: eatScriptCode));
     } catch (_) {}
 
-    return luaCode;
+    return eatScriptCode;
   }
 
   Future<List<Note>> pasteNotesFromClipboard(
@@ -4157,7 +4157,7 @@ def gui():
     try {
       final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
       if (clipboardData?.text != null && clipboardData!.text!.trim().isNotEmpty) {
-        sourceNotes = EatsLuaParser.parseNotes(clipboardData.text!);
+        sourceNotes = EatProjectParser.parseNotes(clipboardData.text!);
       }
     } catch (_) {}
 
@@ -4351,7 +4351,7 @@ def gui():
       };
 
       if (tag == 'kick') {
-        dominantFreq = (track.luaParams['NearPitchEnd'] ?? (track.luaParams['EndFreq'] ?? 52.0)).clamp(35.0, 90.0);
+        dominantFreq = (track.eatScriptParams['NearPitchEnd'] ?? (track.eatScriptParams['EndFreq'] ?? 52.0)).clamp(35.0, 90.0);
         correlation = 1.0;
         energyBands = {'sub': 0.95, 'low': 0.65, 'lowMid': 0.18, 'mid': 0.05, 'highMid': 0.02, 'high': 0.0, 'air': 0.0};
       } else if (tag == 'bass' || tag.contains('303') || tag.contains('808')) {
@@ -4698,7 +4698,7 @@ def gui():
   /// Returns the list of saved project file paths or names.
   Future<List<String>> saveArrangementTakesAsProjects(SongStyleAssessment assessment) async {
     final List<String> savedPaths = [];
-    final originalSnapshot = exportToEatsLua();
+    final originalSnapshot = exportToEats();
     final baseProjectName = projectName.isNotEmpty ? projectName : 'Eats Song';
 
     for (int i = 0; i < assessment.takes.length; i++) {
@@ -4715,7 +4715,7 @@ def gui():
       final takeProjectName = '$baseProjectName - $cleanTakeTitle';
       tempDaw.projectName = takeProjectName;
 
-      final projectContent = tempDaw.exportToEatsLua();
+      final projectContent = tempDaw.exportToEats();
       final savedItem = await EatsStorageHelper.saveProjectFile(takeProjectName, projectContent);
       if (savedItem != null) {
         savedPaths.add(savedItem.filePath ?? savedItem.name);
@@ -4781,7 +4781,7 @@ def gui():
     notifyListeners();
   }
 
-  /// Unfreezes a track, returning it to live Lua script / synthesizer evaluation.
+  /// Unfreezes a track, returning it to live Eatscript / synthesizer evaluation.
   void unfreezeTrack(TrackChannel track) {
     if (!track.isFrozen && track.frozenAudioBuffer == null) return;
     audioEngine.stopFrozenTrack(track.id);
@@ -5062,8 +5062,8 @@ def gui():
         startBar: c.startBar,
         barLength: c.barLength,
         notes: c.notes.map((n) => n.copyWith()).toList(),
-        luaScriptCode: c.luaScriptCode,
-        luaParams: Map.from(c.luaParams),
+        eatScriptCode: c.eatScriptCode,
+        eatScriptParams: Map.from(c.eatScriptParams),
       );
     }).toList();
 
@@ -5082,8 +5082,8 @@ def gui():
       resonance: track.resonance,
       attack: track.attack,
       release: track.release,
-      luaScriptCode: track.luaScriptCode,
-      luaParams: Map.from(track.luaParams),
+      eatScriptCode: track.eatScriptCode,
+      eatScriptParams: Map.from(track.eatScriptParams),
       steps: track.steps.map((s) => StepEvent(active: s.active, velocity: s.velocity, pitch: s.pitch, isSlide: s.isSlide, isAccent: s.isAccent)).toList(),
       notes: track.notes.map((n) => n.copyWith()).toList(),
       clips: duplicatedClips,
@@ -5111,11 +5111,11 @@ def gui():
       audioEngine.updateMasterFx(masterTrack.fxRack);
     } else {
       audioEngine.updateTrackFx(track.id, track.fxRack, volume: track.volume, pan: track.pan);
-      audioEngine.invalidateLuaCache(track.id);
+      audioEngine.invalidateEatScriptCache(track.id);
     }
   }
 
-  void addAudioFXFromPreset(TrackChannel track, LuaPreset preset) {
+  void addAudioFXFromPreset(TrackChannel track, EatScriptDef preset) {
     final eatCode = preset.eatCode;
     final compiled = compileScript(eatCode);
     final initialParams = <String, double>{};
@@ -5123,7 +5123,7 @@ def gui():
       initialParams[p.name] = p.defaultValue;
     }
 
-    FXType type = FXType.luaFX;
+    FXType type = FXType.eatScriptFX;
     final lowerId = preset.id.toLowerCase();
     final lowerName = preset.name.toLowerCase();
     if (lowerId == 'limiter' || lowerName.contains('limiter')) {
@@ -5147,9 +5147,9 @@ def gui():
     final fx = FXInsert.create(
       type,
       name: preset.name,
-      luaScriptCode: eatCode,
+      eatScriptCode: eatCode,
       presetId: preset.id,
-      luaParams: initialParams,
+      eatScriptParams: initialParams,
     );
     for (final e in initialParams.entries) {
       fx.params[e.key] = e.value;
@@ -5197,8 +5197,8 @@ def gui():
       if (isCab) {
         fx.params['DryLevel'] = 0.0;
         fx.params['WetLevel'] = 1.0;
-        fx.luaParams['DryLevel'] = 0.0;
-        fx.luaParams['WetLevel'] = 1.0;
+        fx.eatScriptParams['DryLevel'] = 0.0;
+        fx.eatScriptParams['WetLevel'] = 1.0;
       }
     }
     track.fxRack.add(fx);
@@ -5277,7 +5277,7 @@ def gui():
     for (final f in track.fxRack) {
       if (f.id == fxId) {
         f.params[paramName] = val;
-        f.luaParams[paramName] = val;
+        f.eatScriptParams[paramName] = val;
 
         // If this is an IRSample choice parameter in Convolution Reverb
         if (paramName == 'IRSample') {
@@ -5299,7 +5299,7 @@ def gui():
           final presetMap = getEatsVinylMediumPreset(val.toInt());
           for (final entry in presetMap.entries) {
             f.params[entry.key] = entry.value;
-            f.luaParams[entry.key] = entry.value;
+            f.eatScriptParams[entry.key] = entry.value;
           }
         }
 
@@ -5328,12 +5328,12 @@ def gui():
               f.params['MicDistance'] = cabPreset.micDistance;
               f.params['MicAngle'] = cabPreset.micAngleDeg;
               f.params['OpenBack'] = cabPreset.isOpenBack ? 1.0 : 0.0;
-              f.luaParams['Width'] = cabPreset.width;
-              f.luaParams['Length'] = cabPreset.length;
-              f.luaParams['Height'] = cabPreset.height;
-              f.luaParams['MicDistance'] = cabPreset.micDistance;
-              f.luaParams['MicAngle'] = cabPreset.micAngleDeg;
-              f.luaParams['OpenBack'] = cabPreset.isOpenBack ? 1.0 : 0.0;
+              f.eatScriptParams['Width'] = cabPreset.width;
+              f.eatScriptParams['Length'] = cabPreset.length;
+              f.eatScriptParams['Height'] = cabPreset.height;
+              f.eatScriptParams['MicDistance'] = cabPreset.micDistance;
+              f.eatScriptParams['MicAngle'] = cabPreset.micAngleDeg;
+              f.eatScriptParams['OpenBack'] = cabPreset.isOpenBack ? 1.0 : 0.0;
             }
           }
 
@@ -5349,16 +5349,16 @@ def gui():
           final matIdx = (f.params['Material'] ?? (baseParams?.material.index.toDouble() ?? 0.0)).toInt().clamp(0, AcousticMaterialType.values.length - 1);
           final spaceParams = AcousticSpaceParams(
             name: customName,
-            width: f.params['Width'] ?? (f.luaParams['Width'] ?? (baseParams?.width ?? (isCabDesigner ? 0.76 : 12.0))),
-            length: f.params['Length'] ?? (f.luaParams['Length'] ?? (baseParams?.length ?? (isCabDesigner ? 0.76 : 15.0))),
-            height: f.params['Height'] ?? (f.luaParams['Height'] ?? (baseParams?.height ?? (isCabDesigner ? 0.36 : 4.0))),
-            sourceX: f.params['SourceX'] ?? (f.luaParams['SourceX'] ?? (baseParams?.sourceX ?? 0.5)),
-            sourceY: f.params['SourceY'] ?? (f.luaParams['SourceY'] ?? (baseParams?.sourceY ?? 0.5)),
-            sourceZ: f.params['SourceZ'] ?? (f.luaParams['SourceZ'] ?? (baseParams?.sourceZ ?? 0.5)),
-            listenerX: f.params['ListenerX'] ?? (f.luaParams['ListenerX'] ?? (baseParams?.listenerX ?? 0.5)),
-            listenerY: f.params['ListenerY'] ?? (f.luaParams['ListenerY'] ?? (baseParams?.listenerY ?? 0.8)),
-            listenerZ: f.params['ListenerZ'] ?? (f.luaParams['ListenerZ'] ?? (baseParams?.listenerZ ?? 0.5)),
-            stereoWidth: f.params['StereoWidth'] ?? (f.luaParams['StereoWidth'] ?? (baseParams?.stereoWidth ?? (isCabDesigner ? 0.08 : 0.20))),
+            width: f.params['Width'] ?? (f.eatScriptParams['Width'] ?? (baseParams?.width ?? (isCabDesigner ? 0.76 : 12.0))),
+            length: f.params['Length'] ?? (f.eatScriptParams['Length'] ?? (baseParams?.length ?? (isCabDesigner ? 0.76 : 15.0))),
+            height: f.params['Height'] ?? (f.eatScriptParams['Height'] ?? (baseParams?.height ?? (isCabDesigner ? 0.36 : 4.0))),
+            sourceX: f.params['SourceX'] ?? (f.eatScriptParams['SourceX'] ?? (baseParams?.sourceX ?? 0.5)),
+            sourceY: f.params['SourceY'] ?? (f.eatScriptParams['SourceY'] ?? (baseParams?.sourceY ?? 0.5)),
+            sourceZ: f.params['SourceZ'] ?? (f.eatScriptParams['SourceZ'] ?? (baseParams?.sourceZ ?? 0.5)),
+            listenerX: f.params['ListenerX'] ?? (f.eatScriptParams['ListenerX'] ?? (baseParams?.listenerX ?? 0.5)),
+            listenerY: f.params['ListenerY'] ?? (f.eatScriptParams['ListenerY'] ?? (baseParams?.listenerY ?? 0.8)),
+            listenerZ: f.params['ListenerZ'] ?? (f.eatScriptParams['ListenerZ'] ?? (baseParams?.listenerZ ?? 0.5)),
+            stereoWidth: f.params['StereoWidth'] ?? (f.eatScriptParams['StereoWidth'] ?? (baseParams?.stereoWidth ?? (isCabDesigner ? 0.08 : 0.20))),
             material: AcousticMaterialType.values[matIdx],
             rt60: isCabDesigner ? 0.035 : (f.params['RT60'] ?? (f.params['Decay'] ?? (baseParams?.rt60 ?? 1.8))),
             damping: f.params['Damping'] ?? (baseParams?.damping ?? (isCabDesigner ? 0.55 : 0.40)),
@@ -5402,7 +5402,7 @@ def gui():
   void addMidiFXInsert(
     TrackChannel track, {
     String name = 'Arpeggiator FX',
-    String luaScriptCode = 'arpeggiator',
+    String eatScriptCode = 'arpeggiator',
     Map<String, double>? params,
   }) {
     final id = 'mfx_${DateTime.now().millisecondsSinceEpoch}_${track.midiFXRack.length}';
@@ -5417,15 +5417,15 @@ def gui():
       id: id,
       name: name,
       enabled: true,
-      luaScriptCode: luaScriptCode,
-      luaParams: initialParams,
+      eatScriptCode: eatScriptCode,
+      eatScriptParams: initialParams,
     ));
     invalidateTrackMidiCache(track);
     recordHistory('Add MIDI FX "$name" to ${track.name}', icon: Icons.music_note);
     notifyListeners();
   }
 
-  void addMidiFXFromPreset(TrackChannel track, LuaPreset preset) {
+  void addMidiFXFromPreset(TrackChannel track, EatScriptDef preset) {
     final initialParams = <String, double>{};
     final compilation = compileScript(preset.code);
     for (final p in compilation.params) {
@@ -5435,7 +5435,7 @@ def gui():
     addMidiFXInsert(
       track,
       name: preset.name,
-      luaScriptCode: preset.code,
+      eatScriptCode: preset.code,
       params: initialParams,
     );
   }
@@ -5493,7 +5493,7 @@ def gui():
   void updateMidiFXParam(TrackChannel track, String midiFxId, String paramName, double val) {
     for (final f in track.midiFXRack) {
       if (f.id == midiFxId) {
-        f.luaParams[paramName] = val;
+        f.eatScriptParams[paramName] = val;
         invalidateTrackMidiCache(track);
         notifyListeners();
         break;
@@ -5530,8 +5530,8 @@ def gui():
 
     clip.notes = evaluated.map((n) => n.copyWith(id: 'n_${clip.id}_baked_${n.startStep}_${n.pitch}')).toList();
     clip.evaluatedNotesCache = null;
-    clip.luaScriptCode = ''; // Clear clip-level transform
-    clip.luaParams.clear();
+    clip.eatScriptCode = ''; // Clear clip-level transform
+    clip.eatScriptParams.clear();
 
     if (activeTrack.id == track.id && activeClip?.id == clip.id) {
       track.notes = clip.notes.map((n) => n.copyWith()).toList();
@@ -5595,7 +5595,7 @@ def gui():
       }
     } else {
       track.fxRack.removeWhere((f) => f.type == FXType.bitcrusher || f.name.contains('Bitcrusher'));
-      audioEngine.invalidateLuaCache(track.id);
+      audioEngine.invalidateEatScriptCache(track.id);
       notifyListeners();
     }
   }
@@ -5607,7 +5607,7 @@ def gui():
       }
     } else {
       track.fxRack.removeWhere((f) => f.type == FXType.distortion || f.name.contains('Distortion'));
-      audioEngine.invalidateLuaCache(track.id);
+      audioEngine.invalidateEatScriptCache(track.id);
       notifyListeners();
     }
   }
@@ -5615,12 +5615,11 @@ def gui():
 
   // Project Serialization & .eats.zip Export / Import
   Uint8List exportToEatsZip() {
-    final luaScript = exportToEatsLua();
-    final luaBytes = utf8.encode(luaScript);
+    final eatScript = exportToEats();
+    final eatBytes = utf8.encode(eatScript);
 
     final archive = Archive();
-    archive.addFile(ArchiveFile('project.eats', luaBytes.length, luaBytes));
-    archive.addFile(ArchiveFile('project.eats.lua', luaBytes.length, luaBytes));
+    archive.addFile(ArchiveFile('project.eats', eatBytes.length, eatBytes));
 
     for (final entry in SamplerEngine.instance.loadedSamples.entries) {
       final sampleId = entry.key;
@@ -5638,7 +5637,7 @@ def gui():
     return Uint8List.fromList(zipData ?? []);
   }
 
-  void loadFromEatsZipOrLua({Uint8List? zipBytes, String? luaContent, String? fileName}) {
+  void loadFromEatsZipOrProject({Uint8List? zipBytes, String? scriptContent, String? fileName}) {
     if (zipBytes != null && zipBytes.isNotEmpty) {
       // 1. Check for MIDI File (MThd signature: 0x4D, 0x54, 0x68, 0x64)
       if (zipBytes.length >= 4 &&
@@ -5658,14 +5657,12 @@ def gui():
 
       try {
         final archive = ZipDecoder().decodeBytes(zipBytes);
-        ArchiveFile? luaFile;
+        ArchiveFile? eatScriptFile;
         for (final file in archive) {
           final n = file.name.toLowerCase();
           if (n.endsWith('.eats') ||
-              n.endsWith('.lua') ||
-              n.endsWith('.eats.lua') ||
               n.endsWith('.py')) {
-            luaFile = file;
+            eatScriptFile = file;
             break;
           }
         }
@@ -5678,15 +5675,15 @@ def gui():
           }
         }
 
-        if (luaFile != null) {
-          final content = utf8.decode(luaFile.content as List<int>);
-          loadFromEatsLua(content);
+        if (eatScriptFile != null) {
+          final content = utf8.decode(eatScriptFile.content as List<int>);
+          loadFromEats(content);
         }
       } catch (e) {
         debugPrint('Error loading .eats.zip archive: $e');
       }
-    } else if (luaContent != null) {
-      loadFromEatsLua(luaContent);
+    } else if (scriptContent != null) {
+      loadFromEats(scriptContent);
     }
   }
 
@@ -5705,16 +5702,16 @@ def gui():
       return;
     }
 
-    final isScript = lowerName.endsWith('.eats') || lowerName.endsWith('.lua');
+    final isScript = lowerName.endsWith('.eats');
 
     if (isScript) {
       final scriptCode = utf8.decode(fileBytes);
-      final preset = LuaPresetLibrary.parseFromEatScript(
+      final preset = EatScriptLibrary.parseFromEatScript(
         scriptCode,
-        fallbackName: cleanName.replaceAll(RegExp(r'\.(eats|lua)$', caseSensitive: false), ''),
+        fallbackName: cleanName.replaceAll(RegExp(r'\.eats$', caseSensitive: false), ''),
       );
 
-      if (preset.category == LuaPresetCategory.audioFx) {
+      if (preset.category == EatScriptCategory.audioFx) {
         addFXInsert(activeTrack, FXType.distortion);
         final fx = activeTrack.fxRack.last;
         fx.name = preset.name;
@@ -5735,9 +5732,9 @@ def gui():
       final newTrack = TrackChannel(
         id: trackId,
         name: preset.name,
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: color,
-        luaScriptCode: preset.code,
+        eatScriptCode: preset.code,
       );
 
       final clip = TrackClip(
@@ -5789,9 +5786,9 @@ def gui():
       type: TrackType.sampler,
       sampleName: cleanName,
       color: color,
-      luaScriptCode: LuaPresetLibrary.presets.firstWhere(
+      eatScriptCode: EatScriptLibrary.presets.firstWhere(
         (p) => p.id == presetId,
-        orElse: () => LuaPresetLibrary.presets.first,
+        orElse: () => EatScriptLibrary.presets.first,
       ).code,
     );
 
@@ -5986,8 +5983,8 @@ def gui():
       color: color,
       sampleName: resolution.sampleName,
       iconName: resolution.iconName,
-      luaScriptCode: resolution.luaScriptCode,
-      luaParams: Map<String, double>.from(resolution.luaParams),
+      eatScriptCode: resolution.eatScriptCode,
+      eatScriptParams: Map<String, double>.from(resolution.eatScriptParams),
     );
 
     debugPrint(
@@ -6283,10 +6280,10 @@ def gui():
     return extracted.length;
   }
 
-  /// Splits clip notes into dedicated destination tracks using a Lua note splitter preset
+  /// Splits clip notes into dedicated destination tracks using an Eatscript note splitter preset
   List<TrackChannel> splitClipNotesWithPreset(
     TrackClip clip,
-    LuaScriptDef preset, {
+    EatScriptDef preset, {
     Map<String, double>? params,
     bool removeOriginalClip = false,
   }) {
@@ -6357,9 +6354,9 @@ def gui():
     return createdTracks;
   }
 
-  void loadLuaPreset(LuaPreset preset) {
-    luaCode = preset.code;
-    compileLuaCode(preset.code);
+  void loadScriptPreset(EatScriptDef preset) {
+    eatScriptCode = preset.code;
+    compileScriptCode(preset.code);
   }
 
   /// Curated authentic media presets for Eats Vinyl (Wow, Flutter, Era, Crackle, Hiss, etc.)
@@ -6454,16 +6451,16 @@ def gui():
     }
   }
 
-  void updateLuaParam(String paramName, double value, [TrackChannel? targetTrack]) {
+  void updateScriptParam(String paramName, double value, [TrackChannel? targetTrack]) {
     final track = targetTrack ?? activeTrack;
-    track.luaParams[paramName] = value;
-    final isEatsVinylTrack = track.luaScriptCode.contains('EatsVinyl') ||
-        track.luaScriptCode.contains('VintageDegrader') ||
-        track.luaScriptCode.contains('vintage_era_degrader');
+    track.eatScriptParams[paramName] = value;
+    final isEatsVinylTrack = track.eatScriptCode.contains('EatsVinyl') ||
+        track.eatScriptCode.contains('VintageDegrader') ||
+        track.eatScriptCode.contains('vintage_era_degrader');
     if (isEatsVinylTrack && paramName == 'Medium') {
       final presetMap = getEatsVinylMediumPreset(value.toInt());
       for (final entry in presetMap.entries) {
-        track.luaParams[entry.key] = entry.value;
+        track.eatScriptParams[entry.key] = entry.value;
       }
     }
     track.invalidateParamsHash();
@@ -6471,7 +6468,7 @@ def gui():
   }
 
   void updateEatScriptParam(String paramName, double value, [TrackChannel? targetTrack]) =>
-      updateLuaParam(paramName, value, targetTrack);
+      updateScriptParam(paramName, value, targetTrack);
 
   void setPatternLength(Pattern pattern, int length) {
     pattern.lengthSteps = length;

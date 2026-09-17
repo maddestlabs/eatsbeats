@@ -5,7 +5,7 @@ import 'package:eatsbeats/models/history_manager.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('HistoryManager & Lua Diff Tests', () {
+  group('HistoryManager & Eatscript Diff Tests', () {
     test('Initializes with initial state snapshot', () {
       final state = DawState();
       expect(state.history.current, isNotNull);
@@ -117,11 +117,11 @@ void main() {
       state.dispose();
     });
 
-    test('Computes line-by-line diff between two Lua scripts', () {
-      const oldLua = 'bpm = 120\nvolume = 0.8\nname = "Intro"';
-      const newLua = 'bpm = 128\nvolume = 0.8\nname = "Intro"\npan = 0.0';
+    test('Computes line-by-line diff between two Eatscript scripts', () {
+      const oldScript = 'bpm = 120\nvolume = 0.8\nname = "Intro"';
+      const newScript = 'bpm = 128\nvolume = 0.8\nname = "Intro"\npan = 0.0';
 
-      final diff = HistoryManager.computeDiff(oldLua, newLua);
+      final diff = HistoryManager.computeDiff(oldScript, newScript);
 
       expect(diff.any((d) => d.type == HistoryDiffType.removed && d.text.contains('bpm = 120')), isTrue);
       expect(diff.any((d) => d.type == HistoryDiffType.added && d.text.contains('bpm = 128')), isTrue);

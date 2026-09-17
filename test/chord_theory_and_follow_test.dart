@@ -107,7 +107,7 @@ void main() {
     });
   });
 
-  group('DawState & Lua Project Serialization Roundtrip Tests', () {
+  group('DawState & Eatscript Project Serialization Roundtrip Tests', () {
     test('DawState handles chord addition, lookup, and progression presets', () {
       final dawState = DawState();
       dawState.setSongKey('C Major');
@@ -139,7 +139,7 @@ void main() {
       expect(dawState.getActiveChordAtBar(3)?.displayName, equals('F'));
     });
 
-    test('EatsLuaSerializer and EatsLuaParser preserve chordTrack, songKey, and track chordFollowMode', () {
+    test('EatProjectSerializer and EatProjectParser preserve chordTrack, songKey, and track chordFollowMode', () {
       final dawState = DawState();
       dawState.setSongKey('A Minor');
       final track = dawState.activeTrack;
@@ -161,14 +161,14 @@ void main() {
         bassPitchClass: 0, // F/C
       ));
 
-      final serializedLua = EatsLuaSerializer.serialize(dawState);
-      expect(serializedLua, contains('songKey = "A Minor"'));
-      expect(serializedLua, contains('chordFollowMode = "bass"'));
-      expect(serializedLua, contains('chordTrack = {'));
-      expect(serializedLua, contains('rootPitchClass = 9'));
+      final serializedProject = EatProjectSerializer.serialize(dawState);
+      expect(serializedProject, contains('songKey = "A Minor"'));
+      expect(serializedProject, contains('chordFollowMode = "bass"'));
+      expect(serializedProject, contains('chordTrack = {'));
+      expect(serializedProject, contains('rootPitchClass = 9'));
 
       final restoredState = DawState();
-      EatsLuaParser.populateDawState(restoredState, serializedLua);
+      EatProjectParser.populateDawState(restoredState, serializedProject);
 
       expect(restoredState.songKey, equals('A Minor'));
       expect(restoredState.chordTrack.length, equals(2));
@@ -203,8 +203,8 @@ void main() {
     });
   });
 
-  group('Lua MIDI FX & MIDI SEQ Chord Track API Tests', () {
-    test('TimeContext exports rich chord and chordTrack table to Lua', () {
+  group('Eatscript MIDI FX & MIDI SEQ Chord Track API Tests', () {
+    test('TimeContext exports rich chord and chordTrack context map to Eatscript', () {
       final cMaj7 = ChordEvent(
         id: 'c1',
         startBar: 0,
@@ -231,19 +231,19 @@ void main() {
         isSongKeyMinor: false,
       );
 
-      final luaTable = ctx.toLuaTable();
-      expect(luaTable['songKey'], equals('C Major'));
-      expect(luaTable['songKeyRoot'], equals(0));
-      expect(luaTable['isSongKeyMinor'], isFalse);
+      final contextMap = ctx.toContextMap();
+      expect(contextMap['songKey'], equals('C Major'));
+      expect(contextMap['songKeyRoot'], equals(0));
+      expect(contextMap['isSongKeyMinor'], isFalse);
 
-      final chordMap = luaTable['chord'] as Map<String, dynamic>;
+      final chordMap = contextMap['chord'] as Map<String, dynamic>;
       expect(chordMap['name'], equals('Cmaj7'));
       expect(chordMap['root'], equals(0));
       expect(chordMap['rootName'], equals('C'));
       expect(chordMap['quality'], equals('major7'));
       expect(chordMap['pitches'], equals([0, 4, 7, 11]));
 
-      final chordTrackList = luaTable['chordTrack'] as List;
+      final chordTrackList = contextMap['chordTrack'] as List;
       expect(chordTrackList.length, equals(2));
       expect(chordTrackList[1]['name'], equals('G7/B'));
       expect(chordTrackList[1]['bass'], equals(11));
@@ -258,15 +258,15 @@ void main() {
         chordTrack: [cMaj],
       );
 
-      final pipeline = MidiPipelineEngine(luaEngine: LuaEngine());
+      final pipeline = MidiPipelineEngine(eatEngine: EatEngine());
       final track = TrackChannel(id: 't1', name: 'Synth Lead', type: TrackType.synth, color: const Color(0xFF00FFCC));
 
       // 1. Test Chord Follower MIDI FX
       final followerFX = MidiFXInsert(
         id: 'fx_follow',
         name: 'Harmonic Chord Follower FX',
-        luaScriptCode: 'function ChordFollower.transform_notes(notes, params, timeContext) end',
-        luaParams: {'Mode': 0.0}, // Chord mode
+        eatScriptCode: 'function ChordFollower.transform_notes(notes, params, timeContext) end',
+        eatScriptParams: {'Mode': 0.0}, // Chord mode
       );
       track.midiFXRack.add(followerFX);
 
@@ -291,8 +291,8 @@ void main() {
       final arpFX = MidiFXInsert(
         id: 'fx_arp',
         name: 'Chord Arpeggiator FX',
-        luaScriptCode: 'function ChordArp.transform_notes(notes, params, timeContext) end',
-        luaParams: {'Rate': 0.5, 'Octaves': 1.0, 'Pattern': 0.0}, // Up
+        eatScriptCode: 'function ChordArp.transform_notes(notes, params, timeContext) end',
+        eatScriptParams: {'Rate': 0.5, 'Octaves': 1.0, 'Pattern': 0.0}, // Up
       );
       track.midiFXRack.add(arpFX);
 
@@ -335,14 +335,14 @@ void main() {
         ],
       );
 
-      final pipeline = MidiPipelineEngine(luaEngine: LuaEngine());
+      final pipeline = MidiPipelineEngine(eatEngine: EatEngine());
       final track = TrackChannel(
         id: 't1',
         name: 'Keys',
         type: TrackType.synth,
         color: const Color(0xFFFFCC00),
         midiFXRack: [
-          MidiFXInsert(id: 'mfx_stabs', name: 'Chord Voicing', luaScriptCode: 'Chord.generate_voicing(notes, time_ctx)'),
+          MidiFXInsert(id: 'mfx_stabs', name: 'Chord Voicing', eatScriptCode: 'Chord.generate_voicing(notes, time_ctx)'),
         ],
       );
       final voiced = pipeline.processClip(clip: clip, track: track, timeContext: ctx);

@@ -20,20 +20,20 @@ import 'eats_script_library.dart';
 /// - 71: Clarinet (`clarinet_woodwind`)
 /// - 104: Sitar (`sitar_jawari`)
 class BrassReedFamilyPresets {
-  static const List<LuaPreset> all = [
+  static const List<EatScriptDef> all = [
     // -------------------------------------------------------------
     // GM 56: Orchestral Trumpet
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'orchestral_trumpet',
       name: 'Orchestral Trumpet',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of an orchestral B-flat trumpet: outward-striking lip reed oscillator, non-linear shock wave steepening in cylindrical leadpipe, bell flare radiation, and expressive lyrical vibrato.',
       code: '''
--- @id: orchestral_trumpet
--- @name: Orchestral Trumpet
--- @category: instrument
--- @description: Physical model of an orchestral B-flat trumpet: outward-striking lip reed oscillator, non-linear shock wave steepening in cylindrical leadpipe, bell flare radiation, and expressive lyrical vibrato.
+# @id: orchestral_trumpet
+# @name: Orchestral Trumpet
+# @category: instrument
+# @description: Physical model of an orchestral B-flat trumpet: outward-striking lip reed oscillator, non-linear shock wave steepening in cylindrical leadpipe, bell flare radiation, and expressive lyrical vibrato.
 
 local OrchestralTrumpet = {}
 
@@ -113,16 +113,16 @@ return OrchestralTrumpet
     // -------------------------------------------------------------
     // GM 57: Tenor Trombone
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'tenor_trombone',
       name: 'Tenor Trombone',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of an orchestral tenor trombone: cylindrical slide tubing with conical bell expansion, warm brassy core resonance, and expressive low-register slide slide presence.',
       code: '''
--- @id: tenor_trombone
--- @name: Tenor Trombone
--- @category: instrument
--- @description: Physical model of an orchestral tenor trombone: cylindrical slide tubing with conical bell expansion, warm brassy core resonance, and expressive low-register slide slide presence.
+# @id: tenor_trombone
+# @name: Tenor Trombone
+# @category: instrument
+# @description: Physical model of an orchestral tenor trombone: cylindrical slide tubing with conical bell expansion, warm brassy core resonance, and expressive low-register slide slide presence.
 
 local TenorTrombone = {}
 
@@ -181,16 +181,16 @@ return TenorTrombone
     // -------------------------------------------------------------
     // GM 58: Tuba
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'tuba_brass',
       name: 'Tuba',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of a deep bass tuba: massive conical bore waveguide, deep sub-chest fundamental resonance, slow lip inertia, and cavernous bell radiation.',
       code: '''
--- @id: tuba_brass
--- @name: Tuba
--- @category: instrument
--- @description: Physical model of a deep bass tuba: massive conical bore waveguide, deep sub-chest fundamental resonance, slow lip inertia, and cavernous bell radiation.
+# @id: tuba_brass
+# @name: Tuba
+# @category: instrument
+# @description: Physical model of a deep bass tuba: massive conical bore waveguide, deep sub-chest fundamental resonance, slow lip inertia, and cavernous bell radiation.
 
 local Tuba = {}
 
@@ -246,16 +246,16 @@ return Tuba
     // -------------------------------------------------------------
     // GM 59: Muted Trumpet
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'muted_trumpet',
       name: 'Muted Trumpet',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of a trumpet with Harmon mute: nasal acoustic cavity notch resonance, tight lip resistance, and distinctive vintage Miles Davis jazz timbre.',
       code: '''
--- @id: muted_trumpet
--- @name: Muted Trumpet
--- @category: instrument
--- @description: Physical model of a trumpet with Harmon mute: nasal acoustic cavity notch resonance, tight lip resistance, and distinctive vintage Miles Davis jazz timbre.
+# @id: muted_trumpet
+# @name: Muted Trumpet
+# @category: instrument
+# @description: Physical model of a trumpet with Harmon mute: nasal acoustic cavity notch resonance, tight lip resistance, and distinctive vintage Miles Davis jazz timbre.
 
 local MutedTrumpet = {}
 
@@ -312,16 +312,16 @@ return MutedTrumpet
     // -------------------------------------------------------------
     // GM 60: French Horn
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'french_horn',
       name: 'French Horn',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of an orchestral French Horn: deep conical bell flare, mellow rotary valve impedance, warm velvety mid-range resonance, and heroic orchestral projection.',
       code: '''
--- @id: french_horn
--- @name: French Horn
--- @category: instrument
--- @description: Physical model of an orchestral French Horn: deep conical bell flare, mellow rotary valve impedance, warm velvety mid-range resonance, and heroic orchestral projection.
+# @id: french_horn
+# @name: French Horn
+# @category: instrument
+# @description: Physical model of an orchestral French Horn: deep conical bell flare, mellow rotary valve impedance, warm velvety mid-range resonance, and heroic orchestral projection.
 
 local FrenchHorn = {}
 
@@ -378,16 +378,16 @@ return FrenchHorn
     // -------------------------------------------------------------
     // GM 61: Brass Section
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'brass_section',
       name: 'Brass Section',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of an orchestral brass section: multi-layer ensemble coupling trumpets, trombones, and horns with broad cinematic projection and expansive air sheen.',
       code: '''
--- @id: brass_section
--- @name: Brass Section
--- @category: instrument
--- @description: Physical model of an orchestral brass section: multi-layer ensemble coupling trumpets, trombones, and horns with broad cinematic projection and expansive air sheen.
+# @id: brass_section
+# @name: Brass Section
+# @category: instrument
+# @description: Physical model of an orchestral brass section: multi-layer ensemble coupling trumpets, trombones, and horns with broad cinematic projection and expansive air sheen.
 
 local BrassSection = {}
 
@@ -443,16 +443,16 @@ return BrassSection
     // -------------------------------------------------------------
     // GM 64: Soprano Sax
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'soprano_sax',
       name: 'Soprano Sax',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of a straight soprano saxophone: high-register conical woodwind bore, sharp cane reed non-linearity, and agile singing vibrato.',
       code: '''
--- @id: soprano_sax
--- @name: Soprano Sax
--- @category: instrument
--- @description: Physical model of a straight soprano saxophone: high-register conical woodwind bore, sharp cane reed non-linearity, and agile singing vibrato.
+# @id: soprano_sax
+# @name: Soprano Sax
+# @category: instrument
+# @description: Physical model of a straight soprano saxophone: high-register conical woodwind bore, sharp cane reed non-linearity, and agile singing vibrato.
 
 local SopranoSax = {}
 
@@ -510,16 +510,16 @@ return SopranoSax
     // -------------------------------------------------------------
     // GM 65: Alto Sax
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'alto_sax',
       name: 'Alto Sax',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of an E-flat alto saxophone: curved conical brass body, inward-striking reed table with mouth pressure feedback, warm woodwind growl, and expressive jazz vibrato.',
       code: '''
--- @id: alto_sax
--- @name: Alto Sax
--- @category: instrument
--- @description: Physical model of an E-flat alto saxophone: curved conical brass body, inward-striking reed table with mouth pressure feedback, warm woodwind growl, and expressive jazz vibrato.
+# @id: alto_sax
+# @name: Alto Sax
+# @category: instrument
+# @description: Physical model of an E-flat alto saxophone: curved conical brass body, inward-striking reed table with mouth pressure feedback, warm woodwind growl, and expressive jazz vibrato.
 
 local AltoSax = {}
 
@@ -578,16 +578,16 @@ return AltoSax
     // -------------------------------------------------------------
     // GM 66: Tenor Sax
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'tenor_sax',
       name: 'Tenor Sax',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of a B-flat tenor saxophone: smoky, resonant lower conical bore, breath turbulence noise, rich second harmonic reinforcement, and lush vibrato.',
       code: '''
--- @id: tenor_sax
--- @name: Tenor Sax
--- @category: instrument
--- @description: Physical model of a B-flat tenor saxophone: smoky, resonant lower conical bore, breath turbulence noise, rich second harmonic reinforcement, and lush vibrato.
+# @id: tenor_sax
+# @name: Tenor Sax
+# @category: instrument
+# @description: Physical model of a B-flat tenor saxophone: smoky, resonant lower conical bore, breath turbulence noise, rich second harmonic reinforcement, and lush vibrato.
 
 local TenorSax = {}
 
@@ -646,16 +646,16 @@ return TenorSax
     // -------------------------------------------------------------
     // GM 67: Baritone Sax
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'baritone_sax',
       name: 'Baritone Sax',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of an E-flat baritone saxophone: massive low-frequency conical tubing, heavy cane reed bark, and gut-punch fundamental weight.',
       code: '''
--- @id: baritone_sax
--- @name: Baritone Sax
--- @category: instrument
--- @description: Physical model of an E-flat baritone saxophone: massive low-frequency conical tubing, heavy cane reed bark, and gut-punch fundamental weight.
+# @id: baritone_sax
+# @name: Baritone Sax
+# @category: instrument
+# @description: Physical model of an E-flat baritone saxophone: massive low-frequency conical tubing, heavy cane reed bark, and gut-punch fundamental weight.
 
 local BaritoneSax = {}
 
@@ -712,16 +712,16 @@ return BaritoneSax
     // -------------------------------------------------------------
     // GM 68: Oboe
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'oboe_woodwind',
       name: 'Oboe',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of an orchestral oboe: narrow conical wooden bore, double cane reed pressure non-linearity, and sharp dual-formant nasal focus (1.4kHz and 3.0kHz).',
       code: '''
--- @id: oboe_woodwind
--- @name: Oboe
--- @category: instrument
--- @description: Physical model of an orchestral oboe: narrow conical wooden bore, double cane reed pressure non-linearity, and sharp dual-formant nasal focus (1.4kHz and 3.0kHz).
+# @id: oboe_woodwind
+# @name: Oboe
+# @category: instrument
+# @description: Physical model of an orchestral oboe: narrow conical wooden bore, double cane reed pressure non-linearity, and sharp dual-formant nasal focus (1.4kHz and 3.0kHz).
 
 local Oboe = {}
 
@@ -779,16 +779,16 @@ return Oboe
     // -------------------------------------------------------------
     // GM 69: English Horn
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'english_horn',
       name: 'English Horn',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of an English Horn (Cor Anglais): alto oboe pitch range with characteristic bulbous pear-shaped bell (*liebesfuss*) resonance and poignant double reed sweetness.',
       code: '''
--- @id: english_horn
--- @name: English Horn
--- @category: instrument
--- @description: Physical model of an English Horn (Cor Anglais): alto oboe pitch range with characteristic bulbous pear-shaped bell (*liebesfuss*) resonance and poignant double reed sweetness.
+# @id: english_horn
+# @name: English Horn
+# @category: instrument
+# @description: Physical model of an English Horn (Cor Anglais): alto oboe pitch range with characteristic bulbous pear-shaped bell (*liebesfuss*) resonance and poignant double reed sweetness.
 
 local EnglishHorn = {}
 
@@ -846,16 +846,16 @@ return EnglishHorn
     // -------------------------------------------------------------
     // GM 70: Bassoon
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'bassoon_woodwind',
       name: 'Bassoon',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of an orchestral bassoon: doubled-back conical maple tube, large flexible double cane reed, deep woody resonance, and characteristic staccato pop.',
       code: '''
--- @id: bassoon_woodwind
--- @name: Bassoon
--- @category: instrument
--- @description: Physical model of an orchestral bassoon: doubled-back conical maple tube, large flexible double cane reed, deep woody resonance, and characteristic staccato pop.
+# @id: bassoon_woodwind
+# @name: Bassoon
+# @category: instrument
+# @description: Physical model of an orchestral bassoon: doubled-back conical maple tube, large flexible double cane reed, deep woody resonance, and characteristic staccato pop.
 
 local Bassoon = {}
 
@@ -913,16 +913,16 @@ return Bassoon
     // -------------------------------------------------------------
     // GM 71: Clarinet
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'clarinet_woodwind',
       name: 'Clarinet',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of a B-flat soprano clarinet: cylindrical closed-open acoustic bore generating strictly odd harmonics (1f0, 3f0, 5f0...), single cane reed closure, rich chalumeau lower register, and singing clarion register.',
       code: '''
--- @id: clarinet_woodwind
--- @name: Clarinet
--- @category: instrument
--- @description: Physical model of a B-flat soprano clarinet: cylindrical closed-open acoustic bore generating strictly odd harmonics (1f0, 3f0, 5f0...), single cane reed closure, rich chalumeau lower register, and singing clarion register.
+# @id: clarinet_woodwind
+# @name: Clarinet
+# @category: instrument
+# @description: Physical model of a B-flat soprano clarinet: cylindrical closed-open acoustic bore generating strictly odd harmonics (1f0, 3f0, 5f0...), single cane reed closure, rich chalumeau lower register, and singing clarion register.
 
 local Clarinet = {}
 
@@ -981,16 +981,16 @@ return Clarinet
     // -------------------------------------------------------------
     // GM 104: Sitar
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'sitar_jawari',
       name: 'Sitar',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of a classical Indian sitar: dynamic parabolic jawari bridge buzzing contact non-linearity, gourd resonator acoustic body cavity, and sympathetic drone string bank (*taraf*).',
       code: '''
--- @id: sitar_jawari
--- @name: Sitar
--- @category: instrument
--- @description: Physical model of a classical Indian sitar: dynamic parabolic jawari bridge buzzing contact non-linearity, gourd resonator acoustic body cavity, and sympathetic drone string bank (*taraf*).
+# @id: sitar_jawari
+# @name: Sitar
+# @category: instrument
+# @description: Physical model of a classical Indian sitar: dynamic parabolic jawari bridge buzzing contact non-linearity, gourd resonator acoustic body cavity, and sympathetic drone string bank (*taraf*).
 
 local Sitar = {}
 

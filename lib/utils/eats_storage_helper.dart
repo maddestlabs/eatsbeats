@@ -75,14 +75,14 @@ class EatsStorageHelper {
 
   // --- Session Storage API ---
 
-  static Future<void> saveSessionLua(String luaCode) =>
-      EatsStorageHelperImpl.saveSessionLua(luaCode);
+  static Future<void> saveSessionEatScript(String eatScriptCode) =>
+      EatsStorageHelperImpl.saveSessionEatScript(eatScriptCode);
 
-  static Future<String?> loadSessionLua() =>
-      EatsStorageHelperImpl.loadSessionLua();
+  static Future<String?> loadSessionEatScript() =>
+      EatsStorageHelperImpl.loadSessionEatScript();
 
-  static Future<void> clearSessionLua() =>
-      EatsStorageHelperImpl.clearSessionLua();
+  static Future<void> clearSessionEatScript() =>
+      EatsStorageHelperImpl.clearSessionEatScript();
 
   // --- Saved Projects API ---
 
@@ -95,8 +95,8 @@ class EatsStorageHelper {
   static Future<List<SavedProjectItem>> listSavedProjects() =>
       EatsStorageHelperImpl.listSavedProjects();
 
-  static Future<SavedProjectItem?> saveProjectFile(String name, String luaCode) async {
-    final res = await EatsStorageHelperImpl.saveProjectFile(name, luaCode);
+  static Future<SavedProjectItem?> saveProjectFile(String name, String eatScriptCode) async {
+    final res = await EatsStorageHelperImpl.saveProjectFile(name, eatScriptCode);
     if (res != null) {
       notifyProjectsChanged();
     }

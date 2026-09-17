@@ -173,10 +173,10 @@ void main() {
     });
 
     test('Eatscript Macro can trigger eat.daw.render_audio and eat.daw.render_video', () {
-      final script = LuaScriptDef(
+      final script = EatScriptDef(
         id: 'test_macro_render',
         name: 'Render Trigger Macro',
-        category: LuaScriptCategory.macro,
+        category: EatScriptCategory.macro,
         description: 'Triggers offline render from script',
         code: '''
 def run(project, params):
@@ -207,7 +207,7 @@ def run(project, params):
         id: 'mfx_arp',
         name: 'Chord Arpeggiator',
         enabled: true,
-        luaScriptCode: '''
+        eatScriptCode: '''
 def transform_notes(notes, params, time_ctx):
     output = []
     for n in notes:

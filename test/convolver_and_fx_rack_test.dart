@@ -101,7 +101,7 @@ void main() {
       final dawState = DawState();
       final track = dawState.activeTrack;
 
-      final roomPreset = LuaPresetLibrary.getPresetById('room_designer')!;
+      final roomPreset = EatScriptLibrary.getPresetById('room_designer')!;
       dawState.applyPreset(roomPreset, targetTrack: track);
 
       final roomFx = track.fxRack.last;
@@ -113,7 +113,7 @@ void main() {
       dawState.updateFXParam(track, roomFx.id, 'RT60', 3.0);
       expect(roomFx.params['RT60'], equals(3.0));
 
-      final cabPreset = LuaPresetLibrary.getPresetById('cab_designer')!;
+      final cabPreset = EatScriptLibrary.getPresetById('cab_designer')!;
       dawState.applyPreset(cabPreset, targetTrack: track);
 
       final cabFx = track.fxRack.last;
@@ -125,7 +125,7 @@ void main() {
     });
 
     test('Eats Vinyl preset initializes, compiles hardware GUI, and handles Medium preset switching', () {
-      final vintagePreset = LuaPresetLibrary.getPresetById('vintage_era_degrader');
+      final vintagePreset = EatScriptLibrary.getPresetById('vintage_era_degrader');
       expect(vintagePreset, isNotNull);
       expect(vintagePreset!.name, equals('Eats Vinyl'));
       expect(vintagePreset.isAudioFx, isTrue);

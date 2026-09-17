@@ -71,26 +71,26 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final luaGutter = find.descendant(of: find.byType(ShowOnScreenAbsorber), matching: find.byType(ListView));
-    final luaText1Finder = find.descendant(of: luaGutter, matching: find.text('1'));
-    final luaText1Rect = tester.getRect(luaText1Finder);
+    final scriptGutter = find.descendant(of: find.byType(ShowOnScreenAbsorber), matching: find.byType(ListView));
+    final scriptText1Finder = find.descendant(of: scriptGutter, matching: find.text('1'));
+    final scriptText1Rect = tester.getRect(scriptText1Finder);
 
-    final luaEditorTextField = find.byWidgetPredicate((w) => w is TextField && w.maxLines == null && w.expands == true);
-    final luaEditableTextFinder = find.descendant(of: luaEditorTextField, matching: find.byType(EditableText));
-    final luaEditableState = tester.state<EditableTextState>(luaEditableTextFinder);
-    final luaRenderEditable = luaEditableState.renderEditable;
-    final luaBoxes = luaRenderEditable.getBoxesForSelection(
+    final scriptEditorTextField = find.byWidgetPredicate((w) => w is TextField && w.maxLines == null && w.expands == true);
+    final scriptEditableTextFinder = find.descendant(of: scriptEditorTextField, matching: find.byType(EditableText));
+    final scriptEditableState = tester.state<EditableTextState>(scriptEditableTextFinder);
+    final scriptRenderEditable = scriptEditableState.renderEditable;
+    final scriptBoxes = scriptRenderEditable.getBoxesForSelection(
       const TextSelection(baseOffset: 0, extentOffset: 1),
     );
-    final luaChar0Box = luaBoxes.first;
-    final luaChar0Rect = Rect.fromLTRB(
-      luaRenderEditable.localToGlobal(Offset(luaChar0Box.left, 0)).dx,
-      luaRenderEditable.localToGlobal(Offset(0, luaChar0Box.top)).dy,
-      luaRenderEditable.localToGlobal(Offset(luaChar0Box.right, 0)).dx,
-      luaRenderEditable.localToGlobal(Offset(0, luaChar0Box.bottom)).dy,
+    final scriptChar0Box = scriptBoxes.first;
+    final scriptChar0Rect = Rect.fromLTRB(
+      scriptRenderEditable.localToGlobal(Offset(scriptChar0Box.left, 0)).dx,
+      scriptRenderEditable.localToGlobal(Offset(0, scriptChar0Box.top)).dy,
+      scriptRenderEditable.localToGlobal(Offset(scriptChar0Box.right, 0)).dx,
+      scriptRenderEditable.localToGlobal(Offset(0, scriptChar0Box.bottom)).dy,
     );
 
-    expect(luaText1Rect.top - luaChar0Rect.top, -7.0);
+    expect(scriptText1Rect.top - scriptChar0Rect.top, -7.0);
 
     dawState2.stop();
     await tester.pumpWidget(const SizedBox());

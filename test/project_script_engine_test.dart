@@ -11,7 +11,7 @@ import 'package:eatsbeats/ui/widgets/project_script_runner_dialog.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('ProjectScriptEngine & Project-Wide Lua Action Scripts Tests', () {
+  group('ProjectScriptEngine & Project-Wide Eatscript Action Scripts Tests', () {
     late DawState dawState;
 
     setUp(() {
@@ -67,7 +67,7 @@ void main() {
       track.clips = [clip];
       dawState.activePattern.tracks.add(track);
 
-      final script = LuaScriptLibrary.getScriptsByCategory(LuaScriptCategory.projectAction)
+      final script = EatScriptLibrary.getScriptsByCategory(EatScriptCategory.projectAction)
           .firstWhere((s) => s.id == 'action_global_transpose');
 
       // Transpose +2 semitones (C -> D)
@@ -95,7 +95,7 @@ void main() {
 
     test('Harmonic Progression Generator populates ChordTrack and conforms notes', () {
       dawState.setSongKey('A Minor');
-      final script = LuaScriptLibrary.getScriptsByCategory(LuaScriptCategory.projectAction)
+      final script = EatScriptLibrary.getScriptsByCategory(EatScriptCategory.projectAction)
           .firstWhere((s) => s.id == 'action_harmonic_progression');
 
       final result = dawState.runProjectScript(
@@ -110,7 +110,7 @@ void main() {
     });
 
     test('Procedural Multi-Track Song Generator creates full 4-track arrangement', () {
-      final script = LuaScriptLibrary.getScriptsByCategory(LuaScriptCategory.projectAction)
+      final script = EatScriptLibrary.getScriptsByCategory(EatScriptCategory.projectAction)
           .firstWhere((s) => s.id == 'action_procedural_song');
 
       final result = dawState.runProjectScript(
@@ -159,7 +159,7 @@ void main() {
       track.clips = [clip];
       dawState.activePattern.tracks.add(track);
 
-      final script = LuaScriptLibrary.getScriptsByCategory(LuaScriptCategory.projectAction)
+      final script = EatScriptLibrary.getScriptsByCategory(EatScriptCategory.projectAction)
           .firstWhere((s) => s.id == 'action_humanize_groove');
 
       final result = dawState.runProjectScript(
@@ -172,7 +172,7 @@ void main() {
     });
 
     testWidgets('ProjectScriptRunnerDialog renders parameters and executes script', (tester) async {
-      final script = LuaScriptLibrary.getScriptsByCategory(LuaScriptCategory.projectAction)
+      final script = EatScriptLibrary.getScriptsByCategory(EatScriptCategory.projectAction)
           .firstWhere((s) => s.id == 'action_global_transpose');
 
       await tester.pumpWidget(

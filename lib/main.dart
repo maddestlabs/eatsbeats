@@ -156,7 +156,7 @@ class _DawMainShellState extends State<DawMainShell> {
       if (scriptParam != null && scriptParam.isNotEmpty) {
         final content = await UrlScriptHelper.resolveScript(scriptParam);
         if (content != null && content.isNotEmpty && mounted) {
-          widget.dawState.loadFromEatsLua(content);
+          widget.dawState.loadFromEats(content);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text('Loaded song from URL parameters!'),

@@ -76,7 +76,7 @@ void main() {
       expect(lane.evaluateAtStep(8.0), equals(240.0)); // Jumps to 240
     });
 
-    test('AutomationLane generates valid Lua script code', () {
+    test('AutomationLane generates valid Eatscript code', () {
       final lane = AutomationLane(
         id: 'test_lane',
         name: 'Volume',
@@ -87,11 +87,11 @@ void main() {
         ],
       );
 
-      final lua = lane.generateLuaScript();
-      expect(lua, contains('eatsbeats.automation.evaluatePoints'));
-      expect(lua, contains('target = "track.volume"'));
-      expect(lua, contains('step = 0.00'));
-      expect(lua, contains('step = 16.00'));
+      final script = lane.generateEatScript();
+      expect(script, contains('eatsbeats.automation.evaluatePoints'));
+      expect(script, contains('target = "track.volume"'));
+      expect(script, contains('step = 0.00'));
+      expect(script, contains('step = 16.00'));
     });
 
     test('AutomationLane JSON serialization round-trip', () {
@@ -119,14 +119,14 @@ void main() {
     });
   });
 
-  group('Lua Engine Procedural Automation Evaluation Tests', () {
-    test('LuaEngine evaluates procedural LFO script with TimeContext', () {
+  group('Eatscript Procedural Automation Evaluation Tests', () {
+    test('EatEngine evaluates procedural LFO script with TimeContext', () {
       final lane = AutomationLane(
         id: 'lfo_lane',
         name: 'LFO Cutoff',
         target: AutomationTarget.cutoff,
-        isCustomLua: true,
-        luaScriptCode: 'rate = 1.0\ndepth = 1000.0\ncenter = 2000.0\n-- lfo generator',
+        isCustomEatScript: true,
+        eatScriptCode: 'rate = 1.0\ndepth = 1000.0\ncenter = 2000.0\n-- lfo generator',
       );
 
       final timeCtx = TimeContext(
@@ -136,7 +136,7 @@ void main() {
         audioTimeSeconds: 0.0,
       );
 
-      final val0 = LuaEngine.evaluateAutomation(lane: lane, step: 0.0, timeCtx: timeCtx);
+      final val0 = EatEngine.evaluateAutomation(lane: lane, step: 0.0, timeCtx: timeCtx);
       expect(val0, closeTo(2000.0, 1e-2));
 
       final timeCtx1 = TimeContext(
@@ -145,7 +145,7 @@ void main() {
         currentBeat: 1.0, // Quarter wave (pi/2)
         audioTimeSeconds: 0.5,
       );
-      final val1 = LuaEngine.evaluateAutomation(lane: lane, step: 4.0, timeCtx: timeCtx1);
+      final val1 = EatEngine.evaluateAutomation(lane: lane, step: 4.0, timeCtx: timeCtx1);
       expect(val1, closeTo(3000.0, 1e-2)); // 2000 + 1000 * sin(pi/2) = 3000
     });
   });

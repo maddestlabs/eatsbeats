@@ -20,18 +20,18 @@ class TrackFreezeEngine {
     buffer.write('${track.id}|${track.type.name}|${track.name}|${track.synthWaveform}|');
     buffer.write('${track.sampleName}|${track.cutoff}|${track.resonance}|${track.attack}|${track.release}|');
     buffer.write('bpm:$bpm|bars:$timelineBars|');
-    buffer.write('luaCode:${track.luaScriptCode.hashCode}|');
+    buffer.write('eatScriptCode:${track.eatScriptCode.hashCode}|');
     
     // Parameters
-    final sortedParamKeys = track.luaParams.keys.toList()..sort();
+    final sortedParamKeys = track.eatScriptParams.keys.toList()..sort();
     for (final k in sortedParamKeys) {
-      buffer.write('$k:${track.luaParams[k]};');
+      buffer.write('$k:${track.eatScriptParams[k]};');
     }
 
     // Notes & Steps
     if (track.clips.isNotEmpty) {
       for (final clip in track.clips) {
-        buffer.write('clip:${clip.id}_${clip.startBar}_${clip.barLength}_${clip.effectiveLoopLengthBars}_${clip.luaScriptCode.hashCode}_');
+        buffer.write('clip:${clip.id}_${clip.startBar}_${clip.barLength}_${clip.effectiveLoopLengthBars}_${clip.eatScriptCode.hashCode}_');
         for (final n in clip.notes) {
           buffer.write('${n.pitch},${n.startStep},${n.durationSteps},${n.velocity},${n.isSlide ? 1 : 0},${n.isAccent ? 1 : 0};');
         }
@@ -52,7 +52,7 @@ class TrackFreezeEngine {
     // FX Rack
     for (final fx in track.fxRack) {
       if (fx.enabled) {
-        buffer.write('fx:${fx.id}_${fx.type.name}_${fx.mix}_${fx.irSampleName}_${fx.luaScriptCode?.hashCode}_');
+        buffer.write('fx:${fx.id}_${fx.type.name}_${fx.mix}_${fx.irSampleName}_${fx.eatScriptCode?.hashCode}_');
         for (final entry in fx.params.entries) {
           buffer.write('${entry.key}:${entry.value};');
         }

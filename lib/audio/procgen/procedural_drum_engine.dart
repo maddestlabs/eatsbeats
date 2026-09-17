@@ -667,13 +667,13 @@ class ProceduralDrumEngine {
     // Target the active track if it's already gm_standard_drum_kit, or find/create one
     TrackChannel? targetTrack;
     for (final t in dawState.activePattern.tracks) {
-      if (t.luaScriptCode.contains('gm_standard_drum_kit') || t.name.toLowerCase().contains('drum')) {
+      if (t.eatScriptCode.contains('gm_standard_drum_kit') || t.name.toLowerCase().contains('drum')) {
         targetTrack = t;
         break;
       }
     }
 
-    final drumPreset = LuaPresetLibrary.getPresetById('gm_standard_drum_kit');
+    final drumPreset = EatScriptLibrary.getPresetById('gm_standard_drum_kit');
     final String drumCode = drumPreset?.code ?? '';
 
     if (targetTrack == null) {
@@ -684,8 +684,8 @@ class ProceduralDrumEngine {
         name: 'Drums (GM Standard Kit)',
         color: const Color(0xFFFF8C00),
         type: TrackType.eatScript,
-        luaScriptCode: drumCode,
-        luaParams: {
+        eatScriptCode: drumCode,
+        eatScriptParams: {
           'MasterTune': 0.0,
           'RoomLevel': 0.30,
           'KitDrive': 0.12,
@@ -695,8 +695,8 @@ class ProceduralDrumEngine {
       );
       dawState.activePattern.tracks.add(targetTrack);
     } else {
-      if (!targetTrack.luaScriptCode.contains('gm_standard_drum_kit')) {
-        targetTrack.luaScriptCode = drumCode;
+      if (!targetTrack.eatScriptCode.contains('gm_standard_drum_kit')) {
+        targetTrack.eatScriptCode = drumCode;
       }
     }
 

@@ -42,7 +42,7 @@ void main() {
       state.dispose();
     });
 
-    test('EatsLuaSerializer and EatsLuaParser preserve masterFx with Limiter & Compressor', () {
+    test('EatProjectSerializer and EatProjectParser preserve masterFx with Limiter & Compressor', () {
       final state = DawState();
       state.projectName = 'Mastered Anthem';
       state.addFXInsert(state.masterTrack, FXType.compressor);
@@ -51,17 +51,17 @@ void main() {
       state.updateFXParam(state.masterTrack, state.masterTrack.fxRack[0].id, 'Threshold', -14.0);
       state.updateFXParam(state.masterTrack, state.masterTrack.fxRack[1].id, 'Ceiling', -0.5);
 
-      final luaString = EatsLuaSerializer.serialize(state, projectName: state.projectName);
+      final eatScriptString = EatProjectSerializer.serialize(state, projectName: state.projectName);
 
-      expect(luaString, contains('masterFx = {'));
-      expect(luaString, contains('Dynamics Compressor'));
-      expect(luaString, contains('Master Limiter'));
-      expect(luaString, contains('-14.0000'));
-      expect(luaString, contains('-0.5000'));
+      expect(eatScriptString, contains('masterFx = {'));
+      expect(eatScriptString, contains('Dynamics Compressor'));
+      expect(eatScriptString, contains('Master Limiter'));
+      expect(eatScriptString, contains('-14.0000'));
+      expect(eatScriptString, contains('-0.5000'));
 
       // Test parsing back
       final newState = DawState();
-      EatsLuaParser.populateDawState(newState, luaString);
+      EatProjectParser.populateDawState(newState, eatScriptString);
 
       expect(newState.masterTrack.fxRack.length, equals(2));
       expect(newState.masterTrack.fxRack[0].type, equals(FXType.compressor));

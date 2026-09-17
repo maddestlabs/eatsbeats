@@ -207,8 +207,8 @@ void main() {
       }
     });
 
-    test('Macro preset action_procedural_acid_303 is registered in LuaScriptLibrary', () {
-      final macro = LuaPresetLibrary.getPresetById('action_procedural_acid_303');
+    test('Macro preset action_procedural_acid_303 is registered in EatScriptLibrary', () {
+      final macro = EatScriptLibrary.getPresetById('action_procedural_acid_303');
       expect(macro, isNotNull);
       expect(macro!.isMacro, isTrue);
       expect(macro.name, contains('Procedural Acid 303'));
@@ -236,7 +236,7 @@ void main() {
       expect(tracks, isNotEmpty);
       final acidTrack = tracks.first;
       expect(acidTrack.name, contains('Acid 303'));
-      expect(acidTrack.luaScriptCode, contains('eats_303'));
+      expect(acidTrack.eatScriptCode, contains('eats_303'));
       expect(acidTrack.clips, isNotEmpty);
 
       final clip = acidTrack.clips.first;
@@ -264,7 +264,7 @@ void main() {
     });
 
     test('runProjectScript dispatches action_procedural_acid_303 cleanly', () {
-      final macro = LuaPresetLibrary.getPresetById('action_procedural_acid_303')!;
+      final macro = EatScriptLibrary.getPresetById('action_procedural_acid_303')!;
 
       final result = dawState.runProjectScript(macro, params: {
         'Style': 'Hard Acid Techno (Warehouse)',

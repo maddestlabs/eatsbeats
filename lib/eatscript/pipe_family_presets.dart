@@ -12,20 +12,20 @@ import 'eats_script_library.dart';
 /// - 78: Tin Whistle (`tin_whistle`)
 /// - 79: Sweet Ocarina (`sweet_ocarina`)
 class PipeFamilyPresets {
-  static const List<LuaPreset> all = [
+  static const List<EatScriptDef> all = [
     // -------------------------------------------------------------
     // GM 72 (1-indexed 73): Concert Piccolo
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'concert_piccolo',
       name: 'Concert Piccolo',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of an orchestral concert piccolo: narrow cylindrical bore transposing one octave higher (+12 semitones), brilliant upper harmonic reach, razor-sharp labium chiff, high-velocity air turbulence, sustained ADSR breath envelope, and rapid micro-vibrato.',
       code: '''
--- @id: concert_piccolo
--- @name: Concert Piccolo
--- @category: instrument
--- @description: Physical model of an orchestral concert piccolo: narrow cylindrical bore transposing one octave higher (+12 semitones), brilliant upper harmonic reach, razor-sharp labium chiff, high-velocity air turbulence, sustained ADSR breath envelope, and rapid micro-vibrato.
+# @id: concert_piccolo
+# @name: Concert Piccolo
+# @category: instrument
+# @description: Physical model of an orchestral concert piccolo: narrow cylindrical bore transposing one octave higher (+12 semitones), brilliant upper harmonic reach, razor-sharp labium chiff, high-velocity air turbulence, sustained ADSR breath envelope, and rapid micro-vibrato.
 
 local ConcertPiccolo = {}
 
@@ -157,16 +157,16 @@ return ConcertPiccolo
     // -------------------------------------------------------------
     // GM 73 (1-indexed 74): Concert Flute
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'concert_flute',
       name: 'Concert Flute',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical modeling of a concert C transverse flute: non-linear air-jet labium splitting edge, pink breath turbulence, warm cylindrical open-bore fundamental, continuous sustained ADSR envelope, singing silver resonance, and natural delayed vibrato.',
       code: '''
--- @id: concert_flute
--- @name: Concert Flute
--- @category: instrument
--- @description: Physical modeling of a concert C transverse flute: non-linear air-jet labium splitting edge, pink breath turbulence, warm cylindrical open-bore fundamental, continuous sustained ADSR envelope, singing silver resonance, and natural delayed vibrato.
+# @id: concert_flute
+# @name: Concert Flute
+# @category: instrument
+# @description: Physical modeling of a concert C transverse flute: non-linear air-jet labium splitting edge, pink breath turbulence, warm cylindrical open-bore fundamental, continuous sustained ADSR envelope, singing silver resonance, and natural delayed vibrato.
 
 local ConcertFlute = {}
 
@@ -298,16 +298,16 @@ return ConcertFlute
     // -------------------------------------------------------------
     // GM 74 (1-indexed 75): Wooden Recorder
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'wooden_recorder',
       name: 'Wooden Recorder',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical modeling of a Baroque wooden blockflöte (recorder): fixed fipple windway, pearwood acoustic body resonance, balanced even-odd harmonics, continuous sustained ADSR envelope, delicate breath transient, and natural pitch stability.',
       code: '''
--- @id: wooden_recorder
--- @name: Wooden Recorder
--- @category: instrument
--- @description: Physical modeling of a Baroque wooden blockflöte (recorder): fixed fipple windway, pearwood acoustic body resonance, balanced even-odd harmonics, continuous sustained ADSR envelope, delicate breath transient, and natural pitch stability.
+# @id: wooden_recorder
+# @name: Wooden Recorder
+# @category: instrument
+# @description: Physical modeling of a Baroque wooden blockflöte (recorder): fixed fipple windway, pearwood acoustic body resonance, balanced even-odd harmonics, continuous sustained ADSR envelope, delicate breath transient, and natural pitch stability.
 
 local WoodenRecorder = {}
 
@@ -427,16 +427,16 @@ return WoodenRecorder
     // -------------------------------------------------------------
     // GM 75 (1-indexed 76): Pan Flute
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'pan_flute',
       name: 'Pan Flute',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical modeling of closed cane pipes: quarter-wavelength waveguide resonance with authentic odd-harmonic series (1f, 3f, 5f, 7f), continuous sustained ADSR envelope, soft breath puff transient, and Andean cane acoustic warmth.',
       code: '''
--- @id: pan_flute
--- @name: Pan Flute
--- @category: instrument
--- @description: Physical modeling of closed cane pipes: quarter-wavelength waveguide resonance with authentic odd-harmonic series (1f, 3f, 5f, 7f), continuous sustained ADSR envelope, soft breath puff transient, and Andean cane acoustic warmth.
+# @id: pan_flute
+# @name: Pan Flute
+# @category: instrument
+# @description: Physical modeling of closed cane pipes: quarter-wavelength waveguide resonance with authentic odd-harmonic series (1f, 3f, 5f, 7f), continuous sustained ADSR envelope, soft breath puff transient, and Andean cane acoustic warmth.
 
 local PanFlute = {}
 
@@ -558,16 +558,16 @@ return PanFlute
     // -------------------------------------------------------------
     // GM 76 (1-indexed 77): Blown Bottle
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'blown_bottle',
       name: 'Blown Bottle',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of an acoustic blown glass bottle: Helmholtz acoustic cavity resonator excited by lip air-jet vortex shedding, continuous sustained ADSR envelope, mellow fundamental dominance, and glass body tone.',
       code: '''
--- @id: blown_bottle
--- @name: Blown Bottle
--- @category: instrument
--- @description: Physical model of an acoustic blown glass bottle: Helmholtz acoustic cavity resonator excited by lip air-jet vortex shedding, continuous sustained ADSR envelope, mellow fundamental dominance, and glass body tone.
+# @id: blown_bottle
+# @name: Blown Bottle
+# @category: instrument
+# @description: Physical model of an acoustic blown glass bottle: Helmholtz acoustic cavity resonator excited by lip air-jet vortex shedding, continuous sustained ADSR envelope, mellow fundamental dominance, and glass body tone.
 
 local BlownBottle = {}
 
@@ -685,16 +685,16 @@ return BlownBottle
     // -------------------------------------------------------------
     // GM 77 (1-indexed 78): Shakuhachi
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'shakuhachi_bamboo',
       name: 'Shakuhachi',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical modeling of the traditional Japanese end-blown bamboo flute: angled utaguchi blowing bevel, explosive muraiki breath attack, continuous sustained ADSR envelope, deep expressive delayed vibrato, and thick bamboo culm resonance.',
       code: '''
--- @id: shakuhachi_bamboo
--- @name: Shakuhachi
--- @category: instrument
--- @description: Physical modeling of the traditional Japanese end-blown bamboo flute: angled utaguchi blowing bevel, explosive muraiki breath attack, continuous sustained ADSR envelope, deep expressive delayed vibrato, and thick bamboo culm resonance.
+# @id: shakuhachi_bamboo
+# @name: Shakuhachi
+# @category: instrument
+# @description: Physical modeling of the traditional Japanese end-blown bamboo flute: angled utaguchi blowing bevel, explosive muraiki breath attack, continuous sustained ADSR envelope, deep expressive delayed vibrato, and thick bamboo culm resonance.
 
 local Shakuhachi = {}
 
@@ -823,16 +823,16 @@ return Shakuhachi
     // -------------------------------------------------------------
     // GM 78 (1-indexed 79): Tin Whistle
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'tin_whistle',
       name: 'Tin Whistle',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical modeling of an Irish tin pennywhistle: narrow cylindrical brass/tin body, crisp fipple chiff chirp, continuous sustained ADSR envelope, bright agile upper register, and lively Celtic ornamentation capability.',
       code: '''
--- @id: tin_whistle
--- @name: Tin Whistle
--- @category: instrument
--- @description: Physical modeling of an Irish tin pennywhistle: narrow cylindrical brass/tin body, crisp fipple chiff chirp, continuous sustained ADSR envelope, bright agile upper register, and lively Celtic ornamentation capability.
+# @id: tin_whistle
+# @name: Tin Whistle
+# @category: instrument
+# @description: Physical modeling of an Irish tin pennywhistle: narrow cylindrical brass/tin body, crisp fipple chiff chirp, continuous sustained ADSR envelope, bright agile upper register, and lively Celtic ornamentation capability.
 
 local TinWhistle = {}
 
@@ -953,16 +953,16 @@ return TinWhistle
     // -------------------------------------------------------------
     // GM 79 (1-indexed 80): Sweet Ocarina
     // -------------------------------------------------------------
-    LuaPreset(
+    EatScriptDef(
       id: 'sweet_ocarina',
       name: 'Sweet Ocarina',
-      category: LuaPresetCategory.instrument,
+      category: EatScriptCategory.instrument,
       description: 'Physical model of an acoustic ceramic vessel flute: enclosed Helmholtz cavity resonance, continuous sustained ADSR envelope, soft labium chiff, mellow singing fundamental purity, and gentle breath warmth.',
       code: '''
--- @id: sweet_ocarina
--- @name: Sweet Ocarina
--- @category: instrument
--- @description: Physical model of an acoustic ceramic vessel flute: enclosed Helmholtz cavity resonance, continuous sustained ADSR envelope, soft labium chiff, mellow singing fundamental purity, and gentle breath warmth.
+# @id: sweet_ocarina
+# @name: Sweet Ocarina
+# @category: instrument
+# @description: Physical model of an acoustic ceramic vessel flute: enclosed Helmholtz cavity resonance, continuous sustained ADSR envelope, soft labium chiff, mellow singing fundamental purity, and gentle breath warmth.
 
 local SweetOcarina = {}
 

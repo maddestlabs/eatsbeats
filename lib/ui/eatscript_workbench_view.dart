@@ -32,8 +32,6 @@ enum DesignStudioViewMode {
 }
 
 typedef DesignWorkbenchView = EatscriptWorkbenchView;
-typedef LuaWorkbenchView = EatscriptWorkbenchView;
-
 class EatscriptWorkbenchView extends StatefulWidget {
   final DawState dawState;
 
@@ -133,11 +131,11 @@ class _EatscriptWorkbenchViewState extends State<EatscriptWorkbenchView> {
     final activeTarget = widget.dawState.activeScriptTarget;
     if (activeTarget.type == ScriptTargetType.projectAction) {
       widget.dawState.compileScriptTarget(activeTarget, _codeController.text);
-      final script = LuaScriptLibrary.scripts.where((s) => s.id == activeTarget.secondaryId).firstOrNull ??
-          LuaScriptDef(
+      final script = EatScriptLibrary.scripts.where((s) => s.id == activeTarget.secondaryId).firstOrNull ??
+          EatScriptDef(
             id: activeTarget.secondaryId ?? 'custom_action',
             name: activeTarget.title,
-            category: LuaScriptCategory.projectAction,
+            category: EatScriptCategory.projectAction,
             description: activeTarget.subtitle,
             code: _codeController.text,
           );
@@ -161,7 +159,7 @@ class _EatscriptWorkbenchViewState extends State<EatscriptWorkbenchView> {
 
   void _loadTemplate(String code, String name) {
     final activeTarget = widget.dawState.activeScriptTarget;
-    final eatCode = EatScriptEngine.isEatScript(code) ? code : EatTranspiler.transpileLuaPreset(code);
+    final eatCode = EatScriptEngine.isEatScript(code) ? code : EatTranspiler.transpileEatScriptPreset(code);
     _lastCode = eatCode;
     setState(() {
       _codeController.text = eatCode;
@@ -398,7 +396,7 @@ class _EatscriptWorkbenchViewState extends State<EatscriptWorkbenchView> {
     required TrackChannel activeTrack,
     required Map<String, double> currentTargetParams,
     required List<String> lines,
-    required LuaCompilationResult result,
+    required EatCompilationResult result,
     required bool isGrungy,
     required Color targetBadgeBg,
     required bool isMobile,
@@ -735,7 +733,7 @@ class _EatscriptWorkbenchViewState extends State<EatscriptWorkbenchView> {
     required ScriptTarget activeTarget,
     required Map<String, double> currentTargetParams,
     required List<String> lines,
-    required LuaCompilationResult result,
+    required EatCompilationResult result,
     required bool isGrungy,
     required Color targetBadgeBg,
   }) {
@@ -763,7 +761,7 @@ class _EatscriptWorkbenchViewState extends State<EatscriptWorkbenchView> {
           const SizedBox(height: 10),
 
           // Code Editor Box: Fixed ~20 visible lines with synchronized scrolling
-          DragTarget<LuaPreset>(
+          DragTarget<EatScriptDef>(
             onAcceptWithDetails: (details) {
               final preset = details.data;
               setState(() {
@@ -1159,7 +1157,7 @@ class _EatscriptWorkbenchViewState extends State<EatscriptWorkbenchView> {
     final audioFxTargets = allTargets.where((t) => t.type == ScriptTargetType.audioFx).where((t) => query.isEmpty || t.title.toLowerCase().contains(query)).toList();
     final midiFxTargets = allTargets.where((t) => t.type == ScriptTargetType.midiFx).where((t) => query.isEmpty || t.title.toLowerCase().contains(query)).toList();
     final clipTargets = allTargets.where((t) => t.type == ScriptTargetType.clipScript).where((t) => query.isEmpty || t.title.toLowerCase().contains(query)).toList();
-    final libraryPresets = LuaPresetLibrary.presets
+    final libraryPresets = EatScriptLibrary.presets
         .where((p) => query.isEmpty || p.name.toLowerCase().contains(query) || p.description.toLowerCase().contains(query))
         .toList();
 

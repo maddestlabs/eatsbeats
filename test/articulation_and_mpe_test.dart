@@ -115,18 +115,18 @@ void main() {
     });
   });
 
-  group('Per-Note Articulations & MPE - Lua Parsing & Serialization Tests', () {
+  group('Per-Note Articulations & MPE - Eatscript Parsing & Serialization Tests', () {
     test('Sparse serialization keeps standard notes clean and minimal', () {
       final standardNotes = [
         Note(id: 'n1', pitch: 60, startStep: 0.0, durationSteps: 1.0, velocity: 0.8),
         Note(id: 'n2', pitch: 64, startStep: 1.0, durationSteps: 1.0, velocity: 0.8),
       ];
 
-      final luaString = EatsLuaSerializer.serializeNotes(standardNotes, relativeSteps: false);
-      expect(luaString.contains('art ='), isFalse);
-      expect(luaString.contains('bend ='), isFalse);
-      expect(luaString.contains('pressure ='), isFalse);
-      expect(luaString.contains('timbre ='), isFalse);
+      final eatScriptString = EatProjectSerializer.serializeNotes(standardNotes, relativeSteps: false);
+      expect(eatScriptString.contains('art ='), isFalse);
+      expect(eatScriptString.contains('bend ='), isFalse);
+      expect(eatScriptString.contains('pressure ='), isFalse);
+      expect(eatScriptString.contains('timbre ='), isFalse);
     });
 
     test('Expressive notes serialize art and MPE curves progressively', () {
@@ -135,13 +135,13 @@ void main() {
         Note(id: 'n2', pitch: 67, startStep: 2.0, durationSteps: 2.0, velocity: 0.9, pitchBendPoints: [[0.0, 0.0], [0.5, 2.0], [1.0, 0.0]]),
       ];
 
-      final luaString = EatsLuaSerializer.serializeNotes(expressiveNotes, relativeSteps: false);
-      expect(luaString.contains('art = "muted"'), isTrue);
-      expect(luaString.contains('bend = { { 0.00, 0.00 }, { 0.50, 2.00 }, { 1.00, 0.00 } }'), isTrue);
+      final eatScriptString = EatProjectSerializer.serializeNotes(expressiveNotes, relativeSteps: false);
+      expect(eatScriptString.contains('art = "muted"'), isTrue);
+      expect(eatScriptString.contains('bend = { { 0.00, 0.00 }, { 0.50, 2.00 }, { 1.00, 0.00 } }'), isTrue);
     });
 
-    test('parseNotes parses human-authored Lua note tables with art and MPE', () {
-      const luaCode = '''
+    test('parseNotes parses human-authored Eatscript note tables with art and MPE', () {
+      const eatScriptCode = '''
       notes = {
         { pitch = 79, start = 0.00, duration = 1.92, vel = 0.79 },
         { pitch = 51, start = 0.08, duration = 1.92, vel = 0.79, art = "muted", relVel = 0.3 },
@@ -150,7 +150,7 @@ void main() {
       }
       ''';
 
-      final parsed = EatsLuaParser.parseNotes(luaCode);
+      final parsed = EatProjectParser.parseNotes(eatScriptCode);
       expect(parsed.length, equals(4));
 
       expect(parsed[0].pitch, equals(79));
@@ -180,12 +180,12 @@ void main() {
         Note(id: 'n3', pitch: 67, startStep: 4, durationSteps: 2, velocity: 0.9, pitchBendPoints: [[0.0, 0.0], [0.5, 2.0]]),
       ]);
 
-      final songLua = state.exportToEatsLua();
-      expect(songLua.contains('art = "palm_mute"'), isTrue);
-      expect(songLua.contains('bend = { { 0.00, 0.00 }, { 0.50, 2.00 } }'), isTrue);
+      final songEatScript = state.exportToEats();
+      expect(songEatScript.contains('art = "palm_mute"'), isTrue);
+      expect(songEatScript.contains('bend = { { 0.00, 0.00 }, { 0.50, 2.00 } }'), isTrue);
 
       final newState = DawState();
-      newState.loadFromEatsLua(songLua);
+      newState.loadFromEats(songEatScript);
 
       final loadedTrack = newState.patterns.first.tracks.firstWhere((t) => t.id == track.id);
       expect(loadedTrack.notes.length, equals(3));
@@ -309,8 +309,8 @@ void main() {
       expect(mutedEnergy, lessThan(normalEnergy));
     });
 
-    test('LuaEngine.synthesizeBuffer synthesizes with articulation and MPE dimensions', () {
-      final bufNormal = LuaEngine.synthesizeBuffer(
+    test('EatEngine.synthesizeBuffer synthesizes with articulation and MPE dimensions', () {
+      final bufNormal = EatEngine.synthesizeBuffer(
         code: 'function Synth.process() end',
         durationSec: 0.2,
         freq: 440.0,
@@ -318,7 +318,7 @@ void main() {
         params: {'Cutoff': 3000.0},
       );
 
-      final bufMuted = LuaEngine.synthesizeBuffer(
+      final bufMuted = EatEngine.synthesizeBuffer(
         code: 'function Synth.process() end',
         durationSec: 0.2,
         freq: 440.0,
@@ -327,7 +327,7 @@ void main() {
         articulation: 'muted',
       );
 
-      final bufMpe = LuaEngine.synthesizeBuffer(
+      final bufMpe = EatEngine.synthesizeBuffer(
         code: 'function Synth.process() end',
         durationSec: 0.2,
         freq: 440.0,

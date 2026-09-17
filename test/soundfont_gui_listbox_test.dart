@@ -23,8 +23,8 @@ void main() {
 
   group('SoundFont 2 Player Preset & GUI Layout Tests', () {
     test('SoundFont 2 Player compiles with SNES background, track accent, and 2-row layout', () {
-      final sfPreset = LuaPresetLibrary.getPresetById('soundfont_sampler')!;
-      final compilation = LuaEngine.compile(sfPreset.code);
+      final sfPreset = EatScriptLibrary.getPresetById('soundfont_sampler')!;
+      final compilation = EatEngine.compile(sfPreset.code);
 
       expect(compilation.isSuccess, isTrue);
       expect(compilation.guiLayout, isNotNull);
@@ -66,15 +66,15 @@ void main() {
   group('SoundFont GUI ListBox Widget Interaction Tests', () {
     testWidgets('DynamicInstrumentGuiWidget renders SoundFont Player with 2-row layout and INSTRUMENT badge', (tester) async {
       final dawState = DawState();
-      final sfPreset = LuaPresetLibrary.getPresetById('soundfont_sampler')!;
+      final sfPreset = EatScriptLibrary.getPresetById('soundfont_sampler')!;
       final track = TrackChannel(
         id: 'sf_track_1',
         name: 'SoundFont Track',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFFFF8C00), // Track color (Orange)
         sampleName: 'super_small_font.sf2',
-        luaScriptCode: sfPreset.code,
-        luaParams: {
+        eatScriptCode: sfPreset.code,
+        eatScriptParams: {
           'SoundFontBank': 0.0,
           'Preset': 0.0,
           'PresetNum': 0.0,
@@ -108,7 +108,7 @@ void main() {
 
       // Verify Top Right Badge reads INSTRUMENT
       expect(find.text('INSTRUMENT'), findsOneWidget);
-      expect(find.text('LUA VSTi'), findsNothing);
+      expect(find.text('EATSCRIPT VSTi'), findsNothing);
 
       // Verify two HardwareListBoxWidgets are rendered
       final listBoxes = find.byType(HardwareListBoxWidget);
@@ -129,15 +129,15 @@ void main() {
 
     testWidgets('Selecting a preset from Program Preset ListBox updates PresetNum and BankNum', (tester) async {
       final dawState = DawState();
-      final sfPreset = LuaPresetLibrary.getPresetById('soundfont_sampler')!;
+      final sfPreset = EatScriptLibrary.getPresetById('soundfont_sampler')!;
       final track = TrackChannel(
         id: 'sf_track_2',
         name: 'SoundFont Track',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFF00FF66),
         sampleName: 'super_small_font.sf2',
-        luaScriptCode: sfPreset.code,
-        luaParams: {
+        eatScriptCode: sfPreset.code,
+        eatScriptParams: {
           'SoundFontBank': 0.0,
           'Preset': 0.0,
           'PresetNum': 0.0,
@@ -176,8 +176,8 @@ void main() {
         await tester.tap(secondPresetFinder.first);
         await tester.pumpAndSettle();
 
-        expect(track.luaParams['PresetNum'], equals(secondPreset.presetNum.toDouble()));
-        expect(track.luaParams['BankNum'], equals(secondPreset.bankNum.toDouble()));
+        expect(track.eatScriptParams['PresetNum'], equals(secondPreset.presetNum.toDouble()));
+        expect(track.eatScriptParams['BankNum'], equals(secondPreset.bankNum.toDouble()));
       }
     });
 
@@ -185,15 +185,15 @@ void main() {
       final dawState = DawState();
       SoundFontEngine.instance.registerAvailablePack('custom_gm.sf2', 'Custom GM Bank');
 
-      final sfPreset = LuaPresetLibrary.getPresetById('soundfont_sampler')!;
+      final sfPreset = EatScriptLibrary.getPresetById('soundfont_sampler')!;
       final track = TrackChannel(
         id: 'sf_track_3',
         name: 'SoundFont Track',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFFBD00FF),
         sampleName: 'super_small_font.sf2',
-        luaScriptCode: sfPreset.code,
-        luaParams: {
+        eatScriptCode: sfPreset.code,
+        eatScriptParams: {
           'SoundFontBank': 0.0,
           'Preset': 0.0,
           'PresetNum': 0.0,

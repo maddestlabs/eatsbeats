@@ -319,8 +319,8 @@ void main() {
     });
 
     test('Non-destructive arrangement macro is registered in Project Macros and executes successfully', () {
-      // 1. Verify registered in LuaPresetLibrary as macro/projectAction
-      final macro = LuaPresetLibrary.getPresetById('action_non_destructive_arranger');
+      // 1. Verify registered in EatScriptLibrary as macro/projectAction
+      final macro = EatScriptLibrary.getPresetById('action_non_destructive_arranger');
       expect(macro, isNotNull);
       expect(macro!.isMacro, isTrue);
       expect(macro.category, equals(EatScriptCategory.projectAction));
@@ -388,7 +388,7 @@ void main() {
         ChordEvent(id: 'c3', startBar: 3, barLength: 1.0, rootPitchClass: 0, quality: ChordQuality.major7),
       ];
 
-      final macro = LuaPresetLibrary.getPresetById('action_non_destructive_arranger')!;
+      final macro = EatScriptLibrary.getPresetById('action_non_destructive_arranger')!;
 
       // 1. Run with Take 1 (Classic Arc, Take: 1)
       final result = dawState.runProjectScript(macro, params: {'Take': 1});

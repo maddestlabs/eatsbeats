@@ -175,28 +175,28 @@ void main() {
         id: 'track_bass',
         name: 'Bass',
         color: const Color(0xFF21F4E8),
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         sampleName: 'super_small_font.sf2',
         iconName: 'bass',
-        luaParams: {'PresetNum': 33.0}, // Electric Bass preset
+        eatScriptParams: {'PresetNum': 33.0}, // Electric Bass preset
       );
       final chords = TrackChannel(
         id: 'track_chords',
         name: 'Chords',
         color: const Color(0xFFBD00FF),
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         sampleName: 'super_small_font.sf2',
         iconName: 'piano',
-        luaParams: {'PresetNum': 4.0}, // Electric Piano preset
+        eatScriptParams: {'PresetNum': 4.0}, // Electric Piano preset
       );
       final lead = TrackChannel(
         id: 'track_lead',
         name: 'Lead',
         color: const Color(0xFFFF0055),
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         sampleName: 'super_small_font.sf2',
         iconName: 'synth',
-        luaParams: {'PresetNum': 81.0}, // Lead Synth preset
+        eatScriptParams: {'PresetNum': 81.0}, // Lead Synth preset
       );
 
       // Pre-populate with dummy notes
@@ -248,16 +248,16 @@ void main() {
       expect(updatedBass.notes.length, equals(1));
       expect(updatedBass.notes.first.pitch, equals(41));
       // Verify soundfont preset intact
-      expect(updatedBass.luaParams['PresetNum'], equals(33.0));
+      expect(updatedBass.eatScriptParams['PresetNum'], equals(33.0));
 
       final updatedChords = dawState.activePattern.tracks.firstWhere((t) => t.name == 'Chords');
       expect(updatedChords.notes.length, equals(2));
-      expect(updatedChords.luaParams['PresetNum'], equals(4.0));
+      expect(updatedChords.eatScriptParams['PresetNum'], equals(4.0));
 
       final updatedLead = dawState.activePattern.tracks.firstWhere((t) => t.name == 'Lead');
       expect(updatedLead.notes.length, equals(1));
       expect(updatedLead.notes.first.pitch, equals(76));
-      expect(updatedLead.luaParams['PresetNum'], equals(81.0));
+      expect(updatedLead.eatScriptParams['PresetNum'], equals(81.0));
 
       // Verify undo restores previous state
       expect(dawState.history.canUndo, isTrue);

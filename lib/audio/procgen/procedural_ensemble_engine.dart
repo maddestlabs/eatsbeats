@@ -98,8 +98,8 @@ class ProceduralEnsembleEngine {
         type: TrackType.eatScript,
         volume: trackBp.role == FunctionalRole.rhythm ? 0.90 : 0.82,
         pan: _assignDefaultPan(trackBp.role),
-        luaScriptCode: code,
-        luaParams: Map<String, double>.from(trackBp.defaultParams),
+        eatScriptCode: code,
+        eatScriptParams: Map<String, double>.from(trackBp.defaultParams),
       );
       createdTracks.add(track);
       pattern.tracks.add(track);

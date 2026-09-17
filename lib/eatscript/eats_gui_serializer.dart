@@ -8,26 +8,17 @@ import 'eats_gui_parser.dart';
 import 'eats_script_engine.dart';
 
 // Backwards-compatibility aliases
-typedef LuaGuiSerializer = EatGuiSerializer;
 typedef EatScriptGuiSerializer = EatGuiSerializer;
 
-/// Serializes [EatScriptGuiPanelDef] and its component tree into clean Eatscript or legacy Lua code.
+/// Serializes [EatScriptGuiPanelDef] and its component tree into clean Eatscript or Eatscript code.
 class EatGuiSerializer {
-  /// Serializes a [EatScriptGuiPanelDef] into an EatScript `def gui():` or Lua `function <TableName>.gui()` code block.
-  /// Defaults to pure Pythonic EatScript unless existing code is legacy Lua.
+  /// Serializes a [EatScriptGuiPanelDef] into an EatScript `def gui():` code block.
+  /// Defaults to pure Pythonic EatScript unless existing code is Eatscript.
   static String serialize({
     required EatScriptGuiPanelDef panel,
     String? existingScriptCode,
     String instrumentName = 'Instrument',
   }) {
-    final isLua = existingScriptCode != null && !EatScriptEngine.isEatScript(existingScriptCode);
-    if (isLua) {
-      return serializeToLua(
-        panel: panel,
-        existingScriptCode: existingScriptCode,
-        instrumentName: instrumentName,
-      );
-    }
     return serializeToEatScript(
       panel: panel,
       existingScriptCode: existingScriptCode,
@@ -159,7 +150,7 @@ class EatGuiSerializer {
       }
     }
 
-    // 2. Replace existing legacy Lua `function ...gui()...end` block if found
+    // 2. Replace existing Eatscript `function ...gui()...end` block if found
     final guiFuncMatch = RegExp(r'function\s+[\w\.:]*gui\s*\([^)]*\)[\s\S]*?end', caseSensitive: false).firstMatch(existingScriptCode);
     if (guiFuncMatch != null) {
       final before = existingScriptCode.substring(0, guiFuncMatch.start).trimRight();
@@ -186,97 +177,7 @@ class EatGuiSerializer {
     return '${existingScriptCode.trimRight()}\n\n$guiBlock\n';
   }
 
-  /// Serializes a [EatScriptGuiPanelDef] into legacy Lua code (`function <TableName>.gui()`).
-  static String serializeToLua({
-    required EatScriptGuiPanelDef panel,
-    String? existingScriptCode,
-    String instrumentName = 'Instrument',
-  }) {
-    String tableName = instrumentName.replaceAll(RegExp(r'[^A-Za-z0-9_]'), '');
-    if (tableName.isEmpty) tableName = 'Instrument';
 
-    if (existingScriptCode != null) {
-      final nameMatch = RegExp(r'local\s+([A-Za-z0-9_]+)\s*=\s*\{\}').firstMatch(existingScriptCode);
-      if (nameMatch != null) {
-        tableName = nameMatch.group(1) ?? tableName;
-      }
-    }
-
-    final buffer = StringBuffer();
-    buffer.writeln('function $tableName.gui()');
-    buffer.writeln('  return {');
-    buffer.writeln('    panel = {');
-    buffer.writeln('      title = "${_escape(panel.title)}",');
-    if (panel.subtitle != null && panel.subtitle!.isNotEmpty) {
-      buffer.writeln('      subtitle = "${_escape(panel.subtitle!)}",');
-    }
-    if (panel.backgroundStyle == PanelBackgroundStyle.custom && panel.backgroundColor != null) {
-      buffer.writeln('      background = "#${panel.backgroundColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}",');
-    } else {
-      buffer.writeln('      background = "${_backgroundStyleToString(panel.backgroundStyle)}",');
-    }
-    if (panel.textureRotation != 0.0) {
-      buffer.writeln('      textureRotation = ${panel.textureRotation.toInt()},');
-    }
-    if (panel.textureScale != 1.0) {
-      buffer.writeln('      textureScale = ${panel.textureScale},');
-    }
-    if (panel.sideCheeks != null && panel.sideCheeks!.isNotEmpty && panel.sideCheeks != 'none') {
-      buffer.writeln('      rackSides = "${_escape(panel.sideCheeks!)}",');
-    }
-    if (panel.cornerRadius != null) {
-      buffer.writeln('      cornerRadius = ${panel.cornerRadius!.toInt()},');
-    }
-    if (panel.backgroundSvg != null && panel.backgroundSvg!.isNotEmpty) {
-      buffer.writeln('      backgroundSvg = "${_escape(panel.backgroundSvg!)}",');
-      buffer.writeln('      backgroundSvgOpacity = ${panel.backgroundSvgOpacity},');
-      if (panel.backgroundSvgStrokeWidth != null) {
-        buffer.writeln('      backgroundSvgStrokeWidth = ${panel.backgroundSvgStrokeWidth},');
-      }
-    }
-    if (panel.accentColor != null) {
-      buffer.writeln('      accent = "#${panel.accentColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}",');
-    } else {
-      buffer.writeln('      accent = "track",');
-    }
-    if (panel.defaultKnobStyle != KnobStyle.standard) {
-      buffer.writeln('      knobStyle = "${_knobStyleToString(panel.defaultKnobStyle)}",');
-    }
-    buffer.writeln('      layout = {');
-
-    for (final child in panel.children) {
-      _serializeNode(buffer, child, indent: '        ');
-    }
-
-    buffer.writeln('      }');
-    buffer.writeln('    }');
-    buffer.writeln('  }');
-    buffer.writeln('end');
-
-    final guiBlock = buffer.toString();
-
-    if (existingScriptCode == null || existingScriptCode.trim().isEmpty) {
-      return '-- @name: $instrumentName\nlocal $tableName = {}\n\n$guiBlock\n\nreturn $tableName\n';
-    }
-
-    // Replace existing `function ...gui()...end` block if found
-    final guiFuncMatch = RegExp(r'function\s+[\w\.:]*gui\s*\([^)]*\)[\s\S]*?end', caseSensitive: false).firstMatch(existingScriptCode);
-    if (guiFuncMatch != null) {
-      final before = existingScriptCode.substring(0, guiFuncMatch.start).trimRight();
-      final after = existingScriptCode.substring(guiFuncMatch.end).trimLeft();
-      return '$before\n\n$guiBlock\n\n$after';
-    }
-
-    // Otherwise, inject before top-level `return <TableName>` or at the end
-    final returnMatch = RegExp(r'^\s*return\s+([A-Za-z0-9_]+)\s*$', multiLine: true).firstMatch(existingScriptCode);
-    if (returnMatch != null) {
-      final before = existingScriptCode.substring(0, returnMatch.start).trimRight();
-      final after = existingScriptCode.substring(returnMatch.start);
-      return '$before\n\n$guiBlock\n\n$after';
-    }
-
-    return '${existingScriptCode.trimRight()}\n\n$guiBlock\n';
-  }
 
   static int _findMatchingClosingBrace(String text, int startBrace) {
     int depth = 0;
@@ -307,7 +208,7 @@ class EatGuiSerializer {
   static EatScriptGuiPanelDef generateDefaultPanel({
     required String title,
     String? subtitle,
-    List<LuaParamDef> params = const [],
+    List<EatParamDef> params = const [],
     PanelBackgroundStyle backgroundStyle = PanelBackgroundStyle.dark,
     Color? accentColor,
     KnobStyle defaultKnobStyle = KnobStyle.standard,
@@ -378,7 +279,7 @@ class EatGuiSerializer {
     if (EatScriptGuiParser.parseFromCode(scriptCode) != null) {
       return scriptCode;
     }
-    final compilation = EatScriptEngine.compile(scriptCode).toLuaCompilationResult();
+    final compilation = EatScriptEngine.compile(scriptCode);
     final defaultPanel = generateDefaultPanel(
       title: instrumentName.isNotEmpty ? instrumentName.toUpperCase() : 'CUSTOM SYNTH',
       params: compilation.params,
@@ -390,246 +291,6 @@ class EatGuiSerializer {
     );
   }
 
-  static void _serializeNode(StringBuffer buffer, EatScriptGuiNode node, {required String indent}) {
-    switch (node.type) {
-      case EatScriptGuiNodeType.row:
-        final rowAlignStr = (node.align != 'space_around' && node.align.isNotEmpty) ? ', align = "${node.align}"' : '';
-        final rowCrossStr = (node.crossAlign != 'center' && node.crossAlign.isNotEmpty) ? ', crossAlign = "${node.crossAlign}"' : '';
-        final rowBgStr = node.backgroundStyle != null
-            ? ', background = "${_backgroundStyleToString(node.backgroundStyle!)}"'
-            : (node.backgroundColor != null
-                ? ', background = "#${node.backgroundColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}"'
-                : '');
-        final rowRotStr = (node.textureRotation != null && node.textureRotation != 0.0) ? ', textureRotation = ${node.textureRotation!.toInt()}' : '';
-        final rowOpacityStr = node.opacity != null ? ', opacity = ${node.opacity}' : '';
-        final rowBorderWidthStr = node.borderWidth != null ? ', borderWidth = ${node.borderWidth}' : '';
-        final rowBorderColorStr = node.borderColor != null
-            ? ', borderColor = "#${node.borderColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}"'
-            : '';
-        buffer.writeln('$indent{');
-        buffer.writeln('$indent  type = "row"$rowAlignStr$rowCrossStr$rowBgStr$rowRotStr$rowOpacityStr$rowBorderWidthStr$rowBorderColorStr,');
-        buffer.writeln('$indent  children = {');
-        for (final child in node.children) {
-          _serializeNode(buffer, child, indent: '$indent    ');
-        }
-        buffer.writeln('$indent  }');
-        buffer.writeln('$indent},');
-        break;
-
-      case EatScriptGuiNodeType.column:
-      case EatScriptGuiNodeType.group:
-        final typeStr = node.type == EatScriptGuiNodeType.column ? 'column' : 'group';
-        final colAlignStr = (node.align != 'space_around' && node.align != 'top' && node.align != 'start' && node.align.isNotEmpty) ? ', align = "${node.align}"' : '';
-        final colCrossStr = (node.crossAlign != 'center' && node.crossAlign.isNotEmpty) ? ', crossAlign = "${node.crossAlign}"' : '';
-        final labelStr = (node.label != null && node.label!.isNotEmpty) ? ', label = "${_escape(node.label!)}"' : '';
-        final groupBgStr = node.backgroundStyle != null
-            ? ', background = "${_backgroundStyleToString(node.backgroundStyle!)}"'
-            : (node.backgroundColor != null
-                ? ', background = "#${node.backgroundColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}"'
-                : '');
-        final groupRotStr = (node.textureRotation != null && node.textureRotation != 0.0) ? ', textureRotation = ${node.textureRotation!.toInt()}' : '';
-        final groupOpacityStr = node.opacity != null ? ', opacity = ${node.opacity}' : '';
-        final groupBorderWidthStr = node.borderWidth != null ? ', borderWidth = ${node.borderWidth}' : '';
-        final groupBorderColorStr = node.borderColor != null
-            ? ', borderColor = "#${node.borderColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}"'
-            : '';
-        buffer.writeln('$indent{');
-        buffer.writeln('$indent  type = "$typeStr"$labelStr$colAlignStr$colCrossStr$groupBgStr$groupRotStr$groupOpacityStr$groupBorderWidthStr$groupBorderColorStr,');
-        buffer.writeln('$indent  children = {');
-        for (final child in node.children) {
-          _serializeNode(buffer, child, indent: '$indent    ');
-        }
-        buffer.writeln('$indent  }');
-        buffer.writeln('$indent},');
-        break;
-
-      case EatScriptGuiNodeType.knob:
-        final param = node.param ?? 'Param';
-        final label = node.label ?? param;
-        final unitStr = node.unit != null && node.unit!.isNotEmpty ? ', unit = "${_escape(node.unit!)}"' : '';
-        final sizeStr = node.size != null ? ', size = ${node.size!.toInt()}' : '';
-        final showLabelStr = !node.showLabel ? ', showLabel = false' : '';
-        final showValueStr = !node.showValue ? ', showValue = false' : '';
-
-        if (node.customSkin != null) {
-          final skin = node.customSkin!;
-          buffer.writeln('$indent{');
-          buffer.writeln('$indent  type = "knob", param = "$param", label = "${_escape(label)}"$unitStr$sizeStr, style = "custom"$showLabelStr$showValueStr,');
-          buffer.writeln('$indent  chassis = {');
-          for (final l in skin.chassisLayers) {
-            if (l.type == VectorShapeType.circle) {
-              final fill = l.fillColor != null ? ', fill = "${_hex(l.fillColor!)}"' : '';
-              final stroke = l.strokeColor != null ? ', stroke = "${_hex(l.strokeColor!)}"' : '';
-              buffer.writeln('$indent    { type = "circle", radius = ${l.radius ?? 22.0}$fill$stroke },');
-            } else if (l.type == VectorShapeType.radialTicks) {
-              final col = l.strokeColor != null ? ', color = "${_hex(l.strokeColor!)}"' : '';
-              buffer.writeln('$indent    { type = "ticks", count = ${l.tickCount}, radius = ${l.radius ?? 22.0}, length = ${l.tickLength}$col },');
-            } else if (l.type == VectorShapeType.svgPath) {
-              buffer.writeln('$indent    { type = "svg_path", data = "${l.svgData ?? ""}" },');
-            }
-          }
-          buffer.writeln('$indent  },');
-          buffer.writeln('$indent  indicator = {');
-          buffer.writeln('$indent    type = "svg_path",');
-          buffer.writeln('$indent    data = "${skin.indicatorLayer.svgData ?? "M -1.5 0 L 0 -19 L 1.5 0 Z"}",');
-          if (skin.indicatorLayer.fillColor != null) {
-            buffer.writeln('$indent    fill = "${_hex(skin.indicatorLayer.fillColor!)}",');
-          }
-          buffer.writeln('$indent  }');
-          buffer.writeln('$indent},');
-        } else {
-          String styleStr = '';
-          if (node.knobStyle == KnobStyle.hardwareKnob) {
-            final hwName = _getHardwarePresetName(node.hardwareKnobStyle);
-            styleStr = ', knobStyle = "hardware", style = "$hwName", hardware = "$hwName"';
-          } else if (node.knobStyle != KnobStyle.standard) {
-            styleStr = ', knobStyle = "${_knobStyleToString(node.knobStyle)}"';
-          }
-          final capStr = node.capColor != null ? ', capColor = "${_colorStr(node.capColor!)}"' : '';
-          final bodyStr = node.bodyColor != null ? ', bodyColor = "${_colorStr(node.bodyColor!)}"' : '';
-          final indStr = node.indicatorColor != null ? ', indicatorColor = "${_colorStr(node.indicatorColor!)}"' : '';
-          final dialStr = node.dialColor != null ? ', dialColor = "${_colorStr(node.dialColor!)}"' : '';
-          final capSizeStr = node.capSize != null ? ', capSize = ${node.capSize}' : '';
-          final bodySizeStr = node.bodySize != null ? ', bodySize = ${node.bodySize}' : '';
-          final indLenStr = node.indicatorLength != null ? ', indicatorLength = ${node.indicatorLength}' : '';
-          final indWidthStr = node.indicatorWidth != null ? ', indicatorWidth = ${node.indicatorWidth}' : '';
-          final scaleStr = _getScaleStringLua(node);
-          final optionsStr = node.options.isNotEmpty ? ', options = { ${node.options.map((o) => '"${_escape(o)}"').join(', ')} }' : '';
-          buffer.writeln('$indent{ type = "knob", param = "$param", label = "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr$capStr$bodyStr$indStr$dialStr$capSizeStr$bodySizeStr$indLenStr$indWidthStr$scaleStr$optionsStr },');
-        }
-        break;
-
-      case EatScriptGuiNodeType.slider:
-      case EatScriptGuiNodeType.fader:
-        final param = node.param ?? 'Param';
-        final label = node.label ?? param;
-        final isH = node.orientation == 'horizontal';
-        final typeStr = isH ? 'hslider' : 'vslider';
-        final widthStr = node.width != null ? ', width = ${node.width!.toInt()}' : (isH ? ', width = 460' : '');
-        final heightStr = !isH && node.height != null ? ', height = ${node.height!.toInt()}' : '';
-        final styleStr = node.sliderStyle == SliderStyle.console
-            ? ', style = "console"'
-            : (node.sliderStyle == SliderStyle.minimalPill ? ', style = "minimal_pill"' : ', style = "capsule"');
-        final showLabelStr = !node.showLabel ? ', showLabel = false' : '';
-        final scaleStr = _getScaleStringLua(node);
-        buffer.writeln('$indent{ type = "$typeStr", param = "$param", label = "${_escape(label)}"$widthStr$heightStr$styleStr$showLabelStr$scaleStr },');
-        break;
-
-      case EatScriptGuiNodeType.switchToggle:
-        final param = node.param ?? 'Switch';
-        final label = node.label ?? param;
-        final leftStr = node.leftText != null ? ', leftText = "${_escape(node.leftText!)}"' : '';
-        final rightStr = node.rightText != null ? ', rightText = "${_escape(node.rightText!)}"' : '';
-        final orientStr = node.orientation == 'vertical' ? ', orientation = "vertical"' : '';
-        final showLabelStr = !node.showLabel ? ', showLabel = false' : '';
-        buffer.writeln('$indent{ type = "switch", param = "$param", label = "${_escape(label)}"$leftStr$rightStr$orientStr$showLabelStr },');
-        break;
-
-      case EatScriptGuiNodeType.segmentedPill:
-        final param = node.param ?? 'Mode';
-        final label = node.label ?? param;
-        final optsStr = node.options.isNotEmpty ? ', options = { ${node.options.map((o) => '"${_escape(o)}"').join(', ')} }' : '';
-        final showLabelStr = !node.showLabel ? ', showLabel = false' : '';
-        buffer.writeln('$indent{ type = "segmented_pill", param = "$param", label = "${_escape(label)}"$optsStr$showLabelStr },');
-        break;
-
-      case EatScriptGuiNodeType.button:
-        final action = node.action ?? (node.param ?? 'action');
-        final label = node.label ?? 'TRIGGER';
-        final widthStr = node.width != null ? ', width = ${node.width!.toInt()}' : ', width = 100';
-        final heightStr = node.height != null ? ', height = ${node.height!.toInt()}' : ', height = 36';
-        buffer.writeln('$indent{ type = "button", action = "$action", label = "${_escape(label)}"$widthStr$heightStr },');
-        break;
-
-      case EatScriptGuiNodeType.listBox:
-        final param = node.param ?? 'Choice';
-        final label = node.label ?? param;
-        final widthStr = node.width != null ? ', width = ${node.width!.toInt()}' : ', width = 140';
-        final heightStr = node.height != null ? ', height = ${node.height!.toInt()}' : ', height = 80';
-        final showLabelStr = !node.showLabel ? ', showLabel = false' : '';
-        buffer.writeln('$indent{ type = "listbox", param = "$param", label = "${_escape(label)}"$widthStr$heightStr$showLabelStr },');
-        break;
-
-      case EatScriptGuiNodeType.nixie:
-        final param = node.param ?? 'Nixie';
-        final label = node.label ?? param;
-        final unitStr = node.unit != null && node.unit!.isNotEmpty ? ', unit = "${_escape(node.unit!)}"' : '';
-        final widthStr = node.width != null ? ', width = ${node.width!.toInt()}' : '';
-        final showLabelStr = !node.showLabel ? ', showLabel = false' : '';
-        buffer.writeln('$indent{ type = "nixie", param = "$param", label = "${_escape(label)}"$unitStr$widthStr$showLabelStr },');
-        break;
-
-      case EatScriptGuiNodeType.lcd:
-        final param = node.param ?? 'LCD';
-        final label = node.label ?? param;
-        buffer.writeln('$indent{ type = "lcd", param = "$param", label = "${_escape(label)}" },');
-        break;
-
-      case EatScriptGuiNodeType.spaceVisualizer:
-        final heightStr = node.height != null ? ', height = ${node.height!.toInt()}' : ', height = 140';
-        buffer.writeln('$indent{ type = "space_visualizer"$heightStr },');
-        break;
-
-      case EatScriptGuiNodeType.waveshaperCanvas:
-        final heightStr = node.height != null ? ', height = ${node.height!.toInt()}' : ', height = 150';
-        buffer.writeln('$indent{ type = "waveshaper_canvas"$heightStr },');
-        break;
-
-      case EatScriptGuiNodeType.oscilloscope:
-        final widthStr = node.width != null ? ', width = ${node.width!.toInt()}' : ', width = 320';
-        final heightStr = node.height != null ? ', height = ${node.height!.toInt()}' : ', height = 140';
-        buffer.writeln('$indent{ type = "oscilloscope"$widthStr$heightStr },');
-        break;
-
-      case EatScriptGuiNodeType.spectrum:
-        final widthStr = node.width != null ? ', width = ${node.width!.toInt()}' : ', width = 320';
-        final heightStr = node.height != null ? ', height = ${node.height!.toInt()}' : ', height = 140';
-        buffer.writeln('$indent{ type = "spectrum"$widthStr$heightStr },');
-        break;
-
-      case EatScriptGuiNodeType.canvas:
-        final mode = node.canvasMode;
-        final widthStr = node.width != null ? ', width = ${node.width!.toInt()}' : ', width = 340';
-        final heightStr = node.height != null ? ', height = ${node.height!.toInt()}' : ', height = 180';
-        final dpadStr = node.showDpad ? ', showDpad = true' : '';
-        final actionStr = node.showActionButtons ? ', showActionButtons = true' : '';
-        buffer.writeln('$indent{ type = "canvas", mode = "$mode"$widthStr$heightStr$dpadStr$actionStr },');
-        break;
-
-      case EatScriptGuiNodeType.meter:
-        final sizeStr = node.size != null ? ', size = ${node.size!.toInt()}' : ', size = 110';
-        buffer.writeln('$indent{ type = "meter"$sizeStr },');
-        break;
-
-      case EatScriptGuiNodeType.drumPads:
-        buffer.writeln('$indent{ type = "drumpads" },');
-        break;
-
-      case EatScriptGuiNodeType.dpad:
-        buffer.writeln('$indent{ type = "dpad" },');
-        break;
-
-      case EatScriptGuiNodeType.gamepad:
-        buffer.writeln('$indent{ type = "gamepad" },');
-        break;
-
-      case EatScriptGuiNodeType.divider:
-        buffer.writeln('$indent{ type = "divider" },');
-        break;
-
-      case EatScriptGuiNodeType.label:
-        final text = node.text ?? (node.label ?? '');
-        buffer.writeln('$indent{ type = "label", text = "${_escape(text)}" },');
-        break;
-
-      case EatScriptGuiNodeType.spacer:
-        buffer.writeln('$indent{ type = "spacer" },');
-        break;
-
-      default:
-        break;
-    }
-  }
 
   static void _serializeNodeEat(StringBuffer buffer, EatScriptGuiNode node, {required String indent}) {
     switch (node.type) {
@@ -1026,7 +687,7 @@ class EatGuiSerializer {
     return '';
   }
 
-  static String _getScaleStringLua(EatScriptGuiNode node) {
+  static String _getScaleString(EatScriptGuiNode node) {
     final scale = node.hardwareScale ?? (node.knobStyle == KnobStyle.hardwareKnob ? node.hardwareKnobStyle?.scale : null);
     if (scale == null) return '';
 

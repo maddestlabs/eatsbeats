@@ -154,26 +154,26 @@ void main() {
     });
   });
 
-  group('Lua Script Library & @tags Parsing Tests', () {
-    test('parseFromLuaScript extracts -- @tags: header', () {
-      const luaCode = '''
--- @name: Vintage 808 Sub
--- @category: instrument
--- @description: Pure sine 808 boom with punch envelope
--- @tags: bass, 808, sub, analog
+  group('Eatscript Script Library & @tags Parsing Tests', () {
+    test('parseFromScript extracts # @tags: header', () {
+      const eatScriptCode = '''
+# @name: Vintage 808 Sub
+# @category: instrument
+# @description: Pure sine 808 boom with punch envelope
+# @tags: bass, 808, sub, analog
 
 local Synth808 = {}
 return Synth808
 ''';
 
-      final script = LuaScriptLibrary.parseFromLuaScript(luaCode);
+      final script = EatScriptLibrary.parseFromScript(eatScriptCode);
       expect(script.name, equals('Vintage 808 Sub'));
       expect(script.tags, equals(['bass', '808', 'sub', 'analog']));
       expect(script.primaryTag, equals('bass'));
     });
   });
 
-  group('EatsLua Serialization & Parsing Roundtrip Tests', () {
+  group('Eatscript Serialization & Parsing Roundtrip Tests', () {
     test('Full project roundtrip serializes and parses track EQ and master processing', () {
       final dawState = DawState();
       dawState.projectName = 'Telemetry Mix Master Test';
@@ -193,15 +193,15 @@ return Synth808
       );
       track.tags = ['kick', 'punchy'];
 
-      final luaString = EatsLuaSerializer.serialize(dawState, projectName: dawState.projectName);
-      expect(luaString.contains('masterEq = {'), isTrue);
-      expect(luaString.contains('masterLimiter = {'), isTrue);
-      expect(luaString.contains('subCut = 32.0'), isTrue);
-      expect(luaString.contains('tags = { "kick", "punchy" }'), isTrue);
-      expect(luaString.contains('hpf = 80.0'), isTrue);
+      final eatScriptString = EatProjectSerializer.serialize(dawState, projectName: dawState.projectName);
+      expect(eatScriptString.contains('masterEq = {'), isTrue);
+      expect(eatScriptString.contains('masterLimiter = {'), isTrue);
+      expect(eatScriptString.contains('subCut = 32.0'), isTrue);
+      expect(eatScriptString.contains('tags = { "kick", "punchy" }'), isTrue);
+      expect(eatScriptString.contains('hpf = 80.0'), isTrue);
 
       final restoredState = DawState();
-      final title = EatsLuaParser.populateDawState(restoredState, luaString);
+      final title = EatProjectParser.populateDawState(restoredState, eatScriptString);
 
       expect(title, equals('Telemetry Mix Master Test'));
       expect(restoredState.masterSubCut, 32.0);

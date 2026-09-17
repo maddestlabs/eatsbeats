@@ -165,14 +165,14 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
 
       final dawState = DawState();
-      final snesPreset = LuaPresetLibrary.getPresetById('eats_sfxr')!;
+      final snesPreset = EatScriptLibrary.getPresetById('eats_sfxr')!;
       final track = TrackChannel(
         id: 'snes_track_1',
         name: 'SNES Sfxr Track',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFF21F4E8),
-        luaScriptCode: snesPreset.code,
-        luaParams: {
+        eatScriptCode: snesPreset.code,
+        eatScriptParams: {
           'SFXType': 0.0,
           'Seed': 42.0,
         },
@@ -197,12 +197,12 @@ void main() {
       final randomizeBtn = find.text('RANDOMIZE');
       expect(randomizeBtn, findsOneWidget);
 
-      final initialSeed = track.luaParams['Seed'];
+      final initialSeed = track.eatScriptParams['Seed'];
       await tester.tap(randomizeBtn);
       await tester.pumpAndSettle();
 
       // Verify seed was modified and note was auditioned
-      expect(track.luaParams['Seed'], isNot(equals(initialSeed)));
+      expect(track.eatScriptParams['Seed'], isNot(equals(initialSeed)));
     });
   });
 }

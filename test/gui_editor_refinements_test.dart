@@ -125,7 +125,7 @@ void main() {
         type: ScriptTargetType.trackDsp,
       );
 
-      const script = '''-- @name: Lead Synth
+      const script = '''# @name: Lead Synth
 local LeadSynth = {}
 function LeadSynth.gui()
   return {

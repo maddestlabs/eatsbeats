@@ -7,14 +7,11 @@ import '../../eatscript/eats_gui_model.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
 import '../../theme/eats_theme.dart';
-
-typedef LuaProgrammableCanvasWidget = EatscriptProgrammableCanvasWidget;
-
 /// Interactive high-performance Programmable 2D Canvas widget driven by EatScript draw functions.
 class EatscriptProgrammableCanvasWidget extends StatefulWidget {
   final DawState dawState;
   final TrackChannel track;
-  final LuaGuiNode node;
+  final EatScriptGuiNode node;
   final Color accentColor;
   final bool isLightChassis;
 
@@ -74,14 +71,14 @@ class _EatscriptProgrammableCanvasWidgetState extends State<EatscriptProgrammabl
       final normY = (1.0 - (localPos.dy / h)).clamp(0.0, 1.0);
 
       // Check if track has Cutoff / Resonance
-      if (widget.track.luaParams.containsKey('Cutoff')) {
+      if (widget.track.eatScriptParams.containsKey('Cutoff')) {
         final minCut = 20.0;
         final maxCut = 20000.0;
         final newCut = minCut * math.pow(maxCut / minCut, normX);
-        widget.track.luaParams['Cutoff'] = newCut;
+        widget.track.eatScriptParams['Cutoff'] = newCut;
       }
-      if (widget.track.luaParams.containsKey('Resonance')) {
-        widget.track.luaParams['Resonance'] = normY * 15.0;
+      if (widget.track.eatScriptParams.containsKey('Resonance')) {
+        widget.track.eatScriptParams['Resonance'] = normY * 15.0;
       }
     }
   }
@@ -95,11 +92,11 @@ class _EatscriptProgrammableCanvasWidgetState extends State<EatscriptProgrammabl
     final isMasterBus = trackId == 'master_bus' || trackId == 'master' || widget.track.name.toLowerCase().contains('master');
     final targetTrackId = isMasterBus ? null : trackId;
 
-    final ops = LuaCanvasDrawingEngine.evaluate(
-      scriptCode: widget.track.luaScriptCode,
+    final ops = EatCanvasDrawingEngine.evaluate(
+      scriptCode: widget.track.eatScriptCode,
       width: width,
       height: height,
-      params: widget.track.luaParams,
+      params: widget.track.eatScriptParams,
       time: _time,
       accentColor: widget.accentColor,
       touchPos: _touchPos,
@@ -134,7 +131,7 @@ class _EatscriptProgrammableCanvasWidgetState extends State<EatscriptProgrammabl
           borderRadius: BorderRadius.circular(4.5),
           child: CustomPaint(
             size: Size(width, height),
-            painter: _LuaCanvasPainter(
+            painter: _EatCanvasPainter(
               ops: ops,
               audioEngine: widget.dawState.audioEngine,
               targetTrackId: targetTrackId,
@@ -148,14 +145,14 @@ class _EatscriptProgrammableCanvasWidgetState extends State<EatscriptProgrammabl
   }
 }
 
-class _LuaCanvasPainter extends CustomPainter {
-  final List<LuaCanvasOp> ops;
+class _EatCanvasPainter extends CustomPainter {
+  final List<EatCanvasOp> ops;
   final AudioEngine audioEngine;
   final String? targetTrackId;
   final Color accentColor;
   final double time;
 
-  _LuaCanvasPainter({
+  _EatCanvasPainter({
     required this.ops,
     required this.audioEngine,
     required this.targetTrackId,
@@ -166,12 +163,12 @@ class _LuaCanvasPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     for (final op in ops) {
-      if (op is LuaCanvasClearOp) {
+      if (op is EatCanvasClearOp) {
         canvas.drawRect(
           Offset.zero & size,
           Paint()..color = op.color,
         );
-      } else if (op is LuaCanvasLineOp) {
+      } else if (op is EatCanvasLineOp) {
         canvas.drawLine(
           op.p1,
           op.p2,
@@ -181,7 +178,7 @@ class _LuaCanvasPainter extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeCap = StrokeCap.round,
         );
-      } else if (op is LuaCanvasRectOp) {
+      } else if (op is EatCanvasRectOp) {
         final paint = Paint()
           ..color = op.color
           ..style = op.filled ? PaintingStyle.fill : PaintingStyle.stroke
@@ -195,7 +192,7 @@ class _LuaCanvasPainter extends CustomPainter {
         } else {
           canvas.drawRect(op.rect, paint);
         }
-      } else if (op is LuaCanvasCircleOp) {
+      } else if (op is EatCanvasCircleOp) {
         canvas.drawCircle(
           op.center,
           op.radius,
@@ -204,7 +201,7 @@ class _LuaCanvasPainter extends CustomPainter {
             ..style = op.filled ? PaintingStyle.fill : PaintingStyle.stroke
             ..strokeWidth = op.strokeWidth,
         );
-      } else if (op is LuaCanvasTextOp) {
+      } else if (op is EatCanvasTextOp) {
         final tp = TextPainter(
           text: TextSpan(
             text: op.text,
@@ -226,7 +223,7 @@ class _LuaCanvasPainter extends CustomPainter {
           tx -= tp.width;
         }
         tp.paint(canvas, Offset(tx, op.position.dy));
-      } else if (op is LuaCanvasPathOp) {
+      } else if (op is EatCanvasPathOp) {
         if (op.points.length >= 2) {
           final path = Path()..moveTo(op.points.first.dx, op.points.first.dy);
           for (int i = 1; i < op.points.length; i++) {
@@ -247,7 +244,7 @@ class _LuaCanvasPainter extends CustomPainter {
               ..strokeJoin = StrokeJoin.round,
           );
         }
-      } else if (op is LuaCanvasGridOp) {
+      } else if (op is EatCanvasGridOp) {
         final gridPaint = Paint()
           ..color = op.color
           ..strokeWidth = op.strokeWidth
@@ -262,7 +259,7 @@ class _LuaCanvasPainter extends CustomPainter {
         for (int r = 1; r < op.rows; r++) {
           canvas.drawLine(Offset(0, r * dy), Offset(size.width, r * dy), gridPaint);
         }
-      } else if (op is LuaCanvasWaveformOp) {
+      } else if (op is EatCanvasWaveformOp) {
         final samples = audioEngine.getWaveformSamples(
           trackId: targetTrackId,
           count: 96,
@@ -301,7 +298,7 @@ class _LuaCanvasPainter extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeCap = StrokeCap.round,
         );
-      } else if (op is LuaCanvasSpectrumOp) {
+      } else if (op is EatCanvasSpectrumOp) {
         final bands = audioEngine.getSpectrumBands(
           trackId: targetTrackId,
           bands: op.bands,
@@ -331,5 +328,5 @@ class _LuaCanvasPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _LuaCanvasPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _EatCanvasPainter oldDelegate) => true;
 }

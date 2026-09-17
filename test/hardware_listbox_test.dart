@@ -12,9 +12,9 @@ import 'package:eatsbeats/ui/widgets/hardware_listbox_widget.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('HardwareListBoxWidget & Lua GUI Parsing Tests', () {
-    test('Parses listbox GUI node from Lua table definition', () {
-      const luaScript = '''
+  group('HardwareListBoxWidget & Eatscript GUI Parsing Tests', () {
+    test('Parses listbox GUI node from Eatscript definition', () {
+      const eatScript = '''
 local Synth = {}
 function Synth.init()
   Param.choice("Preset", {"Lead", "Bass", "Pad", "Pluck"}, 1.0)
@@ -32,13 +32,13 @@ end
 return Synth
 ''';
 
-      final res = LuaEngine.compile(luaScript);
+      final res = EatEngine.compile(eatScript);
       expect(res.isSuccess, isTrue);
       expect(res.guiLayout, isNotNull);
       expect(res.guiLayout!.children.length, equals(1));
 
       final node = res.guiLayout!.children.first;
-      expect(node.type, equals(LuaGuiNodeType.listBox));
+      expect(node.type, equals(EatScriptGuiNodeType.listBox));
       expect(node.param, equals('Preset'));
       expect(node.label, equals('PRESET SOUND'));
       expect(node.width, equals(180.0));
@@ -49,7 +49,7 @@ return Synth
     testWidgets('Renders HardwareListBoxWidget and handles selection & stepping', (tester) async {
       final state = DawState();
       final track = state.activeTrack;
-      track.luaParams['Waveform'] = 1.0;
+      track.eatScriptParams['Waveform'] = 1.0;
 
       final options = ['Sine', 'Square', 'Sawtooth', 'Triangle', 'Noise'];
 
@@ -86,28 +86,28 @@ return Synth
       await tester.tap(find.text('Sawtooth'));
       await tester.pumpAndSettle();
 
-      expect(track.luaParams['Waveform'], equals(2.0));
+      expect(track.eatScriptParams['Waveform'], equals(2.0));
       expect(find.text('03/05'), findsOneWidget);
 
       // Tap Down Stepper arrow
       await tester.tap(find.byIcon(Icons.keyboard_arrow_down));
       await tester.pumpAndSettle();
 
-      expect(track.luaParams['Waveform'], equals(3.0));
+      expect(track.eatScriptParams['Waveform'], equals(3.0));
       expect(find.text('04/05'), findsOneWidget);
 
       // Tap Up Stepper arrow
       await tester.tap(find.byIcon(Icons.keyboard_arrow_up));
       await tester.pumpAndSettle();
 
-      expect(track.luaParams['Waveform'], equals(2.0));
+      expect(track.eatScriptParams['Waveform'], equals(2.0));
       expect(find.text('03/05'), findsOneWidget);
     });
 
     testWidgets('DynamicInstrumentGuiWidget embeds HardwareListBoxWidget for SNES SFXR preset', (tester) async {
       final state = DawState();
       final track = state.activeTrack;
-      final preset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'eats_sfxr');
+      final preset = EatScriptLibrary.presets.firstWhere((p) => p.id == 'eats_sfxr');
       state.applyPreset(preset);
       await tester.pumpAndSettle();
 

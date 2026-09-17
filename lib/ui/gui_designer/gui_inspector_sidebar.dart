@@ -9,13 +9,13 @@ import '../hardware/eat_hardware_scale.dart';
 import 'gui_widget_palette.dart';
 
 class GuiInspectorSidebar extends StatefulWidget {
-  final LuaGuiPanelDef panel;
+  final EatScriptGuiPanelDef panel;
   final int? selectedRowIndex;
   final int? selectedChildIndex;
   final int? selectedStackChildIndex;
   final Color? trackColor;
   final List<String> availableParams;
-  final void Function(LuaGuiPanelDef updatedPanel) onPanelUpdated;
+  final void Function(EatScriptGuiPanelDef updatedPanel) onPanelUpdated;
   final void Function(int rowIndex, int childIndex, GuiPaletteItem item)? onAddChildToStack;
   final VoidCallback onDeleteSelected;
   final VoidCallback onDuplicateSelected;
@@ -53,7 +53,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     _initControllers();
   }
 
-  String _getChassisDisplayText(LuaGuiPanelDef panel) {
+  String _getChassisDisplayText(EatScriptGuiPanelDef panel) {
     if (panel.backgroundColor != null) {
       return '#${panel.backgroundColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
     }
@@ -144,7 +144,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     super.dispose();
   }
 
-  LuaGuiNode? _getSelectedNode() {
+  EatScriptGuiNode? _getSelectedNode() {
     final r = widget.selectedRowIndex;
     final c = widget.selectedChildIndex;
     final s = widget.selectedStackChildIndex;
@@ -153,7 +153,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
       if (c != null && c >= 0 && c < rowNode.children.length) {
         final childNode = rowNode.children[c];
         if (s != null &&
-            (childNode.type == LuaGuiNodeType.column || childNode.type == LuaGuiNodeType.group || childNode.type == LuaGuiNodeType.row) &&
+            (childNode.type == EatScriptGuiNodeType.column || childNode.type == EatScriptGuiNodeType.group || childNode.type == EatScriptGuiNodeType.row) &&
             s >= 0 &&
             s < childNode.children.length) {
           return childNode.children[s];
@@ -165,23 +165,23 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     return null;
   }
 
-  void _updateSelectedNode(LuaGuiNode updatedNode) {
+  void _updateSelectedNode(EatScriptGuiNode updatedNode) {
     final r = widget.selectedRowIndex;
     final c = widget.selectedChildIndex;
     final s = widget.selectedStackChildIndex;
     if (r == null || r < 0 || r >= widget.panel.children.length) return;
 
-    final rows = List<LuaGuiNode>.from(widget.panel.children);
+    final rows = List<EatScriptGuiNode>.from(widget.panel.children);
     final rowNode = rows[r];
 
     if (c != null && c >= 0 && c < rowNode.children.length) {
       final childNode = rowNode.children[c];
-      final newChildren = List<LuaGuiNode>.from(rowNode.children);
+      final newChildren = List<EatScriptGuiNode>.from(rowNode.children);
       if (s != null &&
-          (childNode.type == LuaGuiNodeType.column || childNode.type == LuaGuiNodeType.group || childNode.type == LuaGuiNodeType.row) &&
+          (childNode.type == EatScriptGuiNodeType.column || childNode.type == EatScriptGuiNodeType.group || childNode.type == EatScriptGuiNodeType.row) &&
           s >= 0 &&
           s < childNode.children.length) {
-        final newStackChildren = List<LuaGuiNode>.from(childNode.children);
+        final newStackChildren = List<EatScriptGuiNode>.from(childNode.children);
         newStackChildren[s] = updatedNode;
         newChildren[c] = childNode.copyWith(children: newStackChildren);
       } else {
@@ -371,7 +371,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                               ));
                               return;
                             }
-                            final bgStyle = LuaGuiNode.parseBackgroundStyle(clean);
+                            final bgStyle = EatScriptGuiNode.parseBackgroundStyle(clean);
                             if (clean != 'dark' && clean.isNotEmpty && !clean.startsWith('#') && bgStyle != PanelBackgroundStyle.dark) {
                               widget.onPanelUpdated(widget.panel.copyWith(
                                 backgroundStyle: bgStyle,
@@ -379,8 +379,8 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                               ));
                               return;
                             }
-                            final col = LuaGuiNode.parseColor(v);
-                            if (col != null && !LuaGuiNode.isTrackColor(col)) {
+                            final col = EatScriptGuiNode.parseColor(v);
+                            if (col != null && !EatScriptGuiNode.isTrackColor(col)) {
                               widget.onPanelUpdated(widget.panel.copyWith(
                                 backgroundStyle: PanelBackgroundStyle.custom,
                                 backgroundColor: col,
@@ -661,7 +661,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                   ),
                   const SizedBox(height: 10),
 
-                  if (selectedNode.type == LuaGuiNodeType.column || selectedNode.type == LuaGuiNodeType.group) ...[
+                  if (selectedNode.type == EatScriptGuiNodeType.column || selectedNode.type == EatScriptGuiNodeType.group) ...[
                     _buildSectionHeader('STACK ALIGNMENT & DISTRIBUTION'),
                     const SizedBox(height: 6),
                     _buildDropdown<String>(
@@ -700,7 +700,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     const SizedBox(height: 12),
                   ],
 
-                  if (selectedNode.type == LuaGuiNodeType.row || selectedNode.type == LuaGuiNodeType.column || selectedNode.type == LuaGuiNodeType.group) ...[
+                  if (selectedNode.type == EatScriptGuiNodeType.row || selectedNode.type == EatScriptGuiNodeType.column || selectedNode.type == EatScriptGuiNodeType.group) ...[
                     _buildSectionHeader('SECTION BACKGROUND & INLAY'),
                     const SizedBox(height: 6),
                     _buildDropdown<String>(
@@ -727,7 +727,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       ],
                       onChanged: (v) {
                         if (v != null) {
-                          final style = v == 'none' ? null : LuaGuiNode.parseBackgroundStyle(v);
+                          final style = v == 'none' ? null : EatScriptGuiNode.parseBackgroundStyle(v);
                           _updateSelectedNode(selectedNode.copyWith(
                             backgroundStyle: style,
                             clearBackgroundStyle: style == null,
@@ -749,7 +749,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                                   : '',
                             ),
                             (v) {
-                              final col = LuaGuiNode.parseColor(v);
+                              final col = EatScriptGuiNode.parseColor(v);
                               _updateSelectedNode(selectedNode.copyWith(
                                 backgroundColor: col,
                                 clearBackgroundColor: col == null,
@@ -908,7 +908,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                             : '',
                       ),
                       (v) {
-                        final col = LuaGuiNode.parseColor(v);
+                        final col = EatScriptGuiNode.parseColor(v);
                         _updateSelectedNode(selectedNode.copyWith(
                           borderColor: col,
                           clearBorderColor: col == null,
@@ -930,7 +930,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       _updateSelectedNode(selectedNode.copyWith(showLabel: v ?? true));
                     },
                   ),
-                  if (selectedNode.type == LuaGuiNodeType.knob) ...[
+                  if (selectedNode.type == EatScriptGuiNodeType.knob) ...[
                     CheckboxListTile(
                       title: const Text('Show Value Readout', style: TextStyle(fontSize: 11, color: Colors.white)),
                       value: selectedNode.showValue,
@@ -944,7 +944,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                   ],
                   const SizedBox(height: 8),
 
-                  _buildTextField(selectedNode.type == LuaGuiNodeType.label ? 'Text / Header Content' : 'Display Label', _labelController, (v) {
+                  _buildTextField(selectedNode.type == EatScriptGuiNodeType.label ? 'Text / Header Content' : 'Display Label', _labelController, (v) {
                     _updateSelectedNode(selectedNode.copyWith(label: v, text: v));
                   }),
                   const SizedBox(height: 8),
@@ -954,7 +954,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                   }),
                   const SizedBox(height: 12),
 
-                  if (selectedNode.type == LuaGuiNodeType.meter) ...[
+                  if (selectedNode.type == EatScriptGuiNodeType.meter) ...[
                     _buildSectionHeader('VU METER PROPERTIES'),
                     const SizedBox(height: 6),
                     Text('Meter Height: ${(selectedNode.size ?? 110).toInt()}px', style: TextStyle(fontSize: 10, color: EatsTheme.textMuted)),
@@ -971,7 +971,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     const SizedBox(height: 12),
                   ],
 
-                  if (selectedNode.type == LuaGuiNodeType.spacer) ...[
+                  if (selectedNode.type == EatScriptGuiNodeType.spacer) ...[
                     _buildSectionHeader('SPACER PROPERTIES'),
                     const SizedBox(height: 6),
                     Text('Spacer Size: ${(selectedNode.size ?? 16).toInt()}px', style: TextStyle(fontSize: 10, color: EatsTheme.textMuted)),
@@ -988,7 +988,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     const SizedBox(height: 12),
                   ],
 
-                  if (selectedNode.type == LuaGuiNodeType.segmentedPill) ...[
+                  if (selectedNode.type == EatScriptGuiNodeType.segmentedPill) ...[
                     _buildSectionHeader('SEGMENTED PILL PROPERTIES'),
                     const SizedBox(height: 6),
                     _buildTextField(
@@ -1002,7 +1002,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     const SizedBox(height: 12),
                   ],
 
-                  if (selectedNode.type == LuaGuiNodeType.switchToggle) ...[
+                  if (selectedNode.type == EatScriptGuiNodeType.switchToggle) ...[
                     _buildSectionHeader('SWITCH PROPERTIES'),
                     const SizedBox(height: 6),
                     _buildDropdown<String>(
@@ -1025,7 +1025,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                   const SizedBox(height: 6),
                   if (widget.availableParams.isNotEmpty) ...[
                     _buildDropdown<String>(
-                      label: 'Bound Lua Parameter',
+                      label: 'Bound Eatscript Parameter',
                       value: widget.availableParams.contains(selectedNode.param) ? selectedNode.param : null,
                       items: widget.availableParams.map((p) {
                         return DropdownMenuItem(value: p, child: Text(p));
@@ -1047,7 +1047,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                   ],
                   const SizedBox(height: 14),
 
-                  if (selectedNode.type == LuaGuiNodeType.knob) ...[
+                  if (selectedNode.type == EatScriptGuiNodeType.knob) ...[
                     _buildSectionHeader('KNOB PROPERTIES'),
                     const SizedBox(height: 6),
                     Text('Knob Diameter: ${(selectedNode.size ?? 52).toInt()}px', style: TextStyle(fontSize: 10, color: EatsTheme.textMuted)),
@@ -1435,7 +1435,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     ),
                   ],
 
-                  if (selectedNode.type == LuaGuiNodeType.slider || selectedNode.type == LuaGuiNodeType.fader) ...[
+                  if (selectedNode.type == EatScriptGuiNodeType.slider || selectedNode.type == EatScriptGuiNodeType.fader) ...[
                     _buildSectionHeader('SLIDER PROPERTIES'),
                     const SizedBox(height: 6),
                     _buildDropdown<SliderStyle>(
@@ -1456,7 +1456,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     ),
                   ],
 
-                  if (selectedNode.type == LuaGuiNodeType.column || selectedNode.type == LuaGuiNodeType.group) ...[
+                  if (selectedNode.type == EatScriptGuiNodeType.column || selectedNode.type == EatScriptGuiNodeType.group) ...[
                     _buildSectionHeader('VERTICAL STACK ITEMS'),
                     const SizedBox(height: 6),
                     Text('${selectedNode.children.length} items in stack', style: TextStyle(fontSize: 10, color: EatsTheme.textMuted)),
@@ -1511,8 +1511,8 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
   );
   }
 
-  Widget _buildRowAlignmentInspector(LuaGuiNode rowNode, int rowIndex) {
-    final isGroup = rowNode.type == LuaGuiNodeType.group;
+  Widget _buildRowAlignmentInspector(EatScriptGuiNode rowNode, int rowIndex) {
+    final isGroup = rowNode.type == EatScriptGuiNodeType.group;
     final double opacityVal = rowNode.opacity ?? 1.0;
     final double borderVal = rowNode.borderWidth ?? (isGroup ? 1.0 : 0.0);
 
@@ -1587,7 +1587,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
           ],
           onChanged: (v) {
             if (v != null) {
-              final style = v == 'none' ? null : LuaGuiNode.parseBackgroundStyle(v);
+              final style = v == 'none' ? null : EatScriptGuiNode.parseBackgroundStyle(v);
               _updateSelectedNode(rowNode.copyWith(
                 backgroundStyle: style,
                 clearBackgroundStyle: style == null,
@@ -1609,7 +1609,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       : '',
                 ),
                 (v) {
-                  final col = LuaGuiNode.parseColor(v);
+                  final col = EatScriptGuiNode.parseColor(v);
                   _updateSelectedNode(rowNode.copyWith(
                     backgroundColor: col,
                     clearBackgroundColor: col == null,
@@ -1768,7 +1768,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                 : '',
           ),
           (v) {
-            final col = LuaGuiNode.parseColor(v);
+            final col = EatScriptGuiNode.parseColor(v);
             _updateSelectedNode(rowNode.copyWith(borderColor: col));
           },
         ),
@@ -1904,7 +1904,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     return 'vintage_bakelite';
   }
 
-  String _getScaleLabelsString(LuaGuiNode? node) {
+  String _getScaleLabelsString(EatScriptGuiNode? node) {
     if (node == null) return '';
     if (node.options.isNotEmpty) {
       return node.options.join(', ');
@@ -1942,7 +1942,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     required Color defaultColor,
     required ValueChanged<Color?> onColorChanged,
   }) {
-    final isTrack = LuaGuiNode.isTrackColor(currentColor);
+    final isTrack = EatScriptGuiNode.isTrackColor(currentColor);
     final effectiveColor = isTrack
         ? (widget.trackColor ?? EatsTheme.primaryCyan)
         : (currentColor ?? defaultColor);
@@ -2034,9 +2034,9 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
   }) {
     Color? workingColor = currentColor;
     final hexController = TextEditingController(
-      text: currentColor != null && !LuaGuiNode.isTrackColor(currentColor)
+      text: currentColor != null && !EatScriptGuiNode.isTrackColor(currentColor)
           ? _hex(currentColor)
-          : (LuaGuiNode.isTrackColor(currentColor) ? 'track' : ''),
+          : (EatScriptGuiNode.isTrackColor(currentColor) ? 'track' : ''),
     );
     final trackColor = widget.trackColor ?? EatsTheme.primaryCyan;
 
@@ -2045,7 +2045,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
       builder: (dialogCtx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
-            final isTrack = LuaGuiNode.isTrackColor(workingColor);
+            final isTrack = EatScriptGuiNode.isTrackColor(workingColor);
             final previewColor = isTrack
                 ? trackColor
                 : (workingColor ?? defaultColor);
@@ -2124,10 +2124,10 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       InkWell(
                         onTap: () {
                           setModalState(() {
-                            workingColor = LuaGuiNode.trackColorSentinel;
+                            workingColor = EatScriptGuiNode.trackColorSentinel;
                             hexController.text = 'track';
                           });
-                          onColorChanged(LuaGuiNode.trackColorSentinel);
+                          onColorChanged(EatScriptGuiNode.trackColorSentinel);
                         },
                         borderRadius: BorderRadius.circular(8),
                         child: Container(
@@ -2277,12 +2277,12 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                                 final clean = v.trim().toLowerCase();
                                 if (clean == 'track') {
                                   setModalState(() {
-                                    workingColor = LuaGuiNode.trackColorSentinel;
+                                    workingColor = EatScriptGuiNode.trackColorSentinel;
                                   });
-                                  onColorChanged(LuaGuiNode.trackColorSentinel);
+                                  onColorChanged(EatScriptGuiNode.trackColorSentinel);
                                   return;
                                 }
-                                final col = LuaGuiNode.parseColor(v);
+                                final col = EatScriptGuiNode.parseColor(v);
                                 if (col != null) {
                                   setModalState(() {
                                     workingColor = col;
@@ -2322,7 +2322,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     );
   }
 
-  void _showForkSkinDialog(BuildContext context, LuaGuiNode node) {
+  void _showForkSkinDialog(BuildContext context, EatScriptGuiNode node) {
     final skin = node.customSkin ?? BuiltInVectorSkins.getSkinForKnobStyle(node.knobStyle);
     final scriptCode = BuiltInVectorSkins.exportToEatScript(skin, node.param ?? 'custom_knob');
 

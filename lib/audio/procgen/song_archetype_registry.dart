@@ -56,7 +56,7 @@ class SongArchetypeRegistry {
   /// Parses an `.eats` song string and registers it as an archetype if valid.
   static SongArchetype? registerFromEatString(String eatContent, {String? sourcePath}) {
     try {
-      final map = EatProjectParser.parseLuaTableToMap(eatContent);
+      final map = EatProjectParser.parseProjectDataToMap(eatContent);
       if (map.isEmpty) return null;
 
       final archetype = SongArchetype.fromEatMap(map, sourcePath: sourcePath);

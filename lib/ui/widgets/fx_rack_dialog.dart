@@ -75,10 +75,10 @@ void showFxGuiDialog(BuildContext context, DawState dawState, TrackChannel track
           final fxTrack = TrackChannel(
             id: fx.id,
             name: fx.name,
-            type: TrackType.luaScript,
+            type: TrackType.eatScript,
             color: EatsTheme.secondaryMagenta,
-            luaScriptCode: fx.luaScriptCode ?? '',
-            luaParams: fx.luaParams,
+            eatScriptCode: fx.eatScriptCode ?? '',
+            eatScriptParams: fx.eatScriptParams,
           );
 
           return Dialog(

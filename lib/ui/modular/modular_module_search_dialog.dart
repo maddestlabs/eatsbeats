@@ -443,7 +443,7 @@ class ModularModuleLibrary {
     // --- SCRIPT: PROGRAMMABLE DSP MODULES ---
     DynamicModuleDefinition(
       id: 'custom_script_dsp',
-      title: 'CUSTOM LUA DSP',
+      title: 'CUSTOM EATSCRIPT DSP',
       subtitle: 'Live Eatscript DSP Core',
       hpWidth: 16,
       accentColor: Color(0xFF00E5FF),
@@ -456,7 +456,7 @@ class ModularModuleLibrary {
     ),
     DynamicModuleDefinition(
       id: 'midi_script_mod',
-      title: 'MIDI LUA TRANSFORM',
+      title: 'MIDI EATSCRIPT TRANSFORM',
       subtitle: 'Event Processing & Macro Logic',
       hpWidth: 14,
       accentColor: Color(0xFFFFD600),

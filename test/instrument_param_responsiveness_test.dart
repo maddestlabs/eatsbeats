@@ -14,7 +14,7 @@ void main() {
 
     setUp(() {
       audioEngine = AudioEngine();
-      final ymPreset = LuaPresetLibrary.getPresetById('ym2612_synth');
+      final ymPreset = EatScriptLibrary.getPresetById('ym2612_synth');
       track = TrackChannel(
         id: 'test_ym2612',
         name: 'YM2612 Synth',
@@ -34,17 +34,17 @@ void main() {
       );
     });
 
-    test('track.luaParams map mutation invalidates paramsHash', () {
+    test('track.eatScriptParams map mutation invalidates paramsHash', () {
       final initialHash = track.paramsHash;
       expect(track.paramsHash, equals(initialHash)); // Cached read
 
       // Mutating parameter must immediately invalidate paramsHash
-      track.luaParams['Op1_Mult'] = 3.0;
+      track.eatScriptParams['Op1_Mult'] = 3.0;
       final newHash = track.paramsHash;
       expect(newHash, isNot(equals(initialHash)));
 
       // Setting same value does not invalidate
-      track.luaParams['Op1_Mult'] = 3.0;
+      track.eatScriptParams['Op1_Mult'] = 3.0;
       expect(track.paramsHash, equals(newHash));
     });
 
@@ -69,7 +69,7 @@ void main() {
       );
 
       // Mutate instrument parameter (knob tweak)
-      track.luaParams['Op1_TL'] = 80.0;
+      track.eatScriptParams['Op1_TL'] = 80.0;
       expect(audioEngine.isBufferCached(track: track, midiNote: 60, durationSec: 0.3), isFalse);
 
       // Play note with new params -> buffer synthesized and cached
@@ -101,23 +101,23 @@ void main() {
     });
 
     test('Subtle sub-0.01 parameter changes produce distinct hashes and audio', () {
-      track.luaParams['Op1_Attack'] = 0.002;
+      track.eatScriptParams['Op1_Attack'] = 0.002;
       final hash1 = track.paramsHash;
 
-      track.luaParams['Op1_Attack'] = 0.007;
+      track.eatScriptParams['Op1_Attack'] = 0.007;
       final hash2 = track.paramsHash;
 
       expect(hash1, isNot(equals(hash2)), reason: 'High precision hashing must distinguish 2ms from 7ms');
     });
 
-    test('dawState.updateLuaParam invalidates target track parameters', () {
+    test('dawState.updateScriptParam invalidates target track parameters', () {
       final dawState = DawState(enableMeterTimer: false);
       final testTrack = dawState.activeTrack;
       final initialHash = testTrack.paramsHash;
 
-      dawState.updateLuaParam('Cutoff', 1234.0, testTrack);
+      dawState.updateScriptParam('Cutoff', 1234.0, testTrack);
       expect(testTrack.paramsHash, isNot(equals(initialHash)));
-      expect(testTrack.luaParams['Cutoff'], equals(1234.0));
+      expect(testTrack.eatScriptParams['Cutoff'], equals(1234.0));
     });
 
     test('TrackChannel property setters invalidate paramsHash', () {

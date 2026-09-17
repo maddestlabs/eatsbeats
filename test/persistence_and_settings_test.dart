@@ -41,15 +41,15 @@ void main() {
       expect(afterDelete, isNull);
     });
 
-    test('Session Lua save, load, and clear', () async {
-      const sampleLua = '-- Eatsbeats Test Project\nreturn eatsbeats.song { bpm = 130 }';
+    test('Session Eatscript save, load, and clear', () async {
+      const sampleEatScript = '-- Eatsbeats Test Project\nreturn eatsbeats.song { bpm = 130 }';
 
-      await EatsStorageHelper.saveSessionLua(sampleLua);
-      final loaded = await EatsStorageHelper.loadSessionLua();
-      expect(loaded, equals(sampleLua));
+      await EatsStorageHelper.saveSessionEatScript(sampleEatScript);
+      final loaded = await EatsStorageHelper.loadSessionEatScript();
+      expect(loaded, equals(sampleEatScript));
 
-      await EatsStorageHelper.clearSessionLua();
-      final cleared = await EatsStorageHelper.loadSessionLua();
+      await EatsStorageHelper.clearSessionEatScript();
+      final cleared = await EatsStorageHelper.loadSessionEatScript();
       expect(cleared, isNull);
     });
   });
@@ -95,8 +95,8 @@ void main() {
       stateA.setProjectDetails('Persisted Acid Track', 'Maddest Producer');
       stateA.setBpm(138.0);
 
-      final exportedLua = stateA.exportToEatsLua();
-      await EatsStorageHelper.saveSessionLua(exportedLua);
+      final exportedEatScript = stateA.exportToEats();
+      await EatsStorageHelper.saveSessionEatScript(exportedEatScript);
 
       final stateB = DawState(enableMeterTimer: false);
       final restored = await stateB.restoreSavedSession();
@@ -107,7 +107,7 @@ void main() {
       expect(stateB.bpm, equals(138.0));
 
       await stateB.clearSavedSession();
-      final loadedAfterClear = await EatsStorageHelper.loadSessionLua();
+      final loadedAfterClear = await EatsStorageHelper.loadSessionEatScript();
       expect(loadedAfterClear, isNull);
 
       stateA.dispose();

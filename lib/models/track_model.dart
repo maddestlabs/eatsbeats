@@ -14,8 +14,6 @@ enum TrackType {
   tts,
   folder;
 
-  @Deprecated('Use TrackType.eatScript')
-  static const TrackType luaScript = TrackType.eatScript;
   // Backward compatibility getter
   bool get isScript => this == TrackType.eatScript;
   bool get isFolder => this == TrackType.folder;
@@ -348,8 +346,6 @@ enum FXType {
   vintageTape,
   eatScriptFX;
 
-  @Deprecated('Use FXType.eatScriptFX')
-  static const FXType luaFX = FXType.eatScriptFX;
 }
 
 class FXInsert {
@@ -364,14 +360,6 @@ class FXInsert {
   String? presetId; // Preset identifier from EatScriptLibrary
   Map<String, double> eatScriptParams; // Custom Eatscript params
 
-  @Deprecated('Use eatScriptCode')
-  String? get luaScriptCode => eatScriptCode;
-  set luaScriptCode(String? val) => eatScriptCode = val;
-
-  @Deprecated('Use eatScriptParams')
-  Map<String, double> get luaParams => eatScriptParams;
-  set luaParams(Map<String, double> val) => eatScriptParams = val;
-
   FXInsert({
     required this.id,
     required this.name,
@@ -380,29 +368,22 @@ class FXInsert {
     this.mix = 0.5,
     required this.params,
     this.irSampleName,
-    String? eatScriptCode,
-    String? luaScriptCode,
+    this.eatScriptCode,
     this.presetId,
     Map<String, double>? eatScriptParams,
-    Map<String, double>? luaParams,
-  })  : eatScriptCode = eatScriptCode ?? luaScriptCode,
-        eatScriptParams = eatScriptParams ?? luaParams ?? {};
+  }) : eatScriptParams = eatScriptParams ?? {};
 
   bool get isEatScriptFX => type == FXType.eatScriptFX || (eatScriptCode != null && eatScriptCode!.isNotEmpty);
-  @Deprecated('Use isEatScriptFX')
-  bool get isLuaFX => isEatScriptFX;
 
   factory FXInsert.create(
     FXType type, {
     String? name,
     String? eatScriptCode,
-    String? luaScriptCode,
     String? presetId,
     Map<String, double>? eatScriptParams,
-    Map<String, double>? luaParams,
   }) {
-    final code = eatScriptCode ?? luaScriptCode;
-    final pMap = eatScriptParams ?? luaParams;
+    final code = eatScriptCode;
+    final pMap = eatScriptParams;
     final id = 'fx_${DateTime.now().millisecondsSinceEpoch}_${type.name}';
     switch (type) {
       case FXType.convolutionReverb:
@@ -413,9 +394,9 @@ class FXInsert {
           mix: 0.5,
           params: {'DryLevel': 1.0, 'WetLevel': 0.5, 'PreDelayMs': 10.0, 'HighCut': 8000.0},
           irSampleName: 'Great Hall',
-          luaScriptCode: luaScriptCode,
+          eatScriptCode: code,
           presetId: presetId,
-          luaParams: luaParams,
+          eatScriptParams: pMap,
         );
 
       case FXType.distortion:
@@ -425,9 +406,9 @@ class FXInsert {
           type: FXType.distortion,
           mix: 0.5,
           params: {'Drive': 0.5, 'Tone': 5000.0},
-          luaScriptCode: luaScriptCode,
+          eatScriptCode: code,
           presetId: presetId,
-          luaParams: luaParams,
+          eatScriptParams: pMap,
         );
       case FXType.bitcrusher:
         return FXInsert(
@@ -436,9 +417,9 @@ class FXInsert {
           type: FXType.bitcrusher,
           mix: 0.6,
           params: {'Bits': 8.0, 'Downsample': 4.0},
-          luaScriptCode: luaScriptCode,
+          eatScriptCode: code,
           presetId: presetId,
-          luaParams: luaParams,
+          eatScriptParams: pMap,
         );
       case FXType.delay:
         return FXInsert(
@@ -447,9 +428,9 @@ class FXInsert {
           type: FXType.delay,
           mix: 0.3,
           params: {'TimeMs': 250.0, 'Feedback': 0.4},
-          luaScriptCode: luaScriptCode,
+          eatScriptCode: code,
           presetId: presetId,
-          luaParams: luaParams,
+          eatScriptParams: pMap,
         );
       case FXType.compressor:
         return FXInsert(
@@ -464,9 +445,9 @@ class FXInsert {
             'Release': 0.25,
             'Knee': 12.0,
           },
-          luaScriptCode: luaScriptCode,
+          eatScriptCode: code,
           presetId: presetId,
-          luaParams: luaParams,
+          eatScriptParams: pMap,
         );
       case FXType.limiter:
         return FXInsert(
@@ -479,9 +460,9 @@ class FXInsert {
             'Release': 0.05,
             'Ceiling': -0.1,
           },
-          luaScriptCode: luaScriptCode,
+          eatScriptCode: code,
           presetId: presetId,
-          luaParams: luaParams,
+          eatScriptParams: pMap,
         );
       case FXType.vintageTape:
         return FXInsert(
@@ -548,25 +529,23 @@ class FXInsert {
     'params': params,
     'irSampleName': irSampleName,
     'eatScriptCode': eatScriptCode,
-    'luaScriptCode': eatScriptCode,
     'presetId': presetId,
     'eatScriptParams': eatScriptParams,
-    'luaParams': eatScriptParams,
   };
 
   factory FXInsert.fromJson(Map<String, dynamic> json) => FXInsert(
     id: json['id'] ?? '',
     name: json['name'] ?? '',
-    type: json['type'] == 'luaFX' || json['type'] == 'eatScriptFX'
+    type: json['type'] == 'eatScriptFX'
         ? FXType.eatScriptFX
         : FXType.values.firstWhere((e) => e.name == json['type'], orElse: () => FXType.biquadFilter),
     enabled: json['enabled'] ?? true,
     mix: (json['mix'] as num?)?.toDouble() ?? 0.5,
     params: Map<String, double>.from(json['params'] ?? {}),
     irSampleName: json['irSampleName'] as String?,
-    eatScriptCode: (json['eatScriptCode'] ?? json['luaScriptCode']) as String?,
+    eatScriptCode: (json['eatScriptCode'] ?? json['eatScriptCode']) as String?,
     presetId: json['presetId'] as String?,
-    eatScriptParams: Map<String, double>.from(json['eatScriptParams'] ?? json['luaParams'] ?? {}),
+    eatScriptParams: Map<String, double>.from(json['eatScriptParams'] ?? json['eatScriptParams'] ?? {}),
   );
 }
 
@@ -574,36 +553,30 @@ class MidiFXInsert {
   String id;
   String name;
   bool enabled;
-  String luaScriptCode;
-  Map<String, double> luaParams;
-
-  String get eatScriptCode => luaScriptCode;
-  set eatScriptCode(String val) => luaScriptCode = val;
-
-  Map<String, double> get eatScriptParams => luaParams;
-  set eatScriptParams(Map<String, double> val) => luaParams = val;
+  String eatScriptCode;
+  Map<String, double> eatScriptParams;
 
   MidiFXInsert({
     required this.id,
     required this.name,
     this.enabled = true,
-    this.luaScriptCode = '',
-    Map<String, double>? luaParams,
-  }) : luaParams = luaParams ?? {};
+    this.eatScriptCode = '',
+    Map<String, double>? eatScriptParams,
+  }) : eatScriptParams = eatScriptParams ?? {};
 
   MidiFXInsert copyWith({
     String? id,
     String? name,
     bool? enabled,
-    String? luaScriptCode,
-    Map<String, double>? luaParams,
+    String? eatScriptCode,
+    Map<String, double>? eatScriptParams,
   }) {
     return MidiFXInsert(
       id: id ?? this.id,
       name: name ?? this.name,
       enabled: enabled ?? this.enabled,
-      luaScriptCode: luaScriptCode ?? this.luaScriptCode,
-      luaParams: luaParams ?? Map.from(this.luaParams),
+      eatScriptCode: eatScriptCode ?? this.eatScriptCode,
+      eatScriptParams: eatScriptParams ?? Map.from(this.eatScriptParams),
     );
   }
 
@@ -611,18 +584,16 @@ class MidiFXInsert {
     'id': id,
     'name': name,
     'enabled': enabled,
-    'luaScriptCode': luaScriptCode,
-    'eatScriptCode': luaScriptCode,
-    'luaParams': luaParams,
-    'eatScriptParams': luaParams,
+    'eatScriptCode': eatScriptCode,
+    'eatScriptParams': eatScriptParams,
   };
 
   factory MidiFXInsert.fromJson(Map<String, dynamic> json) => MidiFXInsert(
     id: json['id'] ?? '',
     name: json['name'] ?? '',
     enabled: json['enabled'] ?? true,
-    luaScriptCode: (json['eatScriptCode'] ?? json['luaScriptCode']) ?? '',
-    luaParams: Map<String, double>.from(json['eatScriptParams'] ?? json['luaParams'] ?? {}),
+    eatScriptCode: (json['eatScriptCode'] ?? json['eatScriptCode']) ?? '',
+    eatScriptParams: Map<String, double>.from(json['eatScriptParams'] ?? json['eatScriptParams'] ?? {}),
   );
 }
 
@@ -637,14 +608,6 @@ class TrackClip {
   List<LyricCue> lyrics;
   String eatScriptCode;
   Map<String, double> eatScriptParams;
-
-  @Deprecated('Use eatScriptCode')
-  String get luaScriptCode => eatScriptCode;
-  set luaScriptCode(String val) => eatScriptCode = val;
-
-  @Deprecated('Use eatScriptParams')
-  Map<String, double> get luaParams => eatScriptParams;
-  set luaParams(Map<String, double> val) => eatScriptParams = val;
 
   List<Note>? evaluatedNotesCache;
   List<AutomationLane> automationLanes;
@@ -665,9 +628,10 @@ class TrackClip {
   bool get hasEmbeddedMidi => embeddedTranscribedNotes.isNotEmpty;
 
   bool get hasMidiScript {
-    if (luaScriptCode.trim().isEmpty) return false;
-    final lower = luaScriptCode.toLowerCase();
+    if (eatScriptCode.trim().isEmpty) return false;
+    final lower = eatScriptCode.toLowerCase();
     return lower.contains('transform_notes') ||
+        lower.contains('def process') ||
         lower.contains('function process') ||
         lower.contains('midi.') ||
         lower.contains('chord.') ||
@@ -690,9 +654,7 @@ class TrackClip {
     List<Note>? notes,
     List<LyricCue>? lyrics,
     String? eatScriptCode,
-    String? luaScriptCode,
     Map<String, double>? eatScriptParams,
-    Map<String, double>? luaParams,
     this.evaluatedNotesCache,
     List<AutomationLane>? automationLanes,
     this.isAudioClip = false,
@@ -701,8 +663,8 @@ class TrackClip {
     List<Note>? embeddedTranscribedNotes,
   })  : notes = notes ?? [],
         lyrics = lyrics ?? [],
-        eatScriptCode = eatScriptCode ?? luaScriptCode ?? '',
-        eatScriptParams = eatScriptParams ?? luaParams ?? {},
+        eatScriptCode = eatScriptCode ?? '',
+        eatScriptParams = eatScriptParams ?? {},
         automationLanes = automationLanes ?? [],
         embeddedTranscribedNotes = embeddedTranscribedNotes ?? [];
 
@@ -716,8 +678,8 @@ class TrackClip {
     int? loopLengthBars,
     List<Note>? notes,
     List<LyricCue>? lyrics,
-    String? luaScriptCode,
-    Map<String, double>? luaParams,
+    String? eatScriptCode,
+    Map<String, double>? eatScriptParams,
     List<Note>? evaluatedNotesCache,
     List<AutomationLane>? automationLanes,
     bool? isAudioClip,
@@ -735,8 +697,8 @@ class TrackClip {
       loopLengthBars: loopLengthBars ?? this.loopLengthBars,
       notes: notes ?? this.notes.map((n) => n.copyWith()).toList(),
       lyrics: lyrics ?? this.lyrics.map((l) => l.copyWith()).toList(),
-      eatScriptCode: eatScriptCode ?? luaScriptCode ?? this.eatScriptCode,
-      eatScriptParams: eatScriptParams ?? luaParams ?? Map.from(this.eatScriptParams),
+      eatScriptCode: eatScriptCode ?? this.eatScriptCode,
+      eatScriptParams: eatScriptParams ?? Map.from(this.eatScriptParams),
       evaluatedNotesCache: evaluatedNotesCache ?? (this.evaluatedNotesCache != null ? this.evaluatedNotesCache!.map((n) => n.copyWith()).toList() : null),
       automationLanes: automationLanes ?? this.automationLanes.map((a) => a.copyWith()).toList(),
       isAudioClip: isAudioClip ?? this.isAudioClip,
@@ -757,9 +719,7 @@ class TrackClip {
     'notes': notes.map((n) => n.toJson()).toList(),
     'lyrics': lyrics.map((l) => l.toJson()).toList(),
     'eatScriptCode': eatScriptCode,
-    'luaScriptCode': eatScriptCode,
     'eatScriptParams': eatScriptParams,
-    'luaParams': eatScriptParams,
     'automationLanes': automationLanes.map((a) => a.toJson()).toList(),
     'isAudioClip': isAudioClip,
     if (audioSampleName != null) 'audioSampleName': audioSampleName,
@@ -777,8 +737,8 @@ class TrackClip {
     loopLengthBars: (json['loopLengthBars'] as num?)?.toInt(),
     notes: (json['notes'] as List?)?.map((n) => Note.fromJson(n)).toList() ?? [],
     lyrics: (json['lyrics'] as List?)?.map((l) => LyricCue.fromJson(l)).toList() ?? [],
-    eatScriptCode: (json['eatScriptCode'] ?? json['luaScriptCode']) ?? '',
-    eatScriptParams: Map<String, double>.from(json['eatScriptParams'] ?? json['luaParams'] ?? {}),
+    eatScriptCode: (json['eatScriptCode'] ?? json['eatScriptCode']) ?? '',
+    eatScriptParams: Map<String, double>.from(json['eatScriptParams'] ?? json['eatScriptParams'] ?? {}),
     automationLanes: (json['automationLanes'] as List?)
             ?.map((a) => AutomationLane.fromJson(a))
             .toList() ??
@@ -973,14 +933,6 @@ class TrackChannel {
     _eatScriptParams[key] = value;
   }
 
-  @Deprecated('Use eatScriptCode')
-  String get luaScriptCode => eatScriptCode;
-  set luaScriptCode(String val) => eatScriptCode = val;
-
-  @Deprecated('Use eatScriptParams')
-  Map<String, double> get luaParams => eatScriptParams;
-  set luaParams(Map<String, double> val) => eatScriptParams = val;
-
   // Pattern steps & Piano Roll notes & Per-track clips
   List<StepEvent> steps; // 16 or 32 step grid
   List<Note> notes; // Active clip notes
@@ -1012,7 +964,7 @@ class TrackChannel {
   Float32List? frozenAudioBuffer; // Contiguous rendered stereo/mono PCM Float32 stream
   int frozenSampleRate;
   double frozenDurationSec;
-  String? frozenContentHash; // Deterministic hash of Lua code, parameters, notes & FX
+  String? frozenContentHash; // Deterministic hash of Eatscript code, parameters, notes & FX
 
   bool get hasValidBake => isFrozen && frozenAudioBuffer != null && frozenAudioBuffer!.isNotEmpty;
 
@@ -1048,18 +1000,37 @@ class TrackChannel {
 
   /// Determines whether this track represents a drum, percussion, or kit instrument.
   bool get isDrumTrack =>
-      iconName == 'drums' ||
+      type == TrackType.sampler ||
       name.toLowerCase().contains('drum') ||
+      name.toLowerCase().contains('beat') ||
+      name.toLowerCase().contains('kit') ||
+      name.toLowerCase().contains('percussion') ||
       name.toLowerCase().contains('kick') ||
       name.toLowerCase().contains('snare') ||
-      name.toLowerCase().contains('percussion') ||
-      sampleName.toLowerCase().contains('drum') ||
-      sampleName.toLowerCase().contains('kick') ||
-      sampleName.toLowerCase().contains('snare') ||
-      eatScriptCode.contains('gm_standard_drum_kit') ||
-      eatScriptCode.contains('modular_drumpad_kit') ||
-      eatScriptCode.contains('GmDrumKitEngine') ||
-      eatScriptCode.contains('drum(');
+      name.toLowerCase().contains('hihat') ||
+      name.toLowerCase().contains('hat') ||
+      name.toLowerCase().contains('tom') ||
+      name.toLowerCase().contains('cymbal') ||
+      name.toLowerCase().contains('clap') ||
+      name.toLowerCase().contains('rim') ||
+      name.toLowerCase().contains('cowbell') ||
+      name.toLowerCase().contains('shaker') ||
+      name.toLowerCase().contains('conga') ||
+      name.toLowerCase().contains('bongo') ||
+      name.toLowerCase().contains('808') ||
+      name.toLowerCase().contains('909') ||
+      name.toLowerCase().contains('707') ||
+      name.toLowerCase().contains('linn') ||
+      name.toLowerCase().contains('dMX') ||
+      name.toLowerCase().contains('cr-78') ||
+      eatScriptCode.contains('drum_machine') ||
+      eatScriptCode.contains('snes_drum') ||
+      eatScriptCode.contains('analog_drum') ||
+      eatScriptCode.contains('c64_drum') ||
+      eatScriptCode.contains('synth_drum') ||
+      eatScriptCode.contains('tr909') ||
+      eatScriptCode.contains('tr808') ||
+      eatScriptCode.contains('cr78');
 
   String iconName; // e.g. 'synth', 'drums', 'bass', 'vocal', 'lead', 'fx', 'sampler', 'piano', 'guitar', 'waveform', 'code', 'music', 'tts', 'folder'
 
@@ -1096,7 +1067,7 @@ class TrackChannel {
       case 'speaker':
         return Icons.speaker;
       case 'code':
-      case 'lua':
+      case 'eatscript':
         return Icons.code;
       case 'memory':
       case 'bits':
@@ -1224,9 +1195,7 @@ class TrackChannel {
     List<LyricCue>? lyrics,
     String? iconName,
     String? eatScriptCode,
-    String? luaScriptCode,
     Map<String, double>? eatScriptParams,
-    Map<String, double>? luaParams,
     this.trackerColumns = 4,
     this.activeView = MusicViewType.pianoRoll,
     this.isMonophonic = false,
@@ -1258,7 +1227,7 @@ class TrackChannel {
         enableTts = enableTts ?? (type == TrackType.tts),
         lyrics = lyrics ?? [],
         iconName = iconName ?? _defaultIconForType(type),
-        _eatScriptCode = eatScriptCode ?? luaScriptCode ?? '',
+        _eatScriptCode = eatScriptCode ?? '',
         steps = steps ?? List.generate(32, (_) => StepEvent()),
         notes = notes ?? [],
         clips = clips ?? [],
@@ -1266,7 +1235,7 @@ class TrackChannel {
         automationLanes = automationLanes ?? [],
         fxRack = fxRack ?? [],
         midiFXRack = midiFXRack ?? [] {
-    final initialMap = Map<String, double>.from(eatScriptParams ?? luaParams ?? {});
+    final initialMap = Map<String, double>.from(eatScriptParams ?? {});
     _eatScriptParams = _TrackParamMap(initialMap, invalidateParamsHash);
   }
 
@@ -1278,7 +1247,7 @@ class TrackChannel {
         return 'sampler';
       case TrackType.bass:
         return 'bass';
-      case TrackType.luaScript:
+      case TrackType.eatScript:
         return 'code';
       case TrackType.tts:
         return 'tts';
@@ -1318,7 +1287,6 @@ class TrackChannel {
     List<LyricCue>? lyrics,
     String? iconName,
     String? eatScriptCode,
-    String? luaScriptCode,
     int? trackerColumns,
     MusicViewType? activeView,
     bool? isMonophonic,
@@ -1334,7 +1302,6 @@ class TrackChannel {
     bool? isFolderBus,
     bool? syncColorWithChildren,
     Map<String, double>? eatScriptParams,
-    Map<String, double>? luaParams,
     List<StepEvent>? steps,
     List<Note>? notes,
     List<TrackClip>? clips,
@@ -1373,7 +1340,7 @@ class TrackChannel {
       ttsVolume: ttsVolume ?? this.ttsVolume,
       lyrics: lyrics ?? this.lyrics.map((l) => l.copyWith()).toList(),
       iconName: iconName ?? this.iconName,
-      eatScriptCode: eatScriptCode ?? luaScriptCode ?? this.eatScriptCode,
+      eatScriptCode: eatScriptCode ?? this.eatScriptCode,
       trackerColumns: trackerColumns ?? this.trackerColumns,
       activeView: activeView ?? this.activeView,
       isMonophonic: isMonophonic ?? this.isMonophonic,
@@ -1388,7 +1355,7 @@ class TrackChannel {
       isCollapsed: isCollapsed ?? this.isCollapsed,
       isFolderBus: isFolderBus ?? this.isFolderBus,
       syncColorWithChildren: syncColorWithChildren ?? this.syncColorWithChildren,
-      eatScriptParams: eatScriptParams ?? luaParams ?? Map.from(this.eatScriptParams),
+      eatScriptParams: eatScriptParams ?? Map.from(this.eatScriptParams),
       steps: steps ?? this.steps.map((s) => s.copyWith()).toList(),
       notes: notes ?? this.notes.map((n) => n.copyWith()).toList(),
       clips: clips ?? this.clips.map((c) => c.copyWith()).toList(),
@@ -1430,7 +1397,6 @@ class TrackChannel {
     'ttsVolume': ttsVolume,
     'lyrics': lyrics.map((l) => l.toJson()).toList(),
     'eatScriptCode': eatScriptCode,
-    'luaScriptCode': eatScriptCode,
     'trackerColumns': trackerColumns,
     'activeView': activeView.name,
     'isMonophonic': isMonophonic,
@@ -1442,7 +1408,6 @@ class TrackChannel {
     'isFolderBus': isFolderBus,
     'syncColorWithChildren': syncColorWithChildren,
     'eatScriptParams': eatScriptParams,
-    'luaParams': eatScriptParams,
     'steps': steps.map((s) => s.toJson()).toList(),
     'notes': notes.map((n) => n.toJson()).toList(),
     'automationLanes': automationLanes.map((a) => a.toJson()).toList(),
@@ -1454,7 +1419,7 @@ class TrackChannel {
     id: json['id'] ?? '',
     name: json['name'] ?? '',
     color: Color(json['color'] ?? 0xFF4A90E2),
-    type: json['type'] == 'luaScript' || json['type'] == 'eatScript'
+    type: json['type'] == 'eatScript'
         ? TrackType.eatScript
         : TrackType.values.firstWhere((e) => e.name == json['type'], orElse: () => TrackType.synth),
     iconName: json['iconName'],
@@ -1482,8 +1447,8 @@ class TrackChannel {
     ttsRate: (json['ttsRate'] as num?)?.toDouble() ?? 1.0,
     ttsVolume: (json['ttsVolume'] as num?)?.toDouble() ?? 1.0,
     lyrics: (json['lyrics'] as List?)?.map((l) => LyricCue.fromJson(l)).toList() ?? [],
-    eatScriptCode: (json['eatScriptCode'] ?? json['luaScriptCode']) ?? '',
-    eatScriptParams: Map<String, double>.from(json['eatScriptParams'] ?? json['luaParams'] ?? {}),
+    eatScriptCode: (json['eatScriptCode'] ?? json['eatScriptCode']) ?? '',
+    eatScriptParams: Map<String, double>.from(json['eatScriptParams'] ?? json['eatScriptParams'] ?? {}),
     trackerColumns: json['trackerColumns'] ?? 4,
     activeView: MusicViewType.values.firstWhere((e) => e.name == json['activeView'], orElse: () => MusicViewType.pianoRoll),
     isMonophonic: json['isMonophonic'] ?? false,
@@ -1494,7 +1459,6 @@ class TrackChannel {
     isCollapsed: json['isCollapsed'] ?? false,
     isFolderBus: json['isFolderBus'] ?? true,
     syncColorWithChildren: json['syncColorWithChildren'] ?? true,
-    luaParams: Map<String, double>.from(json['eatScriptParams'] ?? json['luaParams'] ?? {}),
     steps: (json['steps'] as List?)?.map((s) => StepEvent.fromJson(s)).toList() ?? List.generate(32, (_) => StepEvent()),
     notes: (json['notes'] as List?)?.map((n) => Note.fromJson(n)).toList() ?? [],
     clips: (json['clips'] as List?)?.map((c) => TrackClip.fromJson(c)).toList() ?? [],

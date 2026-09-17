@@ -26,8 +26,8 @@ void main() {
         startBar: 0,
         barLength: 4,
         notes: [Note(id: 'n0', pitch: 60, startStep: 0, durationSteps: 2)],
-        luaScriptCode: '',
-        luaParams: {},
+        eatScriptCode: '',
+        eatScriptParams: {},
       );
       track0.clips = [clip0];
 
@@ -39,8 +39,8 @@ void main() {
         startBar: 4,
         barLength: 4,
         notes: [Note(id: 'n1', pitch: 64, startStep: 0, durationSteps: 2)],
-        luaScriptCode: '',
-        luaParams: {},
+        eatScriptCode: '',
+        eatScriptParams: {},
       );
       track1.clips = [clip1];
 

@@ -186,33 +186,33 @@ class EatsStorageHelperImpl {
 
   // --- Session Storage API ---
 
-  static const String _sessionKey = 'eatsbeats_session_lua';
+  static const String _sessionKey = 'eatsbeats_session_eatscript';
 
-  static Future<void> saveSessionLua(String luaCode) async {
+  static Future<void> saveSessionEatScript(String eatScriptCode) async {
     try {
-      html.window.localStorage[_sessionKey] = luaCode;
+      html.window.localStorage[_sessionKey] = eatScriptCode;
     } catch (e) {
-      debugPrint('EatsStorageHelper (Web) error saving session lua: $e');
+      debugPrint('EatsStorageHelper (Web) error saving session Eatscript: $e');
     }
   }
 
-  static Future<String?> loadSessionLua() async {
+  static Future<String?> loadSessionEatScript() async {
     try {
       final content = html.window.localStorage[_sessionKey];
       if (content != null && content.trim().isNotEmpty) {
         return content;
       }
     } catch (e) {
-      debugPrint('EatsStorageHelper (Web) error loading session lua: $e');
+      debugPrint('EatsStorageHelper (Web) error loading session Eatscript: $e');
     }
     return null;
   }
 
-  static Future<void> clearSessionLua() async {
+  static Future<void> clearSessionEatScript() async {
     try {
       html.window.localStorage.remove(_sessionKey);
     } catch (e) {
-      debugPrint('EatsStorageHelper (Web) error clearing session lua: $e');
+      debugPrint('EatsStorageHelper (Web) error clearing session Eatscript: $e');
     }
   }
 
@@ -245,11 +245,11 @@ class EatsStorageHelperImpl {
     return results;
   }
 
-  static Future<SavedProjectItem?> saveProjectFile(String name, String luaCode) async {
+  static Future<SavedProjectItem?> saveProjectFile(String name, String eatScriptCode) async {
     final sanitized = name.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final id = 'proj_${DateTime.now().millisecondsSinceEpoch}';
     final lower = sanitized.toLowerCase();
-    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eats.lua'))
+    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eats'))
         ? sanitized
         : '$sanitized.eats';
 
@@ -258,7 +258,7 @@ class EatsStorageHelperImpl {
         id: id,
         name: sanitized,
         fileName: fileName,
-        fileSizeBytes: utf8.encode(luaCode).length,
+        fileSizeBytes: utf8.encode(eatScriptCode).length,
         lastModified: DateTime.now(),
         isWebStorage: true,
       );
@@ -268,7 +268,7 @@ class EatsStorageHelperImpl {
       list.insert(0, item);
 
       html.window.localStorage[_projectsMetaKey] = jsonEncode(list.map((p) => p.toJson()).toList());
-      html.window.localStorage['$_projectPrefix$id'] = luaCode;
+      html.window.localStorage['$_projectPrefix$id'] = eatScriptCode;
       return item;
     } catch (e) {
       debugPrint('EatsStorageHelper (Web) error saving project: $e');
@@ -301,7 +301,7 @@ class EatsStorageHelperImpl {
   static Future<bool> renameProjectFile(SavedProjectItem item, String newName) async {
     final sanitized = newName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final lower = sanitized.toLowerCase();
-    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eats.lua'))
+    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eats'))
         ? sanitized
         : '$sanitized.eats';
 

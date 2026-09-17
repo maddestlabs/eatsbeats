@@ -114,7 +114,7 @@ class EatScriptEngine {
     double duration = 0.4,
   ]) => EatDspSynthesizer.evaluateAdsr(time, attack, decay, sustain, release, duration);
 
-  /// Determines whether a code block is Eatscript or Lua.
+  /// Determines whether a code block is Eatscript.
   static bool isEatScript(String code) {
     final trimmed = code.trim();
     if (trimmed.isEmpty) return false;
@@ -124,11 +124,11 @@ class EatScriptEngine {
       return true;
     }
 
-    // Explicit Lua markers (functions, ends, local variables, lua comments)
-    final hasLuaKeywords = RegExp(r'(?:^|[;\s])(?:function\s+[\w\.:]+|function\s*\(|local\s+\w+|then\s*$|elseif\s+|end\s*$|end[;\s])', multiLine: true).hasMatch(trimmed) ||
+    // Reject legacy function/local markers
+    final hasLegacyKeywords = RegExp(r'(?:^|[;\s])(?:function\s+[\w\.:]+|function\s*\(|local\s+\w+|then\s*$|elseif\s+|end\s*$|end[;\s])', multiLine: true).hasMatch(trimmed) ||
         trimmed.startsWith('--') ||
         trimmed.contains('\n--');
-    if (hasLuaKeywords) {
+    if (hasLegacyKeywords) {
       return false;
     }
 
@@ -154,11 +154,11 @@ class EatScriptEngine {
     final cached = _cache[code];
     if (cached != null) return cached;
 
-    final isExplicitLua = !isEatScript(code);
+    final isLegacy = !isEatScript(code);
 
-    if (isExplicitLua) {
-      final params = EatTranspiler.extractLuaParams(code);
-      final guiPanel = LuaGuiParser.parseFromCode(code);
+    if (isLegacy) {
+      final params = EatTranspiler.extractLegacyParams(code);
+      final guiPanel = EatGuiParser.parseFromCode(code);
       final result = EatCompilationResult(
         isSuccess: true,
         errorMessage: 'Script parameters loaded. Active parameters: ${params.length}${guiPanel != null ? " [Custom Hardware GUI Active]" : ""}',
@@ -216,11 +216,11 @@ class EatScriptEngine {
       }
 
       // Check if GUI definition was declared via eat.gui(...) or fallback to parser
-      LuaGuiPanelDef? guiPanel;
+      EatScriptGuiPanelDef? guiPanel;
       if (dryContext.guiLayout != null) {
         guiPanel = _buildGuiPanelFromMap(dryContext.guiLayout!);
       } else {
-        guiPanel = LuaGuiParser.parseFromCode(code);
+        guiPanel = EatGuiParser.parseFromCode(code);
       }
 
       final detectedEngineId = dryContext.engineId ?? EatEngineRegistry.detectEngineId(code);
@@ -409,9 +409,9 @@ class EatScriptEngine {
     return [];
   }
 
-  static LuaGuiPanelDef? _buildGuiPanelFromMap(Map<String, dynamic> map) {
+  static EatScriptGuiPanelDef? _buildGuiPanelFromMap(Map<String, dynamic> map) {
     try {
-      return LuaGuiParser.parseFromMap(map);
+      return EatGuiParser.parseFromMap(map);
     } catch (_) {
       return null;
     }
@@ -454,7 +454,7 @@ class EatScriptEngine {
   /// Executes an Eatscript Macro against [DawState] with the provided [params].
   static ProjectScriptResult executeMacro({
     required DawState dawState,
-    required LuaScriptDef script,
+    required EatScriptDef script,
     Map<String, dynamic> params = const {},
   }) {
     final compResult = compile(script.code, initialParamValues: params);

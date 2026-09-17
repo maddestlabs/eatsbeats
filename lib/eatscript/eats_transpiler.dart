@@ -2,11 +2,11 @@ import 'dart:math' as math;
 import 'eats_project_parser.dart';
 import 'eats_param_model.dart';
 
-/// Transpiles legacy Lua preset and script definitions into pure, Pythonic Eatscript.
+/// Transpiles Eatscript preset and script definitions into pure, Pythonic Eatscript.
 class EatTranspiler {
-  /// Transpiles a Lua preset script into idiomatic Eatscript.
-  static String transpileLuaPreset(String luaCode) {
-    final lines = luaCode.split('\n');
+  /// Transpiles a legacy preset script into idiomatic Eatscript.
+  static String transpileEatScriptPreset(String eatScriptCode) {
+    final lines = eatScriptCode.split('\n');
     final buffer = StringBuffer();
 
     // 1. Extract and convert header metadata
@@ -48,7 +48,7 @@ class EatTranspiler {
     buffer.writeln();
 
     // 2. Discover parameters from Param.add / Param.choice
-    final params = extractLuaParams(luaCode);
+    final params = extractLegacyParams(eatScriptCode);
 
     buffer.writeln('# --- Parameter Definitions ---');
     buffer.writeln('def init():');
@@ -66,9 +66,9 @@ class EatTranspiler {
     buffer.writeln();
 
     // 3. Extract and convert GUI layout if present
-    final guiTableStr = _extractGuiTableString(luaCode);
+    final guiTableStr = _extractGuiTableString(eatScriptCode);
     if (guiTableStr != null) {
-      final parsedMap = EatsLuaParser.parseLuaTableToMap(guiTableStr);
+      final parsedMap = EatProjectParser.parseProjectDataToMap(guiTableStr);
       if (parsedMap.isNotEmpty) {
         buffer.writeln('# --- Hardware GUI Layout ---');
         buffer.writeln('def gui():');
@@ -80,35 +80,35 @@ class EatTranspiler {
     }
 
     // 4. Extract transform_notes / split / run / process algorithmic hooks if present
-    if (luaCode.contains('transform_notes')) {
+    if (eatScriptCode.contains('transform_notes')) {
       buffer.writeln('# --- MIDI Transformation Hook ---');
       buffer.writeln('def transform_notes(notes, params, time_context):');
-      if (luaCode.contains('arpeggiat') || luaCode.contains('Midi.arpeggiate')) {
+      if (eatScriptCode.contains('arpeggiat') || eatScriptCode.contains('Midi.arpeggiate')) {
         buffer.writeln('    return eat.arpeggiate(notes, rate=params.get("Rate", 1.0), octaves=params.get("Octaves", 2))');
-      } else if (luaCode.contains('chord_follow') || luaCode.contains('Midi.chord_follow')) {
+      } else if (eatScriptCode.contains('chord_follow') || eatScriptCode.contains('Midi.chord_follow')) {
         buffer.writeln('    return eat.chord_follow(notes, mode=params.get("Mode", 0))');
-      } else if (luaCode.contains('scale_snap') || luaCode.contains('Midi.scale_snap')) {
+      } else if (eatScriptCode.contains('scale_snap') || eatScriptCode.contains('Midi.scale_snap')) {
         buffer.writeln('    return eat.scale_snap(notes, key=params.get("Key", 0))');
-      } else if (luaCode.contains('humanize') || luaCode.contains('Humanize')) {
+      } else if (eatScriptCode.contains('humanize') || eatScriptCode.contains('Humanize')) {
         buffer.writeln('    return eat.humanize(notes, timing=params.get("Timing", 0.04), velocity=params.get("Velocity", 0.15))');
       } else {
         buffer.writeln('    return notes');
       }
       buffer.writeln();
-    } else if (luaCode.contains('function split(')) {
+    } else if (eatScriptCode.contains('function split(')) {
       buffer.writeln('# --- Note Splitter Hook ---');
       buffer.writeln('def split(notes, params):');
       buffer.writeln('    return [');
       buffer.writeln('        {"name": "Voice 1", "notes": notes},');
       buffer.writeln('    ]');
       buffer.writeln();
-    } else if (luaCode.contains('function run(')) {
+    } else if (eatScriptCode.contains('function run(')) {
       buffer.writeln('# --- Project Action Hook ---');
       buffer.writeln('def run(project, params):');
       buffer.writeln('    return params');
       buffer.writeln();
-    } else if (luaCode.contains('.process(') || luaCode.contains('function process(')) {
-      if (category == 'audioFx' || luaCode.contains('input_l') || luaCode.contains('input_r')) {
+    } else if (eatScriptCode.contains('.process(') || eatScriptCode.contains('function process(')) {
+      if (category == 'audioFx' || eatScriptCode.contains('input_l') || eatScriptCode.contains('input_r')) {
         buffer.writeln('# --- Audio FX DSP Process Hook ---');
         buffer.writeln('def process(input_l, input_r, params):');
         buffer.writeln('    return [input_l, input_r]');
@@ -122,7 +122,7 @@ class EatTranspiler {
     }
 
     // 5. Preserve table name if present (for audio engine voice/DSP identifier matching)
-    final tableNameMatch = RegExp(r'local\s+([A-Za-z0-9_]+)\s*=\s*\{\}').firstMatch(luaCode);
+    final tableNameMatch = RegExp(r'local\s+([A-Za-z0-9_]+)\s*=\s*\{\}').firstMatch(eatScriptCode);
     final tableName = tableNameMatch?.group(1);
     if (tableName != null) {
       buffer.writeln('$tableName = True');
@@ -259,9 +259,9 @@ class EatTranspiler {
     "registerParam\\(\\s*[\"']([^\"']+)[\"']\\s*,\\s*([\\d\\.-]+)\\s*,\\s*([\\d\\.-]+)\\s*,\\s*([\\d\\.-]+)\\s*\\)",
   );
 
-  /// Extracts declared parameters from legacy Lua source code without requiring a Lua runtime.
-  static List<LuaParamDef> extractLuaParams(String code) {
-    final positionedParams = <MapEntry<int, LuaParamDef>>[];
+  /// Extracts declared parameters from Eatscript source code without requiring any external runtime.
+  static List<EatParamDef> extractLegacyParams(String code) {
+    final positionedParams = <MapEntry<int, EatParamDef>>[];
 
     // 1. Parse Param.add("Name", min, max, default, [step])
     for (final m in _paramRegExp.allMatches(code)) {
@@ -273,7 +273,7 @@ class EatTranspiler {
 
       positionedParams.add(MapEntry(
         m.start,
-        LuaParamDef(
+        EatParamDef(
           name: name,
           min: minVal,
           max: maxVal,
@@ -300,7 +300,7 @@ class EatTranspiler {
       if (!positionedParams.any((e) => e.value.name == name)) {
         positionedParams.add(MapEntry(
           m.start,
-          LuaParamDef(
+          EatParamDef(
             name: name,
             min: 0.0,
             max: maxVal,
@@ -322,7 +322,7 @@ class EatTranspiler {
       if (!positionedParams.any((e) => e.value.name == name)) {
         positionedParams.add(MapEntry(
           m.start,
-          LuaParamDef(
+          EatParamDef(
             name: name,
             min: minVal,
             max: maxVal,
@@ -338,7 +338,7 @@ class EatTranspiler {
       if (!positionedParams.any((e) => e.value.name == name)) {
         positionedParams.add(MapEntry(
           m.start,
-          LuaParamDef(
+          EatParamDef(
             name: name,
             min: 0.0,
             max: 1.0,

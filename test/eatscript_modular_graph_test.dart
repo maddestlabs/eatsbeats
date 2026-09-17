@@ -35,7 +35,7 @@ def process(time, freq, note, params):
     return 0.0
 ''';
 
-    test('EatscriptGraphDef parses Pythonic def graph() with zero Lua dependencies', () {
+    test('EatscriptGraphDef parses Pythonic def graph() with zero external dependencies', () {
       final graph = EatscriptGraphDef.parse(sampleEatscript, trackName: 'Acid Bass');
 
       expect(graph.nodes.length, greaterThanOrEqualTo(5));
@@ -51,7 +51,7 @@ def process(time, freq, note, params):
       expect(graph.cables.any((c) => c.fromNodeId == 'vcf' && c.toNodeId == 'sat'), isTrue);
     });
 
-    test('EatscriptGraphDef serializes clean Pythonic code with 4-space indentation and NO Lua keywords', () {
+    test('EatscriptGraphDef serializes clean Pythonic code with 4-space indentation and NO legacy keywords', () {
       final graph = EatscriptGraphDef.parse(sampleEatscript, trackName: 'Acid Bass');
       final serialized = EatscriptGraphDef.serialize(graph, existingCode: sampleEatscript, instrumentName: 'Acid Bass');
 
@@ -60,7 +60,7 @@ def process(time, freq, note, params):
       expect(serialized, contains('vcf = eat.node.svf('));
       expect(serialized, contains('return sat * env'));
 
-      // STRICT CHECK: ABSOLUTELY NO LUA KEYWORDS
+      // STRICT CHECK: ABSOLUTELY NO LEGACY KEYWORDS
       expect(serialized, isNot(contains('.rack()')));
       expect(serialized, isNot(contains('function ')));
       expect(serialized, isNot(contains('end\n')));
@@ -141,7 +141,7 @@ def graph():
       expect(result.isSuccess, isTrue);
     });
 
-    testWidgets('Visual drag patching on ModularRackCanvas directly updates Eatscript def graph() in track.luaScriptCode', (tester) async {
+    testWidgets('Visual drag patching on ModularRackCanvas directly updates Eatscript def graph() in track.eatScriptCode', (tester) async {
       tester.view.physicalSize = const Size(1200, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -152,7 +152,7 @@ def graph():
         name: 'Acid Bass',
         type: TrackType.eatScript,
         color: const Color(0xFF00FFE0),
-        luaScriptCode: sampleEatscript,
+        eatScriptCode: sampleEatscript,
       );
 
       await tester.pumpWidget(
@@ -184,11 +184,11 @@ def graph():
       await tester.tap(find.text('TAPE DELAY FX'));
       await tester.pumpAndSettle();
 
-      // Verify track.luaScriptCode is updated in pure Eatscript without Lua
-      expect(track.luaScriptCode, contains('def graph():'));
-      expect(track.luaScriptCode, contains('eat.node.'));
-      expect(track.luaScriptCode, isNot(contains('function ')));
-      expect(track.luaScriptCode, isNot(contains('.rack()')));
+      // Verify track.eatScriptCode is updated in pure Eatscript
+      expect(track.eatScriptCode, contains('def graph():'));
+      expect(track.eatScriptCode, contains('eat.node.'));
+      expect(track.eatScriptCode, isNot(contains('function ')));
+      expect(track.eatScriptCode, isNot(contains('.rack()')));
     });
 
     test('Compiles and renders 3-stage Physical Modeling pipeline (Hammer -> Modal Bank -> Acoustic Body)', () {

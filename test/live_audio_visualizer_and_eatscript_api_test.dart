@@ -41,9 +41,9 @@ void main() {
       final track = TrackChannel(
         id: 'test_synth_1',
         name: 'Lead Synth',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFF21F4E8),
-        luaScriptCode: '-- synth',
+        eatScriptCode: '-- synth',
       );
 
       // Play note to trigger audio activity
@@ -74,7 +74,7 @@ void main() {
     testWidgets('Eats-Scope renders live vector oscilloscope from audio stream', (tester) async {
       final dawState = DawState();
       final track = dawState.activeTrack;
-      final scopePreset = LuaPresetLibrary.getPresetById('eats_scope')!;
+      final scopePreset = EatScriptLibrary.getPresetById('eats_scope')!;
 
       dawState.addAudioFXFromPreset(track, scopePreset);
       final fx = track.fxRack.last;
@@ -82,10 +82,10 @@ void main() {
       final fxTrack = TrackChannel(
         id: fx.id,
         name: fx.name,
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFF00FF9D),
-        luaScriptCode: fx.luaScriptCode ?? '',
-        luaParams: fx.luaParams,
+        eatScriptCode: fx.eatScriptCode ?? '',
+        eatScriptParams: fx.eatScriptParams,
       );
 
       // Play note so audio waveform has activity
@@ -120,7 +120,7 @@ void main() {
     testWidgets('Eats-Spectrum renders real-time 16-band spectrum analyzer with live audio', (tester) async {
       final dawState = DawState();
       final track = dawState.activeTrack;
-      final spectrumPreset = LuaPresetLibrary.getPresetById('eats_spectrum')!;
+      final spectrumPreset = EatScriptLibrary.getPresetById('eats_spectrum')!;
 
       dawState.addAudioFXFromPreset(track, spectrumPreset);
       final fx = track.fxRack.last;
@@ -128,10 +128,10 @@ void main() {
       final fxTrack = TrackChannel(
         id: fx.id,
         name: fx.name,
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFF00E5FF),
-        luaScriptCode: fx.luaScriptCode ?? '',
-        luaParams: fx.luaParams,
+        eatScriptCode: fx.eatScriptCode ?? '',
+        eatScriptParams: fx.eatScriptParams,
       );
 
       // Play note to trigger spectrum frequency bars

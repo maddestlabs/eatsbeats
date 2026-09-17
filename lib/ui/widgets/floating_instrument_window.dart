@@ -52,10 +52,10 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
       track = TrackChannel(
         id: fxInsert.id,
         name: fxInsert.name,
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: EatsTheme.secondaryMagenta,
-        luaScriptCode: fxInsert.luaScriptCode ?? '',
-        luaParams: fxInsert.luaParams,
+        eatScriptCode: fxInsert.eatScriptCode ?? '',
+        eatScriptParams: fxInsert.eatScriptParams,
         sampleName: fxInsert.irSampleName ?? 'Great Hall',
       );
       onParamChanged = (param, val) {
@@ -67,10 +67,10 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
       track = TrackChannel(
         id: midiFxInsert.id,
         name: midiFxInsert.name,
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: EatsTheme.accentGold,
-        luaScriptCode: midiFxInsert.luaScriptCode,
-        luaParams: midiFxInsert.luaParams,
+        eatScriptCode: midiFxInsert.eatScriptCode,
+        eatScriptParams: midiFxInsert.eatScriptParams,
       );
       onParamChanged = (param, val) {
         widget.dawState.updateMidiFXParam(midiFxParentTrack, midiFxInsert.id, param, val);
@@ -86,8 +86,8 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
     final effectiveTrack = track;
 
     final isGrungy = EatsTheme.currentPreset == EatsThemePreset.ateTrack;
-    final trackCompilation = effectiveTrack.luaScriptCode.isNotEmpty
-        ? EatScriptEngine.compile(effectiveTrack.luaScriptCode).toLuaCompilationResult()
+    final trackCompilation = effectiveTrack.eatScriptCode.isNotEmpty
+        ? EatScriptEngine.compile(effectiveTrack.eatScriptCode)
         : widget.dawState.compilationResult;
     final guiLayout = trackCompilation.guiLayout;
 
@@ -103,7 +103,7 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
             ? 'AUDIO FX INSERT'
             : (isMidiFxMode
                 ? 'MIDI FX INSERT'
-                : (effectiveTrack.type == TrackType.luaScript ? 'INSTRUMENT' : effectiveTrack.type.name.toUpperCase())));
+                : (effectiveTrack.type == TrackType.eatScript ? 'INSTRUMENT' : effectiveTrack.type.name.toUpperCase())));
     final hasUpgrade = !isFxMode && !isMidiFxMode && widget.dawState.isPresetUpgradeAvailable(effectiveTrack);
     final wsBounds = widget.workspaceBounds ?? MediaQuery.of(context).size;
 
@@ -241,7 +241,7 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
                               id: 'track_${effectiveTrack.id}_dsp',
                               type: ScriptTargetType.trackDsp,
                               title: '${effectiveTrack.name} ($titleText)',
-                              subtitle: effectiveTrack.luaScriptCode.isNotEmpty ? 'Custom Lua Synth / DSP' : 'Instrument DSP Script',
+                              subtitle: effectiveTrack.eatScriptCode.isNotEmpty ? 'Custom Eatscript Synth / DSP' : 'Instrument DSP Script',
                               trackId: effectiveTrack.id,
                               trackName: effectiveTrack.name,
                               trackColor: effectiveTrack.color,
@@ -327,7 +327,7 @@ class _FloatingInstrumentWindowState extends State<FloatingInstrumentWindow> {
       final p = trackPresets[i];
       bool isMatch = true;
       for (final e in p.params.entries) {
-        if ((track.luaParams[e.key] ?? -999.0) != e.value) {
+        if ((track.eatScriptParams[e.key] ?? -999.0) != e.value) {
           isMatch = false;
           break;
         }

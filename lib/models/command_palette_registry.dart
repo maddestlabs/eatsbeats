@@ -135,7 +135,7 @@ class CommandPaletteRegistry {
       QuickCommand(
         id: 'nav_history_browser',
         title: 'Open History & Time Travel Drawer',
-        subtitle: 'Inspect action timeline, Lua diffs, and time-travel',
+        subtitle: 'Inspect action timeline, Eatscript diffs, and time-travel',
         category: CommandCategory.view,
         icon: Icons.history,
         shortcutHint: 'Browser Tab 5',
@@ -400,7 +400,7 @@ class CommandPaletteRegistry {
         },
       ),
       // --- PROJECT ACTION & PROCEDURAL GENERATION SCRIPTS ---
-      ...LuaScriptLibrary.getScriptsByCategory(LuaScriptCategory.projectAction).map((script) {
+      ...EatScriptLibrary.getScriptsByCategory(EatScriptCategory.projectAction).map((script) {
         return QuickCommand(
           id: 'project_script_${script.id}',
           title: 'Run Script: ${script.name}',
@@ -470,20 +470,20 @@ class CommandPaletteRegistry {
         icon: Icons.add,
         onExecute: (state, ctx) {
           state.addNewPresetTrack(
-            LuaPresetLibrary.getPresetsByCategory(LuaPresetCategory.instrument).first,
+            EatScriptLibrary.getPresetsByCategory(EatScriptCategory.instrument).first,
           );
         },
       ),
       QuickCommand(
-        id: 'action_add_lua_track',
-        title: 'Add Track: Custom Lua DSP Script',
-        subtitle: 'Create a scriptable Lua audio instrument channel',
+        id: 'action_add_eatscript_track',
+        title: 'Add Track: Custom Eatscript DSP',
+        subtitle: 'Create a scriptable Eatscript audio instrument channel',
         category: CommandCategory.action,
         icon: Icons.integration_instructions,
         onExecute: (state, ctx) {
-          final customPreset = LuaPresetLibrary.presets.firstWhere(
+          final customPreset = EatScriptLibrary.presets.firstWhere(
             (p) => p.isInstrument,
-            orElse: () => LuaPresetLibrary.presets.first,
+            orElse: () => EatScriptLibrary.presets.first,
           );
           state.addNewPresetTrack(customPreset);
         },
@@ -574,8 +574,8 @@ class CommandPaletteRegistry {
       );
     }
 
-    // --- 4. LUA PRESETS & INSTRUMENTS / FX ---
-    for (final preset in LuaPresetLibrary.presets) {
+    // --- 4. EATSCRIPT PRESETS & INSTRUMENTS / FX ---
+    for (final preset in EatScriptLibrary.presets) {
       commands.add(
         QuickCommand(
           id: 'preset_${preset.id}',
@@ -667,21 +667,21 @@ class CommandPaletteRegistry {
     }
   }
 
-  static IconData _getPresetIcon(LuaPresetCategory category) {
+  static IconData _getPresetIcon(EatScriptCategory category) {
     switch (category) {
-      case LuaPresetCategory.instrument:
+      case EatScriptCategory.instrument:
         return Icons.piano;
-      case LuaPresetCategory.audioFx:
+      case EatScriptCategory.audioFx:
         return Icons.graphic_eq;
-      case LuaPresetCategory.midiFx:
+      case EatScriptCategory.midiFx:
         return Icons.music_note;
-      case LuaPresetCategory.midiSeq:
+      case EatScriptCategory.midiSeq:
         return Icons.view_timeline_outlined;
-      case LuaPresetCategory.noteSplitter:
+      case EatScriptCategory.noteSplitter:
         return Icons.call_split;
-      case LuaPresetCategory.projectAction:
-      case LuaPresetCategory.utility:
-      case LuaPresetCategory.macro:
+      case EatScriptCategory.projectAction:
+      case EatScriptCategory.utility:
+      case EatScriptCategory.macro:
         return Icons.auto_awesome;
     }
   }

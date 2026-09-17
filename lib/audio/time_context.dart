@@ -104,8 +104,8 @@ class TimeContext {
     );
   }
 
-  /// Converts TimeContext state into a map for passing into Lua scripts.
-  Map<String, dynamic> toLuaTable() {
+  /// Converts TimeContext state into a map for passing into Eatscript scripts.
+  Map<String, dynamic> toContextMap() {
     final map = <String, dynamic>{
       'bpm': bpm,
       'timeSignatureNumerator': timeSignatureNumerator,

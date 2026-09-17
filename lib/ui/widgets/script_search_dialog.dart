@@ -11,7 +11,7 @@ typedef PresetSearchDialog = ScriptSearchDialog;
 class ScriptSearchDialog extends StatefulWidget {
   final DawState dawState;
   final TrackChannel? track;
-  final LuaPresetCategory? initialCategory;
+  final EatScriptCategory? initialCategory;
   final String? customTitle;
   final bool isAddTrackMode;
   final bool isChordProgressionMode;
@@ -28,14 +28,14 @@ class ScriptSearchDialog extends StatefulWidget {
     this.chordTargetBar = 0,
   });
 
-  static Future<LuaPreset?> show(
+  static Future<EatScriptDef?> show(
     BuildContext context, {
     required DawState dawState,
     required TrackChannel track,
-    LuaPresetCategory? initialCategory,
+    EatScriptCategory? initialCategory,
     String? customTitle,
   }) {
-    return showDialog<LuaPreset>(
+    return showDialog<EatScriptDef>(
       context: context,
       builder: (context) => ScriptSearchDialog(
         dawState: dawState,
@@ -78,7 +78,7 @@ class ScriptSearchDialog extends StatefulWidget {
     );
   }
 
-  static Future<LuaPreset?> showAudioFx(
+  static Future<EatScriptDef?> showAudioFx(
     BuildContext context, {
     required DawState dawState,
     required TrackChannel track,
@@ -87,12 +87,12 @@ class ScriptSearchDialog extends StatefulWidget {
       context,
       dawState: dawState,
       track: track,
-      initialCategory: LuaPresetCategory.audioFx,
+      initialCategory: EatScriptCategory.audioFx,
       customTitle: 'ADD AUDIO FX • ${track.name.toUpperCase()}',
     );
   }
 
-  static Future<LuaPreset?> showMidiFx(
+  static Future<EatScriptDef?> showMidiFx(
     BuildContext context, {
     required DawState dawState,
     required TrackChannel track,
@@ -101,7 +101,7 @@ class ScriptSearchDialog extends StatefulWidget {
       context,
       dawState: dawState,
       track: track,
-      initialCategory: LuaPresetCategory.midiFx,
+      initialCategory: EatScriptCategory.midiFx,
       customTitle: 'ADD MIDI FX • ${track.name.toUpperCase()}',
     );
   }
@@ -114,7 +114,7 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
-  late LuaPresetCategory? _selectedCategory;
+  late EatScriptCategory? _selectedCategory;
   String? _selectedCustomFilter;
   String _selectedGenre = 'ALL';
   String _searchQuery = '';
@@ -229,40 +229,40 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
     }
   }
 
-  Color _getCategoryColor(LuaPresetCategory cat) {
+  Color _getCategoryColor(EatScriptCategory cat) {
     switch (cat) {
-      case LuaPresetCategory.instrument:
+      case EatScriptCategory.instrument:
         return EatsTheme.primaryCyan;
-      case LuaPresetCategory.audioFx:
+      case EatScriptCategory.audioFx:
         return EatsTheme.secondaryMagenta;
-      case LuaPresetCategory.midiFx:
+      case EatScriptCategory.midiFx:
         return EatsTheme.accentGold;
-      case LuaPresetCategory.midiSeq:
+      case EatScriptCategory.midiSeq:
         return const Color(0xFF00E676);
-      case LuaPresetCategory.noteSplitter:
+      case EatScriptCategory.noteSplitter:
         return const Color(0xFFFF007A);
-      case LuaPresetCategory.projectAction:
-      case LuaPresetCategory.utility:
-      case LuaPresetCategory.macro:
+      case EatScriptCategory.projectAction:
+      case EatScriptCategory.utility:
+      case EatScriptCategory.macro:
         return const Color(0xFFBD00FF);
     }
   }
 
-  IconData _getCategoryIcon(LuaPresetCategory cat) {
+  IconData _getCategoryIcon(EatScriptCategory cat) {
     switch (cat) {
-      case LuaPresetCategory.instrument:
+      case EatScriptCategory.instrument:
         return Icons.piano;
-      case LuaPresetCategory.audioFx:
+      case EatScriptCategory.audioFx:
         return Icons.graphic_eq;
-      case LuaPresetCategory.midiFx:
+      case EatScriptCategory.midiFx:
         return Icons.bolt;
-      case LuaPresetCategory.midiSeq:
+      case EatScriptCategory.midiSeq:
         return Icons.view_timeline_outlined;
-      case LuaPresetCategory.noteSplitter:
+      case EatScriptCategory.noteSplitter:
         return Icons.call_split;
-      case LuaPresetCategory.projectAction:
-      case LuaPresetCategory.utility:
-      case LuaPresetCategory.macro:
+      case EatScriptCategory.projectAction:
+      case EatScriptCategory.utility:
+      case EatScriptCategory.macro:
         return Icons.auto_awesome;
     }
   }
@@ -298,14 +298,14 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
     Navigator.of(context).pop(preset);
   }
 
-  List<LuaPreset> _getFilteredPresets() {
+  List<EatScriptDef> _getFilteredPresets() {
     if (_selectedCustomFilter == 'FOLDERS') {
       return [];
     }
 
-    var list = LuaPresetLibrary.presets;
+    var list = EatScriptLibrary.presets;
     if (_selectedCategory != null) {
-      if (_selectedCategory == LuaPresetCategory.macro) {
+      if (_selectedCategory == EatScriptCategory.macro) {
         list = list.where((p) => p.isMacro).toList();
       } else {
         list = list.where((p) => p.category == _selectedCategory).toList();
@@ -342,7 +342,7 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
     Navigator.of(context).pop(folder);
   }
 
-  void _applyPreset(LuaPreset preset) {
+  void _applyPreset(EatScriptDef preset) {
     if (widget.isAddTrackMode) {
       if (preset.isInstrument) {
         widget.dawState.addNewPresetTrack(preset);
@@ -354,9 +354,9 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
           ),
         );
       } else if (preset.isMidiSeq) {
-        final kickPreset = LuaPresetLibrary.presets.firstWhere(
+        final kickPreset = EatScriptLibrary.presets.firstWhere(
           (p) => p.id == 'procedural_kick',
-          orElse: () => LuaPresetLibrary.presets.first,
+          orElse: () => EatScriptLibrary.presets.first,
         );
         widget.dawState.addNewPresetTrack(kickPreset);
         final newTrack = widget.dawState.activeTrack;
@@ -698,7 +698,7 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
     );
   }
 
-  Widget _buildCategoryFilterChip(LuaPresetCategory? cat, String label, IconData icon) {
+  Widget _buildCategoryFilterChip(EatScriptCategory? cat, String label, IconData icon) {
     final isSelected = _selectedCategory == cat;
     final color = cat != null ? _getCategoryColor(cat) : EatsTheme.primaryCyan;
     return Padding(
@@ -773,7 +773,7 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
     );
   }
 
-  Widget _buildPresetCard(LuaPreset preset, int index, {bool isSelected = false}) {
+  Widget _buildPresetCard(EatScriptDef preset, int index, {bool isSelected = false}) {
     final catColor = _getCategoryColor(preset.category);
     final catIcon = _getCategoryIcon(preset.category);
 
@@ -809,7 +809,7 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
             child: Row(
               children: [
                 // Draggable Category Badge
-                Draggable<LuaPreset>(
+                Draggable<EatScriptDef>(
                   data: preset,
                   feedback: Material(
                     color: Colors.transparent,
@@ -1148,8 +1148,8 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
 
   Widget _buildPresetDialog(BuildContext context) {
     final filtered = _getFilteredPresets();
-    final isAudioFxMode = _selectedCategory == LuaPresetCategory.audioFx && !widget.isAddTrackMode;
-    final isMidiFxMode = _selectedCategory == LuaPresetCategory.midiFx && !widget.isAddTrackMode;
+    final isAudioFxMode = _selectedCategory == EatScriptCategory.audioFx && !widget.isAddTrackMode;
+    final isMidiFxMode = _selectedCategory == EatScriptCategory.midiFx && !widget.isAddTrackMode;
     final accentColor = widget.isAddTrackMode
         ? EatsTheme.primaryCyan
         : (isAudioFxMode
@@ -1289,14 +1289,14 @@ class _PresetSearchDialogState extends State<PresetSearchDialog> {
                     if (widget.isAddTrackMode)
                       _buildCustomFilterChip('FOLDERS', Icons.folder, EatsTheme.primaryCyan),
                     _buildCategoryFilterChip(
-                      LuaPresetCategory.instrument,
+                      EatScriptCategory.instrument,
                       widget.isAddTrackMode ? 'SYNTHS & INSTRUMENTS' : 'SYNTHS',
                       Icons.piano,
                     ),
-                    _buildCategoryFilterChip(LuaPresetCategory.midiSeq, 'SEQUENCES', Icons.view_timeline_outlined),
-                    _buildCategoryFilterChip(LuaPresetCategory.audioFx, 'AUDIO FX', Icons.graphic_eq),
-                    _buildCategoryFilterChip(LuaPresetCategory.midiFx, 'MIDI FX', Icons.bolt),
-                    _buildCategoryFilterChip(LuaPresetCategory.macro, 'MACROS', Icons.auto_awesome),
+                    _buildCategoryFilterChip(EatScriptCategory.midiSeq, 'SEQUENCES', Icons.view_timeline_outlined),
+                    _buildCategoryFilterChip(EatScriptCategory.audioFx, 'AUDIO FX', Icons.graphic_eq),
+                    _buildCategoryFilterChip(EatScriptCategory.midiFx, 'MIDI FX', Icons.bolt),
+                    _buildCategoryFilterChip(EatScriptCategory.macro, 'MACROS', Icons.auto_awesome),
                   ],
                 ),
               ),

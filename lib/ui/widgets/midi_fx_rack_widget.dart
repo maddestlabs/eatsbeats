@@ -23,7 +23,7 @@ class MidiFxRackWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DragTarget<LuaPreset>(
+    return DragTarget<EatScriptDef>(
       onWillAcceptWithDetails: (details) => details.data.isMidiFx,
       onAcceptWithDetails: (details) {
         dawState.addMidiFXFromPreset(track, details.data);
@@ -237,16 +237,16 @@ class MidiFxRackWidget extends StatelessWidget {
   }
 
   Widget _buildMidiFxControls(BuildContext context, MidiFXInsert fx) {
-    if (fx.luaScriptCode.isNotEmpty) {
-      final compilation = EatScriptEngine.compile(fx.luaScriptCode).toLuaCompilationResult();
+    if (fx.eatScriptCode.isNotEmpty) {
+      final compilation = EatScriptEngine.compile(fx.eatScriptCode);
       if (compilation.guiLayout != null) {
         final fxTrack = TrackChannel(
           id: fx.id,
           name: fx.name,
-          type: TrackType.luaScript,
+          type: TrackType.eatScript,
           color: track.color,
-          luaScriptCode: fx.luaScriptCode,
-          luaParams: fx.luaParams,
+          eatScriptCode: fx.eatScriptCode,
+          eatScriptParams: fx.eatScriptParams,
         );
         return DynamicInstrumentGuiWidget(
           dawState: dawState,
@@ -257,7 +257,7 @@ class MidiFxRackWidget extends StatelessWidget {
       }
     }
 
-    final code = fx.luaScriptCode.toLowerCase();
+    final code = fx.eatScriptCode.toLowerCase();
     final nameLower = fx.name.toLowerCase();
 
     if (code.contains('arp') || nameLower.contains('arp')) {
@@ -267,16 +267,16 @@ class MidiFxRackWidget extends StatelessWidget {
     } else if (code.contains('humanize') || nameLower.contains('humanize')) {
       return _buildHumanizeControls(context, fx);
     } else {
-      return _buildGenericLuaControls(context, fx);
+      return _buildGenericScriptControls(context, fx);
     }
   }
 
   Widget _buildArpeggiatorControls(BuildContext context, MidiFXInsert fx) {
-    final double rawPattern = fx.luaParams['Pattern'] ?? fx.luaParams['pattern'] ?? 0.0;
-    final double rawRate = fx.luaParams['Rate'] ?? fx.luaParams['rate'] ?? 1.0;
-    final double rawOctaves = fx.luaParams['Octaves'] ?? fx.luaParams['octaves'] ?? 2.0;
-    final double rawGate = fx.luaParams['Gate'] ?? fx.luaParams['gate'] ?? 0.85;
-    final double rawSwing = fx.luaParams['Swing'] ?? fx.luaParams['swing'] ?? 0.0;
+    final double rawPattern = fx.eatScriptParams['Pattern'] ?? fx.eatScriptParams['pattern'] ?? 0.0;
+    final double rawRate = fx.eatScriptParams['Rate'] ?? fx.eatScriptParams['rate'] ?? 1.0;
+    final double rawOctaves = fx.eatScriptParams['Octaves'] ?? fx.eatScriptParams['octaves'] ?? 2.0;
+    final double rawGate = fx.eatScriptParams['Gate'] ?? fx.eatScriptParams['gate'] ?? 0.85;
+    final double rawSwing = fx.eatScriptParams['Swing'] ?? fx.eatScriptParams['swing'] ?? 0.0;
 
     const patternOptions = [
       {'val': 0.0, 'label': 'Up (Ascending)'},
@@ -429,8 +429,8 @@ class MidiFxRackWidget extends StatelessWidget {
   }
 
   Widget _buildScaleSnapControls(BuildContext context, MidiFXInsert fx) {
-    final double rawKey = fx.luaParams['Key'] ?? fx.luaParams['key'] ?? dawState.songKeyRoot.toDouble();
-    final bool isMinor = (fx.luaParams['Minor'] ?? (dawState.isSongKeyMinor ? 1.0 : 0.0)) > 0.5;
+    final double rawKey = fx.eatScriptParams['Key'] ?? fx.eatScriptParams['key'] ?? dawState.songKeyRoot.toDouble();
+    final bool isMinor = (fx.eatScriptParams['Minor'] ?? (dawState.isSongKeyMinor ? 1.0 : 0.0)) > 0.5;
 
     const keyNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
@@ -504,8 +504,8 @@ class MidiFxRackWidget extends StatelessWidget {
   }
 
   Widget _buildHumanizeControls(BuildContext context, MidiFXInsert fx) {
-    final double rawTiming = fx.luaParams['Timing'] ?? fx.luaParams['timing'] ?? 0.04;
-    final double rawVel = fx.luaParams['Velocity'] ?? fx.luaParams['velocity'] ?? 0.15;
+    final double rawTiming = fx.eatScriptParams['Timing'] ?? fx.eatScriptParams['timing'] ?? 0.04;
+    final double rawVel = fx.eatScriptParams['Velocity'] ?? fx.eatScriptParams['velocity'] ?? 0.15;
 
     return Row(
       children: [
@@ -536,16 +536,16 @@ class MidiFxRackWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildGenericLuaControls(BuildContext context, MidiFXInsert fx) {
-    if (fx.luaParams.isEmpty) {
+  Widget _buildGenericScriptControls(BuildContext context, MidiFXInsert fx) {
+    if (fx.eatScriptParams.isEmpty) {
       return Text(
-        'Custom Lua MIDI Script Active.',
+        'Custom Eatscript MIDI Script Active.',
         style: TextStyle(color: EatsTheme.textMuted, fontSize: 11, fontStyle: FontStyle.italic),
       );
     }
 
     return Column(
-      children: fx.luaParams.entries.map((param) {
+      children: fx.eatScriptParams.entries.map((param) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: EatsBeatsSlider(

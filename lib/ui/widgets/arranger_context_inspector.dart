@@ -825,8 +825,8 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
 
     // Resolve specific instrument/script name rather than replicating editable track name
     String instrumentTitle = '';
-    if (track.luaScriptCode.isNotEmpty) {
-      final compilation = EatScriptEngine.compile(track.luaScriptCode).toLuaCompilationResult();
+    if (track.eatScriptCode.isNotEmpty) {
+      final compilation = EatScriptEngine.compile(track.eatScriptCode);
       instrumentTitle = compilation.guiLayout?.title ?? '';
     }
     if (instrumentTitle.isEmpty) {
@@ -934,7 +934,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                           id: 'track_${track.id}_dsp',
                           type: ScriptTargetType.trackDsp,
                           title: '${track.name} ($instrumentTitle)',
-                          subtitle: track.luaScriptCode.isNotEmpty ? 'Custom Lua Synth / DSP' : 'Instrument DSP Script',
+                          subtitle: track.eatScriptCode.isNotEmpty ? 'Custom Eatscript Synth / DSP' : 'Instrument DSP Script',
                           trackId: track.id,
                           trackName: track.name,
                           trackColor: track.color,
@@ -1051,7 +1051,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
                           context,
                           dawState: widget.dawState,
                           track: track,
-                          initialCategory: LuaPresetCategory.instrument,
+                          initialCategory: EatScriptCategory.instrument,
                           customTitle: 'CHANGE INSTRUMENT • ${instrumentTitle.toUpperCase()}',
                         );
                       },
@@ -2459,7 +2459,7 @@ class _ArrangerContextInspectorState extends State<ArrangerContextInspector> {
 
   Widget _buildLyricsAndTtsCard(BuildContext context, TrackChannel track, {TrackClip? clip}) {
     final List<LyricCue> cues = clip != null ? clip.lyrics : track.lyrics;
-    final isTtsActive = track.type == TrackType.tts || track.luaScriptCode.contains('TtsSynth') || track.enableTts;
+    final isTtsActive = track.type == TrackType.tts || track.eatScriptCode.contains('TtsSynth') || track.enableTts;
 
     return Container(
       padding: const EdgeInsets.all(8),

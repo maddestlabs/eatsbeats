@@ -80,8 +80,8 @@ void main() {
       final state = DawState();
       final track = state.activeTrack;
       track.name = 'Acid Synth 303';
-      track.luaScriptCode = '''
--- @name: Acid Synth 303
+      track.eatScriptCode = '''
+# @name: Acid Synth 303
 AcidSynth = {}
 function AcidSynth.init() return {} end
 function AcidSynth.gui() return { panel = { title = "ACID SYNTH 303", layout = {} } } end
@@ -136,8 +136,8 @@ function AcidSynth.gui() return { panel = { title = "ACID SYNTH 303", layout = {
       final state = DawState();
       final track = state.activeTrack;
       track.name = 'TTS Voice Synth';
-      track.luaScriptCode = '''
--- @name: TTS Voice Synth
+      track.eatScriptCode = '''
+# @name: TTS Voice Synth
 TTSVoiceSynth = {}
 function TTSVoiceSynth.init()
   return { voice_mode = 0, adv = 0, bypass_engine = 0 }
@@ -155,9 +155,9 @@ function TTSVoiceSynth.gui()
   }
 end
 ''';
-      track.luaParams['bypass_engine'] = 0.0;
-      track.luaParams['voice_mode'] = 0.0;
-      track.luaParams['adv'] = 0.0;
+      track.eatScriptParams['bypass_engine'] = 0.0;
+      track.eatScriptParams['voice_mode'] = 0.0;
+      track.eatScriptParams['adv'] = 0.0;
 
       state.openFloatingInstrumentWindow(track);
 
@@ -193,27 +193,27 @@ end
       await tester.tap(robotOption);
       await tester.pump();
       // Should respond immediately without needing double tap delay
-      expect(track.luaParams['voice_mode'], equals(1.0));
+      expect(track.eatScriptParams['voice_mode'], equals(1.0));
 
       // 2. Single tap on "Whisper"
       final whisperOption = find.text('Whisper');
       await tester.tap(whisperOption);
       await tester.pump();
-      expect(track.luaParams['voice_mode'], equals(2.0));
+      expect(track.eatScriptParams['voice_mode'], equals(2.0));
 
       // 3. Single tap on ADV switch
       final advSwitch = find.text('ADV');
       expect(advSwitch, findsOneWidget);
       await tester.tap(advSwitch);
       await tester.pump();
-      expect(track.luaParams['adv'], equals(1.0));
+      expect(track.eatScriptParams['adv'], equals(1.0));
 
       // 4. Single tap on Bypass button
       final bypassBtn = find.text('BYPASS');
       expect(bypassBtn, findsOneWidget);
       await tester.tap(bypassBtn);
       await tester.pump();
-      expect(track.luaParams['bypass_engine'], equals(1.0));
+      expect(track.eatScriptParams['bypass_engine'], equals(1.0));
       await tester.pumpAndSettle();
     });
 
@@ -221,8 +221,8 @@ end
       final state = DawState();
       final track = state.activeTrack;
       track.name = 'TTS Voice Synth';
-      track.luaScriptCode = '''
--- @name: TTS Voice Synth
+      track.eatScriptCode = '''
+# @name: TTS Voice Synth
 TTSVoiceSynth = {}
 function TTSVoiceSynth.init()
   return { voice_mode = 0, speech_speed = 1, pitch = 1.0, tone = 0.5, volume = 0.85, space = 0.35, air = 0.30, adv = 1.0 }

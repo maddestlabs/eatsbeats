@@ -382,7 +382,7 @@ song = {
     ]
 }
 ''';
-      dawState.loadFromEatsLua(songCode);
+      dawState.loadFromEats(songCode);
       expect(dawState.projectName, equals('Midnight Bites Eatscript'));
       expect(dawState.bpm, equals(128.0));
       expect(dawState.activePattern.tracks.first.name, equals('Eats Kick'));
@@ -390,7 +390,7 @@ song = {
     });
 
     test('Generate eats_default_song.dart', () {
-      final map = EatsLuaParser.parseLuaTableToMap(DefaultSong.midnightBitesLua);
+      final map = EatProjectParser.parseProjectDataToMap(DefaultSong.midnightBitesEat);
       expect(map.isNotEmpty, isTrue);
 
       const eatsKickEatscript = '''# --- Procedural Sub Kick Drum (Eatscript) ---
@@ -659,13 +659,13 @@ JC303 = True
           final tMap = t as Map;
           final name = tMap['name'].toString();
           if (name.contains('Kick')) {
-            tMap['luaScriptCode'] = eatsKickEatscript;
+            tMap['eatScriptCode'] = eatsKickEatscript;
           } else if (name.contains('Snare')) {
-            tMap['luaScriptCode'] = eatsSnareEatscript;
+            tMap['eatScriptCode'] = eatsSnareEatscript;
           } else if (name.contains('Hi-Hat') || name.contains('HiHat')) {
-            tMap['luaScriptCode'] = eatsHiHatEatscript;
+            tMap['eatScriptCode'] = eatsHiHatEatscript;
           } else if (name.contains('303')) {
-            tMap['luaScriptCode'] = eats303Eatscript;
+            tMap['eatScriptCode'] = eats303Eatscript;
           }
         }
       }
@@ -678,7 +678,7 @@ JC303 = True
 
     test('DawState loads DefaultSong.midnightBites seamlessly', () {
       final dawState = DawState();
-      dawState.loadFromEatsLua(DefaultSong.midnightBites);
+      dawState.loadFromEats(DefaultSong.midnightBites);
       expect(dawState.projectName, equals('Midnight Bites'));
       expect(dawState.bpm, equals(124.0));
       expect(dawState.patterns.length, equals(2));
@@ -686,12 +686,12 @@ JC303 = True
       expect(dawState.activePattern.tracks.first.name, equals('Eats Kick'));
     });
 
-    test('EatTranspiler transpiles Lua preset to Eatscript and compiles cleanly', () {
-      final luaCode = '''
--- @id: custom_test_synth
--- @name: Custom Test Synth
--- @category: instrument
--- @description: Test instrument preset
+    test('EatTranspiler transpiles preset to Eatscript and compiles cleanly', () {
+      final eatScriptCode = '''
+# @id: custom_test_synth
+# @name: Custom Test Synth
+# @category: instrument
+# @description: Test instrument preset
 Param.add("Cutoff", 100.0, 5000.0, 1200.0, 10.0)
 Param.choice("Waveform", {"Saw", "Square"}, 0)
 
@@ -706,7 +706,7 @@ function TestSynth.gui()
   }
 end
 ''';
-      final eatCode = EatTranspiler.transpileLuaPreset(luaCode);
+      final eatCode = EatTranspiler.transpileEatScriptPreset(eatScriptCode);
       expect(eatCode.contains('# @id: custom_test_synth'), isTrue);
       expect(eatCode.contains('def init():'), isTrue);
       expect(eatCode.contains('def gui():'), isTrue);
@@ -723,16 +723,16 @@ end
   });
 
   group('Eatscript Converted MIDI FX Live Pipeline Tests', () {
-    late LuaEngine luaEngine;
+    late EatEngine eatEngine;
     late MidiPipelineEngine pipeline;
 
     setUp(() {
-      luaEngine = LuaEngine();
-      pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+      eatEngine = EatEngine();
+      pipeline = MidiPipelineEngine(eatEngine: eatEngine);
     });
 
     test('Arpeggiator FX preset runs via Eatscript in MidiPipelineEngine with live parameter scaling', () {
-      final arpPreset = LuaPresetLibrary.getPresetById('arpeggiator_midi_fx')!;
+      final arpPreset = EatScriptLibrary.getPresetById('arpeggiator_midi_fx')!;
       expect(arpPreset.code.contains('def init():'), isTrue);
       expect(arpPreset.code.contains('eat.arpeggiate'), isTrue);
 
@@ -754,8 +754,8 @@ end
       final mfx = MidiFXInsert(
         id: 'mfx_1',
         name: arpPreset.name,
-        luaScriptCode: arpPreset.code,
-        luaParams: {'Rate': 1.0, 'Octaves': 2.0, 'Pattern': 0.0},
+        eatScriptCode: arpPreset.code,
+        eatScriptParams: {'Rate': 1.0, 'Octaves': 2.0, 'Pattern': 0.0},
       );
       track.midiFXRack.add(mfx);
 
@@ -774,13 +774,13 @@ end
       expect(evaluated[3].pitch, equals(72));
 
       // Test live parameter update: change Rate to 0.5 (double speed -> 8 steps)
-      mfx.luaParams['Rate'] = 0.5;
+      mfx.eatScriptParams['Rate'] = 0.5;
       final evaluatedDoubleSpeed = pipeline.processClip(clip: clip, track: track, timeContext: tc);
       expect(evaluatedDoubleSpeed.length, equals(8));
     });
 
     test('Scale Snap FX preset runs via Eatscript and conforms pitches', () {
-      final snapPreset = LuaPresetLibrary.getPresetById('scale_snap_midi_fx')!;
+      final snapPreset = EatScriptLibrary.getPresetById('scale_snap_midi_fx')!;
       expect(snapPreset.code.contains('eat.scale_snap'), isTrue);
 
       final track = TrackChannel(id: 't_snap', name: 'Snap Track', type: TrackType.synth, color: const Color(0xFF00E5FF));
@@ -799,8 +799,8 @@ end
       final mfx = MidiFXInsert(
         id: 'mfx_snap',
         name: snapPreset.name,
-        luaScriptCode: snapPreset.code,
-        luaParams: {'Key': 0.0, 'Scale': 0.0}, // C Major (C# snaps to C or D)
+        eatScriptCode: snapPreset.code,
+        eatScriptParams: {'Key': 0.0, 'Scale': 0.0}, // C Major (C# snaps to C or D)
       );
       track.midiFXRack.add(mfx);
 
@@ -817,7 +817,7 @@ end
     });
 
     test('Harmonic Chord Follower FX conforms notes to active Chord Track in Eatscript', () {
-      final followPreset = LuaPresetLibrary.getPresetById('chord_follower_midi_fx')!;
+      final followPreset = EatScriptLibrary.getPresetById('chord_follower_midi_fx')!;
       expect(followPreset.code.contains('eat.chord_follow'), isTrue);
 
       final track = TrackChannel(id: 't_cf', name: 'CF Track', type: TrackType.synth, color: const Color(0xFFFF8C00));
@@ -836,8 +836,8 @@ end
       final mfx = MidiFXInsert(
         id: 'mfx_cf',
         name: followPreset.name,
-        luaScriptCode: followPreset.code,
-        luaParams: {'Mode': 0.0},
+        eatScriptCode: followPreset.code,
+        eatScriptParams: {'Mode': 0.0},
       );
       track.midiFXRack.add(mfx);
 
@@ -861,7 +861,7 @@ end
     });
 
     test('Humanize & Groove FX introduces dynamic velocity jitter in Eatscript', () {
-      final humanPreset = LuaPresetLibrary.getPresetById('humanize_midi_fx')!;
+      final humanPreset = EatScriptLibrary.getPresetById('humanize_midi_fx')!;
       expect(humanPreset.code.contains('eat.humanize'), isTrue);
 
       final track = TrackChannel(id: 't_h', name: 'Human Track', type: TrackType.synth, color: const Color(0xFFE040FB));
@@ -881,8 +881,8 @@ end
       final mfx = MidiFXInsert(
         id: 'mfx_h',
         name: humanPreset.name,
-        luaScriptCode: humanPreset.code,
-        luaParams: {'Timing': 0.05, 'Velocity': 0.2},
+        eatScriptCode: humanPreset.code,
+        eatScriptParams: {'Timing': 0.05, 'Velocity': 0.2},
       );
       track.midiFXRack.add(mfx);
 
@@ -924,8 +924,8 @@ def calculate():
       expect(result, closeTo(10.0, 0.001));
     });
 
-    test('LuaPreset.eatCode transpiles library presets into valid Eatscript with params and GUI', () {
-      final piccolo = LuaScriptLibrary.getScriptById('concert_piccolo');
+    test('EatScriptDef.eatCode transpiles library presets into valid Eatscript with params and GUI', () {
+      final piccolo = EatScriptLibrary.getScriptById('concert_piccolo');
       expect(piccolo, isNotNull);
 
       final eatCode = piccolo!.eatCode;
@@ -941,11 +941,11 @@ def calculate():
       expect(compiled.guiLayout, isNotNull);
     });
 
-    test('migrateAllScriptsToEatscript automatically transpiles all legacy Lua scripts across DawState', () {
+    test('migrateAllScriptsToEatscript automatically transpiles all Eatscript scripts across DawState', () {
       final state = DawState();
       final track = state.activeTrack;
-      // Inject legacy Lua code into track, fx, midiFx, and clip
-      track.luaScriptCode = '''
+      // Inject Eatscript code into track, fx, midiFx, and clip
+      track.eatScriptCode = '''
 function init()
   eat.param("Pitch", 100.0, 500.0, 220.0)
 end
@@ -954,19 +954,19 @@ function process(time, freq, note, params)
   return math.sin(time * 440.0)
 end
 ''';
-      expect(EatScriptEngine.isEatScript(track.luaScriptCode), isFalse);
+      expect(EatScriptEngine.isEatScript(track.eatScriptCode), isFalse);
 
       state.migrateAllScriptsToEatscript();
 
-      expect(EatScriptEngine.isEatScript(track.luaScriptCode), isTrue);
-      expect(track.luaScriptCode.contains('def init():'), isTrue);
-      expect(track.luaScriptCode.contains('def process('), isTrue);
+      expect(EatScriptEngine.isEatScript(track.eatScriptCode), isTrue);
+      expect(track.eatScriptCode.contains('def init():'), isTrue);
+      expect(track.eatScriptCode.contains('def process('), isTrue);
     });
 
-    test('getScriptCodeForTarget transparently transpiles legacy Lua scripts to Eatscript', () {
+    test('getScriptCodeForTarget transparently transpiles Eatscript scripts to Eatscript', () {
       final state = DawState();
       final track = state.activeTrack;
-      track.luaScriptCode = '''
+      track.eatScriptCode = '''
 function process(time, freq, note, params)
   return math.sin(time * 200.0)
 end
@@ -976,28 +976,28 @@ end
 
       expect(EatScriptEngine.isEatScript(retrievedCode), isTrue);
       expect(retrievedCode.contains('def process('), isTrue);
-      expect(EatScriptEngine.isEatScript(track.luaScriptCode), isTrue);
+      expect(EatScriptEngine.isEatScript(track.eatScriptCode), isTrue);
     });
 
-    test('loadFromEatsLua converts legacy Lua song projects to Eatscript in memory', () {
+    test('loadFromEats converts Eatscript song projects to Eatscript in memory', () {
       final state = DawState();
-      state.loadFromEatsLua(DefaultSong.midnightBitesLua);
+      state.loadFromEats(DefaultSong.midnightBitesEat);
 
       for (final track in state.activePattern.tracks) {
-        if (track.luaScriptCode.isNotEmpty) {
-          expect(EatScriptEngine.isEatScript(track.luaScriptCode), isTrue,
+        if (track.eatScriptCode.isNotEmpty) {
+          expect(EatScriptEngine.isEatScript(track.eatScriptCode), isTrue,
               reason: 'Track "${track.name}" should have been converted to Eatscript');
-          expect(track.luaScriptCode.contains('def process('), isTrue);
+          expect(track.eatScriptCode.contains('def process('), isTrue);
         }
       }
     });
 
-    test('convertAllLegacyProjectsOnDisk migrates saved Lua projects to Eatscript format', () async {
+    test('convertAllLegacyProjectsOnDisk migrates legacy saved projects to Eatscript format', () async {
       EatsStorageHelper.setTestMode(true);
       final state = DawState();
 
       // Save a legacy project file
-      await EatsStorageHelper.saveProjectFile('LegacyProject', DefaultSong.midnightBitesLua);
+      await EatsStorageHelper.saveProjectFile('LegacyProject', DefaultSong.midnightBitesEat);
 
       final migrated = await state.convertAllLegacyProjectsOnDisk();
       expect(migrated, greaterThanOrEqualTo(1));
@@ -1007,30 +1007,30 @@ end
     });
 
     test('All presets with GUIs preserve non-null guiLayout in Eatscript', () {
-      final clavinet = LuaPresetLibrary.getPresetById('clavinet_d6');
+      final clavinet = EatScriptLibrary.getPresetById('clavinet_d6');
       expect(clavinet, isNotNull);
       final clavCompiled = EatScriptEngine.compile(clavinet!.eatCode);
       expect(clavCompiled.guiLayout, isNotNull);
       expect(clavCompiled.guiLayout!.title, equals('HOHNER CLAVINET D6'));
 
-      final dubGuitar = LuaPresetLibrary.getPresetById('reggae_guitar');
+      final dubGuitar = EatScriptLibrary.getPresetById('reggae_guitar');
       expect(dubGuitar, isNotNull);
       final guitarCompiled = EatScriptEngine.compile(dubGuitar!.eatCode);
       expect(guitarCompiled.guiLayout, isNotNull);
       expect(guitarCompiled.guiLayout!.title, equals('DUB GUITAR'));
 
-      final ukulele = LuaPresetLibrary.getPresetById('hawaiian_ukulele');
+      final ukulele = EatScriptLibrary.getPresetById('hawaiian_ukulele');
       expect(ukulele, isNotNull);
       final ukeCompiled = EatScriptEngine.compile(ukulele!.eatCode);
       expect(ukeCompiled.guiLayout, isNotNull);
 
-      final doubleBass = LuaPresetLibrary.getPresetById('double_bass');
+      final doubleBass = EatScriptLibrary.getPresetById('double_bass');
       expect(doubleBass, isNotNull);
       final bassCompiled = EatScriptEngine.compile(doubleBass!.eatCode);
       expect(bassCompiled.guiLayout, isNotNull);
 
       // Verify all presets with GUIs
-      for (final p in LuaPresetLibrary.presets) {
+      for (final p in EatScriptLibrary.presets) {
         if (p.code.contains('function') && p.code.contains('gui()')) {
           final res = EatScriptEngine.compile(p.eatCode);
           expect(res.guiLayout, isNotNull, reason: 'Preset "${p.name}" (id: ${p.id}) should have non-null guiLayout');
@@ -1039,21 +1039,21 @@ end
     });
 
     test('isUpgradeAvailable correctly identifies when presets are already up to date', () {
-      final piccolo = LuaPresetLibrary.getPresetById('concert_piccolo')!;
+      final piccolo = EatScriptLibrary.getPresetById('concert_piccolo')!;
       // Eatscript version is already up to date: should NOT need upgrade
-      expect(LuaPresetLibrary.isUpgradeAvailable(piccolo.eatCode), isFalse);
+      expect(EatScriptLibrary.isUpgradeAvailable(piccolo.eatCode), isFalse);
 
       // Legacy version: should offer upgrade
-      expect(LuaPresetLibrary.isUpgradeAvailable(piccolo.code), isTrue);
+      expect(EatScriptLibrary.isUpgradeAvailable(piccolo.code), isTrue);
 
       // Test DawState upgrade flow
       final state = DawState();
       final track = state.tracks.first;
-      track.luaScriptCode = piccolo.code;
+      track.eatScriptCode = piccolo.code;
       expect(state.isPresetUpgradeAvailable(track), isTrue);
 
       state.upgradeTrackPreset(track);
-      expect(track.luaScriptCode, equals(piccolo.eatCode));
+      expect(track.eatScriptCode, equals(piccolo.eatCode));
       expect(state.isPresetUpgradeAvailable(track), isFalse);
     });
   });

@@ -80,7 +80,7 @@ class EatCanvasGridOp extends EatCanvasOp {
   const EatCanvasGridOp(this.cols, this.rows, this.color, this.strokeWidth);
 }
 
-/// Canvas recorder passed to Lua draw routines.
+/// Canvas recorder passed to Eatscript draw routines.
 class EatCanvasDrawingContext {
   final double width;
   final double height;
@@ -210,23 +210,10 @@ class EatCanvasDrawingContext {
 }
 
 // Backwards-compatibility aliases
-typedef LuaCanvasDrawingEngine = EatCanvasDrawingEngine;
-typedef LuaCanvasOp = EatCanvasOp;
-typedef LuaCanvasDrawingContext = EatCanvasDrawingContext;
 typedef EatScriptCanvasDrawingEngine = EatCanvasDrawingEngine;
 typedef EatScriptCanvasOp = EatCanvasOp;
 typedef EatScriptCanvasDrawingContext = EatCanvasDrawingContext;
-typedef LuaCanvasClearOp = EatCanvasClearOp;
-typedef LuaCanvasLineOp = EatCanvasLineOp;
-typedef LuaCanvasRectOp = EatCanvasRectOp;
-typedef LuaCanvasCircleOp = EatCanvasCircleOp;
-typedef LuaCanvasTextOp = EatCanvasTextOp;
-typedef LuaCanvasPathOp = EatCanvasPathOp;
-typedef LuaCanvasWaveformOp = EatCanvasWaveformOp;
-typedef LuaCanvasSpectrumOp = EatCanvasSpectrumOp;
-typedef LuaCanvasGridOp = EatCanvasGridOp;
-
-/// Evaluates programmable EatScript and Lua 2D drawing routines with high performance.
+/// Evaluates programmable EatScript 2D drawing routines with high performance.
 class EatCanvasDrawingEngine {
   /// Evaluates the script's `draw` / `on_draw` routine into a list of [EatCanvasOp].
   static List<EatCanvasOp> evaluate({

@@ -570,7 +570,7 @@ Output pure Eatscript code only.
     return _extractCode(rawOutput);
   }
 
-  /// Generates a complete, multi-track .eats.lua arrangement song project with custom synthesizers and MIDI notes.
+  /// Generates a complete, multi-track .eats arrangement song project with custom synthesizers and MIDI notes.
   static Future<String> generateSongProject({
     required String prompt,
     String genre = 'Synthwave',
@@ -1339,7 +1339,7 @@ Assess the genre and musical identity, and produce 3 tailored arrangement takes 
 
   static String _extractCode(String raw) {
     var cleaned = raw.trim();
-    for (final prefix in ['```eatscript', '```python', '```eat', '```lua', '```']) {
+    for (final prefix in ['```eatscript', '```python', '```eat', '```']) {
       if (cleaned.contains(prefix)) {
         final startIndex = cleaned.indexOf(prefix) + prefix.length;
         final endIndex = cleaned.lastIndexOf('```');

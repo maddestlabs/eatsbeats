@@ -8,18 +8,17 @@ import 'eats_project_parser.dart';
 import 'eats_gui_model.dart';
 
 // Backwards-compatibility aliases
-typedef LuaGuiParser = EatGuiParser;
 typedef EatScriptGuiParser = EatGuiParser;
 
 class EatGuiParser {
-  /// Extracts and parses the `EatScriptGuiPanelDef` from a Lua or EatScript string, if present.
-  static EatScriptGuiPanelDef? parseFromCode(String luaCode) {
-    if (!luaCode.contains('gui') && !luaCode.contains('GUI') && !luaCode.contains('panel') && !luaCode.contains('layout')) {
+  /// Extracts and parses the `EatScriptGuiPanelDef` from an EatScript string, if present.
+  static EatScriptGuiPanelDef? parseFromCode(String eatScriptCode) {
+    if (!eatScriptCode.contains('gui') && !eatScriptCode.contains('GUI') && !eatScriptCode.contains('panel') && !eatScriptCode.contains('layout')) {
       return null;
     }
 
-    if (EatScriptEngine.isEatScript(luaCode)) {
-      final comp = EatScriptEngine.compile(luaCode);
+    if (EatScriptEngine.isEatScript(eatScriptCode)) {
+      final comp = EatScriptEngine.compile(eatScriptCode);
       if (comp.guiLayout != null) {
         return comp.guiLayout;
       }
@@ -27,12 +26,12 @@ class EatGuiParser {
 
     try {
       // 1. Locate the GUI table block in the code
-      final tableStr = _extractGuiTableString(luaCode);
+      final tableStr = _extractGuiTableString(eatScriptCode);
       if (tableStr == null || tableStr.trim().isEmpty) {
         return null;
       }
 
-      final parsed = EatsLuaParser.parseLuaTableToMap(tableStr);
+      final parsed = EatProjectParser.parseProjectDataToMap(tableStr);
       if (parsed.isEmpty) return null;
 
       return parseFromMap(parsed);
@@ -41,7 +40,7 @@ class EatGuiParser {
     }
   }
 
-  /// Parses a [EatScriptGuiPanelDef] directly from a decoded Map (e.g. from Eatscript or Lua parser).
+  /// Parses a [EatScriptGuiPanelDef] directly from a decoded Map (e.g. from Eatscript parser).
   static EatScriptGuiPanelDef? parseFromMap(Map<String, dynamic> parsed) {
     if (parsed.isEmpty) return null;
 

@@ -1030,7 +1030,7 @@ class GmDrumKitEngine {
       );
     }
 
-    final libPreset = LuaPresetLibrary.getPresetById(presetId);
+    final libPreset = EatScriptLibrary.getPresetById(presetId);
     if (libPreset != null) {
       try {
         final freq = PolySynth.midiToFreq(note);

@@ -202,7 +202,7 @@ void main() {
       }
     });
 
-    test('LuaPresetLibrary contains all 4 piano presets with GUIs', () {
+    test('EatScriptLibrary contains all 4 piano presets with GUIs', () {
       final ids = [
         'concert_grand_piano',
         'felt_upright_piano',
@@ -211,13 +211,13 @@ void main() {
       ];
 
       for (final id in ids) {
-        final preset = LuaScriptLibrary.getPresetById(id);
-        expect(preset, isNotNull, reason: 'Preset $id should exist in LuaScriptLibrary');
-        expect(preset!.category, equals(LuaPresetCategory.instrument));
+        final preset = EatScriptLibrary.getPresetById(id);
+        expect(preset, isNotNull, reason: 'Preset $id should exist in EatScriptLibrary');
+        expect(preset!.category, equals(EatScriptCategory.instrument));
       }
     });
 
-    test('LuaEngine compiles and synthesizes all 4 piano instruments', () {
+    test('EatEngine compiles and synthesizes all 4 piano instruments', () {
       final ids = [
         'concert_grand_piano',
         'felt_upright_piano',
@@ -226,8 +226,8 @@ void main() {
       ];
 
       for (final id in ids) {
-        final preset = LuaScriptLibrary.getPresetById(id)!;
-        final buf = LuaEngine.synthesizeBuffer(
+        final preset = EatScriptLibrary.getPresetById(id)!;
+        final buf = EatEngine.synthesizeBuffer(
           code: preset.code,
           durationSec: 0.2,
           freq: 261.63,

@@ -35,7 +35,7 @@ void main() {
       // 1. Drum Track (GM Standard Drum Kit)
       final drumTrack = tracks.firstWhere((t) => t.id == 'proc_track_drums');
       expect(drumTrack.type, equals(TrackType.eatScript));
-      expect(drumTrack.luaScriptCode, contains('GM Standard Drum Kit'));
+      expect(drumTrack.eatScriptCode, contains('GM Standard Drum Kit'));
       expect(drumTrack.name, contains('GM Standard Kit'));
       expect(drumTrack.clips.length, greaterThanOrEqualTo(3)); // Intro, Verse, Chorus, Outro
       expect(drumTrack.clips.every((c) => c.notes.isNotEmpty), isTrue);
@@ -44,13 +44,13 @@ void main() {
       final bassTrack = tracks.firstWhere((t) => t.id == 'proc_track_bass');
       expect(bassTrack.type, equals(TrackType.eatScript));
       expect(bassTrack.name, equals('Acoustic Upright Bass'));
-      expect(bassTrack.luaScriptCode, contains('Upright Double Bass'));
+      expect(bassTrack.eatScriptCode, contains('Upright Double Bass'));
 
       // 3. Chord Track (Felt Upright Piano with jazz extensions)
       final chordTrack = tracks.firstWhere((t) => t.id == 'proc_track_chords');
       expect(chordTrack.type, equals(TrackType.eatScript));
       expect(chordTrack.name, equals('Felt Upright Piano'));
-      expect(chordTrack.luaScriptCode, contains('felt_upright_piano'));
+      expect(chordTrack.eatScriptCode, contains('felt_upright_piano'));
 
       // Verify extended chords exist in chord track
       expect(dawState.chordTrack, isNotEmpty);
@@ -67,7 +67,7 @@ void main() {
       final leadTrack = tracks.firstWhere((t) => t.id == 'proc_track_lead');
       expect(leadTrack.type, equals(TrackType.eatScript));
       expect(leadTrack.name, equals('Lyrical Vibraphone'));
-      expect(leadTrack.luaScriptCode, contains('Vibraphone'));
+      expect(leadTrack.eatScriptCode, contains('Vibraphone'));
     });
 
     test('Synthwave / Retrowave generates Model D Sub Bass, Poly Lead, and Neon Arps', () {
@@ -86,11 +86,11 @@ void main() {
       final tracks = dawState.activePattern.tracks;
       final bassTrack = tracks.firstWhere((t) => t.id == 'proc_track_bass');
       expect(bassTrack.name, equals('Model D Sub Bass'));
-      expect(bassTrack.luaScriptCode, contains('Model D'));
+      expect(bassTrack.eatScriptCode, contains('Model D'));
 
       final leadTrack = tracks.firstWhere((t) => t.id == 'proc_track_lead');
       expect(leadTrack.name, equals('Outrun Arp Lead'));
-      expect(leadTrack.luaScriptCode, contains('Poly Lead'));
+      expect(leadTrack.eatScriptCode, contains('Poly Lead'));
       // Verify fast 16th arp notes were generated
       final leadNotes = leadTrack.clips.expand((c) => c.notes).toList();
       expect(leadNotes.length, greaterThan(100));
@@ -108,7 +108,7 @@ void main() {
 
       final bassTrack = dawState.activePattern.tracks.firstWhere((t) => t.id == 'proc_track_bass');
       expect(bassTrack.name, equals('Eats-303 Acid Bass'));
-      expect(bassTrack.luaScriptCode.contains('Eats303') || bassTrack.luaScriptCode.contains('TB-303'), isTrue);
+      expect(bassTrack.eatScriptCode.contains('Eats303') || bassTrack.eatScriptCode.contains('TB-303'), isTrue);
 
       // Check that 303 pattern contains slides and accents
       final bassNotes = bassTrack.clips.expand((c) => c.notes).toList();
@@ -228,7 +228,7 @@ void main() {
       // 1. Drum Track (SNES Drum Kit)
       final drumTrack = tracks.firstWhere((t) => t.id == 'proc_track_drums');
       expect(drumTrack.type, equals(TrackType.eatScript));
-      expect(drumTrack.luaScriptCode, contains('SNES Drum Kit'));
+      expect(drumTrack.eatScriptCode, contains('SNES Drum Kit'));
       expect(drumTrack.name, contains('SNES Drum Kit'));
       expect(drumTrack.clips.length, greaterThanOrEqualTo(3));
       expect(drumTrack.clips.every((c) => c.notes.isNotEmpty), isTrue);
@@ -237,24 +237,24 @@ void main() {
       final bassTrack = tracks.firstWhere((t) => t.id == 'proc_track_bass');
       expect(bassTrack.type, equals(TrackType.eatScript));
       expect(bassTrack.name, equals('SNES Slap Bass'));
-      expect(bassTrack.luaScriptCode, contains('SNES Synth'));
-      expect(bassTrack.luaParams['Waveform'], equals(9.0)); // Slap Bass wavetable
+      expect(bassTrack.eatScriptCode, contains('SNES Synth'));
+      expect(bassTrack.eatScriptParams['Waveform'], equals(9.0)); // Slap Bass wavetable
 
       // 3. Chord Track (SNES Strings Pad with FIR echo)
       final chordTrack = tracks.firstWhere((t) => t.id == 'proc_track_chords');
       expect(chordTrack.type, equals(TrackType.eatScript));
       expect(chordTrack.name, equals('SNES Strings Pad'));
-      expect(chordTrack.luaScriptCode, contains('SNES Synth'));
-      expect(chordTrack.luaParams['Waveform'], equals(7.0)); // Strings wavetable
-      expect(chordTrack.luaParams['EchoVolume'], equals(0.45));
+      expect(chordTrack.eatScriptCode, contains('SNES Synth'));
+      expect(chordTrack.eatScriptParams['Waveform'], equals(7.0)); // Strings wavetable
+      expect(chordTrack.eatScriptParams['EchoVolume'], equals(0.45));
 
       // 4. Lead Track (SNES Hero Lead with vibrato)
       final leadTrack = tracks.firstWhere((t) => t.id == 'proc_track_lead');
       expect(leadTrack.type, equals(TrackType.eatScript));
       expect(leadTrack.name, equals('SNES Hero Lead'));
-      expect(leadTrack.luaScriptCode, contains('SNES Synth'));
-      expect(leadTrack.luaParams['Waveform'], equals(8.0)); // Flute / Lead wavetable
-      expect(leadTrack.luaParams['VibratoDepth'], equals(0.15));
+      expect(leadTrack.eatScriptCode, contains('SNES Synth'));
+      expect(leadTrack.eatScriptParams['Waveform'], equals(8.0)); // Flute / Lead wavetable
+      expect(leadTrack.eatScriptParams['VibratoDepth'], equals(0.15));
 
       // Verify notes exist across all tracks
       for (final t in tracks) {

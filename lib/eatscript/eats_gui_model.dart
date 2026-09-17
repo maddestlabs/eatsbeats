@@ -4,11 +4,6 @@ import '../ui/hardware/eat_hardware_knob_model.dart';
 import '../ui/hardware/eat_hardware_scale.dart';
 
 // Backwards-compatibility aliases
-typedef LuaGuiNodeType = EatScriptGuiNodeType;
-typedef LuaGuiNode = EatScriptGuiNode;
-typedef LuaGuiPanelDef = EatScriptGuiPanelDef;
-typedef LuaGuiGradientDef = EatScriptGuiGradientDef;
-
 enum EatScriptGuiNodeType {
   knob,
   slider,

@@ -9,7 +9,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('DSP ADSR & Envelope Unit Tests', () {
-    test('LuaEngine.evaluateAdsr curves through Attack, Decay, Sustain, and Release', () {
+    test('EatEngine.evaluateAdsr curves through Attack, Decay, Sustain, and Release', () {
       const attack = 0.1;
       const decay = 0.1;
       const sustain = 0.5;
@@ -17,41 +17,41 @@ void main() {
       const duration = 0.4;
 
       // 1. Initial / start of attack
-      expect(LuaEngine.evaluateAdsr(0.0, attack, decay, sustain, release, duration), closeTo(0.0, 0.001));
+      expect(EatEngine.evaluateAdsr(0.0, attack, decay, sustain, release, duration), closeTo(0.0, 0.001));
 
       // 2. Mid-attack (0.05s)
-      expect(LuaEngine.evaluateAdsr(0.05, attack, decay, sustain, release, duration), closeTo(0.5, 0.05));
+      expect(EatEngine.evaluateAdsr(0.05, attack, decay, sustain, release, duration), closeTo(0.5, 0.05));
 
       // 3. Peak of attack / start of decay (0.1s)
-      expect(LuaEngine.evaluateAdsr(0.1, attack, decay, sustain, release, duration), closeTo(1.0, 0.001));
+      expect(EatEngine.evaluateAdsr(0.1, attack, decay, sustain, release, duration), closeTo(1.0, 0.001));
 
       // 4. Mid-decay (0.15s) -> should be between 1.0 and 0.5
-      final midDecay = LuaEngine.evaluateAdsr(0.15, attack, decay, sustain, release, duration);
+      final midDecay = EatEngine.evaluateAdsr(0.15, attack, decay, sustain, release, duration);
       expect(midDecay, greaterThan(0.5));
       expect(midDecay, lessThan(1.0));
 
       // 5. Sustain phase (0.25s to 0.4s)
-      expect(LuaEngine.evaluateAdsr(0.25, attack, decay, sustain, release, duration), closeTo(0.5, 0.001));
-      expect(LuaEngine.evaluateAdsr(0.35, attack, decay, sustain, release, duration), closeTo(0.5, 0.001));
+      expect(EatEngine.evaluateAdsr(0.25, attack, decay, sustain, release, duration), closeTo(0.5, 0.001));
+      expect(EatEngine.evaluateAdsr(0.35, attack, decay, sustain, release, duration), closeTo(0.5, 0.001));
 
       // 6. Release phase (0.5s -> 0.1s into 0.2s release)
-      final midRelease = LuaEngine.evaluateAdsr(0.5, attack, decay, sustain, release, duration);
+      final midRelease = EatEngine.evaluateAdsr(0.5, attack, decay, sustain, release, duration);
       expect(midRelease, closeTo(0.25, 0.05));
 
       // 7. Post-release (0.7s) -> silence
-      expect(LuaEngine.evaluateAdsr(0.7, attack, decay, sustain, release, duration), closeTo(0.0, 0.001));
+      expect(EatEngine.evaluateAdsr(0.7, attack, decay, sustain, release, duration), closeTo(0.0, 0.001));
     });
 
     test('Zero attack time yields immediate transient full volume', () {
-      expect(LuaEngine.evaluateAdsr(0.0, 0.0, 0.1, 0.8, 0.2, 0.4), equals(1.0));
-      expect(LuaEngine.evaluateEnv(0.0, 0.0, 0.2, 0.4), equals(1.0));
+      expect(EatEngine.evaluateAdsr(0.0, 0.0, 0.1, 0.8, 0.2, 0.4), equals(1.0));
+      expect(EatEngine.evaluateEnv(0.0, 0.0, 0.2, 0.4), equals(1.0));
     });
   });
 
   group('SoundFont Preset & Sampler ADSR Configuration Tests', () {
     test('SoundFont 2 Player preset compiles without FilterCutoff and with AttackSec default 0.0', () {
-      final sfPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'soundfont_sampler');
-      final compiled = LuaEngine.compile(sfPreset.code);
+      final sfPreset = EatScriptLibrary.presets.firstWhere((p) => p.id == 'soundfont_sampler');
+      final compiled = EatEngine.compile(sfPreset.code);
 
       expect(compiled.isSuccess, isTrue);
 
@@ -69,8 +69,8 @@ void main() {
     });
 
     test('Sampler Instrument preset compiles with full ADSR parameter set', () {
-      final samplerPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'sampler_instrument');
-      final compiled = LuaEngine.compile(samplerPreset.code);
+      final samplerPreset = EatScriptLibrary.presets.firstWhere((p) => p.id == 'sampler_instrument');
+      final compiled = EatEngine.compile(samplerPreset.code);
 
       expect(compiled.isSuccess, isTrue);
       expect(compiled.params.any((p) => p.name == 'AttackSec'), isTrue);

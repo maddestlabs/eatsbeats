@@ -114,14 +114,14 @@ class _DrumPadGridWidgetState extends State<DrumPadGridWidget> {
     });
   }
 
-  void _assignPresetToPad(GmPadDef pad, LuaPreset preset) {
+  void _assignPresetToPad(GmPadDef pad, EatScriptDef preset) {
     GmDrumKitEngine.setSlotOverride(widget.track.id, pad.note, preset.id);
 
     // Invalidate audio engine PCM cache so the new sound synthesizes immediately
     widget.dawState.audioEngine.clearPcmCache();
 
-    // Save in track luaParams for project persistence
-    widget.track.luaParams['slot_${pad.note}'] = 1.0;
+    // Save in track eatScriptParams for project persistence
+    widget.track.eatScriptParams['slot_${pad.note}'] = 1.0;
     widget.dawState.notifyState();
     setState(() {});
 
@@ -136,7 +136,7 @@ class _DrumPadGridWidgetState extends State<DrumPadGridWidget> {
 
   void _resetAllPads() {
     GmDrumKitEngine.clearSlotOverrides(widget.track.id);
-    widget.track.luaParams.removeWhere((k, _) => k.startsWith('slot_'));
+    widget.track.eatScriptParams.removeWhere((k, _) => k.startsWith('slot_'));
     widget.dawState.audioEngine.clearPcmCache();
     widget.dawState.notifyState();
     setState(() {});
@@ -285,17 +285,17 @@ class _DrumPadGridWidgetState extends State<DrumPadGridWidget> {
 
     String engineName = pad.defaultEngine;
     if (overrideId != null) {
-      final match = LuaPresetLibrary.getPresetById(overrideId);
+      final match = EatScriptLibrary.getPresetById(overrideId);
       engineName = match?.name ?? overrideId;
     }
 
     return DragTarget<Object>(
       onWillAcceptWithDetails: (details) {
-        return details.data is LuaPreset;
+        return details.data is EatScriptDef;
       },
       onAcceptWithDetails: (details) {
-        if (details.data is LuaPreset) {
-          _assignPresetToPad(pad, details.data as LuaPreset);
+        if (details.data is EatScriptDef) {
+          _assignPresetToPad(pad, details.data as EatScriptDef);
         }
       },
       builder: (context, candidateData, rejectedData) {

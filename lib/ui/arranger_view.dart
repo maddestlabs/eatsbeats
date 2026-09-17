@@ -324,7 +324,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                         onWillAcceptWithDetails: (details) {
                           final data = details.data;
                           if (data is SoundFontDragItem) return true;
-                          if (data is LuaPreset) return data.isInstrument;
+                          if (data is EatScriptDef) return data.isInstrument;
                           return false;
                         },
                         onAcceptWithDetails: (details) {
@@ -338,7 +338,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                 duration: const Duration(seconds: 2),
                               ),
                             );
-                          } else if (data is LuaPreset && data.isInstrument) {
+                          } else if (data is EatScriptDef && data.isInstrument) {
                             widget.dawState.addNewPresetTrack(data);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -375,7 +375,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                       onWillAcceptWithDetails: (details) {
                                         final data = details.data;
                                         if (data is SoundFontDragItem) return true;
-                                        if (data is LuaPreset) return data.isInstrument;
+                                        if (data is EatScriptDef) return data.isInstrument;
                                         return false;
                                       },
                                       onAcceptWithDetails: (details) {
@@ -389,7 +389,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                               duration: const Duration(seconds: 2),
                                             ),
                                           );
-                                        } else if (data is LuaPreset && data.isInstrument) {
+                                        } else if (data is EatScriptDef && data.isInstrument) {
                                           widget.dawState.addNewPresetTrack(data);
                                           ScaffoldMessenger.of(context).showSnackBar(
                                             SnackBar(
@@ -447,7 +447,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                       final data = details.data;
                                       if (data is TrackChannel) return data.id != track.id;
                                       if (data is SoundFontDragItem) return true;
-                                      if (data is LuaPreset) {
+                                      if (data is EatScriptDef) {
                                         return data.isInstrument || data.isAudioFx || data.isMidiFx;
                                       }
                                       return false;
@@ -480,7 +480,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                          duration: const Duration(seconds: 2),
                                        ),
                                      );
-                                   } else if (data is LuaPreset) {
+                                   } else if (data is EatScriptDef) {
                                      final preset = data;
                                      widget.dawState.applyPreset(preset, targetTrack: track);
                                      String msg = 'Applied preset "${preset.name}" to ${track.name}';
@@ -1258,14 +1258,14 @@ class _ArrangerViewState extends State<ArrangerView> {
                                         onWillAcceptWithDetails: (details) {
                                           final data = details.data;
                                           if (data is SoundFontDragItem) return true;
-                                          if (data is LuaPreset) return data.isInstrument;
+                                          if (data is EatScriptDef) return data.isInstrument;
                                           return false;
                                         },
                                         onAcceptWithDetails: (details) {
                                           final data = details.data;
                                           if (data is SoundFontDragItem) {
                                             widget.dawState.addNewSoundFontTrack(data.fontId, displayName: data.displayName);
-                                          } else if (data is LuaPreset && data.isInstrument) {
+                                          } else if (data is EatScriptDef && data.isInstrument) {
                                             widget.dawState.addNewPresetTrack(data);
                                           }
                                         },
@@ -1509,14 +1509,14 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                      child: DragTarget<Object>(
                                                        onWillAcceptWithDetails: (details) {
                                                          final data = details.data;
-                                                         if (data is LuaPreset) {
+                                                         if (data is EatScriptDef) {
                                                            return data.isMidiSeq || data.isMidiFx;
                                                          }
                                                          return false;
                                                        },
                                                        onAcceptWithDetails: (details) {
                                                          final data = details.data;
-                                                         if (data is LuaPreset) {
+                                                         if (data is EatScriptDef) {
                                                            if (data.isMidiSeq) {
                                                              widget.dawState.activeTrackIndex = trackIdx;
                                                              widget.dawState.selectClip(clip);
@@ -1533,7 +1533,7 @@ class _ArrangerViewState extends State<ArrangerView> {
                                                              widget.dawState.addMidiFXInsert(
                                                                track,
                                                                name: data.name,
-                                                               luaScriptCode: data.code,
+                                                               eatScriptCode: data.code,
                                                              );
                                                              ScaffoldMessenger.of(context).showSnackBar(
                                                                SnackBar(

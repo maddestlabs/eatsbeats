@@ -47,9 +47,9 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
       listenable: dawState,
       builder: (context, _) {
         final availableIrs = ConvolverEngine.instance.getAvailableIrNames();
-        final allAudioPresets = LuaPresetLibrary.presets.where((p) => p.isAudioFx).toList();
+        final allAudioPresets = EatScriptLibrary.presets.where((p) => p.isAudioFx).toList();
 
-        return DragTarget<LuaPreset>(
+        return DragTarget<EatScriptDef>(
           onWillAcceptWithDetails: (details) => details.data.isAudioFx,
           onAcceptWithDetails: (details) {
             final preset = details.data;
@@ -143,10 +143,10 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                       final fxTrack = TrackChannel(
                         id: fx.id,
                         name: fx.name,
-                        type: TrackType.luaScript,
+                        type: TrackType.eatScript,
                         color: track.color,
-                        luaScriptCode: fx.luaScriptCode ?? '',
-                        luaParams: fx.luaParams,
+                        eatScriptCode: fx.eatScriptCode ?? '',
+                        eatScriptParams: fx.eatScriptParams,
                         sampleName: fx.irSampleName ?? 'Great Hall',
                       );
 
@@ -229,8 +229,8 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
                               ],
                             ),
 
-                            // Inline Hardware Faceplate GUI (when expanded or Lua script has GUI)
-                            if (isExpanded && (fx.luaScriptCode?.isNotEmpty ?? false)) ...[
+                            // Inline Hardware Faceplate GUI (when expanded or Eatscript has GUI)
+                            if (isExpanded && (fx.eatScriptCode?.isNotEmpty ?? false)) ...[
                               const SizedBox(height: 6),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
@@ -481,9 +481,9 @@ class _ModularFxRackWidgetState extends State<ModularFxRackWidget> {
     );
   }
 
-  List<PopupMenuEntry<LuaPreset>> _buildFxMenuItems(List<LuaPreset> presets) {
+  List<PopupMenuEntry<EatScriptDef>> _buildFxMenuItems(List<EatScriptDef> presets) {
     return presets.map((p) {
-      return PopupMenuItem<LuaPreset>(
+      return PopupMenuItem<EatScriptDef>(
         value: p,
         child: Row(
           children: [

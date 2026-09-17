@@ -10,18 +10,18 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Script vs Preset Separation Tests', () {
-    test('LuaScriptLibrary contains valid DSP scripts and aliases', () {
-      final scripts = LuaScriptLibrary.scripts;
+    test('EatScriptLibrary contains valid DSP scripts and aliases', () {
+      final scripts = EatScriptLibrary.scripts;
       expect(scripts.isNotEmpty, isTrue);
 
-      final eats303 = LuaScriptLibrary.getScriptById('eats_303');
+      final eats303 = EatScriptLibrary.getScriptById('eats_303');
       expect(eats303, isNotNull);
       expect(eats303!.name, contains('303'));
       expect(eats303.isInstrument, isTrue);
 
       // Backwards-compatibility alias check
-      expect(LuaPresetLibrary.presets.length, equals(scripts.length));
-      expect(LuaPresetLibrary.getPresetById('eats_303'), isNotNull);
+      expect(EatScriptLibrary.presets.length, equals(scripts.length));
+      expect(EatScriptLibrary.getPresetById('eats_303'), isNotNull);
     });
 
     test('ScriptPresetLibrary manages stock and user presets', () {
@@ -62,12 +62,12 @@ void main() {
       final classicAcid = ScriptPresetLibrary.instance.allPresets.firstWhere((p) => p.name == 'Classic Acid Squelch');
       dawState.applyScriptPreset(track, classicAcid);
 
-      expect(track.luaParams['Cutoff'], equals(0.65));
-      expect(track.luaParams['Resonance'], equals(0.85));
-      expect(track.luaParams['Accent'], equals(0.70));
+      expect(track.eatScriptParams['Cutoff'], equals(0.65));
+      expect(track.eatScriptParams['Resonance'], equals(0.85));
+      expect(track.eatScriptParams['Accent'], equals(0.70));
 
       // Test saving preset from track
-      track.luaParams['Cutoff'] = 0.92;
+      track.eatScriptParams['Cutoff'] = 0.92;
       dawState.saveTrackScriptPreset(track, 'Acid Screamer 92', 'Lead');
 
       final savedList = ScriptPresetLibrary.instance.getPresetsForScript('eats_303');

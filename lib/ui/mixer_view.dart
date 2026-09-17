@@ -154,14 +154,14 @@ class _MixerViewState extends State<MixerView> with SingleTickerProviderStateMix
     return DragTarget<Object>(
       onWillAcceptWithDetails: (details) {
         final data = details.data;
-        if (data is LuaPreset) {
+        if (data is EatScriptDef) {
           return data.isAudioFx;
         }
         return false;
       },
       onAcceptWithDetails: (details) {
         final data = details.data;
-        if (data is LuaPreset && data.isAudioFx) {
+        if (data is EatScriptDef && data.isAudioFx) {
           dawState.addAudioFXFromPreset(dawState.masterTrack, data);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -300,7 +300,7 @@ class _MixerViewState extends State<MixerView> with SingleTickerProviderStateMix
       onWillAcceptWithDetails: (details) {
         final data = details.data;
         if (data is SoundFontDragItem) return true;
-        if (data is LuaPreset) {
+        if (data is EatScriptDef) {
           return data.isAudioFx || data.isInstrument;
         }
         return false;
@@ -316,7 +316,7 @@ class _MixerViewState extends State<MixerView> with SingleTickerProviderStateMix
               duration: const Duration(seconds: 2),
             ),
           );
-        } else if (data is LuaPreset) {
+        } else if (data is EatScriptDef) {
           dawState.applyPreset(data, targetTrack: track);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

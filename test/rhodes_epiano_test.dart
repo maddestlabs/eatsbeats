@@ -155,20 +155,20 @@ void main() {
       expect(peak, lessThanOrEqualTo(1.0));
     });
 
-    test('LuaPresetLibrary contains Rhodes Mark I E-Piano with custom hardware GUI', () {
-      final preset = LuaScriptLibrary.getPresetById('rhodes_epiano');
+    test('EatScriptLibrary contains Rhodes Mark I E-Piano with custom hardware GUI', () {
+      final preset = EatScriptLibrary.getPresetById('rhodes_epiano');
       expect(preset, isNotNull);
       expect(preset!.name, equals('Rhodes Mark I E-Piano'));
-      expect(preset.category, equals(LuaPresetCategory.instrument));
+      expect(preset.category, equals(EatScriptCategory.instrument));
       expect(preset.code.contains('TineBell'), isTrue);
       expect(preset.code.contains('PickupDistance'), isTrue);
       expect(preset.code.contains('TremoloSpeed'), isTrue);
       expect(preset.code.contains('RHODES MARK I'), isTrue);
     });
 
-    test('LuaEngine compiles and synthesizes Rhodes E-Piano buffer', () {
-      final preset = LuaScriptLibrary.getPresetById('rhodes_epiano')!;
-      final buffer = LuaEngine.synthesizeBuffer(
+    test('EatEngine compiles and synthesizes Rhodes E-Piano buffer', () {
+      final preset = EatScriptLibrary.getPresetById('rhodes_epiano')!;
+      final buffer = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.4,
         freq: 440.0,
@@ -186,10 +186,10 @@ void main() {
     });
 
     test('Rhodes E-Piano pitch-tracks chromatically across different keyboard notes', () {
-      final preset = LuaScriptLibrary.getPresetById('rhodes_epiano')!;
+      final preset = EatScriptLibrary.getPresetById('rhodes_epiano')!;
 
       // Low note C3 (130.81 Hz)
-      final bufC3 = LuaEngine.synthesizeBuffer(
+      final bufC3 = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.2,
         freq: 130.81,
@@ -198,7 +198,7 @@ void main() {
       );
 
       // High note C5 (523.25 Hz)
-      final bufC5 = LuaEngine.synthesizeBuffer(
+      final bufC5 = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.2,
         freq: 523.25,

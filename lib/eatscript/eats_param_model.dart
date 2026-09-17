@@ -2,9 +2,8 @@ import 'eats_gui_model.dart';
 import 'eats_ast.dart';
 
 // Backwards-compatibility aliases
-typedef LuaParamDef = EatParamDef;
 typedef ScriptParamDef = EatParamDef;
-typedef ScriptCompilationResult = LuaCompilationResult;
+typedef ScriptCompilationResult = EatCompilationResult;
 
 /// Unified script parameter definition for Eatscript and legacy script engines.
 class EatParamDef {
@@ -90,11 +89,4 @@ class EatCompilationResult {
     this.engineId,
     this.warnings = const [],
   });
-
-  // Backwards-compatibility bridge
-  EatCompilationResult toLuaCompilationResult() => this;
 }
-
-// Backwards-compatibility alias
-typedef LuaCompilationResult = EatCompilationResult;
-

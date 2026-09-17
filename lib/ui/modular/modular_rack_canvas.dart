@@ -84,13 +84,13 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
   @override
   void didUpdateWidget(covariant ModularRackCanvas oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.track.luaScriptCode != widget.track.luaScriptCode) {
+    if (oldWidget.track.eatScriptCode != widget.track.eatScriptCode) {
       _loadFromTrackScript();
     }
   }
 
   void _loadFromTrackScript() {
-    final code = widget.track.luaScriptCode;
+    final code = widget.track.eatScriptCode;
     final parsed = ModularRackDsl.parse(code);
 
     if (parsed != null && (parsed.modulesByRow.values.any((list) => list.isNotEmpty))) {
@@ -120,9 +120,9 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
   }
 
   void _syncToScript() {
-    final isEatScript = EatScriptEngine.isEatScript(widget.track.luaScriptCode) ||
-        widget.track.luaScriptCode.contains('def graph') ||
-        !widget.track.luaScriptCode.contains('function');
+    final isEatScript = EatScriptEngine.isEatScript(widget.track.eatScriptCode) ||
+        widget.track.eatScriptCode.contains('def graph') ||
+        !widget.track.eatScriptCode.contains('function');
 
     if (isEatScript) {
       // Build EatscriptGraphDef directly
@@ -176,12 +176,12 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
       final graphDef = EatscriptGraphDef(nodes: nodes, cables: graphCables);
       final newCode = EatscriptGraphDef.serialize(
         graphDef,
-        existingCode: widget.track.luaScriptCode,
+        existingCode: widget.track.eatScriptCode,
         instrumentName: widget.track.name.isNotEmpty ? widget.track.name : 'Instrument',
       );
 
-      if (widget.track.luaScriptCode != newCode) {
-        widget.track.luaScriptCode = newCode;
+      if (widget.track.eatScriptCode != newCode) {
+        widget.track.eatScriptCode = newCode;
         // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
         widget.dawState.notifyListeners();
       }
@@ -191,11 +191,11 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
         totalRows: _totalRowCount,
         customModulesByRow: _modulesByRow,
         cables: _connections,
-        existingScriptCode: widget.track.luaScriptCode,
+        existingScriptCode: widget.track.eatScriptCode,
         instrumentName: widget.track.name.replaceAll(RegExp(r'[^A-Za-z0-9_]'), ''),
       );
-      if (widget.track.luaScriptCode != serialized) {
-        widget.track.luaScriptCode = serialized;
+      if (widget.track.eatScriptCode != serialized) {
+        widget.track.eatScriptCode = serialized;
         // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
         widget.dawState.notifyListeners();
       }
@@ -414,7 +414,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
                       const Icon(Icons.sync, size: 11, color: Color(0xFF00E676)),
                       const SizedBox(width: 4),
                       Text(
-                        widget.track.luaScriptCode.contains('function') ? 'LUA SYNC: OK' : 'DSP SYNC: OK',
+                        widget.track.eatScriptCode.contains('function') ? 'EATSCRIPT SYNC: OK' : 'DSP SYNC: OK',
                         style: const TextStyle(fontFamily: 'Courier', fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFF00E676)),
                       ),
                     ],
@@ -432,7 +432,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
                 InkWell(
                   onTap: () {
                     setState(() {
-                      final defaultDef = ModularRackDsl.generateDefault(widget.track.luaScriptCode, trackName: widget.track.name);
+                      final defaultDef = ModularRackDsl.generateDefault(widget.track.eatScriptCode, trackName: widget.track.name);
                       _connections.clear();
                       _connections.addAll(defaultDef.cables);
                     });
@@ -642,17 +642,13 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
 
   Widget _buildModuleWidget(int row, int moduleIndex, DynamicModuleDefinition mod) {
     final isScript = mod.category == 'SCRIPT';
-    final hasParams = widget.track.luaParams.isNotEmpty;
-    final paramCount = widget.track.luaParams.length;
+    final hasParams = widget.track.eatScriptParams.isNotEmpty;
+    final paramCount = widget.track.eatScriptParams.length;
 
-    // Display title: if core DSP module, show LUA/EATSCRIPT DSP CORE
+    // Display title: if core DSP module, show EATSCRIPT DSP CORE
     String displayTitle = mod.title;
     if (mod.id == 'core') {
-      if (widget.track.luaScriptCode.contains('function')) {
-        displayTitle = 'LUA SCRIPT DSP CORE';
-      } else {
-        displayTitle = 'EATSCRIPT DSP CORE';
-      }
+      displayTitle = 'EATSCRIPT DSP CORE';
     }
 
     return ModularFaceplateWidget(
@@ -713,9 +709,9 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
   }
 
   Widget _buildModuleControls(DynamicModuleDefinition mod) {
-    // If track has specific luaParams (like Harmonics, Feedback)
-    if (widget.track.luaParams.isNotEmpty && (mod.id == 'core' || mod.category == 'SCRIPT')) {
-      final entries = widget.track.luaParams.entries.take(2).toList();
+    // If track has specific eatScriptParams (like Harmonics, Feedback)
+    if (widget.track.eatScriptParams.isNotEmpty && (mod.id == 'core' || mod.category == 'SCRIPT')) {
+      final entries = widget.track.eatScriptParams.entries.take(2).toList();
       return FittedBox(
         fit: BoxFit.scaleDown,
         child: Row(
@@ -731,7 +727,7 @@ class _ModularRackCanvasState extends State<ModularRackCanvas> {
               size: 32,
               accentColor: mod.accentColor,
               onChanged: (v) {
-                setState(() => widget.track.luaParams[e.key] = v);
+                setState(() => widget.track.eatScriptParams[e.key] = v);
                 // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
                 widget.dawState.notifyListeners();
               },

@@ -5,10 +5,10 @@ import 'eats_script_library.dart';
 /// Implements authentic physical/modal modeling for all 47 General MIDI drum sounds (Notes 35–81)
 /// with a 6-zone interactive console, visual drum pad grid, choke groups, and procgen variation.
 class GmStandardDrumKitPreset {
-  static const LuaPreset preset = LuaPreset(
+  static const EatScriptDef preset = EatScriptDef(
     id: 'gm_standard_drum_kit',
     name: 'GM Standard Drum Kit',
-    category: LuaPresetCategory.instrument,
+    category: EatScriptCategory.instrument,
     description: 'Complete General MIDI Standard Drum Kit (Notes 35–81) featuring physical dual-mic kicks, acoustic snares, 6 toms, inharmonic metallic cymbals & hats, Latin percussion, choke groups, and procgen physical variation.',
     code: '''
 # @id: gm_standard_drum_kit

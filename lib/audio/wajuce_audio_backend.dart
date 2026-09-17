@@ -1578,7 +1578,7 @@ class WajuceAudioBackend {
     }
     try {
       // Optimal configuration: Standardize 44.1 kHz sample rate across all platforms
-      // to match internal synth/soundfont/sampler/Lua buffer generation and eliminate real-time
+      // to match internal synth/soundfont/sampler/Eatscript buffer generation and eliminate real-time
       // resampling overhead in iPlug2. Use 512 buffer size for crisp, low-latency audio response.
       // Explicitly set inputChannels: 0, outputChannels: 2 to avoid Windows audio device init failure on systems without a mic.
       final ctx = WAContext(

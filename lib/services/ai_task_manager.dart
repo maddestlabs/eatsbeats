@@ -70,7 +70,7 @@ class AiTaskManager extends ChangeNotifier {
         final clamped = idx.clamp(0, _pendingStyleAssessment!.takes.length - 1);
         _pendingBlueprint = _pendingStyleAssessment!.takes[clamped];
         _pendingBlueprintSeed = (DateTime.now().microsecondsSinceEpoch % 900000) + 100000;
-        _pendingLuaScript = const JsonEncoder.withIndent('  ').convert(_pendingBlueprint!.toJson());
+        _pendingEatScript = const JsonEncoder.withIndent('  ').convert(_pendingBlueprint!.toJson());
       }
       notifyListeners();
     }
@@ -82,8 +82,8 @@ class AiTaskManager extends ChangeNotifier {
   AiMixResult? _pendingMixResult;
   AiMixResult? get pendingMixResult => _pendingMixResult;
 
-  String? _pendingLuaScript;
-  String? get pendingLuaScript => _pendingLuaScript;
+  String? _pendingEatScript;
+  String? get pendingEatScript => _pendingEatScript;
 
   SongStructureBlueprint? _pendingBlueprint;
   SongStructureBlueprint? get pendingBlueprint => _pendingBlueprint;
@@ -185,7 +185,7 @@ class AiTaskManager extends ChangeNotifier {
     final catName = category == 'instrument' ? 'Instrument' : (category == 'midi_fx' ? 'MIDI FX' : 'Audio FX');
     _taskTitle = 'Generating $catName: "$prompt"';
     _errorMessage = null;
-    _pendingLuaScript = null;
+    _pendingEatScript = null;
     _targetTrack = targetTrack;
     _stopwatch.reset();
     _stopwatch.start();
@@ -195,18 +195,18 @@ class AiTaskManager extends ChangeNotifier {
     _activeClient = http.Client();
 
     try {
-      String luaCode = '';
+      String eatScriptCode = '';
       if (category == 'instrument') {
-        luaCode = await GeminiService.generateInstrumentScript(prompt: prompt);
+        eatScriptCode = await GeminiService.generateInstrumentScript(prompt: prompt);
       } else if (category == 'midi_fx') {
-        luaCode = await GeminiService.generateMidiFxScript(prompt: prompt);
+        eatScriptCode = await GeminiService.generateMidiFxScript(prompt: prompt);
       } else {
-        luaCode = await GeminiService.generateAudioFxScript(prompt: prompt);
+        eatScriptCode = await GeminiService.generateAudioFxScript(prompt: prompt);
       }
 
       if (_status == AiTaskStatus.cancelled) return;
 
-      _pendingLuaScript = luaCode;
+      _pendingEatScript = eatScriptCode;
       _status = AiTaskStatus.readyForReview;
       _stopwatch.stop();
       notifyListeners();
@@ -234,7 +234,7 @@ class AiTaskManager extends ChangeNotifier {
     _taskType = AiTaskType.songArrangement;
     _taskTitle = 'Composing Song Architecture ("$prompt")';
     _errorMessage = null;
-    _pendingLuaScript = null;
+    _pendingEatScript = null;
     _pendingBlueprint = null;
     _stopwatch.reset();
     _stopwatch.start();
@@ -254,7 +254,7 @@ class AiTaskManager extends ChangeNotifier {
       _pendingBlueprint = blueprint;
       _pendingBlueprintSeed = (DateTime.now().microsecondsSinceEpoch % 900000) + 100000;
       const encoder = JsonEncoder.withIndent('  ');
-      _pendingLuaScript = encoder.convert(blueprint.toJson());
+      _pendingEatScript = encoder.convert(blueprint.toJson());
       _status = AiTaskStatus.readyForReview;
       _stopwatch.stop();
       notifyListeners();
@@ -280,7 +280,7 @@ class AiTaskManager extends ChangeNotifier {
     _errorMessage = null;
     _pendingStyleAssessment = null;
     _pendingBlueprint = null;
-    _pendingLuaScript = null;
+    _pendingEatScript = null;
     _selectedTakeIndex = 0;
     _stopwatch.reset();
     _stopwatch.start();
@@ -300,7 +300,7 @@ class AiTaskManager extends ChangeNotifier {
         _selectedTakeIndex = 0;
         _pendingBlueprint = assessment.takes[0];
         _pendingBlueprintSeed = (DateTime.now().microsecondsSinceEpoch % 900000) + 100000;
-        _pendingLuaScript = const JsonEncoder.withIndent('  ').convert(_pendingBlueprint!.toJson());
+        _pendingEatScript = const JsonEncoder.withIndent('  ').convert(_pendingBlueprint!.toJson());
       }
       _status = AiTaskStatus.readyForReview;
       _stopwatch.stop();
@@ -325,7 +325,7 @@ class AiTaskManager extends ChangeNotifier {
     _activeClient = null;
     _stopwatch.stop();
     _pendingMixResult = null;
-    _pendingLuaScript = null;
+    _pendingEatScript = null;
     _pendingBlueprint = null;
     notifyListeners();
   }
@@ -402,11 +402,11 @@ class AiTaskManager extends ChangeNotifier {
       }
 
       dawState.commitHistoryTransaction();
-    } else if (_taskType == AiTaskType.soundInstrument && _pendingLuaScript != null && _targetTrack != null) {
-      final scriptDef = LuaScriptLibrary.parseFromLuaScript(_pendingLuaScript!);
+    } else if (_taskType == AiTaskType.soundInstrument && _pendingEatScript != null && _targetTrack != null) {
+      final scriptDef = EatScriptLibrary.parseFromScript(_pendingEatScript!);
       dawState.applyPreset(scriptDef, targetTrack: _targetTrack);
-    } else if (_taskType == AiTaskType.soundFx && _pendingLuaScript != null && _targetTrack != null) {
-      final scriptDef = LuaScriptLibrary.parseFromLuaScript(_pendingLuaScript!);
+    } else if (_taskType == AiTaskType.soundFx && _pendingEatScript != null && _targetTrack != null) {
+      final scriptDef = EatScriptLibrary.parseFromScript(_pendingEatScript!);
       dawState.addAudioFXFromPreset(_targetTrack!, scriptDef);
     } else if (_taskType == AiTaskType.styleAssessmentAndTakes && _pendingBlueprint != null) {
       dawState.applyArrangementTake(
@@ -418,9 +418,9 @@ class AiTaskManager extends ChangeNotifier {
       dawState.beginHistoryTransaction('AI Song Architect: ${_pendingBlueprint!.title} (#$seed)', icon: Icons.auto_awesome);
       ProceduralEnsembleEngine.renderBlueprint(dawState, _pendingBlueprint!, seed: seed);
       dawState.commitHistoryTransaction();
-    } else if (_taskType == AiTaskType.songArrangement && _pendingLuaScript != null) {
+    } else if (_taskType == AiTaskType.songArrangement && _pendingEatScript != null) {
       dawState.beginHistoryTransaction('Gemini Generated Song', icon: Icons.music_note);
-      dawState.loadFromEatsLua(_pendingLuaScript!);
+      dawState.loadFromEats(_pendingEatScript!);
       dawState.commitHistoryTransaction();
     }
 
@@ -440,7 +440,7 @@ class AiTaskManager extends ChangeNotifier {
     _taskTitle = blueprint.title;
     _pendingBlueprint = blueprint;
     _pendingBlueprintSeed = seed;
-    _pendingLuaScript = jsonEncode(blueprint.toJson());
+    _pendingEatScript = jsonEncode(blueprint.toJson());
     notifyListeners();
   }
 
@@ -455,7 +455,7 @@ class AiTaskManager extends ChangeNotifier {
     if (assessment.takes.isNotEmpty) {
       _pendingBlueprint = assessment.takes[selectedTake.clamp(0, assessment.takes.length - 1)];
       _pendingBlueprintSeed = 42;
-      _pendingLuaScript = jsonEncode(_pendingBlueprint!.toJson());
+      _pendingEatScript = jsonEncode(_pendingBlueprint!.toJson());
     }
     notifyListeners();
   }
@@ -466,7 +466,7 @@ class AiTaskManager extends ChangeNotifier {
     _taskType = null;
     _taskTitle = '';
     _pendingMixResult = null;
-    _pendingLuaScript = null;
+    _pendingEatScript = null;
     _pendingBlueprint = null;
     _pendingBlueprintSeed = null;
     _pendingStyleAssessment = null;

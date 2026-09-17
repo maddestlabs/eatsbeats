@@ -559,13 +559,13 @@ class ProceduralAcidEngine {
     // 3. Find existing Eats-303 track or create a new one
     TrackChannel? targetTrack;
     for (final t in dawState.activePattern.tracks) {
-      if (t.luaScriptCode.contains('eats_303') || t.name.toLowerCase().contains('303') || t.name.toLowerCase().contains('acid')) {
+      if (t.eatScriptCode.contains('eats_303') || t.name.toLowerCase().contains('303') || t.name.toLowerCase().contains('acid')) {
         targetTrack = t;
         break;
       }
     }
 
-    final eats303Preset = LuaPresetLibrary.getPresetById('eats_303');
+    final eats303Preset = EatScriptLibrary.getPresetById('eats_303');
     final String eats303Code = eats303Preset?.code ?? '';
 
     if (targetTrack == null) {
@@ -575,8 +575,8 @@ class ProceduralAcidEngine {
         name: 'Acid 303 (Eats-303)',
         color: const Color(0xFF00FFE0), // Acid cyan
         type: TrackType.eatScript,
-        luaScriptCode: eats303Code,
-        luaParams: {
+        eatScriptCode: eats303Code,
+        eatScriptParams: {
           'Waveform': waveIdx == 1 ? 1.0 : 0.0,
           'Cutoff': 1400.0,
           'Resonance': 9.2,
@@ -589,11 +589,11 @@ class ProceduralAcidEngine {
       );
       dawState.activePattern.tracks.add(targetTrack);
     } else {
-      if (!targetTrack.luaScriptCode.contains('eats_303') && eats303Code.isNotEmpty) {
-        targetTrack.luaScriptCode = eats303Code;
+      if (!targetTrack.eatScriptCode.contains('eats_303') && eats303Code.isNotEmpty) {
+        targetTrack.eatScriptCode = eats303Code;
       }
       if (waveIdx < 2) {
-        targetTrack.luaParams['Waveform'] = waveIdx == 1 ? 1.0 : 0.0;
+        targetTrack.eatScriptParams['Waveform'] = waveIdx == 1 ? 1.0 : 0.0;
       }
     }
 
@@ -617,13 +617,13 @@ class ProceduralAcidEngine {
     if (enable909) {
       TrackChannel? drumTrack;
       for (final t in dawState.activePattern.tracks) {
-        if (t.luaScriptCode.contains('gm_standard_drum_kit') || t.name.toLowerCase().contains('drum')) {
+        if (t.eatScriptCode.contains('gm_standard_drum_kit') || t.name.toLowerCase().contains('drum')) {
           drumTrack = t;
           break;
         }
       }
 
-      final drumPreset = LuaPresetLibrary.getPresetById('gm_standard_drum_kit');
+      final drumPreset = EatScriptLibrary.getPresetById('gm_standard_drum_kit');
       final drumCode = drumPreset?.code ?? '';
 
       if (drumTrack == null) {
@@ -633,8 +633,8 @@ class ProceduralAcidEngine {
           name: '909 Drums (Beat Companion)',
           color: const Color(0xFFFF8C00),
           type: TrackType.eatScript,
-          luaScriptCode: drumCode,
-          luaParams: {
+          eatScriptCode: drumCode,
+          eatScriptParams: {
             'MasterTune': 0.0,
             'RoomLevel': 0.25,
             'KitDrive': 0.20,

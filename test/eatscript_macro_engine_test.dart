@@ -22,7 +22,7 @@ void main() {
     });
 
     test('Category consolidation: EatScriptCategory.macro returns all macros and legacy scripts', () {
-      final macros = LuaScriptLibrary.getScriptsByCategory(LuaScriptCategory.macro);
+      final macros = EatScriptLibrary.getScriptsByCategory(EatScriptCategory.macro);
       expect(macros, isNotEmpty);
       expect(macros.any((m) => m.id == 'action_global_transpose'), isTrue);
       expect(macros.any((m) => m.id == 'action_procedural_song'), isTrue);
@@ -34,10 +34,10 @@ void main() {
     });
 
     test('Eatscript Macro can inspect and alter DAW transport (tempo and key)', () {
-      final script = LuaScriptDef(
+      final script = EatScriptDef(
         id: 'test_macro_transport',
         name: 'Transport Macro',
-        category: LuaScriptCategory.macro,
+        category: EatScriptCategory.macro,
         description: 'Sets tempo and key',
         code: '''
 def init():
@@ -59,10 +59,10 @@ def run(project, params):
     });
 
     test('Eatscript Macro can add tracks, create clips, and populate notes via project API', () {
-      final script = LuaScriptDef(
+      final script = EatScriptDef(
         id: 'test_macro_track_builder',
         name: 'Track & Clip Builder Macro',
-        category: LuaScriptCategory.macro,
+        category: EatScriptCategory.macro,
         description: 'Creates tracks and populates clips with notes',
         code: '''
 def run(project, params):
@@ -111,10 +111,10 @@ def run(project, params):
     });
 
     test('Forward-compatible automation authoring from Eatscript Macro', () {
-      final script = LuaScriptDef(
+      final script = EatScriptDef(
         id: 'test_macro_automation',
         name: 'Automation Lane Generator Macro',
-        category: LuaScriptCategory.macro,
+        category: EatScriptCategory.macro,
         description: 'Creates automation points on tracks and clips',
         code: '''
 def run(project, params):
@@ -155,10 +155,10 @@ def run(project, params):
       dawState.setSongKey('C Major');
       dawState.setBpm(120.0);
 
-      final script = LuaScriptDef(
+      final script = EatScriptDef(
         id: 'test_macro_rollback',
         name: 'Rollback Test Macro',
-        category: LuaScriptCategory.macro,
+        category: EatScriptCategory.macro,
         description: 'Tests undo rollback',
         code: '''
 def run(project, params):

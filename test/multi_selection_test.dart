@@ -107,19 +107,19 @@ void main() {
       expect(track.notes.every((n) => n.startStep == 1.0), isTrue);
     });
 
-    test('EatsLuaSerializer and EatsLuaParser handle note clipboard Lua format', () {
+    test('EatProjectSerializer and EatProjectParser handle note clipboard Eatscript format', () {
       final notes = [
         Note(id: 'n1', pitch: 60, startStep: 4.0, durationSteps: 1.0, velocity: 0.8, column: 0),
         Note(id: 'n2', pitch: 64, startStep: 5.0, durationSteps: 2.0, velocity: 0.9, column: 1, isAccent: true),
       ];
 
-      final luaStr = EatsLuaSerializer.serializeNotes(notes, relativeSteps: true);
-      expect(luaStr, contains('pitch = 60'));
-      expect(luaStr, contains('pitch = 64'));
-      expect(luaStr, contains('startStep = 0.00')); // Relative step normalized
-      expect(luaStr, contains('startStep = 1.00'));
+      final eatScriptStr = EatProjectSerializer.serializeNotes(notes, relativeSteps: true);
+      expect(eatScriptStr, contains('pitch = 60'));
+      expect(eatScriptStr, contains('pitch = 64'));
+      expect(eatScriptStr, contains('startStep = 0.00')); // Relative step normalized
+      expect(eatScriptStr, contains('startStep = 1.00'));
 
-      final parsed = EatsLuaParser.parseNotes(luaStr);
+      final parsed = EatProjectParser.parseNotes(eatScriptStr);
       expect(parsed.length, 2);
       expect(parsed[0].pitch, 60);
       expect(parsed[0].startStep, 0.0);
@@ -137,8 +137,8 @@ void main() {
       dawState.addNote(track, n2);
 
       // Copy selected note_1 & note_2
-      final lua = await dawState.copyNotesToClipboard(track, ['note_1', 'note_2']);
-      expect(lua, isNotEmpty);
+      final script = await dawState.copyNotesToClipboard(track, ['note_1', 'note_2']);
+      expect(script, isNotEmpty);
       expect(dawState.noteClipboard.length, 2);
 
       // Paste at targetStep = 8.0
@@ -183,9 +183,9 @@ void main() {
       dawState.selectTrackerCell(1, 0);
       dawState.addOrUpdateTrackerNote(pitch: 64, velocity: 0.8, autoAdvance: false);
 
-      final lua = await dawState.copyTrackerBlockToClipboard(startStep: 0, endStep: 1, startCol: 0, endCol: 0);
-      expect(lua, contains('pitch = 60'));
-      expect(lua, contains('pitch = 64'));
+      final script = await dawState.copyTrackerBlockToClipboard(startStep: 0, endStep: 1, startCol: 0, endCol: 0);
+      expect(script, contains('pitch = 60'));
+      expect(script, contains('pitch = 64'));
 
       // Paste at Step 4, Column 1
       final pasted = await dawState.pasteNotesFromClipboard(track, targetStep: 4.0, targetCol: 1);

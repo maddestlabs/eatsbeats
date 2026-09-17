@@ -8,15 +8,15 @@ void main() {
 
   group('Drum Presets & History Enhancements Tests', () {
     test('FM Acoustic Kick preset compiles and synthesizes sub-bass impact', () {
-      final kickPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'fm_acoustic_kick');
-      final compilation = LuaEngine.compile(kickPreset.code);
+      final kickPreset = EatScriptLibrary.presets.firstWhere((p) => p.id == 'fm_acoustic_kick');
+      final compilation = EatEngine.compile(kickPreset.code);
       expect(compilation.isSuccess, isTrue);
 
       final nearPitchParam = compilation.params.firstWhere((p) => p.name == 'NearPitchStart');
       expect(nearPitchParam.defaultValue, equals(180.0));
 
       // Synthesize punchy sub-bass buffer
-      final buffer = LuaEngine.synthesizeBuffer(
+      final buffer = EatEngine.synthesizeBuffer(
         code: kickPreset.code,
         durationSec: 0.35,
         freq: 52.0,
@@ -29,14 +29,14 @@ void main() {
     });
 
     test('FM Acoustic Snare preset compiles and synthesizes punchy snare with noise wires', () {
-      final snarePreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'fm_acoustic_snare');
-      final compilation = LuaEngine.compile(snarePreset.code);
+      final snarePreset = EatScriptLibrary.presets.firstWhere((p) => p.id == 'fm_acoustic_snare');
+      final compilation = EatEngine.compile(snarePreset.code);
       expect(compilation.isSuccess, isTrue);
 
       final snappyParam = compilation.params.firstWhere((p) => p.name == 'Snappy');
       expect(snappyParam.defaultValue, equals(0.65));
 
-      final buffer = LuaEngine.synthesizeBuffer(
+      final buffer = EatEngine.synthesizeBuffer(
         code: snarePreset.code,
         durationSec: 0.25,
         freq: 185.0,
@@ -48,14 +48,14 @@ void main() {
     });
 
     test('FM Acoustic Hi-Hat preset compiles and synthesizes crisp hi-hat', () {
-      final hatsPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'fm_acoustic_hihat');
-      final compilation = LuaEngine.compile(hatsPreset.code);
+      final hatsPreset = EatScriptLibrary.presets.firstWhere((p) => p.id == 'fm_acoustic_hihat');
+      final compilation = EatEngine.compile(hatsPreset.code);
       expect(compilation.isSuccess, isTrue);
 
       final cutoffParam = compilation.params.firstWhere((p) => p.name == 'Cutoff');
       expect(cutoffParam.defaultValue, equals(7000.0));
 
-      final buffer = LuaEngine.synthesizeBuffer(
+      final buffer = EatEngine.synthesizeBuffer(
         code: hatsPreset.code,
         durationSec: 0.1,
         freq: 440.0,

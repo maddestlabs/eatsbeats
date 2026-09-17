@@ -25,7 +25,7 @@ class TrackInspectorView extends StatelessWidget {
       onWillAcceptWithDetails: (details) {
         final data = details.data;
         if (data is SoundFontDragItem) return true;
-        if (data is LuaPreset) {
+        if (data is EatScriptDef) {
           return data.isInstrument || data.isAudioFx;
         }
         return false;
@@ -41,7 +41,7 @@ class TrackInspectorView extends StatelessWidget {
               duration: const Duration(seconds: 2),
             ),
           );
-        } else if (data is LuaPreset) {
+        } else if (data is EatScriptDef) {
           dawState.applyPreset(data, targetTrack: track);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

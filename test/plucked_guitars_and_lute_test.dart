@@ -129,11 +129,11 @@ void main() {
       expect(buffer.every((s) => !s.isNaN && !s.isInfinite), isTrue);
     });
 
-    test('LuaPresetLibrary contains all 4 plucked instruments with GUI panels', () {
-      final spanish = LuaScriptLibrary.getPresetById('spanish_guitar');
-      final lute = LuaScriptLibrary.getPresetById('renaissance_lute');
-      final baroque = LuaScriptLibrary.getPresetById('baroque_guitar');
-      final flamenco = LuaScriptLibrary.getPresetById('flamenco_guitar');
+    test('EatScriptLibrary contains all 4 plucked instruments with GUI panels', () {
+      final spanish = EatScriptLibrary.getPresetById('spanish_guitar');
+      final lute = EatScriptLibrary.getPresetById('renaissance_lute');
+      final baroque = EatScriptLibrary.getPresetById('baroque_guitar');
+      final flamenco = EatScriptLibrary.getPresetById('flamenco_guitar');
 
       expect(spanish, isNotNull);
       expect(lute, isNotNull);
@@ -146,10 +146,10 @@ void main() {
       expect(flamenco!.code.contains('FLAMENCO GUITAR'), isTrue);
     });
 
-    test('LuaEngine compiles and synthesizes all 4 instruments', () {
+    test('EatEngine compiles and synthesizes all 4 instruments', () {
       for (final id in ['spanish_guitar', 'renaissance_lute', 'baroque_guitar', 'flamenco_guitar']) {
-        final preset = LuaScriptLibrary.getPresetById(id)!;
-        final buf = LuaEngine.synthesizeBuffer(
+        final preset = EatScriptLibrary.getPresetById(id)!;
+        final buf = EatEngine.synthesizeBuffer(
           code: preset.code,
           durationSec: 0.2,
           freq: 261.63, // C4

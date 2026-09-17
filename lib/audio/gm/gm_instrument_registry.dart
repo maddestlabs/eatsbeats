@@ -60,8 +60,8 @@ class GmResolutionResult {
   final String sampleName;
   final double presetNum;
   final double bankNum;
-  final String luaScriptCode;
-  final Map<String, double> luaParams;
+  final String eatScriptCode;
+  final Map<String, double> eatScriptParams;
   final String matchReason;
   final GmInstrumentDef? matchedDef;
 
@@ -74,8 +74,8 @@ class GmResolutionResult {
     required this.sampleName,
     required this.presetNum,
     required this.bankNum,
-    required this.luaScriptCode,
-    required this.luaParams,
+    required this.eatScriptCode,
+    required this.eatScriptParams,
     required this.matchReason,
     this.matchedDef,
   });
@@ -1258,11 +1258,11 @@ class GmInstrumentRegistry {
 
     // 1. Channel 10 / Drum Channel check
     if (channel == 9 || cleanName.contains('drum') || cleanName.contains('percussion')) {
-      final drumPreset = LuaPresetLibrary.presets.firstWhere(
+      final drumPreset = EatScriptLibrary.presets.firstWhere(
         (p) => p.id == 'gm_standard_drum_kit',
-        orElse: () => LuaPresetLibrary.presets.firstWhere(
+        orElse: () => EatScriptLibrary.presets.firstWhere(
           (p) => p.id == 'drum_kit_sampler',
-          orElse: () => LuaPresetLibrary.presets.first,
+          orElse: () => EatScriptLibrary.presets.first,
         ),
       );
 
@@ -1276,8 +1276,8 @@ class GmInstrumentRegistry {
         sampleName: '',
         presetNum: 0.0,
         bankNum: 128.0,
-        luaScriptCode: drumPreset.code,
-        luaParams: initialParams,
+        eatScriptCode: drumPreset.code,
+        eatScriptParams: initialParams,
         matchReason: 'gm_drum_channel',
         matchedDef: gmDrumsDef,
       );
@@ -1302,7 +1302,7 @@ class GmInstrumentRegistry {
       }
 
       if (bestDef != null) {
-        final nativePreset = LuaPresetLibrary.getPresetById(bestDef.nativePresetId!);
+        final nativePreset = EatScriptLibrary.getPresetById(bestDef.nativePresetId!);
         if (nativePreset != null) {
           return _buildNativeResult(
             preset: nativePreset,
@@ -1314,35 +1314,35 @@ class GmInstrumentRegistry {
 
       // Additional Eatsbeats-specific instruments matchable by track name
       if (cleanName.contains('ukulele')) {
-        final p = LuaPresetLibrary.getPresetById('hawaiian_ukulele');
+        final p = EatScriptLibrary.getPresetById('hawaiian_ukulele');
         if (p != null) return _buildDirectPresetResult(p, 'guitar', 'semantic_keyword');
       }
       if (cleanName.contains('mandolin')) {
-        final p = LuaPresetLibrary.getPresetById('folk_mandolin');
+        final p = EatScriptLibrary.getPresetById('folk_mandolin');
         if (p != null) return _buildDirectPresetResult(p, 'guitar', 'semantic_keyword');
       }
       if (RegExp(r'\blute\b').hasMatch(cleanName)) {
-        final p = LuaPresetLibrary.getPresetById('renaissance_lute');
+        final p = EatScriptLibrary.getPresetById('renaissance_lute');
         if (p != null) return _buildDirectPresetResult(p, 'guitar', 'semantic_keyword');
       }
       if (RegExp(r'\b(303|acid)\b').hasMatch(cleanName)) {
-        final p = LuaPresetLibrary.getPresetById('eats_303');
+        final p = EatScriptLibrary.getPresetById('eats_303');
         if (p != null) return _buildDirectPresetResult(p, 'bass', 'semantic_keyword');
       }
       if (cleanName.contains('rain') || cleanName.contains('downpour') || cleanName.contains('storm')) {
-        final p = LuaPresetLibrary.getPresetById('eatsfx_rain') ?? LuaPresetLibrary.getPresetById('eats_rain');
+        final p = EatScriptLibrary.getPresetById('eatsfx_rain') ?? EatScriptLibrary.getPresetById('eats_rain');
         if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
       }
       if (cleanName.contains('wind') || cleanName.contains('breeze') || cleanName.contains('gale')) {
-        final p = LuaPresetLibrary.getPresetById('eatsfx_wind') ?? LuaPresetLibrary.getPresetById('eats_wind');
+        final p = EatScriptLibrary.getPresetById('eatsfx_wind') ?? EatScriptLibrary.getPresetById('eats_wind');
         if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
       }
       if (cleanName.contains('campfire') || cleanName.contains('hearth') || cleanName.contains('fire')) {
-        final p = LuaPresetLibrary.getPresetById('eatsfx_fire') ?? LuaPresetLibrary.getPresetById('eats_fire');
+        final p = EatScriptLibrary.getPresetById('eatsfx_fire') ?? EatScriptLibrary.getPresetById('eats_fire');
         if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
       }
       if (cleanName.contains('furnace') || cleanName.contains('pyrophone')) {
-        final p = LuaPresetLibrary.getPresetById('eats_furnace');
+        final p = EatScriptLibrary.getPresetById('eats_furnace');
         if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
       }
     }
@@ -1355,7 +1355,7 @@ class GmInstrumentRegistry {
 
     // Check if explicit program change maps to a native preset
     if (programDef != null && programDef.isNativeSupported) {
-      final nativePreset = LuaPresetLibrary.getPresetById(programDef.nativePresetId!);
+      final nativePreset = EatScriptLibrary.getPresetById(programDef.nativePresetId!);
       if (nativePreset != null) {
         return _buildNativeResult(
           preset: nativePreset,
@@ -1381,7 +1381,7 @@ class GmInstrumentRegistry {
       }
 
       if (bestDef != null) {
-        final nativePreset = LuaPresetLibrary.getPresetById(bestDef.nativePresetId!);
+        final nativePreset = EatScriptLibrary.getPresetById(bestDef.nativePresetId!);
         if (nativePreset != null) {
           return _buildNativeResult(
             preset: nativePreset,
@@ -1392,19 +1392,19 @@ class GmInstrumentRegistry {
       }
 
       if (cleanName.contains('rain') || cleanName.contains('downpour') || cleanName.contains('storm')) {
-        final p = LuaPresetLibrary.getPresetById('eatsfx_rain') ?? LuaPresetLibrary.getPresetById('eats_rain');
+        final p = EatScriptLibrary.getPresetById('eatsfx_rain') ?? EatScriptLibrary.getPresetById('eats_rain');
         if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
       }
       if (cleanName.contains('wind') || cleanName.contains('breeze') || cleanName.contains('gale')) {
-        final p = LuaPresetLibrary.getPresetById('eatsfx_wind') ?? LuaPresetLibrary.getPresetById('eats_wind');
+        final p = EatScriptLibrary.getPresetById('eatsfx_wind') ?? EatScriptLibrary.getPresetById('eats_wind');
         if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
       }
       if (cleanName.contains('campfire') || cleanName.contains('hearth') || cleanName.contains('fire')) {
-        final p = LuaPresetLibrary.getPresetById('eatsfx_fire') ?? LuaPresetLibrary.getPresetById('eats_fire');
+        final p = EatScriptLibrary.getPresetById('eatsfx_fire') ?? EatScriptLibrary.getPresetById('eats_fire');
         if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
       }
       if (cleanName.contains('furnace') || cleanName.contains('pyrophone')) {
-        final p = LuaPresetLibrary.getPresetById('eats_furnace');
+        final p = EatScriptLibrary.getPresetById('eats_furnace');
         if (p != null) return _buildDirectPresetResult(p, 'fx', 'semantic_keyword');
       }
     }
@@ -1415,9 +1415,9 @@ class GmInstrumentRegistry {
         : 0;
 
     final sfDef = spec[targetProgram];
-    final sfPreset = LuaPresetLibrary.presets.firstWhere(
+    final sfPreset = EatScriptLibrary.presets.firstWhere(
       (p) => p.id == 'soundfont_sampler',
-      orElse: () => LuaPresetLibrary.presets.first,
+      orElse: () => EatScriptLibrary.presets.first,
     );
 
     return GmResolutionResult(
@@ -1425,12 +1425,12 @@ class GmInstrumentRegistry {
       presetId: 'soundfont_sampler',
       presetName: '${sfDef.gmName} (SoundFont)',
       iconName: sfDef.iconName,
-      trackType: TrackType.luaScript,
+      trackType: TrackType.eatScript,
       sampleName: 'super_small_font.sf2',
       presetNum: targetProgram.toDouble(),
       bankNum: 0.0,
-      luaScriptCode: sfPreset.code,
-      luaParams: {
+      eatScriptCode: sfPreset.code,
+      eatScriptParams: {
         'PresetNum': targetProgram.toDouble(),
         'BankNum': 0.0,
       },
@@ -1440,7 +1440,7 @@ class GmInstrumentRegistry {
   }
 
   static GmResolutionResult _buildNativeResult({
-    required LuaScriptDef preset,
+    required EatScriptDef preset,
     required GmInstrumentDef gmDef,
     required String matchReason,
   }) {
@@ -1450,19 +1450,19 @@ class GmInstrumentRegistry {
       presetId: preset.id,
       presetName: preset.name,
       iconName: gmDef.iconName,
-      trackType: TrackType.luaScript,
+      trackType: TrackType.eatScript,
       sampleName: '',
       presetNum: gmDef.programNumber.toDouble(),
       bankNum: 0.0,
-      luaScriptCode: preset.code,
-      luaParams: params,
+      eatScriptCode: preset.code,
+      eatScriptParams: params,
       matchReason: matchReason,
       matchedDef: gmDef,
     );
   }
 
   static GmResolutionResult _buildDirectPresetResult(
-    LuaScriptDef preset,
+    EatScriptDef preset,
     String iconName,
     String matchReason,
   ) {
@@ -1472,12 +1472,12 @@ class GmInstrumentRegistry {
       presetId: preset.id,
       presetName: preset.name,
       iconName: iconName,
-      trackType: TrackType.luaScript,
+      trackType: TrackType.eatScript,
       sampleName: '',
       presetNum: 0.0,
       bankNum: 0.0,
-      luaScriptCode: preset.code,
-      luaParams: params,
+      eatScriptCode: preset.code,
+      eatScriptParams: params,
       matchReason: matchReason,
     );
   }

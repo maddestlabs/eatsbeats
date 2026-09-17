@@ -9,20 +9,20 @@ import 'package:eatsbeats/audio/procgen/procedural_ensemble_engine.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('Eats.lua Save & Load Serialization Tests', () {
-    test('Serializes DawState to .eats.lua valid string', () {
+  group('Eats Project Save & Load Serialization Tests', () {
+    test('Serializes DawState to .eats valid string', () {
       final state = DawState();
       state.projectName = 'Acid Sunset';
       state.setBpm(128.0);
       state.setMasterVolume(0.90);
 
-      final luaString = EatsLuaSerializer.serialize(state, projectName: state.projectName);
+      final eatScriptString = EatProjectSerializer.serialize(state, projectName: state.projectName);
 
-      expect(luaString, contains('return eatsbeats.song {'));
-      expect(luaString, contains('title = "Acid Sunset"'));
-      expect(luaString, contains('bpm = 128.00'));
-      expect(luaString, contains('masterVolume = 0.90'));
-      expect(luaString, contains('tracks = {'));
+      expect(eatScriptString, contains('return eatsbeats.song {'));
+      expect(eatScriptString, contains('title = "Acid Sunset"'));
+      expect(eatScriptString, contains('bpm = 128.00'));
+      expect(eatScriptString, contains('masterVolume = 0.90'));
+      expect(eatScriptString, contains('tracks = {'));
       state.dispose();
     });
 
@@ -58,11 +58,11 @@ void main() {
       ));
 
       // Serialize
-      final luaCode = state.exportToEatsLua();
+      final eatScriptCode = state.exportToEats();
 
       // Create new DAW state and load
       final newState = DawState();
-      newState.loadFromEatsLua(luaCode);
+      newState.loadFromEats(eatScriptCode);
 
       expect(newState.projectName, equals('Test Techno Track'));
       expect(newState.bpm, equals(132.5));
@@ -90,8 +90,8 @@ void main() {
       newState.dispose();
     });
 
-    test('Parses multiline embedded Lua clip code blocks', () {
-      const sampleLuaFile = '''
+    test('Parses multiline embedded Eatscript clip code blocks', () {
+      const sampleEatScriptFile = '''
 return eatsbeats.song {
   meta = {
     title = "Generative Acid",
@@ -106,7 +106,7 @@ return eatsbeats.song {
         {
           id = "c_1",
           name = "Gen Clip",
-          luaScriptCode = [[
+          eatScriptCode = [[
 function process(notes, context)
   return notes
 end
@@ -119,7 +119,7 @@ end
 ''';
 
       final newState = DawState();
-      newState.loadFromEatsLua(sampleLuaFile);
+      newState.loadFromEats(sampleEatScriptFile);
 
       expect(newState.projectName, equals('Generative Acid'));
       expect(newState.bpm, equals(140.0));
@@ -131,14 +131,14 @@ end
       newState.dispose();
     });
 
-    test('Full default DawState export and re-import works cleanly with Lua comments', () {
+    test('Full default DawState export and re-import works cleanly with comments', () {
       final state = DawState();
-      final exported = state.exportToEatsLua();
+      final exported = state.exportToEats();
 
       expect(exported, contains('return eatsbeats.song {'));
 
       final newState = DawState();
-      expect(() => newState.loadFromEatsLua(exported), returnsNormally);
+      expect(() => newState.loadFromEats(exported), returnsNormally);
       expect(newState.patterns.first.tracks.length, equals(state.patterns.first.tracks.length));
       state.dispose();
       newState.dispose();
@@ -157,14 +157,14 @@ end
       expect(state.songBlueprintSeed, equals(777));
 
       // Serialize to .eats format
-      final serialized = state.exportToEatsLua();
+      final serialized = state.exportToEats();
       expect(serialized, contains('blueprint = {'));
       expect(serialized, contains('seed = 777'));
       expect(serialized, contains('Fireside Tavern Tale'));
 
       // Deserialize into fresh DawState
       final loadedState = DawState();
-      loadedState.loadFromEatsLua(serialized);
+      loadedState.loadFromEats(serialized);
 
       expect(loadedState.songBlueprint, isNotNull);
       expect(loadedState.songBlueprint!.title, equals('Fireside Tavern Tale'));
@@ -190,8 +190,8 @@ end
         id: 't_303',
         name: 'TB-303',
         color: const Color(0xFF000000),
-        type: TrackType.luaScript,
-        luaScriptCode: 'local Acid303 = {}',
+        type: TrackType.eatScript,
+        eatScriptCode: 'local Acid303 = {}',
       );
       expect(track303.isMonophonicTrack, isTrue);
 

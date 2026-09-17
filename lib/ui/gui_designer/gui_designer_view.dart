@@ -59,7 +59,7 @@ class GuiDesignerCanvasView extends StatefulWidget {
 }
 
 class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
-  late LuaGuiPanelDef _panel;
+  late EatScriptGuiPanelDef _panel;
   int? _selectedRowIndex;
   int? _selectedChildIndex;
   int? _selectedStackChildIndex;
@@ -80,8 +80,8 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     }
   }
 
-  LuaCompilationResult _compileCode(String code) {
-    return EatScriptEngine.compile(code).toLuaCompilationResult();
+  EatCompilationResult _compileCode(String code) {
+    return EatScriptEngine.compile(code);
   }
 
   void _initPanelFromCode() {
@@ -89,11 +89,11 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     if (compilation.guiLayout != null) {
       _panel = compilation.guiLayout!;
     } else {
-      final parsed = LuaGuiParser.parseFromCode(widget.scriptCode);
+      final parsed = EatGuiParser.parseFromCode(widget.scriptCode);
       if (parsed != null) {
         _panel = parsed;
       } else {
-        _panel = LuaGuiSerializer.generateDefaultPanel(
+        _panel = EatGuiSerializer.generateDefaultPanel(
           title: widget.target.title.toUpperCase(),
           params: compilation.params,
         );
@@ -101,12 +101,12 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     }
   }
 
-  void _applyPanelChanges(LuaGuiPanelDef updatedPanel) {
+  void _applyPanelChanges(EatScriptGuiPanelDef updatedPanel) {
     setState(() {
       _panel = updatedPanel;
     });
 
-    final serialized = LuaGuiSerializer.serialize(
+    final serialized = EatGuiSerializer.serialize(
       panel: updatedPanel,
       existingScriptCode: widget.scriptCode,
       instrumentName: widget.target.title,
@@ -116,9 +116,9 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
   }
 
   void _addRow() {
-    final rows = List<LuaGuiNode>.from(_panel.children);
-    rows.add(const LuaGuiNode(
-      type: LuaGuiNodeType.row,
+    final rows = List<EatScriptGuiNode>.from(_panel.children);
+    rows.add(const EatScriptGuiNode(
+      type: EatScriptGuiNodeType.row,
       children: [],
     ));
 
@@ -133,7 +133,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
 
   void _deleteRow(int rowIndex) {
     if (rowIndex < 0 || rowIndex >= _panel.children.length) return;
-    final rows = List<LuaGuiNode>.from(_panel.children);
+    final rows = List<EatScriptGuiNode>.from(_panel.children);
     rows.removeAt(rowIndex);
 
     _applyPanelChanges(_panel.copyWith(children: rows));
@@ -149,7 +149,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     if (oldIndex < 0 || oldIndex >= _panel.children.length) return;
     if (newIndex < 0 || newIndex >= _panel.children.length) return;
 
-    final rows = List<LuaGuiNode>.from(_panel.children);
+    final rows = List<EatScriptGuiNode>.from(_panel.children);
     final item = rows.removeAt(oldIndex);
     rows.insert(newIndex, item);
 
@@ -164,7 +164,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
 
   void _addWidgetToRow(int rowIndex, GuiPaletteItem item, {int? insertIndex}) {
     if (rowIndex < 0 || rowIndex >= _panel.children.length) return;
-    final rows = List<LuaGuiNode>.from(_panel.children);
+    final rows = List<EatScriptGuiNode>.from(_panel.children);
     final row = rows[rowIndex];
 
     final compilation = _compileCode(widget.scriptCode);
@@ -175,7 +175,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     );
 
     final newNode = item.createNode(defaultParam: nextUnusedParam);
-    final newChildren = List<LuaGuiNode>.from(row.children);
+    final newChildren = List<EatScriptGuiNode>.from(row.children);
     if (insertIndex != null && insertIndex >= 0 && insertIndex <= newChildren.length) {
       newChildren.insert(insertIndex, newNode);
     } else {
@@ -195,7 +195,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
 
   void _addWidgetToStack(int rowIndex, int childIndex, GuiPaletteItem item, {int? insertIndex}) {
     if (rowIndex < 0 || rowIndex >= _panel.children.length) return;
-    final rows = List<LuaGuiNode>.from(_panel.children);
+    final rows = List<EatScriptGuiNode>.from(_panel.children);
     final row = rows[rowIndex];
     if (childIndex < 0 || childIndex >= row.children.length) return;
     final stackNode = row.children[childIndex];
@@ -208,14 +208,14 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     );
 
     final newNode = item.createNode(defaultParam: nextUnusedParam);
-    final newStackChildren = List<LuaGuiNode>.from(stackNode.children);
+    final newStackChildren = List<EatScriptGuiNode>.from(stackNode.children);
     if (insertIndex != null && insertIndex >= 0 && insertIndex <= newStackChildren.length) {
       newStackChildren.insert(insertIndex, newNode);
     } else {
       newStackChildren.add(newNode);
     }
 
-    final newRowChildren = List<LuaGuiNode>.from(row.children);
+    final newRowChildren = List<EatScriptGuiNode>.from(row.children);
     newRowChildren[childIndex] = stackNode.copyWith(children: newStackChildren);
     rows[rowIndex] = row.copyWith(children: newRowChildren);
 
@@ -234,26 +234,26 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     int? toChild,
     int? toStackChild,
   }) {
-    final rows = List<LuaGuiNode>.from(_panel.children);
+    final rows = List<EatScriptGuiNode>.from(_panel.children);
     if (source.rowIndex < 0 || source.rowIndex >= rows.length) return;
     final srcRow = rows[source.rowIndex];
 
-    LuaGuiNode? extractedNode;
+    EatScriptGuiNode? extractedNode;
 
     // 1. Extract from source
     if (source.childIndex != null && source.childIndex! >= 0 && source.childIndex! < srcRow.children.length) {
       if (source.stackChildIndex != null) {
         final stackNode = srcRow.children[source.childIndex!];
         if (source.stackChildIndex! >= 0 && source.stackChildIndex! < stackNode.children.length) {
-          final newStackChildren = List<LuaGuiNode>.from(stackNode.children);
+          final newStackChildren = List<EatScriptGuiNode>.from(stackNode.children);
           extractedNode = newStackChildren.removeAt(source.stackChildIndex!);
 
-          final newRowChildren = List<LuaGuiNode>.from(srcRow.children);
+          final newRowChildren = List<EatScriptGuiNode>.from(srcRow.children);
           newRowChildren[source.childIndex!] = stackNode.copyWith(children: newStackChildren);
           rows[source.rowIndex] = srcRow.copyWith(children: newRowChildren);
         }
       } else {
-        final newRowChildren = List<LuaGuiNode>.from(srcRow.children);
+        final newRowChildren = List<EatScriptGuiNode>.from(srcRow.children);
         extractedNode = newRowChildren.removeAt(source.childIndex!);
         rows[source.rowIndex] = srcRow.copyWith(children: newRowChildren);
       }
@@ -265,22 +265,22 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     if (toRow < 0 || toRow >= rows.length) return;
     final targetRow = rows[toRow];
 
-    if (toChild != null && toChild >= 0 && toChild < targetRow.children.length && (targetRow.children[toChild].type == LuaGuiNodeType.column || targetRow.children[toChild].type == LuaGuiNodeType.group)) {
+    if (toChild != null && toChild >= 0 && toChild < targetRow.children.length && (targetRow.children[toChild].type == EatScriptGuiNodeType.column || targetRow.children[toChild].type == EatScriptGuiNodeType.group)) {
       // Drop into a stack
       final stackNode = targetRow.children[toChild];
-      final newStackChildren = List<LuaGuiNode>.from(stackNode.children);
+      final newStackChildren = List<EatScriptGuiNode>.from(stackNode.children);
       if (toStackChild != null && toStackChild >= 0 && toStackChild <= newStackChildren.length) {
         newStackChildren.insert(toStackChild, extractedNode);
       } else {
         newStackChildren.add(extractedNode);
       }
 
-      final newRowChildren = List<LuaGuiNode>.from(targetRow.children);
+      final newRowChildren = List<EatScriptGuiNode>.from(targetRow.children);
       newRowChildren[toChild] = stackNode.copyWith(children: newStackChildren);
       rows[toRow] = targetRow.copyWith(children: newRowChildren);
     } else {
       // Drop into a row
-      final newRowChildren = List<LuaGuiNode>.from(targetRow.children);
+      final newRowChildren = List<EatScriptGuiNode>.from(targetRow.children);
       if (toChild != null && toChild >= 0 && toChild <= newRowChildren.length) {
         newRowChildren.insert(toChild, extractedNode);
       } else {
@@ -313,24 +313,24 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     final s = _selectedStackChildIndex;
     if (r == null || r < 0 || r >= _panel.children.length) return;
 
-    final rows = List<LuaGuiNode>.from(_panel.children);
+    final rows = List<EatScriptGuiNode>.from(_panel.children);
     final row = rows[r];
 
     if (c != null && c >= 0 && c < row.children.length) {
       final childNode = row.children[c];
       if (s != null &&
-          (childNode.type == LuaGuiNodeType.column || childNode.type == LuaGuiNodeType.group) &&
+          (childNode.type == EatScriptGuiNodeType.column || childNode.type == EatScriptGuiNodeType.group) &&
           s >= 0 &&
           s < childNode.children.length) {
-        final newStackChildren = List<LuaGuiNode>.from(childNode.children)..removeAt(s);
-        final newRowChildren = List<LuaGuiNode>.from(row.children);
+        final newStackChildren = List<EatScriptGuiNode>.from(childNode.children)..removeAt(s);
+        final newRowChildren = List<EatScriptGuiNode>.from(row.children);
         newRowChildren[c] = childNode.copyWith(children: newStackChildren);
         rows[r] = row.copyWith(children: newRowChildren);
         setState(() {
           _selectedStackChildIndex = null;
         });
       } else {
-        final newChildren = List<LuaGuiNode>.from(row.children)..removeAt(c);
+        final newChildren = List<EatScriptGuiNode>.from(row.children)..removeAt(c);
         rows[r] = row.copyWith(children: newChildren);
         setState(() {
           _selectedChildIndex = null;
@@ -355,18 +355,18 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     final s = _selectedStackChildIndex;
     if (r == null || r < 0 || r >= _panel.children.length) return;
 
-    final rows = List<LuaGuiNode>.from(_panel.children);
+    final rows = List<EatScriptGuiNode>.from(_panel.children);
     final row = rows[r];
 
     if (c != null && c >= 0 && c < row.children.length) {
       final childNode = row.children[c];
       if (s != null &&
-          (childNode.type == LuaGuiNodeType.column || childNode.type == LuaGuiNodeType.group) &&
+          (childNode.type == EatScriptGuiNodeType.column || childNode.type == EatScriptGuiNodeType.group) &&
           s >= 0 &&
           s < childNode.children.length) {
         final stackItem = childNode.children[s];
-        final newStackChildren = List<LuaGuiNode>.from(childNode.children)..insert(s + 1, stackItem);
-        final newRowChildren = List<LuaGuiNode>.from(row.children);
+        final newStackChildren = List<EatScriptGuiNode>.from(childNode.children)..insert(s + 1, stackItem);
+        final newRowChildren = List<EatScriptGuiNode>.from(row.children);
         newRowChildren[c] = childNode.copyWith(children: newStackChildren);
         rows[r] = row.copyWith(children: newRowChildren);
         setState(() {
@@ -374,7 +374,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
         });
       } else {
         final node = row.children[c];
-        final newChildren = List<LuaGuiNode>.from(row.children)..insert(c + 1, node);
+        final newChildren = List<EatScriptGuiNode>.from(row.children)..insert(c + 1, node);
         rows[r] = row.copyWith(children: newChildren);
         setState(() {
           _selectedChildIndex = c + 1;
@@ -807,12 +807,12 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     return faceplate;
   }
 
-  Widget _buildRowDesigner(int rowIndex, LuaGuiNode rowNode, bool isLight, Color accent) {
+  Widget _buildRowDesigner(int rowIndex, EatScriptGuiNode rowNode, bool isLight, Color accent) {
     final isRowSelected = _selectedRowIndex == rowIndex && _selectedChildIndex == null;
 
-    final bool isGroup = rowNode.type == LuaGuiNodeType.group;
-    final bool hasInnerRow = isGroup && rowNode.children.length == 1 && rowNode.children.first.type == LuaGuiNodeType.row;
-    final List<LuaGuiNode> widgetsToRender = hasInnerRow ? rowNode.children.first.children : rowNode.children;
+    final bool isGroup = rowNode.type == EatScriptGuiNodeType.group;
+    final bool hasInnerRow = isGroup && rowNode.children.length == 1 && rowNode.children.first.type == EatScriptGuiNodeType.row;
+    final List<EatScriptGuiNode> widgetsToRender = hasInnerRow ? rowNode.children.first.children : rowNode.children;
     final effectiveRowAccent = rowNode.accentColor ?? accent;
 
     final bool hasCustomBg = rowNode.backgroundStyle != null || rowNode.backgroundColor != null;
@@ -1059,12 +1059,12 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
   Widget _buildWidgetDesignerSlot(
     int rowIndex,
     int childIndex,
-    LuaGuiNode node,
+    EatScriptGuiNode node,
     bool isLight,
     Color accent, {
     int? stackChildIndex,
   }) {
-    if ((node.type == LuaGuiNodeType.column || node.type == LuaGuiNodeType.group) && stackChildIndex == null) {
+    if ((node.type == EatScriptGuiNodeType.column || node.type == EatScriptGuiNodeType.group) && stackChildIndex == null) {
       return _buildStackDesignerSlot(rowIndex, childIndex, node, isLight, accent);
     }
 
@@ -1183,7 +1183,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     );
   }
 
-  Widget _buildStackDesignerSlot(int rowIndex, int childIndex, LuaGuiNode node, bool isLight, Color accent) {
+  Widget _buildStackDesignerSlot(int rowIndex, int childIndex, EatScriptGuiNode node, bool isLight, Color accent) {
     final isStackSelected = _selectedRowIndex == rowIndex && _selectedChildIndex == childIndex && _selectedStackChildIndex == null;
     final isMinimal = _panel.backgroundStyle == PanelBackgroundStyle.minimalWhite || node.backgroundStyle == PanelBackgroundStyle.minimalWhite;
 
@@ -1332,7 +1332,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     int rowIndex,
     int childIndex,
     int stackChildIndex,
-    LuaGuiNode childNode,
+    EatScriptGuiNode childNode,
     bool isLight,
     Color accent,
   ) {
@@ -1413,10 +1413,10 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     );
   }
 
-  Widget _renderMockWidget(LuaGuiNode node, bool isLight, Color accent) {
+  Widget _renderMockWidget(EatScriptGuiNode node, bool isLight, Color accent) {
     switch (node.type) {
-      case LuaGuiNodeType.column:
-      case LuaGuiNodeType.group:
+      case EatScriptGuiNodeType.column:
+      case EatScriptGuiNodeType.group:
         final effectiveGroupAccent = node.accentColor ?? accent;
         return Container(
           padding: const EdgeInsets.all(4),
@@ -1443,7 +1443,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           ),
         );
 
-      case LuaGuiNodeType.row:
+      case EatScriptGuiNodeType.row:
         final effectiveRowAccent = node.accentColor ?? accent;
         return Row(
           mainAxisSize: MainAxisSize.min,
@@ -1457,7 +1457,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
               .toList(),
         );
 
-      case LuaGuiNodeType.knob:
+      case EatScriptGuiNodeType.knob:
         final effectiveKnobStyle = (node.knobStyle == KnobStyle.standard && _panel.defaultKnobStyle != null)
             ? _panel.defaultKnobStyle
             : node.knobStyle;
@@ -1482,7 +1482,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
         }
 
         var style = node.hardwareKnobStyle ?? _resolveDefaultHardwareKnobStyle(effectiveKnobStyle, node.accentColor ?? accent, isLightChassis: isLight);
-        Color? resolveTrack(Color? c) => LuaGuiNode.isTrackColor(c) ? (widget.target.trackColor ?? accent) : c;
+        Color? resolveTrack(Color? c) => EatScriptGuiNode.isTrackColor(c) ? (widget.target.trackColor ?? accent) : c;
         final effectiveCap = resolveTrack(node.capColor);
         final effectiveBody = resolveTrack(node.bodyColor);
         final effectiveInd = resolveTrack(node.indicatorColor);
@@ -1534,8 +1534,8 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           onChanged: (_) {},
         );
 
-      case LuaGuiNodeType.slider:
-      case LuaGuiNodeType.fader:
+      case EatScriptGuiNodeType.slider:
+      case EatScriptGuiNodeType.fader:
         final isH = node.orientation == 'horizontal';
         return SizedBox(
           width: isH ? (node.width ?? 320) : (node.width ?? 60),
@@ -1555,7 +1555,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           ),
         );
 
-      case LuaGuiNodeType.switchToggle:
+      case EatScriptGuiNodeType.switchToggle:
         return SkeuomorphicHardwareSwitch(
           label: node.showLabel ? (node.label ?? (node.param ?? 'SWITCH')) : null,
           value: false,
@@ -1563,7 +1563,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           onChanged: (_) {},
         );
 
-      case LuaGuiNodeType.button:
+      case EatScriptGuiNodeType.button:
         return SkeuomorphicHardwareButton(
           label: node.label ?? 'TRIGGER',
           width: node.width ?? 90,
@@ -1571,7 +1571,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           onTap: () {},
         );
 
-      case LuaGuiNodeType.listBox:
+      case EatScriptGuiNodeType.listBox:
         return Container(
           width: node.width ?? 140,
           height: node.height ?? 75,
@@ -1609,7 +1609,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           ),
         );
 
-      case LuaGuiNodeType.nixie:
+      case EatScriptGuiNodeType.nixie:
         return GlowingNixieDisplay(
           label: node.label ?? 'NIXIE',
           showLabel: node.showLabel,
@@ -1619,8 +1619,8 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           glowColor: accent,
         );
 
-      case LuaGuiNodeType.oscilloscope:
-      case LuaGuiNodeType.spectrum:
+      case EatScriptGuiNodeType.oscilloscope:
+      case EatScriptGuiNodeType.spectrum:
         return Container(
           width: node.width ?? 320,
           height: node.height ?? 140,
@@ -1631,12 +1631,12 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           ),
           alignment: Alignment.center,
           child: Text(
-            node.type == LuaGuiNodeType.spectrum ? 'SPECTRUM FFT' : 'OSCILLOSCOPE',
+            node.type == EatScriptGuiNodeType.spectrum ? 'SPECTRUM FFT' : 'OSCILLOSCOPE',
             style: TextStyle(fontSize: 10, fontFamily: 'monospace', fontWeight: FontWeight.bold, color: accent),
           ),
         );
 
-      case LuaGuiNodeType.spaceVisualizer:
+      case EatScriptGuiNodeType.spaceVisualizer:
         return SizedBox(
           width: 280,
           height: 140,
@@ -1651,14 +1651,14 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           ),
         );
 
-      case LuaGuiNodeType.waveshaperCanvas:
+      case EatScriptGuiNodeType.waveshaperCanvas:
         return const SizedBox(
           width: 320,
           height: 140,
           child: WaveshaperCanvasWidget(shapeType: 0, tension: 0.0),
         );
 
-      case LuaGuiNodeType.canvas:
+      case EatScriptGuiNodeType.canvas:
         return Container(
           width: node.width ?? 340,
           height: node.height ?? 180,
@@ -1695,10 +1695,10 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           ),
         );
 
-      case LuaGuiNodeType.divider:
+      case EatScriptGuiNodeType.divider:
         return Container(width: 1.5, height: 50, color: isLight ? Colors.black26 : Colors.white24);
 
-      case LuaGuiNodeType.row:
+      case EatScriptGuiNodeType.row:
         return Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -1710,7 +1710,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           ],
         );
 
-      case LuaGuiNodeType.column:
+      case EatScriptGuiNodeType.column:
         return Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: _parseMainAxisAlignment(node.align),
@@ -1724,7 +1724,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           ],
         );
 
-      case LuaGuiNodeType.group:
+      case EatScriptGuiNodeType.group:
         final groupAccent = node.accentColor ?? accent;
         return Container(
           padding: const EdgeInsets.all(8),

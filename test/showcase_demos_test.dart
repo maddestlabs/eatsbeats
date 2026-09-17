@@ -9,12 +9,12 @@ void main() {
 
   group('Showcase Song Demos Tests', () {
     test('Yamaha DX7 Tokyo Nights demo parses and synthesizes properly', () {
-      final file = File('demos/yamaha_dx7_showcase.eats.lua');
+      final file = File('demos/yamaha_dx7_showcase.eats');
       expect(file.existsSync(), isTrue);
 
       final code = file.readAsStringSync();
       final dawState = DawState();
-      final title = EatsLuaParser.populateDawState(dawState, code);
+      final title = EatProjectParser.populateDawState(dawState, code);
 
       expect(title, equals('Yamaha DX7 — Tokyo Nights'));
       expect(dawState.patterns.isNotEmpty, isTrue);
@@ -24,12 +24,12 @@ void main() {
       // Test synthesis on each track
       for (final track in pattern.tracks) {
         expect(track.notes.isNotEmpty, isTrue);
-        final buffer = LuaEngine.synthesizeBuffer(
-          code: track.luaScriptCode,
+        final buffer = EatEngine.synthesizeBuffer(
+          code: track.eatScriptCode,
           durationSec: 0.2,
           freq: 440.0,
           note: 69,
-          params: track.luaParams,
+          params: track.eatScriptParams,
         );
         expect(buffer.isNotEmpty, isTrue);
         double maxAmp = 0.0;
@@ -41,12 +41,12 @@ void main() {
     });
 
     test('Commodore 64 Cyber Assault demo parses and synthesizes properly', () {
-      final file = File('demos/c64_sid_showcase.eats.lua');
+      final file = File('demos/c64_sid_showcase.eats');
       expect(file.existsSync(), isTrue);
 
       final code = file.readAsStringSync();
       final dawState = DawState();
-      final title = EatsLuaParser.populateDawState(dawState, code);
+      final title = EatProjectParser.populateDawState(dawState, code);
 
       expect(title, equals('C64 — Cyber Assault'));
       expect(dawState.patterns.isNotEmpty, isTrue);
@@ -56,12 +56,12 @@ void main() {
       // Test synthesis on each track
       for (final track in pattern.tracks) {
         expect(track.notes.isNotEmpty, isTrue);
-        final buffer = LuaEngine.synthesizeBuffer(
-          code: track.luaScriptCode,
+        final buffer = EatEngine.synthesizeBuffer(
+          code: track.eatScriptCode,
           durationSec: 0.2,
           freq: 440.0,
           note: 69,
-          params: track.luaParams,
+          params: track.eatScriptParams,
         );
         expect(buffer.isNotEmpty, isTrue);
         double maxAmp = 0.0;

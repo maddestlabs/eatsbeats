@@ -35,12 +35,12 @@ void main() {
       expect(buffer.any((s) => s.abs() > 0.05), isTrue);
     });
 
-    test('LuaPresetLibrary contains acoustic_bass and compiles with GUI', () {
-      final preset = LuaScriptLibrary.getPresetById('acoustic_bass');
+    test('EatScriptLibrary contains acoustic_bass and compiles with GUI', () {
+      final preset = EatScriptLibrary.getPresetById('acoustic_bass');
       expect(preset, isNotNull);
       expect(preset!.name, equals('Acoustic Bass Guitar'));
 
-      final buffer = LuaEngine.synthesizeBuffer(
+      final buffer = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.4,
         freq: 55.0, // A1
@@ -51,7 +51,7 @@ void main() {
       expect(buffer.length, equals((44100 * 0.4).toInt()));
       expect(buffer.any((s) => s != 0.0), isTrue);
 
-      final gui = LuaGuiParser.parseFromCode(preset.code);
+      final gui = EatGuiParser.parseFromCode(preset.code);
       expect(gui, isNotNull);
       expect(gui!.title, contains('ACOUSTIC BASS'));
       expect(gui.children.length, greaterThanOrEqualTo(1));
@@ -107,12 +107,12 @@ void main() {
       expect(differenceDetected, isTrue);
     });
 
-    test('LuaPresetLibrary contains fretless_bass and compiles with GUI', () {
-      final preset = LuaScriptLibrary.getPresetById('fretless_bass');
+    test('EatScriptLibrary contains fretless_bass and compiles with GUI', () {
+      final preset = EatScriptLibrary.getPresetById('fretless_bass');
       expect(preset, isNotNull);
       expect(preset!.name, equals('Fretless J-Bass'));
 
-      final buffer = LuaEngine.synthesizeBuffer(
+      final buffer = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.4,
         freq: 65.41, // C2
@@ -123,7 +123,7 @@ void main() {
       expect(buffer.length, equals((44100 * 0.4).toInt()));
       expect(buffer.any((s) => s != 0.0), isTrue);
 
-      final gui = LuaGuiParser.parseFromCode(preset.code);
+      final gui = EatGuiParser.parseFromCode(preset.code);
       expect(gui, isNotNull);
       expect(gui!.title, contains('FRETLESS J-BASS'));
     });
@@ -158,12 +158,12 @@ void main() {
       expect(slapBuf.any((s) => s != 0.0), isTrue);
     });
 
-    test('LuaPresetLibrary contains upright_bass and compiles with GUI', () {
-      final preset = LuaScriptLibrary.getPresetById('upright_bass');
+    test('EatScriptLibrary contains upright_bass and compiles with GUI', () {
+      final preset = EatScriptLibrary.getPresetById('upright_bass');
       expect(preset, isNotNull);
       expect(preset!.name, equals('Upright Double Bass'));
 
-      final buffer = LuaEngine.synthesizeBuffer(
+      final buffer = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.5,
         freq: 49.00, // G1
@@ -174,7 +174,7 @@ void main() {
       expect(buffer.length, equals((44100 * 0.5).toInt()));
       expect(buffer.any((s) => s != 0.0), isTrue);
 
-      final gui = LuaGuiParser.parseFromCode(preset.code);
+      final gui = EatGuiParser.parseFromCode(preset.code);
       expect(gui, isNotNull);
       expect(gui!.title, contains('UPRIGHT DOUBLE BASS'));
     });
@@ -205,12 +205,12 @@ void main() {
       expect(buffer.any((s) => s.abs() > 0.05), isTrue);
     });
 
-    test('LuaPresetLibrary contains moog_synth_bass and compiles with GUI', () {
-      final preset = LuaScriptLibrary.getPresetById('moog_synth_bass');
+    test('EatScriptLibrary contains moog_synth_bass and compiles with GUI', () {
+      final preset = EatScriptLibrary.getPresetById('moog_synth_bass');
       expect(preset, isNotNull);
       expect(preset!.name, equals('Model D Sub Synth Bass'));
 
-      final buffer = LuaEngine.synthesizeBuffer(
+      final buffer = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.4,
         freq: 41.2, // E1
@@ -221,7 +221,7 @@ void main() {
       expect(buffer.length, equals((44100 * 0.4).toInt()));
       expect(buffer.any((s) => s != 0.0), isTrue);
 
-      final gui = LuaGuiParser.parseFromCode(preset.code);
+      final gui = EatGuiParser.parseFromCode(preset.code);
       expect(gui, isNotNull);
       expect(gui!.title, contains('MODEL D'));
     });

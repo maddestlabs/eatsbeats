@@ -23,7 +23,7 @@ class GrungyRackPanel extends StatelessWidget {
   final double backgroundSvgOpacity;
   final double? backgroundSvgStrokeWidth;
   final SvgTileMode backgroundSvgTile;
-  final LuaGuiGradientDef? backgroundGradient;
+  final EatScriptGuiGradientDef? backgroundGradient;
   final List<SvgLayerDef>? backgroundSvgLayers;
   final List<Widget>? headerActions;
 

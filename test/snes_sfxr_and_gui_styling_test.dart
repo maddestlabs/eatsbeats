@@ -17,20 +17,20 @@ void main() {
 
   group('SNES Synth and SNES Sfxr Renaming & Preset Tests', () {
     test('Preset names are renamed to SNES Synth and SNES Sfxr', () {
-      final sfxr = LuaPresetLibrary.getPresetById('eats_sfxr');
+      final sfxr = EatScriptLibrary.getPresetById('eats_sfxr');
       expect(sfxr, isNotNull);
       expect(sfxr!.name, equals('SNES Sfxr'));
-      expect(sfxr.code, anyOf(contains('# @name: SNES Sfxr'), contains('-- @name: SNES Sfxr')));
+      expect(sfxr.code, anyOf(contains('# @name: SNES Sfxr'), contains('# @name: SNES Sfxr')));
 
-      final synth = LuaPresetLibrary.getPresetById('snes_console_synth');
+      final synth = EatScriptLibrary.getPresetById('snes_console_synth');
       expect(synth, isNotNull);
       expect(synth!.name, equals('SNES Synth'));
-      expect(synth.code, anyOf(contains('# @name: SNES Synth'), contains('-- @name: SNES Synth')));
+      expect(synth.code, anyOf(contains('# @name: SNES Synth'), contains('# @name: SNES Synth')));
     });
 
     test('SNES Sfxr GUI title, labels, and removed LCD match specification', () {
-      final sfxr = LuaPresetLibrary.getPresetById('eats_sfxr')!;
-      final compilation = LuaEngine.compile(sfxr.code);
+      final sfxr = EatScriptLibrary.getPresetById('eats_sfxr')!;
+      final compilation = EatEngine.compile(sfxr.code);
 
       expect(compilation.guiLayout, isNotNull);
       final panel = compilation.guiLayout!;
@@ -40,18 +40,18 @@ void main() {
 
       // Check ListBox nodes
       final row1 = panel.children.first;
-      expect(row1.type, equals(LuaGuiNodeType.row));
+      expect(row1.type, equals(EatScriptGuiNodeType.row));
 
-      final listBoxes = row1.children.where((c) => c.type == LuaGuiNodeType.listBox).toList();
+      final listBoxes = row1.children.where((c) => c.type == EatScriptGuiNodeType.listBox).toList();
       expect(listBoxes.length, equals(2));
       expect(listBoxes[0].label, equals('SFX Type'));
       expect(listBoxes[1].label, equals('Wavetable'));
 
       // Check Column on the right has Nixie and Button, but NO LCD
-      final col = row1.children.firstWhere((c) => c.type == LuaGuiNodeType.column);
-      expect(col.children.any((c) => c.type == LuaGuiNodeType.lcd), isFalse);
-      expect(col.children.any((c) => c.type == LuaGuiNodeType.nixie), isTrue);
-      expect(col.children.any((c) => c.type == LuaGuiNodeType.button), isTrue);
+      final col = row1.children.firstWhere((c) => c.type == EatScriptGuiNodeType.column);
+      expect(col.children.any((c) => c.type == EatScriptGuiNodeType.lcd), isFalse);
+      expect(col.children.any((c) => c.type == EatScriptGuiNodeType.nixie), isTrue);
+      expect(col.children.any((c) => c.type == EatScriptGuiNodeType.button), isTrue);
     });
   });
 
@@ -92,7 +92,7 @@ void main() {
         name: 'SNES Track',
         type: TrackType.synth,
         color: const Color(0xFFE52521),
-        luaParams: {'SFXType': 0.0},
+        eatScriptParams: {'SFXType': 0.0},
       );
       dawState.tracks.add(track);
 
@@ -132,7 +132,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.keyboard_arrow_down));
       await tester.pumpAndSettle();
 
-      expect(track.luaParams['SFXType'], equals(1.0));
+      expect(track.eatScriptParams['SFXType'], equals(1.0));
       expect(find.text('02/11'), findsOneWidget);
     });
   });
@@ -166,10 +166,10 @@ void main() {
     });
 
     test('Wavetable selector affects audio synthesis across non-custom archetypes', () {
-      final sfxr = LuaPresetLibrary.getPresetById('eats_sfxr')!;
+      final sfxr = EatScriptLibrary.getPresetById('eats_sfxr')!;
 
       // Synthesize Laser with Sawtooth waveform
-      final bufSaw = LuaEngine.synthesizeBuffer(
+      final bufSaw = EatEngine.synthesizeBuffer(
         code: sfxr.code,
         durationSec: 0.1,
         freq: 440.0,
@@ -181,7 +181,7 @@ void main() {
       );
 
       // Synthesize Laser with Sine waveform
-      final bufSine = LuaEngine.synthesizeBuffer(
+      final bufSine = EatEngine.synthesizeBuffer(
         code: sfxr.code,
         durationSec: 0.1,
         freq: 440.0,
@@ -204,14 +204,14 @@ void main() {
 
     testWidgets('DynamicInstrumentGuiWidget RANDOMIZE button updates track parameters', (tester) async {
       final dawState = DawState();
-      final sfxr = LuaPresetLibrary.getPresetById('eats_sfxr')!;
+      final sfxr = EatScriptLibrary.getPresetById('eats_sfxr')!;
       final track = TrackChannel(
         id: 'sfxr_track',
         name: 'SNES Sfxr',
         type: TrackType.synth,
         color: const Color(0xFFE52521),
-        luaScriptCode: sfxr.code,
-        luaParams: {
+        eatScriptCode: sfxr.code,
+        eatScriptParams: {
           'SFXType': 2.0, // Powerup
           'Seed': 42.0,
           'Attack': 0.1,
@@ -245,21 +245,21 @@ void main() {
       await tester.pumpAndSettle();
 
       // Parameters should be updated according to Powerup archetype generator
-      expect(track.luaParams['SFXType'], equals(2.0));
-      expect(track.luaParams.containsKey('Waveform'), isTrue);
-      expect(track.luaParams['EchoVolume'], isNonZero);
+      expect(track.eatScriptParams['SFXType'], equals(2.0));
+      expect(track.eatScriptParams.containsKey('Waveform'), isTrue);
+      expect(track.eatScriptParams['EchoVolume'], isNonZero);
     });
 
     testWidgets('Selecting SFXType in listbox auto-randomizes parameters without needing RANDOM button', (tester) async {
       final dawState = DawState();
-      final sfxr = LuaPresetLibrary.getPresetById('eats_sfxr')!;
+      final sfxr = EatScriptLibrary.getPresetById('eats_sfxr')!;
       final track = TrackChannel(
         id: 'sfxr_track_2',
         name: 'SNES Sfxr',
         type: TrackType.synth,
         color: const Color(0xFFE52521),
-        luaScriptCode: sfxr.code,
-        luaParams: {
+        eatScriptCode: sfxr.code,
+        eatScriptParams: {
           'SFXType': 0.0, // Laser
           'Seed': 42.0,
           'Waveform': 3.0,
@@ -287,17 +287,17 @@ void main() {
       await tester.tap(downSteppers.first);
       await tester.pumpAndSettle();
 
-      expect(track.luaParams['SFXType'], equals(1.0));
+      expect(track.eatScriptParams['SFXType'], equals(1.0));
       // Parameters should automatically have been randomized for Explosion
-      expect(track.luaParams.containsKey('Waveform'), isTrue);
-      expect(track.luaParams['Decay'], greaterThan(0.2));
+      expect(track.eatScriptParams.containsKey('Waveform'), isTrue);
+      expect(track.eatScriptParams['Decay'], greaterThan(0.2));
     });
   });
 
   group('SNES Synth Clean Synthesis & GUI Tests', () {
     test('SNES Synth compiles with full SNES GUI layout', () {
-      final synth = LuaPresetLibrary.getPresetById('snes_console_synth')!;
-      final compilation = LuaEngine.compile(synth.code);
+      final synth = EatScriptLibrary.getPresetById('snes_console_synth')!;
+      final compilation = EatEngine.compile(synth.code);
 
       expect(compilation.guiLayout, isNotNull);
       final panel = compilation.guiLayout!;
@@ -308,14 +308,14 @@ void main() {
       expect(panel.accentColor, equals(const Color(0xFFE52521)));
 
       final row1 = panel.children.first;
-      expect(row1.type, equals(LuaGuiNodeType.row));
-      expect(row1.children.any((c) => c.type == LuaGuiNodeType.listBox && c.label == 'Wavetable'), isTrue);
+      expect(row1.type, equals(EatScriptGuiNodeType.row));
+      expect(row1.children.any((c) => c.type == EatScriptGuiNodeType.listBox && c.label == 'Wavetable'), isTrue);
     });
 
     test('SNES Synth synthesizes pure waveform without initial laser pitch-dive blip', () {
-      final synth = LuaPresetLibrary.getPresetById('snes_console_synth')!;
+      final synth = EatScriptLibrary.getPresetById('snes_console_synth')!;
 
-      final buffer = LuaEngine.synthesizeBuffer(
+      final buffer = EatEngine.synthesizeBuffer(
         code: synth.code,
         durationSec: 0.1,
         freq: 440.0,

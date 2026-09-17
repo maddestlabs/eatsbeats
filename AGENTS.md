@@ -54,7 +54,7 @@ Eatscript uses Python-like indentation and syntax:
 ## Project Serialization Compatibility
 When reading project files:
 - The standard project file extension is `.eats`.
-- Legacy `.eats.lua` files and JSON with `"type": "luaScript"` or `"luaScriptCode"` are retained strictly for backward compatibility when deserializing older projects.
+- Legacy `.eats` files and JSON with `"type": "eatScript"` or `"eatScriptCode"` are retained strictly for backward compatibility when deserializing older projects.
 - New serialization always produces `"type": "eatScript"` and `"eatScriptCode"`.
 
 ---

@@ -15,12 +15,12 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Unified Audio FX Preset Library Tests', () {
-    test('All Audio FX presets in LuaPresetLibrary compile cleanly', () {
-      final audioPresets = LuaPresetLibrary.presets.where((p) => p.isAudioFx).toList();
+    test('All Audio FX presets in EatScriptLibrary compile cleanly', () {
+      final audioPresets = EatScriptLibrary.presets.where((p) => p.isAudioFx).toList();
       expect(audioPresets.length, greaterThanOrEqualTo(8));
 
       for (final preset in audioPresets) {
-        final compilation = LuaEngine.compile(preset.code);
+        final compilation = EatEngine.compile(preset.code);
         expect(
           compilation.isSuccess,
           isTrue,
@@ -29,42 +29,42 @@ void main() {
       }
     });
 
-    test('addAudioFXFromPreset adds FXInsert with proper parameters and Lua code', () {
+    test('addAudioFXFromPreset adds FXInsert with proper parameters and Eatscript code', () {
       final dawState = DawState();
       final track = dawState.activeTrack;
       final initialCount = track.fxRack.length;
 
-      final scopePreset = LuaPresetLibrary.getPresetById('eats_scope')!;
+      final scopePreset = EatScriptLibrary.getPresetById('eats_scope')!;
       dawState.addAudioFXFromPreset(track, scopePreset);
 
       expect(track.fxRack.length, initialCount + 1);
       final addedFx = track.fxRack.last;
       expect(addedFx.name, 'Eats-Scope');
-      expect(addedFx.luaScriptCode, scopePreset.code);
+      expect(addedFx.eatScriptCode, scopePreset.code);
       expect(addedFx.presetId, 'eats_scope');
-      expect(addedFx.isLuaFX, isTrue);
-      expect(addedFx.luaParams.containsKey('Gain'), isTrue);
-      expect(addedFx.luaParams.containsKey('Timebase'), isTrue);
+      expect(addedFx.isEatScriptFX, isTrue);
+      expect(addedFx.eatScriptParams.containsKey('Gain'), isTrue);
+      expect(addedFx.eatScriptParams.containsKey('Timebase'), isTrue);
     });
 
-    test('Audio FX presets are serialized and deserialized with Lua data', () {
+    test('Audio FX presets are serialized and deserialized with Eatscript data', () {
       final fx = FXInsert.create(
-        FXType.luaFX,
+        FXType.eatScriptFX,
         name: 'Eats-Spectrum',
-        luaScriptCode: '-- code',
+        eatScriptCode: '-- code',
         presetId: 'eats_spectrum',
-        luaParams: {'Gain': 2.0, 'Decay': 0.8},
+        eatScriptParams: {'Gain': 2.0, 'Decay': 0.8},
       );
 
       final json = fx.toJson();
       expect(json['presetId'], 'eats_spectrum');
-      expect(json['luaParams']['Gain'], 2.0);
+      expect(json['eatScriptParams']['Gain'], 2.0);
 
       final restored = FXInsert.fromJson(json);
       expect(restored.name, 'Eats-Spectrum');
       expect(restored.presetId, 'eats_spectrum');
-      expect(restored.luaParams['Gain'], 2.0);
-      expect(restored.isLuaFX, isTrue);
+      expect(restored.eatScriptParams['Gain'], 2.0);
+      expect(restored.isEatScriptFX, isTrue);
     });
   });
 
@@ -123,7 +123,7 @@ void main() {
     testWidgets('DawState.openFloatingFxWindow opens and FloatingInstrumentWindow renders FX faceplate', (tester) async {
       final dawState = DawState();
       final track = dawState.activeTrack;
-      final spectrumPreset = LuaPresetLibrary.getPresetById('eats_spectrum')!;
+      final spectrumPreset = EatScriptLibrary.getPresetById('eats_spectrum')!;
 
       dawState.addAudioFXFromPreset(track, spectrumPreset);
       final fx = track.fxRack.last;
@@ -158,8 +158,8 @@ void main() {
       final dawState = DawState();
       final track = dawState.activeTrack;
 
-      final scopePreset = LuaPresetLibrary.getPresetById('eats_scope')!;
-      final limiterPreset = LuaPresetLibrary.getPresetById('master_limiter')!;
+      final scopePreset = EatScriptLibrary.getPresetById('eats_scope')!;
+      final limiterPreset = EatScriptLibrary.getPresetById('master_limiter')!;
 
       dawState.addAudioFXFromPreset(track, scopePreset);
       dawState.addAudioFXFromPreset(track, limiterPreset);

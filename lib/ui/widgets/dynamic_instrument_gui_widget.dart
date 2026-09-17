@@ -58,13 +58,13 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     this.onParamChanged,
   });
 
-  static final Map<String, LuaCompilationResult> _compilationCache = {};
+  static final Map<String, EatCompilationResult> _compilationCache = {};
 
-  static LuaCompilationResult _getCompilation(String code, LuaCompilationResult fallback) {
+  static EatCompilationResult _getCompilation(String code, EatCompilationResult fallback) {
     if (code.isEmpty) return fallback;
     final cached = _compilationCache[code];
     if (cached != null) return cached;
-    final compiled = EatScriptEngine.compile(code).toLuaCompilationResult();
+    final compiled = EatScriptEngine.compile(code);
     _compilationCache[code] = compiled;
     if (_compilationCache.length > 50) {
       _compilationCache.remove(_compilationCache.keys.first);
@@ -73,11 +73,11 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
   }
 
   void _setParam(String paramName, double value) {
-    track.luaParams[paramName] = value;
+    track.eatScriptParams[paramName] = value;
     if (onParamChanged != null) {
       onParamChanged!(paramName, value);
     } else {
-      dawState.updateLuaParam(paramName, value, track);
+      dawState.updateScriptParam(paramName, value, track);
     }
   }
 
@@ -104,7 +104,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     return ListenableBuilder(
       listenable: SoundFontEngine.instance,
       builder: (context, _) {
-        final trackCompilation = _getCompilation(track.luaScriptCode, dawState.compilationResult);
+        final trackCompilation = _getCompilation(track.eatScriptCode, dawState.compilationResult);
 
         final guiLayout = trackCompilation.guiLayout;
 
@@ -132,7 +132,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
 
   Widget _buildFallbackTrackControls(
     BuildContext context,
-    LuaCompilationResult compilation,
+    EatCompilationResult compilation,
   ) {
     final baseAccent = track.color;
     return RepaintBoundary(
@@ -198,7 +198,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                       context,
                       dawState: dawState,
                       track: track,
-                      initialCategory: LuaPresetCategory.instrument,
+                      initialCategory: EatScriptCategory.instrument,
                     );
                   },
                   child: Container(
@@ -245,7 +245,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            if (track.luaScriptCode.contains('modular_drumpad_kit') || track.luaScriptCode.contains('ModularDrumpadKit')) ...[
+            if (track.eatScriptCode.contains('modular_drumpad_kit') || track.eatScriptCode.contains('ModularDrumpadKit')) ...[
               DrumPadGridWidget(dawState: dawState, track: track),
               const SizedBox(height: 12),
             ],
@@ -302,8 +302,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
 
   Widget _buildCustomRackPanel(
     BuildContext context,
-    LuaGuiPanelDef layout,
-    LuaCompilationResult compilation,
+    EatScriptGuiPanelDef layout,
+    EatCompilationResult compilation,
   ) {
     final isSilver = layout.backgroundStyle == PanelBackgroundStyle.silver;
     final isSnes = layout.backgroundStyle == PanelBackgroundStyle.snes;
@@ -502,7 +502,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                       id: 'track_${track.id}_dsp',
                       type: ScriptTargetType.trackDsp,
                       title: '${track.name} (${layout.title.toUpperCase()})',
-                      subtitle: track.luaScriptCode.isNotEmpty ? 'Custom Lua Synth / DSP' : 'Instrument DSP Script',
+                      subtitle: track.eatScriptCode.isNotEmpty ? 'Custom Eatscript Synth / DSP' : 'Instrument DSP Script',
                       trackId: track.id,
                       trackName: track.name,
                       trackColor: track.color,
@@ -558,8 +558,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             ],
             child: Column(
               children: [
-                if ((track.luaScriptCode.contains('modular_drumpad_kit') || track.luaScriptCode.contains('ModularDrumpadKit')) &&
-                    !layout.children.any((n) => n.type == LuaGuiNodeType.drumPads))
+                if ((track.eatScriptCode.contains('modular_drumpad_kit') || track.eatScriptCode.contains('ModularDrumpadKit')) &&
+                    !layout.children.any((n) => n.type == EatScriptGuiNodeType.drumPads))
                   DrumPadGridWidget(dawState: dawState, track: track),
                 ...layout.children.map((node) {
                   return Padding(
@@ -587,7 +587,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
       final p = trackPresets[i];
       bool isMatch = true;
       for (final e in p.params.entries) {
-        if ((track.luaParams[e.key] ?? -999.0) != e.value) {
+        if ((track.eatScriptParams[e.key] ?? -999.0) != e.value) {
           isMatch = false;
           break;
         }
@@ -685,8 +685,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
 
   Widget _buildNode(
     BuildContext context,
-    LuaGuiNode node,
-    LuaCompilationResult compilation,
+    EatScriptGuiNode node,
+    EatCompilationResult compilation,
     Color defaultAccent, [
     bool isLightChassis = false,
     bool hasBackgroundSvg = false,
@@ -694,7 +694,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     final accent = node.accentColor ?? defaultAccent;
 
     switch (node.type) {
-      case LuaGuiNodeType.row:
+      case EatScriptGuiNodeType.row:
         Widget rowWidget = Row(
           mainAxisAlignment: _parseMainAxisAlignment(node.align),
           crossAxisAlignment: _parseCrossAxisAlignment(node.crossAlign),
@@ -754,7 +754,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         }
         return rowWidget;
 
-      case LuaGuiNodeType.column:
+      case EatScriptGuiNodeType.column:
         final isMinimalColCard = node.backgroundStyle == PanelBackgroundStyle.minimalWhite ||
             (isLightChassis && node.backgroundStyle == null && node.children.length > 1 && node.width != null);
 
@@ -863,7 +863,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         }
         return colWidget;
 
-      case LuaGuiNodeType.divider:
+      case EatScriptGuiNodeType.divider:
         if (node.action == 'link' || node.label == 'link' || node.text == 'link') {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -925,7 +925,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           );
         }
 
-      case LuaGuiNodeType.group:
+      case EatScriptGuiNodeType.group:
         final hasCustomBg = node.backgroundStyle != null || node.backgroundColor != null;
         final isMinimalGroup = node.backgroundStyle == PanelBackgroundStyle.minimalWhite || (isLightChassis && !hasCustomBg);
         final isNodeLight = node.backgroundStyle == PanelBackgroundStyle.blondePine ||
@@ -1073,9 +1073,9 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           child: groupBody,
         );
 
-      case LuaGuiNodeType.knob:
+      case EatScriptGuiNodeType.knob:
         final paramDef = _findParam(node.param, compilation);
-        final rawVal = (track.luaParams[node.param] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
+        final rawVal = (track.eatScriptParams[node.param] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
         final currentVal = paramDef.isInteger ? rawVal.roundToDouble() : rawVal;
         final effectiveOptions = node.options.isNotEmpty ? node.options : paramDef.options;
         final hasOptions = effectiveOptions.isNotEmpty;
@@ -1116,7 +1116,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         }
 
         var style = node.hardwareKnobStyle ?? _resolveDefaultHardwareKnobStyle(node.knobStyle, accent, isLightChassis: isLightChassis);
-        Color? resolveTrack(Color? c) => LuaGuiNode.isTrackColor(c) ? (track.color) : c;
+        Color? resolveTrack(Color? c) => EatScriptGuiNode.isTrackColor(c) ? (track.color) : c;
         final effectiveCap = resolveTrack(node.capColor);
         final effectiveBody = resolveTrack(node.bodyColor);
         final effectiveInd = resolveTrack(node.indicatorColor);
@@ -1181,12 +1181,12 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           },
         );
 
-      case LuaGuiNodeType.slider:
-      case LuaGuiNodeType.fader:
+      case EatScriptGuiNodeType.slider:
+      case EatScriptGuiNodeType.fader:
         final paramDef = _findParam(node.param, compilation);
-        final rawVal = (track.luaParams[node.param] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
+        final rawVal = (track.eatScriptParams[node.param] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
         final currentVal = paramDef.isInteger ? rawVal.roundToDouble() : rawVal;
-        final isVertical = node.orientation == 'vertical' || node.type == LuaGuiNodeType.fader || (node.sliderStyle == SliderStyle.minimalPill && node.orientation != 'horizontal');
+        final isVertical = node.orientation == 'vertical' || node.type == EatScriptGuiNodeType.fader || (node.sliderStyle == SliderStyle.minimalPill && node.orientation != 'horizontal');
 
         if (isVertical) {
           return Padding(
@@ -1305,12 +1305,12 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         }
         return sliderWidget;
 
-      case LuaGuiNodeType.segmentedPill:
+      case EatScriptGuiNodeType.segmentedPill:
         final paramDef = _findParam(node.param, compilation);
         final options = node.options.isNotEmpty
             ? node.options
             : (paramDef.options.isNotEmpty ? paramDef.options : ['Fast', 'Slow', 'Auto']);
-        final rawVal = (track.luaParams[node.param] ?? paramDef.defaultValue);
+        final rawVal = (track.eatScriptParams[node.param] ?? paramDef.defaultValue);
         final currentIdx = rawVal.round().toInt().clamp(0, options.length - 1);
 
         return _buildSegmentedPill(
@@ -1325,14 +1325,14 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           },
         );
 
-      case LuaGuiNodeType.switchToggle:
+      case EatScriptGuiNodeType.switchToggle:
         final paramDef = _findParam(node.param, compilation);
-        final rawVal = (track.luaParams[node.param] ?? paramDef.defaultValue);
+        final rawVal = (track.eatScriptParams[node.param] ?? paramDef.defaultValue);
         final bool isChecked = rawVal > 0.5;
 
         final isEats303 = track.name.toLowerCase().contains('303') ||
-            track.luaScriptCode.contains('Eats303') ||
-            track.luaScriptCode.contains('JC303');
+            track.eatScriptCode.contains('Eats303') ||
+            track.eatScriptCode.contains('JC303');
         final isOpenBack = paramDef.name.toLowerCase().contains('openback') || (node.param ?? '').toLowerCase().contains('openback');
         final switchStyle = (isEats303 || isOpenBack) ? SwitchStyle.vintageBat : SwitchStyle.modernPill;
         final effectiveLabel = node.label ?? (isOpenBack ? 'OPEN' : paramDef.name.toUpperCase());
@@ -1350,7 +1350,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           },
         );
 
-      case LuaGuiNodeType.button:
+      case EatScriptGuiNodeType.button:
         return SkeuomorphicHardwareButton(
           label: node.label ?? 'TRIGGER',
           activeColor: accent,
@@ -1366,14 +1366,14 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                 labelClean.contains('random') ||
                 labelClean.contains('rng seed') ||
                 labelClean.contains('generate')) {
-              final sfxType = (track.luaParams['SFXType'] ?? 0.0).toInt();
-              final currentSeed = (track.luaParams['Seed'] ?? 42.0).toInt();
+              final sfxType = (track.eatScriptParams['SFXType'] ?? 0.0).toInt();
+              final currentSeed = (track.eatScriptParams['Seed'] ?? 42.0).toInt();
               final newSeed = (currentSeed + DateTime.now().millisecond * 7 + 17) % 9990 + 1;
               final newParams = SNESSFXRGenerator.generateParamsForType(sfxType, seed: newSeed);
 
               dawState.beginHistoryTransaction('Randomize ${track.name}', icon: Icons.casino);
               for (final entry in newParams.entries) {
-                track.luaParams[entry.key] = entry.value;
+                track.eatScriptParams[entry.key] = entry.value;
                 _setParam(entry.key, entry.value);
               }
               dawState.commitHistoryTransaction();
@@ -1391,8 +1391,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             if (actionClean == 'trigger_tape_stop' ||
                 actionClean.contains('tape_stop') ||
                 labelClean.contains('tape stop')) {
-              final stopTime = (track.luaParams['StopTime'] ?? 0.8).clamp(0.1, 3.0);
-              final spinUpTime = (track.luaParams['SpinUpTime'] ?? 0.4).clamp(0.1, 2.0);
+              final stopTime = (track.eatScriptParams['StopTime'] ?? 0.8).clamp(0.1, 3.0);
+              final spinUpTime = (track.eatScriptParams['SpinUpTime'] ?? 0.4).clamp(0.1, 2.0);
               dawState.triggerTapeStop(track.id, stopTime: stopTime, spinUpTime: spinUpTime);
               return;
             }
@@ -1407,7 +1407,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           },
         );
 
-      case LuaGuiNodeType.listBox:
+      case EatScriptGuiNodeType.listBox:
         final paramDef = _findParam(node.param, compilation);
         List<String> effectiveOptions = node.options.isNotEmpty ? node.options : paramDef.options;
         ValueChanged<int>? onSelectionChanged;
@@ -1427,7 +1427,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           final currentKey = track.sampleName;
           final keyIdx = fontKeys.indexOf(currentKey);
           if (keyIdx != -1) {
-            track.luaParams[paramDef.name] = keyIdx.toDouble();
+            track.eatScriptParams[paramDef.name] = keyIdx.toDouble();
           }
 
           onSelectionChanged = (newIdx) {
@@ -1435,10 +1435,10 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               final fontId = fontKeys[newIdx];
               final displayName = fontNames[newIdx];
               dawState.changeTrackSoundFont(track, fontId, displayName: displayName, renameTrack: false);
-              track.luaParams[paramDef.name] = newIdx.toDouble();
-              track.luaParams['Preset'] = 0.0;
-              track.luaParams['PresetNum'] = 0.0;
-              track.luaParams['BankNum'] = 0.0;
+              track.eatScriptParams[paramDef.name] = newIdx.toDouble();
+              track.eatScriptParams['Preset'] = 0.0;
+              track.eatScriptParams['PresetNum'] = 0.0;
+              track.eatScriptParams['BankNum'] = 0.0;
               _setParam('PresetNum', 0.0);
               _setParam('BankNum', 0.0);
             }
@@ -1453,8 +1453,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                 .map((p) => GeneralMidiNames.getPresetDisplayName(p.bankNum, p.presetNum, p.name))
                 .toList();
 
-            final currentPresetNum = (track.luaParams['PresetNum'] ?? 0.0).toInt();
-            final currentBankNum = (track.luaParams['BankNum'] ?? 0.0).toInt();
+            final currentPresetNum = (track.eatScriptParams['PresetNum'] ?? 0.0).toInt();
+            final currentBankNum = (track.eatScriptParams['BankNum'] ?? 0.0).toInt();
             final activePresetIdx = fontData.presets.indexWhere(
               (p) => p.presetNum == currentPresetNum && p.bankNum == currentBankNum,
             );
@@ -1462,7 +1462,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                 ? activePresetIdx
                 : fontData.presets.indexWhere((p) => p.presetNum == currentPresetNum);
             if (validIdx != -1) {
-              track.luaParams[paramDef.name] = validIdx.toDouble();
+              track.eatScriptParams[paramDef.name] = validIdx.toDouble();
             }
           }
 
@@ -1471,9 +1471,9 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                 SoundFontEngine.instance.getSoundFont('default.sf2');
             if (activeFontData != null && newIdx >= 0 && newIdx < activeFontData.presets.length) {
               final p = activeFontData.presets[newIdx];
-              track.luaParams[paramDef.name] = newIdx.toDouble();
-              track.luaParams['PresetNum'] = p.presetNum.toDouble();
-              track.luaParams['BankNum'] = p.bankNum.toDouble();
+              track.eatScriptParams[paramDef.name] = newIdx.toDouble();
+              track.eatScriptParams['PresetNum'] = p.presetNum.toDouble();
+              track.eatScriptParams['BankNum'] = p.bankNum.toDouble();
               _setParam('PresetNum', p.presetNum.toDouble());
               _setParam('BankNum', p.bankNum.toDouble());
             }
@@ -1482,13 +1482,13 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         // 3. SNES SFXR Type ListBox handling
         else if (paramDef.name == 'SFXType' || node.param == 'SFXType') {
           onSelectionChanged = (newTypeIdx) {
-            final currentSeed = (track.luaParams['Seed'] ?? 42.0).toInt();
+            final currentSeed = (track.eatScriptParams['Seed'] ?? 42.0).toInt();
             final newSeed = (currentSeed + DateTime.now().millisecond * 7 + 17) % 9990 + 1;
             final newParams = SNESSFXRGenerator.generateParamsForType(newTypeIdx, seed: newSeed);
 
             dawState.beginHistoryTransaction('Select SFX Type (${track.name})', icon: Icons.casino);
             for (final entry in newParams.entries) {
-              track.luaParams[entry.key] = entry.value;
+              track.eatScriptParams[entry.key] = entry.value;
               _setParam(entry.key, entry.value);
             }
             dawState.commitHistoryTransaction();
@@ -1511,9 +1511,9 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
 
           final currentIr = track.sampleName.isNotEmpty
               ? track.sampleName
-              : (track.luaParams['IRSample'] != null
+              : (track.eatScriptParams['IRSample'] != null
                   ? (effectiveOptions.isNotEmpty
-                      ? effectiveOptions[(track.luaParams['IRSample'] ?? 0.0).toInt().clamp(0, effectiveOptions.length - 1)]
+                      ? effectiveOptions[(track.eatScriptParams['IRSample'] ?? 0.0).toInt().clamp(0, effectiveOptions.length - 1)]
                       : 'Great Hall')
                   : 'Great Hall');
           final irIdx = effectiveOptions.indexWhere((opt) =>
@@ -1521,20 +1521,20 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
               opt.toLowerCase().startsWith(currentIr.toLowerCase()) ||
               currentIr.toLowerCase().startsWith(opt.toLowerCase()));
           if (irIdx != -1) {
-            track.luaParams[paramDef.name] = irIdx.toDouble();
+            track.eatScriptParams[paramDef.name] = irIdx.toDouble();
           }
 
           onSelectionChanged = (newIdx) {
             if (newIdx >= 0 && newIdx < effectiveOptions.length) {
               final chosenName = effectiveOptions[newIdx];
-              track.luaParams[paramDef.name] = newIdx.toDouble();
+              track.eatScriptParams[paramDef.name] = newIdx.toDouble();
               track.sampleName = chosenName;
               _setParam(paramDef.name, newIdx.toDouble());
             }
           };
         } else {
           onSelectionChanged = (newIdx) {
-            track.luaParams[paramDef.name] = newIdx.toDouble();
+            track.eatScriptParams[paramDef.name] = newIdx.toDouble();
             _setParam(paramDef.name, newIdx.toDouble());
           };
         }
@@ -1551,9 +1551,9 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           onSelectionChanged: onSelectionChanged,
         );
 
-      case LuaGuiNodeType.nixie:
+      case EatScriptGuiNodeType.nixie:
         final paramDef = _findParam(node.param, compilation);
-        final rawVal = (track.luaParams[node.param] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
+        final rawVal = (track.eatScriptParams[node.param] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
         final formattedVal = paramDef.getFormattedValue(rawVal);
         final displayVal = paramDef.isInteger ? rawVal.round().toString() : formattedVal;
 
@@ -1561,15 +1561,15 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           final clamped = val.clamp(paramDef.min, paramDef.max);
           final finalVal = paramDef.isInteger ? clamped.roundToDouble() : clamped;
           dawState.beginHistoryTransaction('Set ${paramDef.name} (${track.name})', icon: Icons.tune);
-          track.luaParams[paramDef.name] = finalVal;
+          track.eatScriptParams[paramDef.name] = finalVal;
           _setParam(paramDef.name, finalVal);
 
-          if ((paramDef.name == 'Seed' || paramDef.name == 'SFXType') && track.luaParams.containsKey('SFXType')) {
-            final sfxType = (track.luaParams['SFXType'] ?? 0.0).toInt();
-            final seed = (track.luaParams['Seed'] ?? 42.0).toInt();
+          if ((paramDef.name == 'Seed' || paramDef.name == 'SFXType') && track.eatScriptParams.containsKey('SFXType')) {
+            final sfxType = (track.eatScriptParams['SFXType'] ?? 0.0).toInt();
+            final seed = (track.eatScriptParams['Seed'] ?? 42.0).toInt();
             final newParams = SNESSFXRGenerator.generateParamsForType(sfxType, seed: seed);
             for (final entry in newParams.entries) {
-              track.luaParams[entry.key] = entry.value;
+              track.eatScriptParams[entry.key] = entry.value;
               _setParam(entry.key, entry.value);
             }
             dawState.audioEngine.playNoteOrSample(
@@ -1623,20 +1623,20 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                   ? paramDef.step
                   : (paramDef.isInteger ? 1.0 : (paramDef.max - paramDef.min) / 100.0);
               final delta = scrollDelta < 0 ? step : -step;
-              final current = (track.luaParams[paramDef.name] ?? paramDef.defaultValue);
+              final current = (track.eatScriptParams[paramDef.name] ?? paramDef.defaultValue);
               updateParamValue(current + delta);
             }
           },
         );
 
-      case LuaGuiNodeType.lcd:
+      case EatScriptGuiNodeType.lcd:
         return LcdDisplayWidget(
           title: node.label ?? track.name.toUpperCase(),
           leftText: node.leftText ?? (track.pan == 0 ? 'CENTER' : (track.pan < 0 ? 'L${(track.pan.abs() * 100).toInt()}' : 'R${(track.pan * 100).toInt()}')),
           rightText: node.rightText ?? '${(track.volume * 100).toInt()}%',
         );
 
-      case LuaGuiNodeType.meter:
+      case EatScriptGuiNodeType.meter:
         return StereoMeterWidget(
           leftLevel: (track.volume * 0.8).clamp(0.0, 1.2),
           rightLevel: (track.volume * 0.8).clamp(0.0, 1.2),
@@ -1644,7 +1644,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           height: node.size ?? 120.0,
         );
 
-      case LuaGuiNodeType.label:
+      case EatScriptGuiNodeType.label:
         return Text(
           node.text ?? node.label ?? '',
           style: EatsTheme.getPrimaryFontStyle(
@@ -1654,8 +1654,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           ),
         );
 
-      case LuaGuiNodeType.oscilloscope:
-      case LuaGuiNodeType.spectrum:
+      case EatScriptGuiNodeType.oscilloscope:
+      case EatScriptGuiNodeType.spectrum:
         if (isLightChassis || node.canvasMode == 'formant_curve' || node.canvasMode == 'formant') {
           return _MinimalistFormantScreenWidget(
             width: node.width ?? 180.0,
@@ -1668,36 +1668,36 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         return LiveTrackVisualizerWidget(
           audioEngine: dawState.audioEngine,
           track: hostTrack ?? track,
-          isSpectrum: node.type == LuaGuiNodeType.spectrum,
+          isSpectrum: node.type == EatScriptGuiNodeType.spectrum,
           accentColor: accent,
           width: node.width,
           height: node.height,
         );
 
-      case LuaGuiNodeType.spaceVisualizer:
-        final isCab = (track.luaParams['isCabinet'] == 1.0) ||
+      case EatScriptGuiNodeType.spaceVisualizer:
+        final isCab = (track.eatScriptParams['isCabinet'] == 1.0) ||
             (node.canvasMode == 'cabinet') ||
             (track.name.toLowerCase().contains('cab'));
-        final matIdx = (track.luaParams['Material'] ?? 0.0).toInt().clamp(0, AcousticMaterialType.values.length - 1);
+        final matIdx = (track.eatScriptParams['Material'] ?? 0.0).toInt().clamp(0, AcousticMaterialType.values.length - 1);
         final currentSpace = AcousticSpaceParams(
           name: '${track.name}_space',
-          width: track.luaParams['Width'] ?? (isCab ? 0.76 : 12.0),
-          length: track.luaParams['Length'] ?? (isCab ? 0.76 : 18.0),
-          height: track.luaParams['Height'] ?? (isCab ? 0.36 : 6.0),
-          sourceX: track.luaParams['SourceX'] ?? 0.5,
-          sourceY: track.luaParams['SourceY'] ?? 0.5,
-          sourceZ: track.luaParams['SourceZ'] ?? 0.5,
-          listenerX: track.luaParams['ListenerX'] ?? 0.5,
-          listenerY: track.luaParams['ListenerY'] ?? 0.8,
-          listenerZ: track.luaParams['ListenerZ'] ?? 0.5,
+          width: track.eatScriptParams['Width'] ?? (isCab ? 0.76 : 12.0),
+          length: track.eatScriptParams['Length'] ?? (isCab ? 0.76 : 18.0),
+          height: track.eatScriptParams['Height'] ?? (isCab ? 0.36 : 6.0),
+          sourceX: track.eatScriptParams['SourceX'] ?? 0.5,
+          sourceY: track.eatScriptParams['SourceY'] ?? 0.5,
+          sourceZ: track.eatScriptParams['SourceZ'] ?? 0.5,
+          listenerX: track.eatScriptParams['ListenerX'] ?? 0.5,
+          listenerY: track.eatScriptParams['ListenerY'] ?? 0.8,
+          listenerZ: track.eatScriptParams['ListenerZ'] ?? 0.5,
           material: AcousticMaterialType.values[matIdx],
-          rt60: isCab ? 0.035 : (track.luaParams['RT60'] ?? (track.luaParams['Decay'] ?? 1.8)),
-          damping: track.luaParams['Damping'] ?? (isCab ? 0.55 : 0.40),
+          rt60: isCab ? 0.035 : (track.eatScriptParams['RT60'] ?? (track.eatScriptParams['Decay'] ?? 1.8)),
+          damping: track.eatScriptParams['Damping'] ?? (isCab ? 0.55 : 0.40),
           isCabinetMode: isCab,
-          micDistance: track.luaParams['MicDistance'] ?? 0.05,
-          micAngleDeg: track.luaParams['MicAngle'] ?? (track.luaParams['OffAxis'] ?? 0.0),
-          isOpenBack: (track.luaParams['OpenBack'] ?? 0.0) == 1.0,
-          stereoWidth: track.luaParams['StereoWidth'] ?? (isCab ? 0.08 : 0.20),
+          micDistance: track.eatScriptParams['MicDistance'] ?? 0.05,
+          micAngleDeg: track.eatScriptParams['MicAngle'] ?? (track.eatScriptParams['OffAxis'] ?? 0.0),
+          isOpenBack: (track.eatScriptParams['OpenBack'] ?? 0.0) == 1.0,
+          stereoWidth: track.eatScriptParams['StereoWidth'] ?? (isCab ? 0.08 : 0.20),
         );
 
         return SpaceVisualizerWidget(
@@ -1725,12 +1725,12 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           },
         );
 
-      case LuaGuiNodeType.waveshaperCanvas:
-        final shapeVal = (track.luaParams['Shape'] ?? (track.luaParams['Curve'] ?? 0.0)).round().toInt();
-        final tensionVal = (track.luaParams['Tension'] ?? 0.0);
-        final preVal = (track.luaParams['Pre'] ?? (track.luaParams['Drive'] ?? 1.0));
-        final postVal = (track.luaParams['Post'] ?? (track.luaParams['OutGain'] ?? 1.0));
-        final dcFilterVal = (track.luaParams['DCFilter'] ?? 1.0) > 0.5;
+      case EatScriptGuiNodeType.waveshaperCanvas:
+        final shapeVal = (track.eatScriptParams['Shape'] ?? (track.eatScriptParams['Curve'] ?? 0.0)).round().toInt();
+        final tensionVal = (track.eatScriptParams['Tension'] ?? 0.0);
+        final preVal = (track.eatScriptParams['Pre'] ?? (track.eatScriptParams['Drive'] ?? 1.0));
+        final postVal = (track.eatScriptParams['Post'] ?? (track.eatScriptParams['OutGain'] ?? 1.0));
+        final dcFilterVal = (track.eatScriptParams['DCFilter'] ?? 1.0) > 0.5;
 
         return WaveshaperCanvasWidget(
           shapeType: shapeVal,
@@ -1752,7 +1752,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           },
         );
 
-      case LuaGuiNodeType.canvas:
+      case EatScriptGuiNodeType.canvas:
         final mode = (node.canvasMode ?? '').toLowerCase();
         if (node.showDpad || node.showActionButtons || mode == 'grid' || mode == 'pixel' || mode == 'game' || mode == 'nibbles' || mode == 'runner' || mode == 'vector' || mode == 'spectrum' || mode == 'fft' || mode == 'oscilloscope' || mode == 'scope') {
           return InteractiveGameCanvasWidget(
@@ -1764,7 +1764,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             isLightChassis: isLightChassis,
           );
         }
-        return LuaProgrammableCanvasWidget(
+        return EatscriptProgrammableCanvasWidget(
           dawState: dawState,
           track: hostTrack ?? track,
           node: node,
@@ -1772,8 +1772,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           isLightChassis: isLightChassis,
         );
 
-      case LuaGuiNodeType.dpad:
-      case LuaGuiNodeType.gamepad:
+      case EatScriptGuiNodeType.dpad:
+      case EatScriptGuiNodeType.gamepad:
         return InteractiveGameCanvasWidget(
           dawState: dawState,
           track: track,
@@ -1783,27 +1783,27 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           isLightChassis: isLightChassis,
         );
 
-      case LuaGuiNodeType.drumPads:
+      case EatScriptGuiNodeType.drumPads:
         return DrumPadGridWidget(dawState: dawState, track: track);
 
-      case LuaGuiNodeType.spacer:
+      case EatScriptGuiNodeType.spacer:
         return SizedBox(
           width: node.size ?? 16,
           height: node.size ?? 16,
         );
 
-      case LuaGuiNodeType.unknown:
+      case EatScriptGuiNodeType.unknown:
         return const SizedBox.shrink();
     }
   }
 
-  LuaParamDef _findParam(String? name, LuaCompilationResult compilation) {
+  EatParamDef _findParam(String? name, EatCompilationResult compilation) {
     if (name == null || name.isEmpty) {
-      return LuaParamDef(name: 'Param', min: 0.0, max: 1.0, defaultValue: 0.0);
+      return EatParamDef(name: 'Param', min: 0.0, max: 1.0, defaultValue: 0.0);
     }
     return compilation.params.firstWhere(
       (p) => p.name.toLowerCase() == name.toLowerCase(),
-      orElse: () => LuaParamDef(name: name, min: 0.0, max: 1.0, defaultValue: 0.0),
+      orElse: () => EatParamDef(name: name, min: 0.0, max: 1.0, defaultValue: 0.0),
     );
   }
 
@@ -1850,9 +1850,9 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     }
   }
 
-  Widget _buildPowerBypassButton(LuaGuiNode node, LuaCompilationResult compilation, Color accent) {
+  Widget _buildPowerBypassButton(EatScriptGuiNode node, EatCompilationResult compilation, Color accent) {
     final paramName = node.param ?? (node.action ?? 'bypass');
-    final rawVal = (track.luaParams[paramName] ?? 1.0);
+    final rawVal = (track.eatScriptParams[paramName] ?? 1.0);
     final isPoweredOn = rawVal > 0.5;
 
     return Center(
@@ -2050,7 +2050,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
 
   Widget _buildDefaultDynamicParams(
     BuildContext context,
-    LuaCompilationResult compilation,
+    EatCompilationResult compilation,
   ) {
     final hasUpgrade = dawState.isPresetUpgradeAvailable(track);
     final baseAccent = track.color;
@@ -2152,12 +2152,12 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
               ],
-              if (track.luaScriptCode.contains('modular_drumpad_kit') || track.luaScriptCode.contains('ModularDrumpadKit')) ...[
+              if (track.eatScriptCode.contains('modular_drumpad_kit') || track.eatScriptCode.contains('ModularDrumpadKit')) ...[
                 DrumPadGridWidget(dawState: dawState, track: track),
                 const SizedBox(height: 12),
               ],
           ...compilation.params.map((paramDef) {
-            final rawVal = (track.luaParams[paramDef.name] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
+            final rawVal = (track.eatScriptParams[paramDef.name] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
             final currentVal = paramDef.isInteger ? rawVal.roundToDouble() : rawVal;
             final displayLabel = paramDef.getFormattedValue(currentVal);
 
@@ -2384,10 +2384,10 @@ class _MinimalistFormantScreenWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final f1 = track.luaParams['f1'] ?? track.luaParams['Low'] ?? 0.6;
-    final f2 = track.luaParams['f2'] ?? track.luaParams['Mid'] ?? 0.45;
-    final f3 = track.luaParams['f3'] ?? track.luaParams['High'] ?? 0.25;
-    final air = track.luaParams['air'] ?? track.luaParams['Air'] ?? 0.35;
+    final f1 = track.eatScriptParams['f1'] ?? track.eatScriptParams['Low'] ?? 0.6;
+    final f2 = track.eatScriptParams['f2'] ?? track.eatScriptParams['Mid'] ?? 0.45;
+    final f3 = track.eatScriptParams['f3'] ?? track.eatScriptParams['High'] ?? 0.25;
+    final air = track.eatScriptParams['air'] ?? track.eatScriptParams['Air'] ?? 0.35;
 
     return Container(
       width: width,

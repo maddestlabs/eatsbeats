@@ -130,10 +130,10 @@ void main() {
     });
 
     test('STMN Procedural Piano script is registered and executable via DawState', () {
-      final preset = LuaPresetLibrary.getPresetById('action_stmn_procedural_piano');
+      final preset = EatScriptLibrary.getPresetById('action_stmn_procedural_piano');
       expect(preset, isNotNull);
       expect(preset!.name, equals('STMN Procedural Piano'));
-      expect(preset.category, equals(LuaScriptCategory.projectAction));
+      expect(preset.category, equals(EatScriptCategory.projectAction));
 
       final result = state.runProjectScript(preset, params: {
         'Style': 0, // Nocturne

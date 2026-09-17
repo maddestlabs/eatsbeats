@@ -53,7 +53,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
   final TextEditingController _scriptSearchController = TextEditingController();
   final TextEditingController _presetSearchController = TextEditingController();
   final TextEditingController _projectSearchController = TextEditingController();
-  LuaPresetCategory? _selectedCategoryFilter;
+  EatScriptCategory? _selectedCategoryFilter;
   String _selectedSoundCategory = 'ALL';
   List<SavedProjectItem> _savedProjects = [];
   bool _isLoadingProjects = false;
@@ -601,10 +601,10 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
   // --- TAB 2: SCRIPT LIBRARY (WITH DRAG & DROP) ---
   Widget _buildScriptsTab() {
     final query = _scriptSearchController.text.trim().toLowerCase();
-    List<LuaPreset> presets = LuaPresetLibrary.presets;
+    List<EatScriptDef> presets = EatScriptLibrary.presets;
 
     if (_selectedCategoryFilter != null) {
-      if (_selectedCategoryFilter == LuaPresetCategory.macro) {
+      if (_selectedCategoryFilter == EatScriptCategory.macro) {
         presets = presets.where((p) => p.isMacro).toList();
       } else {
         presets = presets.where((p) => p.category == _selectedCategoryFilter).toList();
@@ -654,27 +654,27 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                 tooltip: 'All Presets',
               ),
               _buildCategoryChip(
-                category: LuaPresetCategory.midiSeq,
+                category: EatScriptCategory.midiSeq,
                 icon: Icons.view_timeline_outlined,
                 tooltip: 'Filter: MIDI Sequences',
               ),
               _buildCategoryChip(
-                category: LuaPresetCategory.instrument,
+                category: EatScriptCategory.instrument,
                 icon: Icons.piano,
                 tooltip: 'Filter: Synth Instruments',
               ),
               _buildCategoryChip(
-                category: LuaPresetCategory.audioFx,
+                category: EatScriptCategory.audioFx,
                 icon: Icons.graphic_eq,
                 tooltip: 'Filter: Audio FX',
               ),
               _buildCategoryChip(
-                category: LuaPresetCategory.midiFx,
+                category: EatScriptCategory.midiFx,
                 icon: Icons.music_note,
                 tooltip: 'Filter: MIDI FX',
               ),
               _buildCategoryChip(
-                category: LuaPresetCategory.macro,
+                category: EatScriptCategory.macro,
                 icon: Icons.auto_awesome,
                 tooltip: 'Filter: Macros & Project Automation',
               ),
@@ -710,7 +710,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                         child: ListTile(
                           dense: true,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          leading: Draggable<LuaPreset>(
+                          leading: Draggable<EatScriptDef>(
                           data: preset,
                           feedback: Material(
                             color: Colors.transparent,
@@ -1106,7 +1106,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                                     minimumSize: Size.zero,
                                   ),
                                   onPressed: () {
-                                    final roomScript = LuaScriptLibrary.getScriptById('room_designer');
+                                    final roomScript = EatScriptLibrary.getScriptById('room_designer');
                                     if (roomScript != null) {
                                       widget.dawState.applyScript(roomScript);
                                     }
@@ -1156,7 +1156,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                                     minimumSize: Size.zero,
                                   ),
                                   onPressed: () {
-                                    final cabScript = LuaScriptLibrary.getScriptById('cab_designer');
+                                    final cabScript = EatScriptLibrary.getScriptById('cab_designer');
                                     if (cabScript != null) {
                                       widget.dawState.applyScript(cabScript);
                                     }
@@ -1855,14 +1855,14 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
     final cleanProjName = widget.dawState.projectName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final defaultName = cleanProjName.isNotEmpty ? cleanProjName : 'my_song';
     final fileName = '$defaultName.eats';
-    final eatCode = widget.dawState.exportToEatsLua();
+    final eatCode = widget.dawState.exportToEats();
 
     final savedPath = await EatsFileHelper.saveEatScriptFile(eatCode, fileName);
     if (!context.mounted) return;
 
     if (savedPath != null && savedPath.isNotEmpty) {
       final baseName = savedPath.split(RegExp(r'[\\/]')).last;
-      final parsedName = baseName.replaceAll(RegExp(r'\.(eats|eats\.lua|lua)$', caseSensitive: false), '');
+      final parsedName = baseName.replaceAll(RegExp(r'\.eats$', caseSensitive: false), '');
       if (parsedName.isNotEmpty) {
         widget.dawState.projectName = parsedName;
       }
@@ -1996,8 +1996,8 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
               onPressed: () async {
                 final name = controller.text.trim();
                 if (name.isNotEmpty) {
-                  final lua = widget.dawState.exportToEatsLua();
-                  final savedItem = await EatsStorageHelper.saveProjectFile(name, lua);
+                  final script = widget.dawState.exportToEats();
+                  final savedItem = await EatsStorageHelper.saveProjectFile(name, script);
                   if (ctx.mounted) Navigator.of(ctx).pop();
                   await _loadSavedProjects();
                   if (context.mounted) {
@@ -2028,12 +2028,12 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
               onPressed: () async {
                 final name = controller.text.trim();
                 final cleanName = name.isNotEmpty ? name : 'my_song';
-                final lua = widget.dawState.exportToEatsLua();
+                final script = widget.dawState.exportToEats();
                 if (ctx.mounted) Navigator.of(ctx).pop();
-                final savedPath = await EatsFileHelper.saveEatScriptFile(lua, '$cleanName.eats');
+                final savedPath = await EatsFileHelper.saveEatScriptFile(script, '$cleanName.eats');
                 if (savedPath != null && savedPath.isNotEmpty) {
                   final baseName = savedPath.split(RegExp(r'[\\/]')).last;
-                  final parsedName = baseName.replaceAll(RegExp(r'\.(eats|eats\.lua|lua)$', caseSensitive: false), '');
+                  final parsedName = baseName.replaceAll(RegExp(r'\.eats$', caseSensitive: false), '');
                   if (parsedName.isNotEmpty) {
                     widget.dawState.projectName = parsedName;
                   }
@@ -2062,9 +2062,9 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
   }
 
   Future<void> _handleLoadProject(BuildContext context, SavedProjectItem project) async {
-    final lua = await EatsStorageHelper.loadProjectFile(project);
-    if (lua != null && lua.isNotEmpty) {
-      widget.dawState.loadFromEatsLua(lua);
+    final script = await EatsStorageHelper.loadProjectFile(project);
+    if (script != null && script.isNotEmpty) {
+      widget.dawState.loadFromEats(script);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Loaded project "${project.name}"')),
@@ -2080,9 +2080,9 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
   }
 
   Future<void> _handleShareProject(BuildContext context, SavedProjectItem project) async {
-    final lua = await EatsStorageHelper.loadProjectFile(project);
-    if (lua != null && lua.isNotEmpty) {
-      final shareUrl = UrlScriptHelper.buildShareableUrl(lua);
+    final script = await EatsStorageHelper.loadProjectFile(project);
+    if (script != null && script.isNotEmpty) {
+      final shareUrl = UrlScriptHelper.buildShareableUrl(script);
       await Clipboard.setData(ClipboardData(text: shareUrl));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2232,7 +2232,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
   }
 
   Widget _buildCategoryChip({
-    required LuaPresetCategory? category,
+    required EatScriptCategory? category,
     required IconData icon,
     required String tooltip,
   }) {
@@ -2268,40 +2268,40 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
     );
   }
 
-  IconData _getCategoryIcon(LuaPresetCategory category) {
+  IconData _getCategoryIcon(EatScriptCategory category) {
     switch (category) {
-      case LuaPresetCategory.instrument:
+      case EatScriptCategory.instrument:
         return Icons.piano;
-      case LuaPresetCategory.audioFx:
+      case EatScriptCategory.audioFx:
         return Icons.graphic_eq;
-      case LuaPresetCategory.midiFx:
+      case EatScriptCategory.midiFx:
         return Icons.music_note;
-      case LuaPresetCategory.midiSeq:
+      case EatScriptCategory.midiSeq:
         return Icons.view_timeline_outlined;
-      case LuaPresetCategory.noteSplitter:
+      case EatScriptCategory.noteSplitter:
         return Icons.call_split;
-      case LuaPresetCategory.projectAction:
-      case LuaPresetCategory.utility:
-      case LuaPresetCategory.macro:
+      case EatScriptCategory.projectAction:
+      case EatScriptCategory.utility:
+      case EatScriptCategory.macro:
         return Icons.auto_awesome;
     }
   }
 
-  Color _getCategoryColor(LuaPresetCategory category) {
+  Color _getCategoryColor(EatScriptCategory category) {
     switch (category) {
-      case LuaPresetCategory.instrument:
+      case EatScriptCategory.instrument:
         return const Color(0xFFFF8C00);
-      case LuaPresetCategory.audioFx:
+      case EatScriptCategory.audioFx:
         return const Color(0xFF21F4E8);
-      case LuaPresetCategory.midiFx:
+      case EatScriptCategory.midiFx:
         return const Color(0xFF00FF66);
-      case LuaPresetCategory.midiSeq:
+      case EatScriptCategory.midiSeq:
         return const Color(0xFFFFD700);
-      case LuaPresetCategory.noteSplitter:
+      case EatScriptCategory.noteSplitter:
         return const Color(0xFFFF007A);
-      case LuaPresetCategory.projectAction:
-      case LuaPresetCategory.utility:
-      case LuaPresetCategory.macro:
+      case EatScriptCategory.projectAction:
+      case EatScriptCategory.utility:
+      case EatScriptCategory.macro:
         return const Color(0xFFBD00FF);
     }
   }
@@ -2614,7 +2614,7 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
                                   // Diff Button
                                   IconButton(
                                     icon: const Icon(Icons.difference_outlined, size: 16),
-                                    tooltip: 'Inspect Lua Diff',
+                                    tooltip: 'Inspect Eatscript Diff',
                                     color: EatsTheme.primaryCyan.withOpacity(0.8),
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -2709,8 +2709,8 @@ class _ProjectBrowserDrawerState extends State<ProjectBrowserDrawer> with Single
   }
 
   void _showDiffDialog(BuildContext context, HistoryEntry entry, HistoryEntry? prevEntry) {
-    final oldText = prevEntry?.snapshotLua ?? '';
-    final newText = entry.snapshotLua;
+    final oldText = prevEntry?.snapshotEatScript ?? '';
+    final newText = entry.snapshotEatScript;
     bool showFull = false;
 
     showDialog(

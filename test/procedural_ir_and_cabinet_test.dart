@@ -203,17 +203,17 @@ void main() {
     });
   });
 
-  group('Room Designer & Cab Designer Lua Presets & DawState Tests', () {
-    test('LuaPresetLibrary contains convolution_reverb, room_designer, and cab_designer presets', () {
-      final convPreset = LuaPresetLibrary.getPresetById('convolution_reverb');
+  group('Room Designer & Cab Designer Eatscript Presets & DawState Tests', () {
+    test('EatScriptLibrary contains convolution_reverb, room_designer, and cab_designer presets', () {
+      final convPreset = EatScriptLibrary.getPresetById('convolution_reverb');
       expect(convPreset, isNotNull);
       expect(convPreset!.name, equals('Convolution Reverb'));
 
-      final roomPreset = LuaPresetLibrary.getPresetById('room_designer');
+      final roomPreset = EatScriptLibrary.getPresetById('room_designer');
       expect(roomPreset, isNotNull);
       expect(roomPreset!.name, equals('Room Designer'));
 
-      final cabPreset = LuaPresetLibrary.getPresetById('cab_designer');
+      final cabPreset = EatScriptLibrary.getPresetById('cab_designer');
       expect(cabPreset, isNotNull);
       expect(cabPreset!.name, equals('Cab Designer'));
     });
@@ -223,7 +223,7 @@ void main() {
       final track = state.activeTrack;
       track.fxRack.clear();
 
-      final roomPreset = LuaPresetLibrary.getPresetById('room_designer')!;
+      final roomPreset = EatScriptLibrary.getPresetById('room_designer')!;
       state.addAudioFXFromPreset(track, roomPreset);
 
       expect(track.fxRack.length, equals(1));
@@ -237,7 +237,7 @@ void main() {
       expect(roomFx.irSampleName, contains('Room:'));
 
       // Add Cab Designer
-      final cabPreset = LuaPresetLibrary.getPresetById('cab_designer')!;
+      final cabPreset = EatScriptLibrary.getPresetById('cab_designer')!;
       state.addAudioFXFromPreset(track, cabPreset);
 
       expect(track.fxRack.length, equals(2));
@@ -250,24 +250,24 @@ void main() {
       expect(cabFx.params['Width'], equals(0.85));
       expect(cabFx.irSampleName, contains('Cab:'));
 
-      // Serialize to Lua and reload
-      final exportedLua = state.exportToEatsLua();
-      expect(exportedLua, contains('room_designer'));
-      expect(exportedLua, contains('cab_designer'));
+      // Serialize to Eatscript and reload
+      final exportedEatScript = state.exportToEats();
+      expect(exportedEatScript, contains('room_designer'));
+      expect(exportedEatScript, contains('cab_designer'));
 
       final reloadedState = DawState();
-      reloadedState.loadFromEatsLua(exportedLua);
+      reloadedState.loadFromEats(exportedEatScript);
       final reloadedTrack = reloadedState.activeTrack;
       expect(reloadedTrack.fxRack.length, equals(2));
 
       final reloadedRoom = reloadedTrack.fxRack.first;
-      expect(reloadedRoom.luaScriptCode, isNotNull);
-      expect(reloadedRoom.luaScriptCode!.isNotEmpty, isTrue);
+      expect(reloadedRoom.eatScriptCode, isNotNull);
+      expect(reloadedRoom.eatScriptCode!.isNotEmpty, isTrue);
       expect(reloadedRoom.presetId, equals('room_designer'));
 
       final reloadedCab = reloadedTrack.fxRack.last;
-      expect(reloadedCab.luaScriptCode, isNotNull);
-      expect(reloadedCab.luaScriptCode!.isNotEmpty, isTrue);
+      expect(reloadedCab.eatScriptCode, isNotNull);
+      expect(reloadedCab.eatScriptCode!.isNotEmpty, isTrue);
       expect(reloadedCab.presetId, equals('cab_designer'));
     });
 
@@ -304,7 +304,7 @@ void main() {
     });
 
     test('Convolution Reverb preset includes 3D positioning parameters and space visualizer', () {
-      final convPreset = LuaPresetLibrary.getPresetById('convolution_reverb')!;
+      final convPreset = EatScriptLibrary.getPresetById('convolution_reverb')!;
       expect(convPreset.code, contains('SourceX'));
       expect(convPreset.code, contains('SourceY'));
       expect(convPreset.code, contains('SourceZ'));

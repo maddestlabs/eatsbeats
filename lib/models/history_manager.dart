@@ -26,7 +26,7 @@ class HistoryEntry {
   final String description;
   final IconData icon;
   final DateTime timestamp;
-  final String snapshotLua;
+  final String snapshotEatScript;
   final int? stateFingerprint;
   final bool isMilestone;
   final String? milestoneName;
@@ -36,7 +36,7 @@ class HistoryEntry {
     required this.description,
     required this.icon,
     required this.timestamp,
-    required this.snapshotLua,
+    required this.snapshotEatScript,
     this.stateFingerprint,
     this.isMilestone = false,
     this.milestoneName,
@@ -47,7 +47,7 @@ class HistoryEntry {
     String? description,
     IconData? icon,
     DateTime? timestamp,
-    String? snapshotLua,
+    String? snapshotEatScript,
     int? stateFingerprint,
     bool? isMilestone,
     String? milestoneName,
@@ -57,7 +57,7 @@ class HistoryEntry {
       description: description ?? this.description,
       icon: icon ?? this.icon,
       timestamp: timestamp ?? this.timestamp,
-      snapshotLua: snapshotLua ?? this.snapshotLua,
+      snapshotEatScript: snapshotEatScript ?? this.snapshotEatScript,
       stateFingerprint: stateFingerprint ?? this.stateFingerprint,
       isMilestone: isMilestone ?? this.isMilestone,
       milestoneName: milestoneName ?? this.milestoneName,
@@ -119,7 +119,7 @@ class HistoryManager extends ChangeNotifier {
 
   /// Initializes history with the initial DAW state snapshot.
   void init(DawState state, {String initialDescription = 'Initial Project State'}) {
-    final snapshot = state.exportToEatsLua();
+    final snapshot = state.exportToEats();
     final fp = state.computeStateFingerprint();
     _past.clear();
     _future.clear();
@@ -128,7 +128,7 @@ class HistoryManager extends ChangeNotifier {
       description: initialDescription,
       icon: Icons.flag,
       timestamp: DateTime.now(),
-      snapshotLua: snapshot,
+      snapshotEatScript: snapshot,
       stateFingerprint: fp,
       isMilestone: true,
       milestoneName: 'Initial State',
@@ -155,10 +155,10 @@ class HistoryManager extends ChangeNotifier {
       return;
     }
 
-    final newSnapshot = state.exportToEatsLua();
+    final newSnapshot = state.exportToEats();
 
     // Secondary string equality check
-    if (!force && _current != null && _current!.snapshotLua == newSnapshot) {
+    if (!force && _current != null && _current!.snapshotEatScript == newSnapshot) {
       return;
     }
 
@@ -176,7 +176,7 @@ class HistoryManager extends ChangeNotifier {
       description: description,
       icon: icon,
       timestamp: DateTime.now(),
-      snapshotLua: newSnapshot,
+      snapshotEatScript: newSnapshot,
       stateFingerprint: newFingerprint,
       isMilestone: isMilestone,
       milestoneName: milestoneName,
@@ -210,7 +210,7 @@ class HistoryManager extends ChangeNotifier {
       return;
     }
 
-    final currentSnapshot = state.exportToEatsLua();
+    final currentSnapshot = state.exportToEats();
 
     if (_current != null) {
       _past.add(_current!);
@@ -226,7 +226,7 @@ class HistoryManager extends ChangeNotifier {
       description: _transactionDescription ?? 'Adjust Parameter',
       icon: _transactionIcon ?? Icons.tune,
       timestamp: DateTime.now(),
-      snapshotLua: currentSnapshot,
+      snapshotEatScript: currentSnapshot,
       stateFingerprint: curFp,
     );
 
@@ -257,7 +257,7 @@ class HistoryManager extends ChangeNotifier {
     }
     _current = target;
 
-    _applySnapshot(state, target.snapshotLua);
+    _applySnapshot(state, target.snapshotEatScript);
     notifyListeners();
     return true;
   }
@@ -272,7 +272,7 @@ class HistoryManager extends ChangeNotifier {
     }
     _current = target;
 
-    _applySnapshot(state, target.snapshotLua);
+    _applySnapshot(state, target.snapshotEatScript);
     notifyListeners();
     return true;
   }
@@ -314,7 +314,7 @@ class HistoryManager extends ChangeNotifier {
       }
     }
 
-    _applySnapshot(state, targetEntry.snapshotLua);
+    _applySnapshot(state, targetEntry.snapshotEatScript);
     notifyListeners();
     return true;
   }
@@ -342,16 +342,16 @@ class HistoryManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _applySnapshot(DawState state, String luaScript) {
+  void _applySnapshot(DawState state, String eatScript) {
     _isRestoring = true;
     try {
-      state.loadFromEatsLua(luaScript);
+      state.loadFromEats(eatScript);
     } finally {
       _isRestoring = false;
     }
   }
 
-  /// Computes a human-readable line-by-line diff between two Lua scripts.
+  /// Computes a human-readable line-by-line diff between two Eatscript scripts.
   static List<HistoryDiffLine> computeDiff(String oldText, String newText) {
     final oldLines = oldText.split('\n');
     final newLines = newText.split('\n');

@@ -263,7 +263,7 @@ void main() {
       expect(result.presetId, equals('sitar_jawari'));
     });
 
-    test('LuaPresetLibrary contains all new physical model presets', () {
+    test('EatScriptLibrary contains all new physical model presets', () {
       final requiredPresets = [
         'orchestral_trumpet',
         'tenor_trombone',
@@ -283,8 +283,8 @@ void main() {
       ];
 
       for (final presetId in requiredPresets) {
-        final preset = LuaPresetLibrary.getPresetById(presetId);
-        expect(preset, isNotNull, reason: 'Preset $presetId must be registered in LuaPresetLibrary');
+        final preset = EatScriptLibrary.getPresetById(presetId);
+        expect(preset, isNotNull, reason: 'Preset $presetId must be registered in EatScriptLibrary');
         expect(preset!.code, isNotEmpty);
       }
     });

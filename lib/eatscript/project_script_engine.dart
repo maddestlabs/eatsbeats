@@ -218,12 +218,12 @@ class ProjectScriptHelpers {
   }
 }
 
-/// Execution engine for project-level Lua action scripts.
+/// Execution engine for project-level Eatscript action scripts.
 class ProjectScriptEngine {
-  /// Executes a [LuaScriptDef] project action against [DawState] with the provided [params].
+  /// Executes a [EatScriptDef] project action against [DawState] with the provided [params].
   static ProjectScriptResult execute({
     required DawState dawState,
-    required LuaScriptDef script,
+    required EatScriptDef script,
     Map<String, dynamic> params = const {},
   }) {
     final code = script.code.toLowerCase();

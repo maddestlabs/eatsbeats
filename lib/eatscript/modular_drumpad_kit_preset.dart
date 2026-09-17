@@ -5,10 +5,10 @@ import 'eats_script_library.dart';
 /// Dedicated 32-pad interactive drum workstation featuring 16 Core MPC pads + 16 Latin percussion pads,
 /// velocity-sensitive auditioning, kit macros, and drag-and-drop element swapping.
 class ModularDrumpadKitPreset {
-  static const LuaPreset preset = LuaPreset(
+  static const EatScriptDef preset = EatScriptDef(
     id: 'modular_drumpad_kit',
     name: 'Modular Drum Machine',
-    category: LuaPresetCategory.instrument,
+    category: EatScriptCategory.instrument,
     description: 'Dedicated 32-pad modular drum workstation. Features 16 Core MPC pads + 16 Latin percussion pads, velocity auditioning, kit macros, and drag-and-drop slot assignment allowing any synthesizer or drum preset to be loaded onto any pad.',
     code: '''
 # @id: modular_drumpad_kit

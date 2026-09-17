@@ -2562,11 +2562,11 @@ class EatDspSynthesizer {
   }) {
     if (!lane.enabled) return lane.target.defaultValue;
 
-    if (!lane.isCustomLua || lane.luaScriptCode.trim().isEmpty) {
+    if (!lane.isCustomEatScript || lane.eatScriptCode.trim().isEmpty) {
       return lane.evaluateAtStep(step, timeCtx);
     }
 
-    final code = lane.luaScriptCode;
+    final code = lane.eatScriptCode;
     final scriptType = resolveAutomationScriptType(code);
 
     switch (scriptType) {

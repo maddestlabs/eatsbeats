@@ -5,14 +5,14 @@ import 'package:eatsbeats/models/daw_state.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('Load eats_volts.eats.lua and play sounds', () async {
+  test('Load eats_volts.eats and play sounds', () async {
     final dawState = DawState(enableMeterTimer: true);
-    final file = File('demos/eats_volts.eats.lua');
+    final file = File('demos/eats_volts.eats');
     final code = file.readAsStringSync();
 
-    print('Loading demo eats_volts.eats.lua (${code.length} bytes)...');
+    print('Loading demo eats_volts.eats (${code.length} bytes)...');
     final sw = Stopwatch()..start();
-    dawState.loadFromEatsLua(code);
+    dawState.loadFromEats(code);
     sw.stop();
     print('Demo loaded in ${sw.elapsedMilliseconds}ms');
 

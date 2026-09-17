@@ -84,11 +84,11 @@ void main() {
   ];
 
   group('General MIDI Pipe Family Native Physical Models Tests', () {
-    test('All 8 Pipe Family presets exist in LuaScriptLibrary with valid metadata & GUIs', () {
+    test('All 8 Pipe Family presets exist in EatScriptLibrary with valid metadata & GUIs', () {
       for (final id in pipeInstrumentIds) {
-        final preset = LuaScriptLibrary.getPresetById(id);
-        expect(preset, isNotNull, reason: 'Preset $id should exist in LuaScriptLibrary');
-        expect(preset!.category, equals(LuaPresetCategory.instrument));
+        final preset = EatScriptLibrary.getPresetById(id);
+        expect(preset, isNotNull, reason: 'Preset $id should exist in EatScriptLibrary');
+        expect(preset!.category, equals(EatScriptCategory.instrument));
         expect(preset.name.isNotEmpty, isTrue);
         expect(preset.description.isNotEmpty, isTrue);
         expect(preset.code.contains('function'), isTrue);
@@ -100,9 +100,9 @@ void main() {
 
     test('All 8 Pipe instruments have interactive hardware rack GUIs matching Renaissance Lute style', () {
       for (final id in pipeInstrumentIds) {
-        final preset = LuaScriptLibrary.getPresetById(id)!;
-        final panelDef = LuaGuiParser.parseFromCode(preset.code);
-        expect(panelDef, isNotNull, reason: '$id GUI should parse into a valid LuaGuiPanelDef');
+        final preset = EatScriptLibrary.getPresetById(id)!;
+        final panelDef = EatGuiParser.parseFromCode(preset.code);
+        expect(panelDef, isNotNull, reason: '$id GUI should parse into a valid EatScriptGuiPanelDef');
         expect(panelDef!.title.isNotEmpty, isTrue);
         expect(panelDef.subtitle?.isNotEmpty, isTrue);
         expect(panelDef.accentColor, isNotNull);
@@ -113,10 +113,10 @@ void main() {
         bool hasKnobs = false;
         bool hasSliders = false;
         for (final row in panelDef.children) {
-          expect(row.type, equals(LuaGuiNodeType.row));
+          expect(row.type, equals(EatScriptGuiNodeType.row));
           for (final child in row.children) {
-            if (child.type == LuaGuiNodeType.knob) hasKnobs = true;
-            if (child.type == LuaGuiNodeType.slider) hasSliders = true;
+            if (child.type == EatScriptGuiNodeType.knob) hasKnobs = true;
+            if (child.type == EatScriptGuiNodeType.slider) hasSliders = true;
           }
         }
         expect(hasKnobs, isTrue, reason: '$id GUI should contain interactive knobs');
@@ -126,8 +126,8 @@ void main() {
 
     test('All 8 Pipe instruments define ADSR envelope parameters and sustain continuously', () {
       for (final id in pipeInstrumentIds) {
-        final preset = LuaScriptLibrary.getPresetById(id)!;
-        final compiled = LuaEngine.compile(preset.code);
+        final preset = EatScriptLibrary.getPresetById(id)!;
+        final compiled = EatEngine.compile(preset.code);
         expect(compiled.isSuccess, isTrue);
 
         final paramNames = compiled.params.map((p) => p.name).toSet();
@@ -142,7 +142,7 @@ void main() {
         }
 
         // Synthesize a 1.0 second sustained note (44100 samples)
-        final buffer = LuaEngine.synthesizeBuffer(
+        final buffer = EatEngine.synthesizeBuffer(
           code: preset.code,
           durationSec: 1.0,
           freq: 440.0,
@@ -166,8 +166,8 @@ void main() {
 
     test('All 8 Pipe instruments compile with parameters and synthesize non-empty audio buffers', () {
       for (final id in pipeInstrumentIds) {
-        final preset = LuaScriptLibrary.getPresetById(id)!;
-        final compiled = LuaEngine.compile(preset.code);
+        final preset = EatScriptLibrary.getPresetById(id)!;
+        final compiled = EatEngine.compile(preset.code);
         expect(compiled.isSuccess, isTrue, reason: 'Preset $id should compile cleanly: ${compiled.errorMessage}');
         expect(compiled.params.isNotEmpty, isTrue, reason: 'Preset $id should have controls');
 
@@ -177,7 +177,7 @@ void main() {
         }
 
         // Synthesize a note (MIDI note 72 = C5)
-        final buffer = LuaEngine.synthesizeBuffer(
+        final buffer = EatEngine.synthesizeBuffer(
           code: preset.code,
           durationSec: 0.15,
           freq: 523.25,
@@ -282,15 +282,15 @@ void main() {
 
       final fluteTrack = dawState.activePattern.tracks[0];
       expect(fluteTrack.name, equals('Concert Flute'));
-      expect(fluteTrack.luaScriptCode, contains('ConcertFlute'));
+      expect(fluteTrack.eatScriptCode, contains('ConcertFlute'));
 
       final panTrack = dawState.activePattern.tracks[1];
       expect(panTrack.name, equals('Pan Flute'));
-      expect(panTrack.luaScriptCode, contains('PanFlute'));
+      expect(panTrack.eatScriptCode, contains('PanFlute'));
 
       final whistleTrack = dawState.activePattern.tracks[2];
       expect(whistleTrack.name, equals('Irish Whistle'));
-      expect(whistleTrack.luaScriptCode, contains('TinWhistle'));
+      expect(whistleTrack.eatScriptCode, contains('TinWhistle'));
     });
   });
 }

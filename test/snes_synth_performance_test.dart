@@ -92,8 +92,8 @@ void main() {
         barLength: 4,
         patternIndex: 0,
         lyrics: [],
-        luaScriptCode: '',
-        luaParams: {},
+        eatScriptCode: '',
+        eatScriptParams: {},
         automationLanes: [],
         notes: [
           // Step 0 chord
@@ -175,10 +175,10 @@ void main() {
       ];
 
       track1.clips = [
-        TrackClip(id: 'c1', name: 'Lead 1', trackId: track1.id, startBar: 0, barLength: 2, patternIndex: 0, lyrics: [], luaScriptCode: '', luaParams: {}, automationLanes: [], notes: notes1),
+        TrackClip(id: 'c1', name: 'Lead 1', trackId: track1.id, startBar: 0, barLength: 2, patternIndex: 0, lyrics: [], eatScriptCode: '', eatScriptParams: {}, automationLanes: [], notes: notes1),
       ];
       track2.clips = [
-        TrackClip(id: 'c2', name: 'Lead 2', trackId: track2.id, startBar: 0, barLength: 2, patternIndex: 0, lyrics: [], luaScriptCode: '', luaParams: {}, automationLanes: [], notes: notes2),
+        TrackClip(id: 'c2', name: 'Lead 2', trackId: track2.id, startBar: 0, barLength: 2, patternIndex: 0, lyrics: [], eatScriptCode: '', eatScriptParams: {}, automationLanes: [], notes: notes2),
       ];
 
       // Prewarm and start playback

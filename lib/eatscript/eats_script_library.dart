@@ -7,13 +7,7 @@ import 'eats_builtin_presets.g.dart';
 import 'eats_script_engine.dart';
 import 'eats_transpiler.dart';
 
-// Backwards-compatibility aliases for LuaScript definitions & Eatscript branding
-typedef LuaPreset = EatScriptDef;
-typedef LuaPresetCategory = EatScriptCategory;
-typedef LuaPresetLibrary = EatScriptLibrary;
-typedef LuaScriptDef = EatScriptDef;
-typedef LuaScriptCategory = EatScriptCategory;
-typedef LuaScriptLibrary = EatScriptLibrary;
+// Aliases for Eatscript definitions & branding
 typedef EatPreset = EatScriptDef;
 
 enum EatScriptCategory {
@@ -28,41 +22,41 @@ enum EatScriptCategory {
 
   String get displayName {
     switch (this) {
-      case LuaScriptCategory.instrument:
+      case EatScriptCategory.instrument:
         return 'INSTRUMENT';
-      case LuaScriptCategory.audioFx:
+      case EatScriptCategory.audioFx:
         return 'AUDIO FX';
-      case LuaScriptCategory.midiFx:
+      case EatScriptCategory.midiFx:
         return 'MIDI FX';
-      case LuaScriptCategory.midiSeq:
+      case EatScriptCategory.midiSeq:
         return 'MIDI SEQ';
-      case LuaScriptCategory.noteSplitter:
+      case EatScriptCategory.noteSplitter:
         return 'NOTE SPLITTER';
-      case LuaScriptCategory.projectAction:
-      case LuaScriptCategory.utility:
-      case LuaScriptCategory.macro:
+      case EatScriptCategory.projectAction:
+      case EatScriptCategory.utility:
+      case EatScriptCategory.macro:
         return 'MACRO';
     }
   }
 
-  static LuaScriptCategory parse(String categoryStr) {
+  static EatScriptCategory parse(String categoryStr) {
     final clean = categoryStr.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
     if (clean.contains('macro') || clean.contains('project') || clean.contains('action') || clean.contains('songgen') || clean.contains('generator') || clean.contains('transpos')) {
-      return LuaScriptCategory.macro;
+      return EatScriptCategory.macro;
     }
     if (clean.contains('split') || clean.contains('separator') || clean.contains('demux')) {
-      return LuaScriptCategory.noteSplitter;
+      return EatScriptCategory.noteSplitter;
     }
     if (clean.contains('midiseq') || clean.contains('seq') || clean.contains('pattern')) {
-      return LuaScriptCategory.midiSeq;
+      return EatScriptCategory.midiSeq;
     }
     if (clean.contains('audiofx') || clean.contains('effect') || clean.contains('fx')) {
-      if (clean.contains('midi')) return LuaScriptCategory.midiFx;
-      return LuaScriptCategory.audioFx;
+      if (clean.contains('midi')) return EatScriptCategory.midiFx;
+      return EatScriptCategory.audioFx;
     }
-    if (clean.contains('midi')) return LuaScriptCategory.midiFx;
-    if (clean.contains('util')) return LuaScriptCategory.macro;
-    return LuaScriptCategory.instrument;
+    if (clean.contains('midi')) return EatScriptCategory.midiFx;
+    if (clean.contains('util')) return EatScriptCategory.macro;
+    return EatScriptCategory.instrument;
   }
 }
 
@@ -83,19 +77,19 @@ class EatScriptDef {
     this.tags = const [],
   });
 
-  bool get isInstrument => category == LuaScriptCategory.instrument;
-  bool get isAudioFx => category == LuaScriptCategory.audioFx;
-  bool get isMidiFx => category == LuaScriptCategory.midiFx;
-  bool get isMidiSeq => category == LuaScriptCategory.midiSeq;
-  bool get isNoteSplitter => category == LuaScriptCategory.noteSplitter;
-  bool get isProjectAction => category == LuaScriptCategory.projectAction || category == LuaScriptCategory.macro;
-  bool get isUtility => category == LuaScriptCategory.utility || category == LuaScriptCategory.macro;
-  bool get isMacro => category == LuaScriptCategory.macro || category == LuaScriptCategory.projectAction || category == LuaScriptCategory.utility;
+  bool get isInstrument => category == EatScriptCategory.instrument;
+  bool get isAudioFx => category == EatScriptCategory.audioFx;
+  bool get isMidiFx => category == EatScriptCategory.midiFx;
+  bool get isMidiSeq => category == EatScriptCategory.midiSeq;
+  bool get isNoteSplitter => category == EatScriptCategory.noteSplitter;
+  bool get isProjectAction => category == EatScriptCategory.projectAction || category == EatScriptCategory.macro;
+  bool get isUtility => category == EatScriptCategory.utility || category == EatScriptCategory.macro;
+  bool get isMacro => category == EatScriptCategory.macro || category == EatScriptCategory.projectAction || category == EatScriptCategory.utility;
 
-  /// Returns the script formatted as Eatscript, transpiling legacy Lua on demand.
+  /// Returns the script formatted as Eatscript, transpiling Eatscript on demand.
   String get eatCode {
     if (EatScriptEngine.isEatScript(code)) return code;
-    return EatTranspiler.transpileLuaPreset(code);
+    return EatTranspiler.transpileEatScriptPreset(code);
   }
 
   List<String> get effectiveTags {
@@ -165,9 +159,9 @@ class EatScriptDef {
 }
 
 class EatScriptLibrary {
-  static final List<LuaScriptDef> _customScripts = [];
+  static final List<EatScriptDef> _customScripts = [];
 
-  static List<LuaScriptDef> get scripts => [
+  static List<EatScriptDef> get scripts => [
         GmStandardDrumKitPreset.preset,
         ModularDrumpadKitPreset.preset,
         ...EatBuiltinPresets.presets,
@@ -175,43 +169,43 @@ class EatScriptLibrary {
         ...BrassReedFamilyPresets.all,
         ..._customScripts,
       ];
-  static List<LuaScriptDef> get presets => scripts; // Compatibility alias
+  static List<EatScriptDef> get presets => scripts; // Compatibility alias
 
-  static List<LuaScriptDef> getScriptsByCategory(LuaScriptCategory category) {
-    if (category == LuaScriptCategory.macro) {
+  static List<EatScriptDef> getScriptsByCategory(EatScriptCategory category) {
+    if (category == EatScriptCategory.macro) {
       return scripts.where((p) => p.isMacro).toList();
     }
     return scripts.where((p) => p.category == category).toList();
   }
 
-  static List<LuaScriptDef> getMacros() => scripts.where((p) => p.isMacro).toList();
+  static List<EatScriptDef> getMacros() => scripts.where((p) => p.isMacro).toList();
 
-  static List<LuaScriptDef> getPresetsByCategory(LuaScriptCategory category) => getScriptsByCategory(category);
+  static List<EatScriptDef> getPresetsByCategory(EatScriptCategory category) => getScriptsByCategory(category);
 
-  static void registerCustomScript(LuaScriptDef script) {
+  static void registerCustomScript(EatScriptDef script) {
     _customScripts.removeWhere((p) => p.id == script.id || p.name == script.name);
     _customScripts.add(script);
   }
 
-  static void registerCustomPreset(LuaScriptDef script) => registerCustomScript(script);
+  static void registerCustomPreset(EatScriptDef script) => registerCustomScript(script);
 
   static EatScriptDef parseFromEatScript(String scriptCode, {String fallbackName = 'Custom Script'}) =>
-      parseFromLuaScript(scriptCode, fallbackName: fallbackName);
+      parseFromScript(scriptCode, fallbackName: fallbackName);
 
-  static LuaScriptDef parseFromLuaScript(String luaCode, {String fallbackName = 'Custom Script'}) {
+  static EatScriptDef parseFromScript(String eatScriptCode, {String fallbackName = 'Custom Script'}) {
     String name = fallbackName;
-    LuaScriptCategory category = LuaScriptCategory.instrument;
+    EatScriptCategory category = EatScriptCategory.instrument;
     String description = '';
     final List<String> tags = [];
 
-    final lines = luaCode.split('\n');
+    final lines = eatScriptCode.split('\n');
     for (final line in lines) {
       final trimmed = line.trim();
       final clean = trimmed.startsWith('--') ? trimmed.substring(2).trim() : (trimmed.startsWith('#') ? trimmed.substring(1).trim() : trimmed);
       if (clean.startsWith('@name:')) {
         name = clean.substring(6).trim();
       } else if (clean.startsWith('@category:')) {
-        category = LuaScriptCategory.parse(clean.substring(10).trim());
+        category = EatScriptCategory.parse(clean.substring(10).trim());
       } else if (clean.startsWith('@description:')) {
         description = clean.substring(13).trim();
       } else if (clean.startsWith('@tags:') || clean.startsWith('@tag:')) {
@@ -224,25 +218,25 @@ class EatScriptLibrary {
       }
     }
 
-    if (!luaCode.contains('@category:')) {
-      if (luaCode.contains('processSignal') || luaCode.contains('evaluateEffect')) {
-        category = LuaScriptCategory.audioFx;
-      } else if (luaCode.contains('transform_notes') || luaCode.contains('midi_fx')) {
-        category = LuaScriptCategory.midiFx;
+    if (!eatScriptCode.contains('@category:')) {
+      if (eatScriptCode.contains('processSignal') || eatScriptCode.contains('evaluateEffect')) {
+        category = EatScriptCategory.audioFx;
+      } else if (eatScriptCode.contains('transform_notes') || eatScriptCode.contains('midi_fx')) {
+        category = EatScriptCategory.midiFx;
       }
     }
 
     if (description.isEmpty) {
-      description = '$name ${category == LuaScriptCategory.audioFx ? 'DSP audio effect' : (category == LuaScriptCategory.midiFx ? 'MIDI effect transformer' : 'synthesizer instrument')}';
+      description = '$name ${category == EatScriptCategory.audioFx ? 'DSP audio effect' : (category == EatScriptCategory.midiFx ? 'MIDI effect transformer' : 'synthesizer instrument')}';
     }
 
     final id = 'custom_${DateTime.now().millisecondsSinceEpoch}_${name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')}';
-    final script = LuaScriptDef(
+    final script = EatScriptDef(
       id: id,
       name: name,
       category: category,
       description: description,
-      code: luaCode,
+      code: eatScriptCode,
       tags: tags,
     );
 
@@ -250,7 +244,7 @@ class EatScriptLibrary {
     return script;
   }
 
-  static LuaScriptDef? getScriptById(String id) {
+  static EatScriptDef? getScriptById(String id) {
     try {
       final builtin = EatBuiltinPresets.getById(id);
       if (builtin != null) return builtin;
@@ -275,17 +269,17 @@ class EatScriptLibrary {
     }
   }
 
-  static LuaScriptDef? getPresetById(String id) => getScriptById(id);
+  static EatScriptDef? getPresetById(String id) => getScriptById(id);
 
-  static LuaScriptDef? findMatchingPreset(String luaCode, {String? fallbackName}) => findMatchingScript(luaCode, fallbackName: fallbackName);
+  static EatScriptDef? findMatchingPreset(String eatScriptCode, {String? fallbackName}) => findMatchingScript(eatScriptCode, fallbackName: fallbackName);
 
-  static LuaScriptDef? findMatchingScript(String luaCode, {String? fallbackName}) {
-    if (luaCode.trim().isEmpty && (fallbackName == null || fallbackName.isEmpty)) {
+  static EatScriptDef? findMatchingScript(String eatScriptCode, {String? fallbackName}) {
+    if (eatScriptCode.trim().isEmpty && (fallbackName == null || fallbackName.isEmpty)) {
       return null;
     }
 
     // 1. Check for explicit @id: or @name:
-    final lines = luaCode.split('\n');
+    final lines = eatScriptCode.split('\n');
     String? explicitId;
     String? explicitName;
     for (final line in lines) {
@@ -321,311 +315,311 @@ class EatScriptLibrary {
     }
 
     // 3. Match by code signature
-    if (luaCode.contains('modular_drumpad_kit') ||
-        luaCode.contains('ModularDrumpadKit') ||
-        luaCode.contains('Modular Drum Machine')) {
+    if (eatScriptCode.contains('modular_drumpad_kit') ||
+        eatScriptCode.contains('ModularDrumpadKit') ||
+        eatScriptCode.contains('Modular Drum Machine')) {
       return getPresetById('modular_drumpad_kit');
     }
-    if (luaCode.contains('gm_standard_drum_kit') ||
-        luaCode.contains('GmStandardDrumKit') ||
-        luaCode.contains('GM Standard Drum Kit')) {
+    if (eatScriptCode.contains('gm_standard_drum_kit') ||
+        eatScriptCode.contains('GmStandardDrumKit') ||
+        eatScriptCode.contains('GM Standard Drum Kit')) {
       return getPresetById('gm_standard_drum_kit');
     }
-    if (luaCode.contains('FmAcousticKick') || luaCode.contains('Dual-Mic FM Acoustic Kick') || luaCode.contains('NearPitchStart') || luaCode.contains('fm_acoustic_kick')) {
+    if (eatScriptCode.contains('FmAcousticKick') || eatScriptCode.contains('Dual-Mic FM Acoustic Kick') || eatScriptCode.contains('NearPitchStart') || eatScriptCode.contains('fm_acoustic_kick')) {
       return getPresetById('fm_acoustic_kick');
     }
-    if (luaCode.contains('FmAcousticSnare') || luaCode.contains('Dual-Mic FM Acoustic Snare') || luaCode.contains('WireCutoff') || luaCode.contains('fm_acoustic_snare')) {
+    if (eatScriptCode.contains('FmAcousticSnare') || eatScriptCode.contains('Dual-Mic FM Acoustic Snare') || eatScriptCode.contains('WireCutoff') || eatScriptCode.contains('fm_acoustic_snare')) {
       return getPresetById('fm_acoustic_snare');
     }
-    if (luaCode.contains('FmAcousticTom') || luaCode.contains('FM Acoustic Tom') || luaCode.contains('fm_acoustic_tom') || luaCode.contains('TomPitchStart')) {
+    if (eatScriptCode.contains('FmAcousticTom') || eatScriptCode.contains('FM Acoustic Tom') || eatScriptCode.contains('fm_acoustic_tom') || eatScriptCode.contains('TomPitchStart')) {
       return getPresetById('fm_acoustic_tom');
     }
-    if (luaCode.contains('FmAcousticHiHat') || luaCode.contains('FM Acoustic Hi-Hat') || luaCode.contains('fm_acoustic_hihat')) {
+    if (eatScriptCode.contains('FmAcousticHiHat') || eatScriptCode.contains('FM Acoustic Hi-Hat') || eatScriptCode.contains('fm_acoustic_hihat')) {
       return getPresetById('fm_acoustic_hihat');
     }
-    if (luaCode.contains('Analog808Kick') || luaCode.contains('Analog 808 Kick') || luaCode.contains('analog_808_kick')) {
+    if (eatScriptCode.contains('Analog808Kick') || eatScriptCode.contains('Analog 808 Kick') || eatScriptCode.contains('analog_808_kick')) {
       return getPresetById('analog_808_kick');
     }
-    if (luaCode.contains('Analog808Snare') || luaCode.contains('Analog 808 Snare') || luaCode.contains('analog_808_snare')) {
+    if (eatScriptCode.contains('Analog808Snare') || eatScriptCode.contains('Analog 808 Snare') || eatScriptCode.contains('analog_808_snare')) {
       return getPresetById('analog_808_snare');
     }
-    if (luaCode.contains('Analog808HiHat') || luaCode.contains('Analog 808 Hi-Hat') || luaCode.contains('analog_808_hihat')) {
+    if (eatScriptCode.contains('Analog808HiHat') || eatScriptCode.contains('Analog 808 Hi-Hat') || eatScriptCode.contains('analog_808_hihat')) {
       return getPresetById('analog_808_hihat');
     }
-    if (luaCode.contains('Analog808Cowbell') || luaCode.contains('Analog 808 Cowbell') || luaCode.contains('analog_808_cowbell')) {
+    if (eatScriptCode.contains('Analog808Cowbell') || eatScriptCode.contains('Analog 808 Cowbell') || eatScriptCode.contains('analog_808_cowbell')) {
       return getPresetById('analog_808_cowbell');
     }
-    if (luaCode.contains('Analog808Tom') || luaCode.contains('Analog 808 Tom') || luaCode.contains('analog_808_tom')) {
+    if (eatScriptCode.contains('Analog808Tom') || eatScriptCode.contains('Analog 808 Tom') || eatScriptCode.contains('analog_808_tom')) {
       return getPresetById('analog_808_tom');
     }
-    if (luaCode.contains('Analog909Kick') || luaCode.contains('Analog 909 Kick') || luaCode.contains('analog_909_kick')) {
+    if (eatScriptCode.contains('Analog909Kick') || eatScriptCode.contains('Analog 909 Kick') || eatScriptCode.contains('analog_909_kick')) {
       return getPresetById('analog_909_kick');
     }
-    if (luaCode.contains('Analog909Snare') || luaCode.contains('Analog 909 Snare') || luaCode.contains('analog_909_snare')) {
+    if (eatScriptCode.contains('Analog909Snare') || eatScriptCode.contains('Analog 909 Snare') || eatScriptCode.contains('analog_909_snare')) {
       return getPresetById('analog_909_snare');
     }
-    if (luaCode.contains('Analog909ClosedHiHat') || luaCode.contains('Analog 909 Closed Hi-Hat') || luaCode.contains('analog_909_closed_hihat') || luaCode.contains('analog_909_hihat') || luaCode.contains('Analog 909 Hi-Hat') || luaCode.contains('Analog909HiHat')) {
+    if (eatScriptCode.contains('Analog909ClosedHiHat') || eatScriptCode.contains('Analog 909 Closed Hi-Hat') || eatScriptCode.contains('analog_909_closed_hihat') || eatScriptCode.contains('analog_909_hihat') || eatScriptCode.contains('Analog 909 Hi-Hat') || eatScriptCode.contains('Analog909HiHat')) {
       return getPresetById('analog_909_closed_hihat');
     }
-    if (luaCode.contains('Analog909OpenHiHat') || luaCode.contains('Analog 909 Open Hi-Hat') || luaCode.contains('analog_909_open_hihat')) {
+    if (eatScriptCode.contains('Analog909OpenHiHat') || eatScriptCode.contains('Analog 909 Open Hi-Hat') || eatScriptCode.contains('analog_909_open_hihat')) {
       return getPresetById('analog_909_open_hihat');
     }
-    if (luaCode.contains('Analog909Clap') || luaCode.contains('Analog 909 Clap') || luaCode.contains('analog_909_clap') || luaCode.contains('Analog 909 Handclap')) {
+    if (eatScriptCode.contains('Analog909Clap') || eatScriptCode.contains('Analog 909 Clap') || eatScriptCode.contains('analog_909_clap') || eatScriptCode.contains('Analog 909 Handclap')) {
       return getPresetById('analog_909_clap');
     }
-    if (luaCode.contains('Analog909Rimshot') || luaCode.contains('Analog 909 Rimshot') || luaCode.contains('analog_909_rimshot')) {
+    if (eatScriptCode.contains('Analog909Rimshot') || eatScriptCode.contains('Analog 909 Rimshot') || eatScriptCode.contains('analog_909_rimshot')) {
       return getPresetById('analog_909_rimshot');
     }
-    if (luaCode.contains('Eats303') || luaCode.contains('Eats-303') || luaCode.contains('eats_303') ||
-        luaCode.contains('JC303') || luaCode.contains('JC-303') || luaCode.contains('Acid303') ||
-        luaCode.contains('TB303') || luaCode.contains('jc_303') || luaCode.contains('acid_303')) {
+    if (eatScriptCode.contains('Eats303') || eatScriptCode.contains('Eats-303') || eatScriptCode.contains('eats_303') ||
+        eatScriptCode.contains('JC303') || eatScriptCode.contains('JC-303') || eatScriptCode.contains('Acid303') ||
+        eatScriptCode.contains('TB303') || eatScriptCode.contains('jc_303') || eatScriptCode.contains('acid_303')) {
       return getPresetById('eats_303');
     }
-    if (luaCode.contains('YM2612')) {
+    if (eatScriptCode.contains('YM2612')) {
       return getPresetById('ym2612_synth');
     }
-    if (luaCode.contains('SNESSFX') || luaCode.contains('SFXR')) {
+    if (eatScriptCode.contains('SNESSFX') || eatScriptCode.contains('SFXR')) {
       return getPresetById('eats_sfxr');
     }
-    if (luaCode.contains('Nibbles') || luaCode.contains('nibbles') || luaCode.contains('eats_nibbles') || luaCode.contains('Eats-Nibbles')) {
+    if (eatScriptCode.contains('Nibbles') || eatScriptCode.contains('nibbles') || eatScriptCode.contains('eats_nibbles') || eatScriptCode.contains('Eats-Nibbles')) {
       return getPresetById('eats_nibbles');
     }
-    if (luaCode.contains('CyberRunner') || luaCode.contains('Cyber Runner') || luaCode.contains('eats_runner') || luaCode.contains('Eats-Runner')) {
+    if (eatScriptCode.contains('CyberRunner') || eatScriptCode.contains('Cyber Runner') || eatScriptCode.contains('eats_runner') || eatScriptCode.contains('Eats-Runner')) {
       return getPresetById('eats_runner');
     }
-    if (luaCode.contains('Oscilloscope') || luaCode.contains('eats_scope') || luaCode.contains('Eats-Scope') || luaCode.contains('Scope')) {
+    if (eatScriptCode.contains('Oscilloscope') || eatScriptCode.contains('eats_scope') || eatScriptCode.contains('Eats-Scope') || eatScriptCode.contains('Scope')) {
       return getPresetById('eats_scope');
     }
-    if (luaCode.contains('Spectrum') || luaCode.contains('eats_spectrum') || luaCode.contains('Eats-Spectrum') || luaCode.contains('Analyzer')) {
+    if (eatScriptCode.contains('Spectrum') || eatScriptCode.contains('eats_spectrum') || eatScriptCode.contains('Eats-Spectrum') || eatScriptCode.contains('Analyzer')) {
       return getPresetById('eats_spectrum');
     }
-    if (luaCode.contains('Limiter') || luaCode.contains('master_limiter') || luaCode.contains('Master Limiter')) {
+    if (eatScriptCode.contains('Limiter') || eatScriptCode.contains('master_limiter') || eatScriptCode.contains('Master Limiter')) {
       return getPresetById('master_limiter');
     }
-    if (luaCode.contains('Compressor') || luaCode.contains('dynamics_compressor') || luaCode.contains('Dynamics Compressor')) {
+    if (eatScriptCode.contains('Compressor') || eatScriptCode.contains('dynamics_compressor') || eatScriptCode.contains('Dynamics Compressor')) {
       return getPresetById('dynamics_compressor');
     }
-    if (luaCode.contains('RoomDesigner') || luaCode.contains('room_designer') || luaCode.contains('Room Designer')) {
+    if (eatScriptCode.contains('RoomDesigner') || eatScriptCode.contains('room_designer') || eatScriptCode.contains('Room Designer')) {
       return getPresetById('room_designer');
     }
-    if (luaCode.contains('CabDesigner') || luaCode.contains('cab_designer') || luaCode.contains('Cab Designer')) {
+    if (eatScriptCode.contains('CabDesigner') || eatScriptCode.contains('cab_designer') || eatScriptCode.contains('Cab Designer')) {
       return getPresetById('cab_designer');
     }
-    if (luaCode.contains('StereoDelay') || luaCode.contains('stereo_delay') || luaCode.contains('Stereo Delay')) {
+    if (eatScriptCode.contains('StereoDelay') || eatScriptCode.contains('stereo_delay') || eatScriptCode.contains('Stereo Delay')) {
       return getPresetById('stereo_delay');
     }
-    if (luaCode.contains('FilterFX') || luaCode.contains('lowpass_filter') || luaCode.contains('Lowpass Filter')) {
+    if (eatScriptCode.contains('FilterFX') || eatScriptCode.contains('lowpass_filter') || eatScriptCode.contains('Lowpass Filter')) {
       return getPresetById('lowpass_filter');
     }
-    if (luaCode.contains('VintageDegrader') || luaCode.contains('vintage_era_degrader') || luaCode.contains('Vintage Era Degrader') || luaCode.contains('Eats Vinyl') || luaCode.contains('eats_vinyl') || luaCode.contains('Era Bandwidth Morph')) {
+    if (eatScriptCode.contains('VintageDegrader') || eatScriptCode.contains('vintage_era_degrader') || eatScriptCode.contains('Vintage Era Degrader') || eatScriptCode.contains('Eats Vinyl') || eatScriptCode.contains('eats_vinyl') || eatScriptCode.contains('Era Bandwidth Morph')) {
       return getPresetById('vintage_era_degrader');
     }
-    if (luaCode.contains('PolyLeadSynth')) {
+    if (eatScriptCode.contains('PolyLeadSynth')) {
       return getPresetById('poly_lead');
     }
-    if (luaCode.contains('RhodesEPiano') || luaCode.contains('rhodes_epiano') || luaCode.contains('Rhodes Mark I') || luaCode.contains('Stage 73')) {
+    if (eatScriptCode.contains('RhodesEPiano') || eatScriptCode.contains('rhodes_epiano') || eatScriptCode.contains('Rhodes Mark I') || eatScriptCode.contains('Stage 73')) {
       return getPresetById('rhodes_epiano');
     }
-    if (luaCode.contains('ReggaeGuitar') || luaCode.contains('reggae_guitar') || luaCode.contains('Reggae Skank') || luaCode.contains('Dub Guitar') || luaCode.contains('Dub Chop') || luaCode.contains('SkankGuitar') || luaCode.contains('DubGuitar')) {
+    if (eatScriptCode.contains('ReggaeGuitar') || eatScriptCode.contains('reggae_guitar') || eatScriptCode.contains('Reggae Skank') || eatScriptCode.contains('Dub Guitar') || eatScriptCode.contains('Dub Chop') || eatScriptCode.contains('SkankGuitar') || eatScriptCode.contains('DubGuitar')) {
       return getPresetById('reggae_guitar');
     }
-    if (luaCode.contains('HawaiianUkulele') || luaCode.contains('hawaiian_ukulele') || luaCode.contains('Ukulele') || (luaCode.contains('PluckSnap') && luaCode.contains('StrumSpread'))) {
+    if (eatScriptCode.contains('HawaiianUkulele') || eatScriptCode.contains('hawaiian_ukulele') || eatScriptCode.contains('Ukulele') || (eatScriptCode.contains('PluckSnap') && eatScriptCode.contains('StrumSpread'))) {
       return getPresetById('hawaiian_ukulele');
     }
-    if (luaCode.contains('SpanishGuitar') || luaCode.contains('spanish_guitar') || luaCode.contains('ClassicalGuitar') || luaCode.contains('classical_guitar') || luaCode.contains('Spanish Guitar') || luaCode.contains('Classical Guitar') || (luaCode.contains('FleshNail') && luaCode.contains('AirResonance'))) {
+    if (eatScriptCode.contains('SpanishGuitar') || eatScriptCode.contains('spanish_guitar') || eatScriptCode.contains('ClassicalGuitar') || eatScriptCode.contains('classical_guitar') || eatScriptCode.contains('Spanish Guitar') || eatScriptCode.contains('Classical Guitar') || (eatScriptCode.contains('FleshNail') && eatScriptCode.contains('AirResonance'))) {
       return getPresetById('spanish_guitar');
     }
-    if (luaCode.contains('RenaissanceLute') || luaCode.contains('renaissance_lute') || luaCode.contains('BaroqueLute') || luaCode.contains('baroque_lute') || luaCode.contains('Lute') || luaCode.contains('Vihuela') || (luaCode.contains('CourseDetune') && luaCode.contains('BowlWarmth'))) {
+    if (eatScriptCode.contains('RenaissanceLute') || eatScriptCode.contains('renaissance_lute') || eatScriptCode.contains('BaroqueLute') || eatScriptCode.contains('baroque_lute') || eatScriptCode.contains('Lute') || eatScriptCode.contains('Vihuela') || (eatScriptCode.contains('CourseDetune') && eatScriptCode.contains('BowlWarmth'))) {
       return getPresetById('renaissance_lute');
     }
-    if (luaCode.contains('BaroqueGuitar') || luaCode.contains('baroque_guitar') || luaCode.contains('5-Course Guitar') || luaCode.contains('Chitarra Spagnola') || (luaCode.contains('RoseBite') && luaCode.contains('RasgueadoSpeed'))) {
+    if (eatScriptCode.contains('BaroqueGuitar') || eatScriptCode.contains('baroque_guitar') || eatScriptCode.contains('5-Course Guitar') || eatScriptCode.contains('Chitarra Spagnola') || (eatScriptCode.contains('RoseBite') && eatScriptCode.contains('RasgueadoSpeed'))) {
       return getPresetById('baroque_guitar');
     }
-    if (luaCode.contains('FlamencoGuitar') || luaCode.contains('flamenco_guitar') || luaCode.contains('Guitarra Flamenca') || luaCode.contains('Flamenco') || (luaCode.contains('GolpeTap') && luaCode.contains('SnapDamp'))) {
+    if (eatScriptCode.contains('FlamencoGuitar') || eatScriptCode.contains('flamenco_guitar') || eatScriptCode.contains('Guitarra Flamenca') || eatScriptCode.contains('Flamenco') || (eatScriptCode.contains('GolpeTap') && eatScriptCode.contains('SnapDamp'))) {
       return getPresetById('flamenco_guitar');
     }
-    if (luaCode.contains('SteelAcousticGuitar') || luaCode.contains('acoustic_steel_guitar') || luaCode.contains('Steel Acoustic') || (luaCode.contains('BodyProfile') && luaCode.contains('BronzeSparkle'))) {
+    if (eatScriptCode.contains('SteelAcousticGuitar') || eatScriptCode.contains('acoustic_steel_guitar') || eatScriptCode.contains('Steel Acoustic') || (eatScriptCode.contains('BodyProfile') && eatScriptCode.contains('BronzeSparkle'))) {
       return getPresetById('acoustic_steel_guitar');
     }
-    if (luaCode.contains('TwelveStringGuitar') || luaCode.contains('twelve_string_guitar') || luaCode.contains('12-String') || (luaCode.contains('ChorusDetune') && luaCode.contains('OctavePairing'))) {
+    if (eatScriptCode.contains('TwelveStringGuitar') || eatScriptCode.contains('twelve_string_guitar') || eatScriptCode.contains('12-String') || (eatScriptCode.contains('ChorusDetune') && eatScriptCode.contains('OctavePairing'))) {
       return getPresetById('twelve_string_guitar');
     }
-    if (luaCode.contains('DobroResonator') || luaCode.contains('dobro_resonator') || luaCode.contains('Dobro') || luaCode.contains('Resonator') || (luaCode.contains('ConeType') && luaCode.contains('MetalBark'))) {
+    if (eatScriptCode.contains('DobroResonator') || eatScriptCode.contains('dobro_resonator') || eatScriptCode.contains('Dobro') || eatScriptCode.contains('Resonator') || (eatScriptCode.contains('ConeType') && eatScriptCode.contains('MetalBark'))) {
       return getPresetById('dobro_resonator');
     }
-    if (luaCode.contains('PedalSteelGuitar') || luaCode.contains('pedal_steel_guitar') || luaCode.contains('Pedal Steel') || (luaCode.contains('VolumeSwell') && luaCode.contains('BarVibrato'))) {
+    if (eatScriptCode.contains('PedalSteelGuitar') || eatScriptCode.contains('pedal_steel_guitar') || eatScriptCode.contains('Pedal Steel') || (eatScriptCode.contains('VolumeSwell') && eatScriptCode.contains('BarVibrato'))) {
       return getPresetById('pedal_steel_guitar');
     }
-    if (luaCode.contains('HarpGuitar') || luaCode.contains('harp_guitar') || luaCode.contains('Harp Guitar') || (luaCode.contains('SubDroneGain') && luaCode.contains('PickStyle'))) {
+    if (eatScriptCode.contains('HarpGuitar') || eatScriptCode.contains('harp_guitar') || eatScriptCode.contains('Harp Guitar') || (eatScriptCode.contains('SubDroneGain') && eatScriptCode.contains('PickStyle'))) {
       return getPresetById('harp_guitar');
     }
-    if (luaCode.contains('BluegrassBanjo') || luaCode.contains('bluegrass_banjo') || luaCode.contains('Banjo') || (luaCode.contains('HeadTension') && luaCode.contains('TwangSnap'))) {
+    if (eatScriptCode.contains('BluegrassBanjo') || eatScriptCode.contains('bluegrass_banjo') || eatScriptCode.contains('Banjo') || (eatScriptCode.contains('HeadTension') && eatScriptCode.contains('TwangSnap'))) {
       return getPresetById('bluegrass_banjo');
     }
-    if (luaCode.contains('FolkMandolin') || luaCode.contains('folk_mandolin') || luaCode.contains('Mandolin') || (luaCode.contains('TremoloSpeed') && luaCode.contains('MandolinBite'))) {
+    if (eatScriptCode.contains('FolkMandolin') || eatScriptCode.contains('folk_mandolin') || eatScriptCode.contains('Mandolin') || (eatScriptCode.contains('TremoloSpeed') && eatScriptCode.contains('MandolinBite'))) {
       return getPresetById('folk_mandolin');
     }
-    if (luaCode.contains('SoloViolin') || luaCode.contains('solo_violin') || luaCode.contains('Virtuoso Solo Violin') || (luaCode.contains('BowPressure') && luaCode.contains('BridgeBite'))) {
+    if (eatScriptCode.contains('SoloViolin') || eatScriptCode.contains('solo_violin') || eatScriptCode.contains('Virtuoso Solo Violin') || (eatScriptCode.contains('BowPressure') && eatScriptCode.contains('BridgeBite'))) {
       return getPresetById('solo_violin');
     }
-    if (luaCode.contains('SoloViola') || luaCode.contains('solo_viola') || luaCode.contains('Warm Solo Viola') || (luaCode.contains('BowPressure') && luaCode.contains('ViolaWarmth'))) {
+    if (eatScriptCode.contains('SoloViola') || eatScriptCode.contains('solo_viola') || eatScriptCode.contains('Warm Solo Viola') || (eatScriptCode.contains('BowPressure') && eatScriptCode.contains('ViolaWarmth'))) {
       return getPresetById('solo_viola');
     }
-    if (luaCode.contains('SoloCello') || luaCode.contains('solo_cello') || luaCode.contains('Deep Solo Cello') || (luaCode.contains('BowPressure') && luaCode.contains('ChestResonance'))) {
+    if (eatScriptCode.contains('SoloCello') || eatScriptCode.contains('solo_cello') || eatScriptCode.contains('Deep Solo Cello') || (eatScriptCode.contains('BowPressure') && eatScriptCode.contains('ChestResonance'))) {
       return getPresetById('solo_cello');
     }
-    if (luaCode.contains('DoubleBass') || luaCode.contains('double_bass') || luaCode.contains('Orchestral Double Bass') || luaCode.contains('Contrabass') || (luaCode.contains('BowPressure') && luaCode.contains('SubPunch'))) {
+    if (eatScriptCode.contains('DoubleBass') || eatScriptCode.contains('double_bass') || eatScriptCode.contains('Orchestral Double Bass') || eatScriptCode.contains('Contrabass') || (eatScriptCode.contains('BowPressure') && eatScriptCode.contains('SubPunch'))) {
       return getPresetById('double_bass');
     }
-    if (luaCode.contains('StringEnsemble') || luaCode.contains('string_ensemble') || luaCode.contains('Symphonic String Ensemble') || luaCode.contains('Orchestral Strings') || (luaCode.contains('EnsembleChorus') && luaCode.contains('AirSheen'))) {
+    if (eatScriptCode.contains('StringEnsemble') || eatScriptCode.contains('string_ensemble') || eatScriptCode.contains('Symphonic String Ensemble') || eatScriptCode.contains('Orchestral Strings') || (eatScriptCode.contains('EnsembleChorus') && eatScriptCode.contains('AirSheen'))) {
       return getPresetById('string_ensemble');
     }
 
-    if (luaCode.contains('EatsVolts') || luaCode.contains('eats_volts') || luaCode.contains('Eats Volts') || luaCode.contains('VoltaicPlasmaSynth') || luaCode.contains('voltaic_plasma_synth') || luaCode.contains('VOLTAIC') || luaCode.contains('Plasma Arc') || luaCode.contains('Singing Arc') || (luaCode.contains('SparkGap') && luaCode.contains('CrackleRate'))) {
+    if (eatScriptCode.contains('EatsVolts') || eatScriptCode.contains('eats_volts') || eatScriptCode.contains('Eats Volts') || eatScriptCode.contains('VoltaicPlasmaSynth') || eatScriptCode.contains('voltaic_plasma_synth') || eatScriptCode.contains('VOLTAIC') || eatScriptCode.contains('Plasma Arc') || eatScriptCode.contains('Singing Arc') || (eatScriptCode.contains('SparkGap') && eatScriptCode.contains('CrackleRate'))) {
       return getPresetById('eats_volts');
     }
-    if (luaCode.contains('EatsFurnace') || luaCode.contains('eats_furnace') || luaCode.contains('Eats Furnace') || luaCode.contains('PyrophoneSynth') || luaCode.contains('pyrophone_synth') || luaCode.contains('PYROPHONE') || luaCode.contains('Thermoacoustic') || luaCode.contains('Singing Flame') || luaCode.contains('Rijke Tube') || (luaCode.contains('FuelPressure') && luaCode.contains('FlameCusp'))) {
+    if (eatScriptCode.contains('EatsFurnace') || eatScriptCode.contains('eats_furnace') || eatScriptCode.contains('Eats Furnace') || eatScriptCode.contains('PyrophoneSynth') || eatScriptCode.contains('pyrophone_synth') || eatScriptCode.contains('PYROPHONE') || eatScriptCode.contains('Thermoacoustic') || eatScriptCode.contains('Singing Flame') || eatScriptCode.contains('Rijke Tube') || (eatScriptCode.contains('FuelPressure') && eatScriptCode.contains('FlameCusp'))) {
       return getPresetById('eats_furnace');
     }
-    if (luaCode.contains('EatsFXRain') || luaCode.contains('eatsfx_rain') || luaCode.contains('EatsFX Rain') || luaCode.contains('EatsRain') || luaCode.contains('eats_rain') || luaCode.contains('Eats Rain') || luaCode.contains('RainIntensity') || (luaCode.contains('RainHiss') && luaCode.contains('DropletForce'))) {
+    if (eatScriptCode.contains('EatsFXRain') || eatScriptCode.contains('eatsfx_rain') || eatScriptCode.contains('EatsFX Rain') || eatScriptCode.contains('EatsRain') || eatScriptCode.contains('eats_rain') || eatScriptCode.contains('Eats Rain') || eatScriptCode.contains('RainIntensity') || (eatScriptCode.contains('RainHiss') && eatScriptCode.contains('DropletForce'))) {
       return getPresetById('eatsfx_rain');
     }
-    if (luaCode.contains('EatsFXWind') || luaCode.contains('eatsfx_wind') || luaCode.contains('EatsFX Wind') || luaCode.contains('EatsWind') || luaCode.contains('eats_wind') || luaCode.contains('Eats Wind') || luaCode.contains('AeolianPitch') || (luaCode.contains('GustSpeed') && luaCode.contains('HowlDepth'))) {
+    if (eatScriptCode.contains('EatsFXWind') || eatScriptCode.contains('eatsfx_wind') || eatScriptCode.contains('EatsFX Wind') || eatScriptCode.contains('EatsWind') || eatScriptCode.contains('eats_wind') || eatScriptCode.contains('Eats Wind') || eatScriptCode.contains('AeolianPitch') || (eatScriptCode.contains('GustSpeed') && eatScriptCode.contains('HowlDepth'))) {
       return getPresetById('eatsfx_wind');
     }
-    if (luaCode.contains('EatsFXFire') || luaCode.contains('eatsfx_fire') || luaCode.contains('EatsFX Fire') || luaCode.contains('EatsFire') || luaCode.contains('eats_fire') || luaCode.contains('Eats Fire') || luaCode.contains('SapCrackle') || (luaCode.contains('FlameRoar') && luaCode.contains('EmberSizzle'))) {
+    if (eatScriptCode.contains('EatsFXFire') || eatScriptCode.contains('eatsfx_fire') || eatScriptCode.contains('EatsFX Fire') || eatScriptCode.contains('EatsFire') || eatScriptCode.contains('eats_fire') || eatScriptCode.contains('Eats Fire') || eatScriptCode.contains('SapCrackle') || (eatScriptCode.contains('FlameRoar') && eatScriptCode.contains('EmberSizzle'))) {
       return getPresetById('eatsfx_fire');
     }
-    if (luaCode.contains('EatsWater') || luaCode.contains('eats_water') || luaCode.contains('Eats Water') || luaCode.contains('Hydraulophone') || (luaCode.contains('WaterFlow') && luaCode.contains('BubblePinch'))) {
+    if (eatScriptCode.contains('EatsWater') || eatScriptCode.contains('eats_water') || eatScriptCode.contains('Eats Water') || eatScriptCode.contains('Hydraulophone') || (eatScriptCode.contains('WaterFlow') && eatScriptCode.contains('BubblePinch'))) {
       return getPresetById('eats_water');
     }
-    if (luaCode.contains('DX7EPiano') || luaCode.contains('dx7_epiano') || luaCode.contains('DX7') || luaCode.contains('FullTines')) {
+    if (eatScriptCode.contains('DX7EPiano') || eatScriptCode.contains('dx7_epiano') || eatScriptCode.contains('DX7') || eatScriptCode.contains('FullTines')) {
       return getPresetById('dx7_epiano');
     }
-    if (luaCode.contains('ClavinetD6') || luaCode.contains('clavinet_d6') || luaCode.contains('Clavinet') || luaCode.contains('Hohner Clav')) {
+    if (eatScriptCode.contains('ClavinetD6') || eatScriptCode.contains('clavinet_d6') || eatScriptCode.contains('Clavinet') || eatScriptCode.contains('Hohner Clav')) {
       return getPresetById('clavinet_d6');
     }
-    if (luaCode.contains('TTSVoiceSynth') || luaCode.contains('tts_voice_synth') || luaCode.contains('TTS Voice Synth') || luaCode.contains('Vocal Formant') || luaCode.contains('Formant Synth')) {
+    if (eatScriptCode.contains('TTSVoiceSynth') || eatScriptCode.contains('tts_voice_synth') || eatScriptCode.contains('TTS Voice Synth') || eatScriptCode.contains('Vocal Formant') || eatScriptCode.contains('Formant Synth')) {
       return getPresetById('tts_voice_synth');
     }
-    if (luaCode.contains('Harpsichord') || luaCode.contains('harpsichord_cembalo') || luaCode.contains('Cembalo') || luaCode.contains('Virginal')) {
+    if (eatScriptCode.contains('Harpsichord') || eatScriptCode.contains('harpsichord_cembalo') || eatScriptCode.contains('Cembalo') || eatScriptCode.contains('Virginal')) {
       return getPresetById('harpsichord_cembalo');
     }
-    if (luaCode.contains('ConcertGrandPiano') || luaCode.contains('concert_grand_piano') || luaCode.contains('Concert Grand') || luaCode.contains('Grand Piano') || (luaCode.contains('HammerHardness') && luaCode.contains('Stiffness')) || (luaCode.contains('HammerHardness') && luaCode.contains('Brightness')) || (luaCode.contains('HammerHardness') && luaCode.contains('Soundboard') && luaCode.contains('PedalReso'))) {
+    if (eatScriptCode.contains('ConcertGrandPiano') || eatScriptCode.contains('concert_grand_piano') || eatScriptCode.contains('Concert Grand') || eatScriptCode.contains('Grand Piano') || (eatScriptCode.contains('HammerHardness') && eatScriptCode.contains('Stiffness')) || (eatScriptCode.contains('HammerHardness') && eatScriptCode.contains('Brightness')) || (eatScriptCode.contains('HammerHardness') && eatScriptCode.contains('Soundboard') && eatScriptCode.contains('PedalReso'))) {
       return getPresetById('concert_grand_piano');
     }
-    if (luaCode.contains('FeltUprightPiano') || luaCode.contains('felt_upright_piano') || luaCode.contains('Felt Piano') || luaCode.contains('Studio Upright') || (luaCode.contains('FeltThickness') && luaCode.contains('MechanicalThud'))) {
+    if (eatScriptCode.contains('FeltUprightPiano') || eatScriptCode.contains('felt_upright_piano') || eatScriptCode.contains('Felt Piano') || eatScriptCode.contains('Studio Upright') || (eatScriptCode.contains('FeltThickness') && eatScriptCode.contains('MechanicalThud'))) {
       return getPresetById('felt_upright_piano');
     }
-    if (luaCode.contains('HonkyTonkPiano') || luaCode.contains('honky_tonk_piano') || luaCode.contains('Honky Tonk') || luaCode.contains('Tack Piano') || (luaCode.contains('TackBite') && luaCode.contains('ActionClack'))) {
+    if (eatScriptCode.contains('HonkyTonkPiano') || eatScriptCode.contains('honky_tonk_piano') || eatScriptCode.contains('Honky Tonk') || eatScriptCode.contains('Tack Piano') || (eatScriptCode.contains('TackBite') && eatScriptCode.contains('ActionClack'))) {
       return getPresetById('honky_tonk_piano');
     }
-    if (luaCode.contains('ToyPiano') || luaCode.contains('toy_piano') || luaCode.contains('Toy Piano') || (luaCode.contains('ClangRatio') && luaCode.contains('TineDecay'))) {
+    if (eatScriptCode.contains('ToyPiano') || eatScriptCode.contains('toy_piano') || eatScriptCode.contains('Toy Piano') || (eatScriptCode.contains('ClangRatio') && eatScriptCode.contains('TineDecay'))) {
       return getPresetById('toy_piano');
     }
-    if (luaCode.contains('Glockenspiel') || luaCode.contains('glockenspiel') || (luaCode.contains('BarDecay') && luaCode.contains('BellShimmer')) || (luaCode.contains('BellShimmer') && luaCode.contains('MalletHardness'))) {
+    if (eatScriptCode.contains('Glockenspiel') || eatScriptCode.contains('glockenspiel') || (eatScriptCode.contains('BarDecay') && eatScriptCode.contains('BellShimmer')) || (eatScriptCode.contains('BellShimmer') && eatScriptCode.contains('MalletHardness'))) {
       return getPresetById('glockenspiel');
     }
-    if (luaCode.contains('MusicBox') || luaCode.contains('music_box') || luaCode.contains('Music Box') || (luaCode.contains('PinScrape') && luaCode.contains('BoxWarmth')) || (luaCode.contains('PinScrape') && luaCode.contains('HighTineRing'))) {
+    if (eatScriptCode.contains('MusicBox') || eatScriptCode.contains('music_box') || eatScriptCode.contains('Music Box') || (eatScriptCode.contains('PinScrape') && eatScriptCode.contains('BoxWarmth')) || (eatScriptCode.contains('PinScrape') && eatScriptCode.contains('HighTineRing'))) {
       return getPresetById('music_box');
     }
-    if (luaCode.contains('Xylophone') || luaCode.contains('xylophone') || (luaCode.contains('WoodDecay') && luaCode.contains('TripleOctave')) || (luaCode.contains('WoodDecay') && luaCode.contains('ResonatorPop'))) {
+    if (eatScriptCode.contains('Xylophone') || eatScriptCode.contains('xylophone') || (eatScriptCode.contains('WoodDecay') && eatScriptCode.contains('TripleOctave')) || (eatScriptCode.contains('WoodDecay') && eatScriptCode.contains('ResonatorPop'))) {
       return getPresetById('xylophone');
     }
-    if (luaCode.contains('Vibraphone') || luaCode.contains('vibraphone') || (luaCode.contains('MotorSpeed') && luaCode.contains('TremoloDepth')) || (luaCode.contains('DoubleOctave') && luaCode.contains('TremoloDepth'))) {
+    if (eatScriptCode.contains('Vibraphone') || eatScriptCode.contains('vibraphone') || (eatScriptCode.contains('MotorSpeed') && eatScriptCode.contains('TremoloDepth')) || (eatScriptCode.contains('DoubleOctave') && eatScriptCode.contains('TremoloDepth'))) {
       return getPresetById('vibraphone');
     }
-    if (luaCode.contains('TinkleBell') || luaCode.contains('tinkle_bell') || luaCode.contains('Tinkle Bell') || luaCode.contains('WindChime') || (luaCode.contains('ChimeDecay') && luaCode.contains('BreezeFlutter'))) {
+    if (eatScriptCode.contains('TinkleBell') || eatScriptCode.contains('tinkle_bell') || eatScriptCode.contains('Tinkle Bell') || eatScriptCode.contains('WindChime') || (eatScriptCode.contains('ChimeDecay') && eatScriptCode.contains('BreezeFlutter'))) {
       return getPresetById('tinkle_bell');
     }
-    if (luaCode.contains('Woodblock') || luaCode.contains('woodblock') || luaCode.contains('Wood Block') || luaCode.contains('TempleBlock') || (luaCode.contains('WoodDecay') && luaCode.contains('CavityPop'))) {
+    if (eatScriptCode.contains('Woodblock') || eatScriptCode.contains('woodblock') || eatScriptCode.contains('Wood Block') || eatScriptCode.contains('TempleBlock') || (eatScriptCode.contains('WoodDecay') && eatScriptCode.contains('CavityPop'))) {
       return getPresetById('woodblock');
     }
-    if (luaCode.contains('AgogoBell') || luaCode.contains('agogo_bell') || luaCode.contains('Agogo Bell') || luaCode.contains('Agogo') || (luaCode.contains('BellDecay') && luaCode.contains('ClangRatio'))) {
+    if (eatScriptCode.contains('AgogoBell') || eatScriptCode.contains('agogo_bell') || eatScriptCode.contains('Agogo Bell') || eatScriptCode.contains('Agogo') || (eatScriptCode.contains('BellDecay') && eatScriptCode.contains('ClangRatio'))) {
       return getPresetById('agogo_bell');
     }
-    if (luaCode.contains('SteelDrums') || luaCode.contains('steel_drums') || luaCode.contains('Steel Drums') || luaCode.contains('SteelPan') || luaCode.contains('steelpan') || (luaCode.contains('PanDecay') && luaCode.contains('OctaveHarmonic'))) {
+    if (eatScriptCode.contains('SteelDrums') || eatScriptCode.contains('steel_drums') || eatScriptCode.contains('Steel Drums') || eatScriptCode.contains('SteelPan') || eatScriptCode.contains('steelpan') || (eatScriptCode.contains('PanDecay') && eatScriptCode.contains('OctaveHarmonic'))) {
       return getPresetById('steel_drums');
     }
-    if (luaCode.contains('TaikoDrum') || luaCode.contains('taiko_drum') || luaCode.contains('Taiko Drum') || luaCode.contains('Taiko') || luaCode.contains('Surdo') || (luaCode.contains('DrumDecay') && luaCode.contains('PitchSag'))) {
+    if (eatScriptCode.contains('TaikoDrum') || eatScriptCode.contains('taiko_drum') || eatScriptCode.contains('Taiko Drum') || eatScriptCode.contains('Taiko') || eatScriptCode.contains('Surdo') || (eatScriptCode.contains('DrumDecay') && eatScriptCode.contains('PitchSag'))) {
       return getPresetById('taiko_drum');
     }
-    if (luaCode.contains('MelodicTom') || luaCode.contains('melodic_tom') || luaCode.contains('Melodic Tom') || (luaCode.contains('TomDecay') && luaCode.contains('HeadCoupling'))) {
+    if (eatScriptCode.contains('MelodicTom') || eatScriptCode.contains('melodic_tom') || eatScriptCode.contains('Melodic Tom') || (eatScriptCode.contains('TomDecay') && eatScriptCode.contains('HeadCoupling'))) {
       return getPresetById('melodic_tom');
     }
-    if (luaCode.contains('SimmonsSynthDrum') || luaCode.contains('simmons_synth_drum') || luaCode.contains('Simmons SDS') || luaCode.contains('SynthDrum') || luaCode.contains('synth_drum') || (luaCode.contains('PitchDrop') && luaCode.contains('SweepTime'))) {
+    if (eatScriptCode.contains('SimmonsSynthDrum') || eatScriptCode.contains('simmons_synth_drum') || eatScriptCode.contains('Simmons SDS') || eatScriptCode.contains('SynthDrum') || eatScriptCode.contains('synth_drum') || (eatScriptCode.contains('PitchDrop') && eatScriptCode.contains('SweepTime'))) {
       return getPresetById('synth_drum');
     }
-    if (luaCode.contains('ReverseCymbal') || luaCode.contains('reverse_cymbal') || luaCode.contains('Reverse Cymbal') || (luaCode.contains('SwellDuration') && luaCode.contains('CrescendoCurve'))) {
+    if (eatScriptCode.contains('ReverseCymbal') || eatScriptCode.contains('reverse_cymbal') || eatScriptCode.contains('Reverse Cymbal') || (eatScriptCode.contains('SwellDuration') && eatScriptCode.contains('CrescendoCurve'))) {
       return getPresetById('reverse_cymbal');
     }
-    if (luaCode.contains('ConcertPiccolo') || luaCode.contains('concert_piccolo') || luaCode.contains('Piccolo')) {
+    if (eatScriptCode.contains('ConcertPiccolo') || eatScriptCode.contains('concert_piccolo') || eatScriptCode.contains('Piccolo')) {
       return getPresetById('concert_piccolo');
     }
-    if (luaCode.contains('ConcertFlute') || luaCode.contains('concert_flute') || luaCode.contains('Flute')) {
+    if (eatScriptCode.contains('ConcertFlute') || eatScriptCode.contains('concert_flute') || eatScriptCode.contains('Flute')) {
       return getPresetById('concert_flute');
     }
-    if (luaCode.contains('WoodenRecorder') || luaCode.contains('wooden_recorder') || luaCode.contains('Recorder') || luaCode.contains('Blockflöte')) {
+    if (eatScriptCode.contains('WoodenRecorder') || eatScriptCode.contains('wooden_recorder') || eatScriptCode.contains('Recorder') || eatScriptCode.contains('Blockflöte')) {
       return getPresetById('wooden_recorder');
     }
-    if (luaCode.contains('PanFlute') || luaCode.contains('pan_flute') || luaCode.contains('Pan Flute') || luaCode.contains('Zampoña') || luaCode.contains('Siku')) {
+    if (eatScriptCode.contains('PanFlute') || eatScriptCode.contains('pan_flute') || eatScriptCode.contains('Pan Flute') || eatScriptCode.contains('Zampoña') || eatScriptCode.contains('Siku')) {
       return getPresetById('pan_flute');
     }
-    if (luaCode.contains('BlownBottle') || luaCode.contains('blown_bottle') || luaCode.contains('Blown Bottle')) {
+    if (eatScriptCode.contains('BlownBottle') || eatScriptCode.contains('blown_bottle') || eatScriptCode.contains('Blown Bottle')) {
       return getPresetById('blown_bottle');
     }
-    if (luaCode.contains('Shakuhachi') || luaCode.contains('shakuhachi_bamboo') || luaCode.contains('Muraiki')) {
+    if (eatScriptCode.contains('Shakuhachi') || eatScriptCode.contains('shakuhachi_bamboo') || eatScriptCode.contains('Muraiki')) {
       return getPresetById('shakuhachi_bamboo');
     }
-    if (luaCode.contains('TinWhistle') || luaCode.contains('tin_whistle') || luaCode.contains('Pennywhistle') || luaCode.contains('Tin Whistle')) {
+    if (eatScriptCode.contains('TinWhistle') || eatScriptCode.contains('tin_whistle') || eatScriptCode.contains('Pennywhistle') || eatScriptCode.contains('Tin Whistle')) {
       return getPresetById('tin_whistle');
     }
-    if (luaCode.contains('SweetOcarina') || luaCode.contains('sweet_ocarina') || luaCode.contains('Ocarina')) {
+    if (eatScriptCode.contains('SweetOcarina') || eatScriptCode.contains('sweet_ocarina') || eatScriptCode.contains('Ocarina')) {
       return getPresetById('sweet_ocarina');
     }
-    if (luaCode.contains('OrchestralTrumpet') || luaCode.contains('orchestral_trumpet') || luaCode.contains('Trumpet')) {
+    if (eatScriptCode.contains('OrchestralTrumpet') || eatScriptCode.contains('orchestral_trumpet') || eatScriptCode.contains('Trumpet')) {
       return getPresetById('orchestral_trumpet');
     }
-    if (luaCode.contains('TenorTrombone') || luaCode.contains('tenor_trombone') || luaCode.contains('Trombone')) {
+    if (eatScriptCode.contains('TenorTrombone') || eatScriptCode.contains('tenor_trombone') || eatScriptCode.contains('Trombone')) {
       return getPresetById('tenor_trombone');
     }
-    if (luaCode.contains('Tuba') || luaCode.contains('tuba_brass')) {
+    if (eatScriptCode.contains('Tuba') || eatScriptCode.contains('tuba_brass')) {
       return getPresetById('tuba_brass');
     }
-    if (luaCode.contains('MutedTrumpet') || luaCode.contains('muted_trumpet')) {
+    if (eatScriptCode.contains('MutedTrumpet') || eatScriptCode.contains('muted_trumpet')) {
       return getPresetById('muted_trumpet');
     }
-    if (luaCode.contains('FrenchHorn') || luaCode.contains('french_horn') || luaCode.contains('French Horn')) {
+    if (eatScriptCode.contains('FrenchHorn') || eatScriptCode.contains('french_horn') || eatScriptCode.contains('French Horn')) {
       return getPresetById('french_horn');
     }
-    if (luaCode.contains('BrassSection') || luaCode.contains('brass_section') || luaCode.contains('Brass Section')) {
+    if (eatScriptCode.contains('BrassSection') || eatScriptCode.contains('brass_section') || eatScriptCode.contains('Brass Section')) {
       return getPresetById('brass_section');
     }
-    if (luaCode.contains('SopranoSax') || luaCode.contains('soprano_sax') || luaCode.contains('Soprano Sax')) {
+    if (eatScriptCode.contains('SopranoSax') || eatScriptCode.contains('soprano_sax') || eatScriptCode.contains('Soprano Sax')) {
       return getPresetById('soprano_sax');
     }
-    if (luaCode.contains('AltoSax') || luaCode.contains('alto_sax') || luaCode.contains('Alto Sax')) {
+    if (eatScriptCode.contains('AltoSax') || eatScriptCode.contains('alto_sax') || eatScriptCode.contains('Alto Sax')) {
       return getPresetById('alto_sax');
     }
-    if (luaCode.contains('TenorSax') || luaCode.contains('tenor_sax') || luaCode.contains('Tenor Sax')) {
+    if (eatScriptCode.contains('TenorSax') || eatScriptCode.contains('tenor_sax') || eatScriptCode.contains('Tenor Sax')) {
       return getPresetById('tenor_sax');
     }
-    if (luaCode.contains('BaritoneSax') || luaCode.contains('baritone_sax') || luaCode.contains('Baritone Sax')) {
+    if (eatScriptCode.contains('BaritoneSax') || eatScriptCode.contains('baritone_sax') || eatScriptCode.contains('Baritone Sax')) {
       return getPresetById('baritone_sax');
     }
-    if (luaCode.contains('Oboe') || luaCode.contains('oboe_woodwind')) {
+    if (eatScriptCode.contains('Oboe') || eatScriptCode.contains('oboe_woodwind')) {
       return getPresetById('oboe_woodwind');
     }
-    if (luaCode.contains('EnglishHorn') || luaCode.contains('english_horn') || luaCode.contains('English Horn')) {
+    if (eatScriptCode.contains('EnglishHorn') || eatScriptCode.contains('english_horn') || eatScriptCode.contains('English Horn')) {
       return getPresetById('english_horn');
     }
-    if (luaCode.contains('Bassoon') || luaCode.contains('bassoon_woodwind')) {
+    if (eatScriptCode.contains('Bassoon') || eatScriptCode.contains('bassoon_woodwind')) {
       return getPresetById('bassoon_woodwind');
     }
-    if (luaCode.contains('Clarinet') || luaCode.contains('clarinet_woodwind')) {
+    if (eatScriptCode.contains('Clarinet') || eatScriptCode.contains('clarinet_woodwind')) {
       return getPresetById('clarinet_woodwind');
     }
-    if (luaCode.contains('Sitar') || luaCode.contains('sitar_jawari') || luaCode.contains('Jawari')) {
+    if (eatScriptCode.contains('Sitar') || eatScriptCode.contains('sitar_jawari') || eatScriptCode.contains('Jawari')) {
       return getPresetById('sitar_jawari');
     }
 

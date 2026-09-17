@@ -1459,8 +1459,8 @@ class _PianoRollViewState extends State<PianoRollView> {
                     children: [
                       _buildActionButton(
                         icon: Icons.copy,
-                        label: 'Copy Lua',
-                        tooltip: 'Copy selected notes as Lua code (Ctrl+C)',
+                        label: 'Copy Script',
+                        tooltip: 'Copy selected notes as Eatscript code (Ctrl+C)',
                         onTap: () => _copyNotes(track),
                       ),
                       _buildActionButton(
@@ -1582,12 +1582,12 @@ class _PianoRollViewState extends State<PianoRollView> {
   }
 
   Future<void> _copyNotes(TrackChannel track) async {
-    final lua = await widget.dawState.copyNotesToClipboard(track, _selectedNoteIds);
+    final script = await widget.dawState.copyNotesToClipboard(track, _selectedNoteIds);
     if (!mounted) return;
     final count = _selectedNoteIds.isEmpty ? track.notes.length : _selectedNoteIds.length;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Copied $count note${count != 1 ? 's' : ''} as Lua to clipboard'),
+        content: Text('Copied $count note${count != 1 ? 's' : ''} as Eatscript to clipboard'),
         backgroundColor: EatsTheme.panelHeader,
         duration: const Duration(seconds: 2),
       ),
@@ -1659,7 +1659,7 @@ class _PianoRollViewState extends State<PianoRollView> {
       return KeyEventResult.handled;
     }
 
-    // Ctrl+C / Cmd+C -> Copy Notes as Lua
+    // Ctrl+C / Cmd+C -> Copy Notes as Eatscript
     if (isCtrlOrCmd && key == LogicalKeyboardKey.keyC) {
       _copyNotes(track);
       return KeyEventResult.handled;
@@ -1832,8 +1832,8 @@ class _PianoRollViewState extends State<PianoRollView> {
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                                     tooltip: _selectedNoteIds.isNotEmpty
-                                        ? 'Copy ${_selectedNoteIds.length} Selected Note(s) as Lua (Ctrl+C)'
-                                        : 'Copy All Clip Notes as Lua (Ctrl+C)',
+                                        ? 'Copy ${_selectedNoteIds.length} Selected Note(s) as Eatscript (Ctrl+C)'
+                                        : 'Copy All Clip Notes as Eatscript (Ctrl+C)',
                                     onPressed: () => _copyNotes(track),
                                   ),
                                   if (_selectedNoteIds.isNotEmpty)
@@ -2488,7 +2488,8 @@ child: ScrollConfiguration(
                                       ),
                                     );
                                   },
-                                ),                                // Render Real-Time MIDI FX Ghost / Arpeggiator Notes Layer
+                                ),
+                                // Render Real-Time MIDI FX Ghost / Arpeggiator Notes Layer
                                 if (track.midiFXRack.any((fx) => fx.enabled))
                                   ...(() {
                                     final baseNoteIds = track.notes.map((bn) => bn.id).toSet();
@@ -3091,28 +3092,28 @@ child: ScrollConfiguration(
                 ),
                 const Spacer(),
 
-                // Lua Script Button
+                // Script Button
                 InkWell(
-                  onTap: () => _showLuaAutomationScriptModal(activeLane),
+                  onTap: () => _showAutomationScriptModal(activeLane),
                   borderRadius: BorderRadius.circular(3),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 3),
                     decoration: BoxDecoration(
-                      color: activeLane.isCustomLua ? EatsTheme.accentGreen.withOpacity(0.25) : EatsTheme.controlBackground,
+                      color: activeLane.isCustomEatScript ? EatsTheme.accentGreen.withOpacity(0.25) : EatsTheme.controlBackground,
                       borderRadius: BorderRadius.circular(3),
                       border: Border.all(
-                        color: activeLane.isCustomLua ? EatsTheme.accentGreen : EatsTheme.textMuted.withOpacity(0.3),
+                        color: activeLane.isCustomEatScript ? EatsTheme.accentGreen : EatsTheme.textMuted.withOpacity(0.3),
                       ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.code, size: 9, color: activeLane.isCustomLua ? EatsTheme.accentGreen : EatsTheme.textLight),
+                        Icon(Icons.code, size: 9, color: activeLane.isCustomEatScript ? EatsTheme.accentGreen : EatsTheme.textLight),
                         const SizedBox(width: 2),
                         Text(
-                          activeLane.isCustomLua ? 'EATSCRIPT FX' : 'SCRIPT',
+                          activeLane.isCustomEatScript ? 'EATSCRIPT FX' : 'SCRIPT',
                           style: TextStyle(
-                            color: activeLane.isCustomLua ? EatsTheme.accentGreen : EatsTheme.textLight,
+                            color: activeLane.isCustomEatScript ? EatsTheme.accentGreen : EatsTheme.textLight,
                             fontSize: 8,
                             fontWeight: FontWeight.bold,
                           ),
@@ -3169,9 +3170,9 @@ child: ScrollConfiguration(
     );
   }
 
-  void _showLuaAutomationScriptModal(AutomationLane lane) {
+  void _showAutomationScriptModal(AutomationLane lane) {
     final controller = TextEditingController(
-      text: lane.luaScriptCode.isNotEmpty ? lane.luaScriptCode : lane.generateLuaScript(),
+      text: lane.eatScriptCode.isNotEmpty ? lane.eatScriptCode : lane.generateEatScript(),
     );
 
     showDialog(
@@ -3222,7 +3223,7 @@ child: ScrollConfiguration(
         actions: [
           TextButton(
             onPressed: () {
-              controller.text = lane.generateLuaScript();
+              controller.text = lane.generateEatScript();
             },
             child: Text('Regenerate from Points', style: TextStyle(color: EatsTheme.accentGold)),
           ),

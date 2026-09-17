@@ -5,10 +5,10 @@ import 'eats_script_library.dart';
 /// 7-Unison Detuned Analog Ambient Pad Synthesizer featuring rich stereo spread,
 /// slow sweeping resonant filter, and lush ADSR envelope.
 class AmbientPadPreset {
-  static const LuaPreset preset = LuaPreset(
+  static const EatScriptDef preset = EatScriptDef(
     id: 'astral_shimmer_pad',
     name: 'Astral Shimmer Pad',
-    category: LuaPresetCategory.instrument,
+    category: EatScriptCategory.instrument,
     description: '7-unison detuned analog ambient pad with wide stereo spread, slow sweeping resonant filter, and lush ADSR envelope.',
     code: '''
 # @id: astral_shimmer_pad

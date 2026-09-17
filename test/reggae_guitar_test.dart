@@ -65,22 +65,22 @@ void main() {
       expect(peak, lessThanOrEqualTo(1.0));
     });
 
-    test('LuaPresetLibrary contains Reggae Guitar with custom hardware GUI', () {
-      final preset = LuaScriptLibrary.getPresetById('reggae_guitar');
+    test('EatScriptLibrary contains Reggae Guitar with custom hardware GUI', () {
+      final preset = EatScriptLibrary.getPresetById('reggae_guitar');
       expect(preset, isNotNull);
       expect(preset!.name, equals('Dub Guitar'));
-      expect(preset.category, equals(LuaPresetCategory.instrument));
+      expect(preset.category, equals(EatScriptCategory.instrument));
       expect(preset.code.contains('PalmDamp'), isTrue);
       expect(preset.code.contains('StrumSpread'), isTrue);
       expect(preset.code.contains('ChopDecay'), isTrue);
       expect(preset.code.contains('DUB GUITAR'), isTrue);
     });
 
-    test('LuaEngine compiles and synthesizes Reggae Guitar with chromatic pitch tracking', () {
-      final preset = LuaScriptLibrary.getPresetById('reggae_guitar')!;
+    test('EatEngine compiles and synthesizes Reggae Guitar with chromatic pitch tracking', () {
+      final preset = EatScriptLibrary.getPresetById('reggae_guitar')!;
 
       // Note E3 (164.81 Hz)
-      final bufE3 = LuaEngine.synthesizeBuffer(
+      final bufE3 = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.2,
         freq: 164.81,
@@ -89,7 +89,7 @@ void main() {
       );
 
       // High note E5 (659.25 Hz)
-      final bufE5 = LuaEngine.synthesizeBuffer(
+      final bufE5 = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.2,
         freq: 659.25,

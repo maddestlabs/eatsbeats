@@ -110,8 +110,8 @@ void main() {
 
   group('SNES Sfxr RNG SEED & Nixie Interactions', () {
     test('SNES Sfxr preset has 100px width for RNG SEED nixie matching Randomize button', () {
-      final sfxr = LuaPresetLibrary.getPresetById('eats_sfxr')!;
-      final compilation = LuaEngine.compile(sfxr.code);
+      final sfxr = EatScriptLibrary.getPresetById('eats_sfxr')!;
+      final compilation = EatEngine.compile(sfxr.code);
       expect(compilation.guiLayout, isNotNull);
 
       final row1 = compilation.guiLayout!.children.first;
@@ -125,14 +125,14 @@ void main() {
 
     testWidgets('RNG SEED in DynamicInstrumentGuiWidget renders with centered label, width, and tooltip', (tester) async {
       final dawState = DawState();
-      final sfxr = LuaPresetLibrary.getPresetById('eats_sfxr')!;
+      final sfxr = EatScriptLibrary.getPresetById('eats_sfxr')!;
       final track = TrackChannel(
         id: 'sfxr_track',
         name: 'SNES Sfxr',
         type: TrackType.synth,
         color: const Color(0xFFE52521),
-        luaScriptCode: sfxr.code,
-        luaParams: {
+        eatScriptCode: sfxr.code,
+        eatScriptParams: {
           'SFXType': 0.0, // Laser
           'Seed': 42.0,
         },
@@ -169,14 +169,14 @@ void main() {
 
     testWidgets('Right-click / long-press edit dialog validates input and reverts on unusable string', (tester) async {
       final dawState = DawState();
-      final sfxr = LuaPresetLibrary.getPresetById('eats_sfxr')!;
+      final sfxr = EatScriptLibrary.getPresetById('eats_sfxr')!;
       final track = TrackChannel(
         id: 'sfxr_track',
         name: 'SNES Sfxr',
         type: TrackType.synth,
         color: const Color(0xFFE52521),
-        luaScriptCode: sfxr.code,
-        luaParams: {
+        eatScriptCode: sfxr.code,
+        eatScriptParams: {
           'SFXType': 0.0, // Laser
           'Seed': 42.0,
         },
@@ -211,7 +211,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Seed should revert / remain 42.0
-      expect(track.luaParams['Seed'], equals(42.0));
+      expect(track.eatScriptParams['Seed'], equals(42.0));
 
       // Now open edit dialog again and enter valid seed
       await tester.longPress(find.byType(GlowingNixieDisplay).first);
@@ -222,19 +222,19 @@ void main() {
       await tester.pumpAndSettle();
 
       // Seed should now be updated to 777.0 and archetype params regenerated
-      expect(track.luaParams['Seed'], equals(777.0));
+      expect(track.eatScriptParams['Seed'], equals(777.0));
     });
 
     testWidgets('Mouse scroll on RNG SEED increments and decrements value', (tester) async {
       final dawState = DawState();
-      final sfxr = LuaPresetLibrary.getPresetById('eats_sfxr')!;
+      final sfxr = EatScriptLibrary.getPresetById('eats_sfxr')!;
       final track = TrackChannel(
         id: 'sfxr_track',
         name: 'SNES Sfxr',
         type: TrackType.synth,
         color: const Color(0xFFE52521),
-        luaScriptCode: sfxr.code,
-        luaParams: {
+        eatScriptCode: sfxr.code,
+        eatScriptParams: {
           'SFXType': 0.0, // Laser
           'Seed': 100.0,
         },
@@ -265,7 +265,7 @@ void main() {
       await tester.sendEventToBinding(scrollUpEvent);
       await tester.pumpAndSettle();
 
-      expect(track.luaParams['Seed'], equals(101.0));
+      expect(track.eatScriptParams['Seed'], equals(101.0));
 
       // Simulate mouse scroll down (delta dy > 0 -> decrement)
       final scrollDownEvent = PointerScrollEvent(
@@ -275,14 +275,14 @@ void main() {
       await tester.sendEventToBinding(scrollDownEvent);
       await tester.pumpAndSettle();
 
-      expect(track.luaParams['Seed'], equals(100.0));
+      expect(track.eatScriptParams['Seed'], equals(100.0));
     });
   });
 
   group('YM2612 & OPL3 Retro Chiptune GUI Tests', () {
     test('YM2612 Genesis 4-Op FM compiles with Nixie controls and 110px widths', () {
-      final ym2612 = LuaPresetLibrary.getPresetById('ym2612_synth')!;
-      final compilation = LuaEngine.compile(ym2612.code);
+      final ym2612 = EatScriptLibrary.getPresetById('ym2612_synth')!;
+      final compilation = EatEngine.compile(ym2612.code);
 
       expect(compilation.guiLayout, isNotNull);
       final panel = compilation.guiLayout!;
@@ -297,8 +297,8 @@ void main() {
     });
 
     test('OPL3 Retro Chiptune compiles with hardware rack GUI layout', () {
-      final opl3 = LuaPresetLibrary.getPresetById('opl3_retro')!;
-      final compilation = LuaEngine.compile(opl3.code);
+      final opl3 = EatScriptLibrary.getPresetById('opl3_retro')!;
+      final compilation = EatEngine.compile(opl3.code);
 
       expect(compilation.guiLayout, isNotNull);
       final panel = compilation.guiLayout!;
@@ -318,14 +318,14 @@ void main() {
 
     testWidgets('DynamicInstrumentGuiWidget renders OPL3 sleek GUI and edits Algorithm with validation', (tester) async {
       final dawState = DawState();
-      final opl3 = LuaPresetLibrary.getPresetById('opl3_retro')!;
+      final opl3 = EatScriptLibrary.getPresetById('opl3_retro')!;
       final track = TrackChannel(
         id: 'opl3_track',
         name: 'OPL3 Chiptune',
         type: TrackType.synth,
         color: const Color(0xFF39FF14),
-        luaScriptCode: opl3.code,
-        luaParams: {
+        eatScriptCode: opl3.code,
+        eatScriptParams: {
           'Algorithm': 4.0,
           'Feedback': 3.0,
           'Op1_Mult': 1.0,
@@ -367,7 +367,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Algorithm value should remain 4.0
-      expect(track.luaParams['Algorithm'], equals(4.0));
+      expect(track.eatScriptParams['Algorithm'], equals(4.0));
 
       // Long press again and enter 6.0
       await tester.longPress(find.byType(GlowingNixieDisplay).first);
@@ -377,7 +377,7 @@ void main() {
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
 
-      expect(track.luaParams['Algorithm'], equals(6.0));
+      expect(track.eatScriptParams['Algorithm'], equals(6.0));
     });
   });
 }

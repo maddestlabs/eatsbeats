@@ -781,7 +781,7 @@ class DX7FmVoice {
     lfo.reset();
   }
 
-  /// Writes a raw DX7 register or parameter for chiptune tracker & Lua control.
+  /// Writes a raw DX7 register or parameter for chiptune tracker & Eatscript control.
   void writeRegister(int regAddr, int value) {
     if (regAddr == 0x86) {
       algorithm = (value & 31) + 1;

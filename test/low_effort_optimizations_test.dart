@@ -18,8 +18,8 @@ void main() {
         id: 'auto1',
         name: 'Filter Cutoff',
         target: AutomationTarget.cutoff,
-        isCustomLua: true,
-        luaScriptCode: 'rate = 2.5\ndepth = 500.0\ncenter = 1200.0\n-- lfo',
+        isCustomEatScript: true,
+        eatScriptCode: 'rate = 2.5\ndepth = 500.0\ncenter = 1200.0\n-- lfo',
       );
 
       final val1 = EatDspSynthesizer.evaluateAutomation(lane: lane, step: 0.0);
@@ -37,7 +37,7 @@ void main() {
         name: 'Synth',
         type: TrackType.synth,
         color: const Color(0xFF00FF00),
-        luaScriptCode: 'def process(): return eat.saw(440)',
+        eatScriptCode: 'def process(): return eat.saw(440)',
       );
 
       // Synthesize note 60 -> inserted
@@ -62,7 +62,7 @@ void main() {
         type: TrackType.synth,
         color: const Color(0xFF00FF00),
         isMonophonic: true,
-        luaScriptCode: 'def process(): return eat.saw(eat.mtof(eat.note))',
+        eatScriptCode: 'def process(): return eat.saw(eat.mtof(eat.note))',
       );
 
       final clip = TrackClip(
@@ -123,8 +123,8 @@ void main() {
           MidiFXInsert(
             id: 'arp_fx',
             name: 'Arpeggiator',
-            luaScriptCode: 'arpeggiator(rate=1.0, octaves=2, pattern=0)',
-            luaParams: {'Rate': 1.0, 'Octaves': 2.0, 'Pattern': 0.0},
+            eatScriptCode: 'arpeggiator(rate=1.0, octaves=2, pattern=0)',
+            eatScriptParams: {'Rate': 1.0, 'Octaves': 2.0, 'Pattern': 0.0},
           ),
         ],
       );

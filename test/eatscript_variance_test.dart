@@ -205,12 +205,12 @@ void main() {
         id: 'test_drum_track',
         name: 'Acoustic Snare',
         color: const Color(0xFF2196F3),
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         sampleName: 'fm_acoustic_snare',
-        luaScriptCode: LuaPresetLibrary.getPresetById('fm_acoustic_snare')!.code,
+        eatScriptCode: EatScriptLibrary.getPresetById('fm_acoustic_snare')!.code,
       );
 
-      track.luaParams['Variance'] = 0.0;
+      track.eatScriptParams['Variance'] = 0.0;
       expect(engine.isBufferCached(track: track, midiNote: 38, durationSec: 0.5), isFalse);
 
       // Play note without variance (gets cached)
@@ -218,7 +218,7 @@ void main() {
       expect(engine.isBufferCached(track: track, midiNote: 38, durationSec: 0.5), isTrue);
 
       // Now enable variance -> isBufferCached must report false so hits are not recycled
-      track.luaParams['Variance'] = 0.25;
+      track.eatScriptParams['Variance'] = 0.25;
       expect(engine.isBufferCached(track: track, midiNote: 38, durationSec: 0.5), isFalse);
     });
 
@@ -227,27 +227,27 @@ void main() {
         id: 'kick_variance_test',
         name: 'Acoustic Kick',
         color: const Color(0xFF2196F3),
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         sampleName: 'fm_acoustic_kick',
-        luaScriptCode: LuaPresetLibrary.getPresetById('fm_acoustic_kick')!.code,
+        eatScriptCode: EatScriptLibrary.getPresetById('fm_acoustic_kick')!.code,
       );
 
-      track.luaParams['Variance'] = 0.40;
+      track.eatScriptParams['Variance'] = 0.40;
 
       final buf1 = EatDspSynthesizer.synthesizeBuffer(
-        code: track.luaScriptCode,
+        code: track.eatScriptCode,
         durationSec: 0.2,
         freq: PolySynth.midiToFreq(36),
         note: 36,
-        params: track.luaParams,
+        params: track.eatScriptParams,
       );
 
       final buf2 = EatDspSynthesizer.synthesizeBuffer(
-        code: track.luaScriptCode,
+        code: track.eatScriptCode,
         durationSec: 0.2,
         freq: PolySynth.midiToFreq(36),
         note: 36,
-        params: track.luaParams,
+        params: track.eatScriptParams,
       );
 
       expect(buf1.length, equals(buf2.length));

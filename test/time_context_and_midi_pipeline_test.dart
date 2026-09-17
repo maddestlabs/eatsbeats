@@ -24,13 +24,13 @@ void main() {
       expect(ctx.secondsPerBar, equals(2.0));
     });
 
-    test('Lua table serialization converts time context correctly', () {
+    test('Context map serialization converts time context correctly', () {
       final ctx = TimeContext.fromBeat(
         beat: 8.0,
         bpm: 120.0,
       );
 
-      final table = ctx.toLuaTable();
+      final table = ctx.toContextMap();
       expect(table['bpm'], equals(120.0));
       expect(table['bar'], equals(3.0));
       expect(table['seconds'], equals(4.0));
@@ -39,12 +39,12 @@ void main() {
   });
 
   group('MidiPipelineEngine Unit Tests', () {
-    late LuaEngine luaEngine;
+    late EatEngine eatEngine;
     late MidiPipelineEngine midiPipeline;
 
     setUp(() {
-      luaEngine = LuaEngine();
-      midiPipeline = MidiPipelineEngine(luaEngine: luaEngine);
+      eatEngine = EatEngine();
+      midiPipeline = MidiPipelineEngine(eatEngine: eatEngine);
     });
 
     test('Evaluates clip notes through scale snap MIDI FX insert', () {
@@ -67,8 +67,8 @@ void main() {
           MidiFXInsert(
             id: 'fx_scale',
             name: 'Scale Snap',
-            luaScriptCode: 'scale_snap',
-            luaParams: {'key': 0},
+            eatScriptCode: 'scale_snap',
+            eatScriptParams: {'key': 0},
           ),
         ],
       );
@@ -105,8 +105,8 @@ void main() {
           MidiFXInsert(
             id: 'arp_fx',
             name: 'Arp FX',
-            luaScriptCode: 'arpeggiate',
-            luaParams: {'rate': 0.25, 'octaves': 2.0, 'pattern': 0.0},
+            eatScriptCode: 'arpeggiate',
+            eatScriptParams: {'rate': 0.25, 'octaves': 2.0, 'pattern': 0.0},
           ),
         ],
       );
@@ -147,8 +147,8 @@ void main() {
           MidiFXInsert(
             id: 'arp_fx',
             name: 'Arpeggiator FX',
-            luaScriptCode: 'arpeggiator',
-            luaParams: {'Rate': 1.0, 'Octaves': 1.0, 'Pattern': 2.0, 'Gate': 0.5}, // UpDown
+            eatScriptCode: 'arpeggiator',
+            eatScriptParams: {'Rate': 1.0, 'Octaves': 1.0, 'Pattern': 2.0, 'Gate': 0.5}, // UpDown
           ),
         ],
       );
@@ -169,19 +169,19 @@ void main() {
       expect(arpedNotes[0].durationSteps, closeTo(0.5, 0.01)); // Gate = 0.5 * 1.0
     });
 
-    test('Serializes Notes into Lua table code and parses back', () {
+    test('Serializes Notes into Eatscript code and parses back', () {
       final baseNotes = [
         Note(id: 'n1', pitch: 60, startStep: 0.0, durationSteps: 1.0, velocity: 0.9),
         Note(id: 'n2', pitch: 64, startStep: 1.0, durationSteps: 2.0, velocity: 0.8),
       ];
 
-      final luaCode = MidiPipelineEngine.serializeNotesToLua(baseNotes);
-      expect(luaCode, contains('notes = {'));
-      expect(luaCode, contains('pitch = 60'));
-      expect(luaCode, contains('pitch = 64'));
-      expect(luaCode, contains('function process(notes, time_ctx)'));
+      final eatScriptCode = MidiPipelineEngine.serializeNotesToScript(baseNotes);
+      expect(eatScriptCode, contains('notes = {'));
+      expect(eatScriptCode, contains('pitch = 60'));
+      expect(eatScriptCode, contains('pitch = 64'));
+      expect(eatScriptCode, contains('function process(notes, time_ctx)'));
 
-      final parsed = MidiPipelineEngine.parseNotesFromLuaTable(luaCode);
+      final parsed = MidiPipelineEngine.parseNotesFromScript(eatScriptCode);
       expect(parsed.length, equals(2));
       expect(parsed[0].pitch, equals(60));
       expect(parsed[1].pitch, equals(64));
@@ -193,9 +193,9 @@ void main() {
         Note(id: 'n1', pitch: 60, startStep: 0.0, durationSteps: 1.0),
       ];
 
-      final pass1 = MidiPipelineEngine.serializeNotesToLua(baseNotes);
-      final pass2 = MidiPipelineEngine.serializeNotesToLua(baseNotes, existingCode: pass1);
-      final pass3 = MidiPipelineEngine.serializeNotesToLua(baseNotes, existingCode: pass2);
+      final pass1 = MidiPipelineEngine.serializeNotesToScript(baseNotes);
+      final pass2 = MidiPipelineEngine.serializeNotesToScript(baseNotes, existingCode: pass1);
+      final pass3 = MidiPipelineEngine.serializeNotesToScript(baseNotes, existingCode: pass2);
 
       // Verify "notes = {" appears exactly ONCE in the script string
       final occurrences = 'notes = {'.allMatches(pass3).length;

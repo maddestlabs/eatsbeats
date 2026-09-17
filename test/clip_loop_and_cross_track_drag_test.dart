@@ -149,10 +149,10 @@ void main() {
       dawState.dispose();
     });
 
-    test('canMoveClipToTrack allows pattern clips across synth, bass, lua, and tts tracks', () {
+    test('canMoveClipToTrack allows pattern clips across synth, bass, eatScript, and tts tracks', () {
       final synthTrack = TrackChannel(id: 't_synth', name: 'Synth', color: Colors.blue, type: TrackType.synth);
       final bassTrack = TrackChannel(id: 't_bass', name: '303 Bass', color: Colors.green, type: TrackType.bass);
-      final luaTrack = TrackChannel(id: 't_lua', name: 'Lua Synth', color: Colors.purple, type: TrackType.luaScript);
+      final eatTrack = TrackChannel(id: 't_eat', name: 'Eatscript Synth', color: Colors.purple, type: TrackType.eatScript);
       final ttsTrack = TrackChannel(id: 't_tts', name: 'TTS Vocal', color: Colors.teal, type: TrackType.tts);
       final samplerTrack = TrackChannel(id: 't_sampler', name: 'Drum Sampler', color: Colors.orange, type: TrackType.sampler);
       final folderTrack = TrackChannel(id: 't_folder', name: 'Folder Group', color: Colors.grey, type: TrackType.folder);
@@ -167,7 +167,7 @@ void main() {
       // Pattern clip CAN move to any pattern-based track
       expect(dawState.canMoveClipToTrack(patternClip, synthTrack), isTrue);
       expect(dawState.canMoveClipToTrack(patternClip, bassTrack), isTrue);
-      expect(dawState.canMoveClipToTrack(patternClip, luaTrack), isTrue);
+      expect(dawState.canMoveClipToTrack(patternClip, eatTrack), isTrue);
       expect(dawState.canMoveClipToTrack(patternClip, ttsTrack), isTrue);
 
       // Pattern clip CANNOT move to audio sampler or folder tracks
@@ -281,7 +281,7 @@ void main() {
     });
   });
 
-  group('Lua File Saving & Loading Loop Content Tests', () {
+  group('Eatscript File Saving & Loading Loop Content Tests', () {
     late DawState dawState;
 
     setUp(() {
@@ -292,7 +292,7 @@ void main() {
       dawState.dispose();
     });
 
-    test('EatsLuaSerializer and EatsLuaParser preserve clip loopLengthBars and properties across save and load', () {
+    test('EatProjectSerializer and EatProjectParser preserve clip loopLengthBars and properties across save and load', () {
       final track = dawState.visibleTracks.first;
       final loopedClip = TrackClip(
         id: 'c_loop_save',
@@ -308,14 +308,14 @@ void main() {
       );
       track.clips.add(loopedClip);
 
-      // 1. Export to Lua string (file saving)
-      final luaOutput = dawState.exportToEatsLua();
-      expect(luaOutput.contains('loopLengthBars = 2'), isTrue);
-      expect(luaOutput.contains('Acid Loop 303'), isTrue);
+      // 1. Export to Eatscript string (file saving)
+      final projectOutput = dawState.exportToEats();
+      expect(projectOutput.contains('loopLengthBars = 2'), isTrue);
+      expect(projectOutput.contains('Acid Loop 303'), isTrue);
 
       // 2. Load into fresh DawState (file loading / restoring)
       final loadedState = DawState();
-      loadedState.loadFromEatsLua(luaOutput);
+      loadedState.loadFromEats(projectOutput);
 
       final loadedTrack = loadedState.visibleTracks.firstWhere((t) => t.id == track.id);
       final restoredClip = loadedTrack.clips.firstWhere((c) => c.id == 'c_loop_save');

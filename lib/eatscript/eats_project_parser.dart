@@ -14,18 +14,16 @@ import 'eats_script_engine.dart';
 import 'eats_transpiler.dart';
 
 // Backwards-compatibility alias
-typedef EatsLuaParser = EatProjectParser;
-
 class EatProjectParser {
-  /// Parses a `.eats.lua` or `.eats` project string and updates/populates [DawState].
-  static Map<String, dynamic> parseLuaTableToMap(String luaCode) {
-    final trimmed = luaCode.trim();
+  /// Parses a `.eats` or `.eats` project string and updates/populates [DawState].
+  static Map<String, dynamic> parseProjectDataToMap(String eatScriptCode) {
+    final trimmed = eatScriptCode.trim();
     if (trimmed.startsWith('#') || trimmed.contains('song =') || trimmed.contains('eat.')) {
-      final eatMap = EatScriptEngine.parseDataMap(luaCode);
+      final eatMap = EatScriptEngine.parseDataMap(eatScriptCode);
       if (eatMap.isNotEmpty) return eatMap;
     }
 
-    final parser = _LuaValueParser(luaCode);
+    final parser = _EatValueParser(eatScriptCode);
     final result = parser.parseTopLevel();
     if (result is Map<String, dynamic>) {
       return result;
@@ -33,13 +31,13 @@ class EatProjectParser {
     return {};
   }
 
-  /// Parses a snippet of Lua code (or JSON) representing a list of [Note] objects.
+  /// Parses a snippet of Eatscript code (or JSON) representing a list of [Note] objects.
   static List<Note> parseNotes(String code) {
     final trimmed = code.trim();
     if (trimmed.isEmpty) return [];
 
     try {
-      final parser = _LuaValueParser(trimmed);
+      final parser = _EatValueParser(trimmed);
       final raw = parser.parseTopLevel();
       final List<dynamic> noteItems;
       if (raw is List) {
@@ -82,9 +80,9 @@ class EatProjectParser {
     }
   }
 
-  /// Restores [DawState] from `.eats.lua` code. Returns project title.
-  static String populateDawState(DawState dawState, String luaCode) {
-    final map = parseLuaTableToMap(luaCode);
+  /// Restores [DawState] from `.eats` code. Returns project title.
+  static String populateDawState(DawState dawState, String eatScriptCode) {
+    final map = parseProjectDataToMap(eatScriptCode);
     if (map.isEmpty) return 'Untitled Song';
 
     // 1. Meta / Transport settings
@@ -260,74 +258,74 @@ class EatProjectParser {
   static FXInsert _parseFxInsert(Map<String, dynamic> fMap, int fallbackIndex) {
     final fxName = fMap['name']?.toString() ?? 'FX';
     final fxType = FXType.values.firstWhere((e) => e.name == fMap['type'], orElse: () => FXType.biquadFilter);
-    var luaScript = fMap['luaScriptCode'] as String?;
+    var eatScript = fMap['eatScriptCode'] as String?;
     var presetId = fMap['presetId'] as String?;
     final irSampleName = fMap['irSampleName'] as String?;
-    final luaParams = fMap['luaParams'] is Map
-        ? Map<String, double>.from((fMap['luaParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())))
+    final eatScriptParams = fMap['eatScriptParams'] is Map
+        ? Map<String, double>.from((fMap['eatScriptParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())))
         : <String, double>{};
     final params = fMap['params'] is Map
         ? Map<String, double>.from((fMap['params'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())))
         : <String, double>{};
 
-    // If luaScript is not provided in file, look up matching Audio FX in LuaPresetLibrary
-    if (luaScript == null || luaScript.trim().isEmpty) {
-      LuaPreset? match;
+    // If eatScript is not provided in file, look up matching Audio FX in EatScriptLibrary
+    if (eatScript == null || eatScript.trim().isEmpty) {
+      EatScriptDef? match;
       if (presetId != null && presetId.isNotEmpty) {
-        match = LuaPresetLibrary.getPresetById(presetId);
+        match = EatScriptLibrary.getPresetById(presetId);
       }
       if (match == null) {
         final lowerName = fxName.toLowerCase();
         final lowerId = (fMap['id']?.toString() ?? '').toLowerCase();
         if (lowerName.contains('room') || lowerName.contains('room designer') || lowerId.contains('room')) {
-          match = LuaPresetLibrary.getPresetById('room_designer');
+          match = EatScriptLibrary.getPresetById('room_designer');
         } else if (lowerName.contains('cab') || lowerName.contains('cabinet') || lowerName.contains('cab designer') || lowerId.contains('cab')) {
-          match = LuaPresetLibrary.getPresetById('cab_designer');
+          match = EatScriptLibrary.getPresetById('cab_designer');
         } else if (lowerName.contains('conv') || lowerName.contains('convolution') || lowerName.contains('reverb') || lowerId.contains('conv') || lowerId.contains('reverb')) {
-          match = LuaPresetLibrary.getPresetById('room_designer');
+          match = EatScriptLibrary.getPresetById('room_designer');
         } else if (lowerName.contains('crush') || lowerName.contains('bitcrush') || lowerName.contains('8-bit') || lowerId.contains('crush')) {
-          match = LuaPresetLibrary.getPresetById('bitcrusher');
+          match = EatScriptLibrary.getPresetById('bitcrusher');
         } else if (lowerName.contains('shaper') || lowerName.contains('waveshaper') || lowerId.contains('shaper')) {
-          match = LuaPresetLibrary.getPresetById('waveshaper');
+          match = EatScriptLibrary.getPresetById('waveshaper');
         } else if (lowerName.contains('delay') || lowerName.contains('stereo delay') || lowerId.contains('delay')) {
-          match = LuaPresetLibrary.getPresetById('stereo_delay');
+          match = EatScriptLibrary.getPresetById('stereo_delay');
         } else if (lowerName.contains('lowpass') || lowerName.contains('filter') || lowerId.contains('filter')) {
-          match = LuaPresetLibrary.getPresetById('lowpass_filter');
+          match = EatScriptLibrary.getPresetById('lowpass_filter');
         } else if (lowerName.contains('limiter') || lowerId.contains('limiter')) {
-          match = LuaPresetLibrary.getPresetById('master_limiter');
+          match = EatScriptLibrary.getPresetById('master_limiter');
         } else if (lowerName.contains('compressor') || lowerId.contains('compressor')) {
-          match = LuaPresetLibrary.getPresetById('dynamics_compressor');
+          match = EatScriptLibrary.getPresetById('dynamics_compressor');
         } else if (lowerName.contains('scope') || lowerName.contains('oscilloscope') || lowerId.contains('scope')) {
-          match = LuaPresetLibrary.getPresetById('eats_scope');
+          match = EatScriptLibrary.getPresetById('eats_scope');
         } else if (lowerName.contains('spectrum') || lowerName.contains('analyzer') || lowerId.contains('spectrum')) {
-          match = LuaPresetLibrary.getPresetById('eats_spectrum');
+          match = EatScriptLibrary.getPresetById('eats_spectrum');
         } else if (lowerName.contains('teleprompter') || lowerId.contains('teleprompter')) {
-          match = LuaPresetLibrary.getPresetById('retro_crt_teleprompter');
+          match = EatScriptLibrary.getPresetById('retro_crt_teleprompter');
         } else if (lowerName.contains('lyric') || lowerId.contains('lyric')) {
-          match = LuaPresetLibrary.getPresetById('kinetic_lyric_visualizer');
+          match = EatScriptLibrary.getPresetById('kinetic_lyric_visualizer');
         } else {
           // Check by FXType enum fallback
           switch (fxType) {
             case FXType.bitcrusher:
-              match = LuaPresetLibrary.getPresetById('bitcrusher');
+              match = EatScriptLibrary.getPresetById('bitcrusher');
               break;
             case FXType.delay:
-              match = LuaPresetLibrary.getPresetById('stereo_delay');
+              match = EatScriptLibrary.getPresetById('stereo_delay');
               break;
             case FXType.convolutionReverb:
-              match = LuaPresetLibrary.getPresetById('room_designer');
+              match = EatScriptLibrary.getPresetById('room_designer');
               break;
             case FXType.biquadFilter:
-              match = LuaPresetLibrary.getPresetById('lowpass_filter');
+              match = EatScriptLibrary.getPresetById('lowpass_filter');
               break;
             case FXType.distortion:
-              match = LuaPresetLibrary.getPresetById('waveshaper');
+              match = EatScriptLibrary.getPresetById('waveshaper');
               break;
             case FXType.limiter:
-              match = LuaPresetLibrary.getPresetById('master_limiter');
+              match = EatScriptLibrary.getPresetById('master_limiter');
               break;
             case FXType.compressor:
-              match = LuaPresetLibrary.getPresetById('dynamics_compressor');
+              match = EatScriptLibrary.getPresetById('dynamics_compressor');
               break;
             default:
               break;
@@ -335,17 +333,17 @@ class EatProjectParser {
         }
       }
       if (match != null) {
-        luaScript = match.eatCode;
+        eatScript = match.eatCode;
         presetId ??= match.id;
       }
     }
 
-    if (luaScript != null && luaScript.isNotEmpty && !EatScriptEngine.isEatScript(luaScript)) {
-      luaScript = EatTranspiler.transpileLuaPreset(luaScript);
+    if (eatScript != null && eatScript.isNotEmpty && !EatScriptEngine.isEatScript(eatScript)) {
+      eatScript = EatTranspiler.transpileEatScriptPreset(eatScript);
     }
 
-    if (luaParams.isEmpty && params.isNotEmpty) {
-      luaParams.addAll(params);
+    if (eatScriptParams.isEmpty && params.isNotEmpty) {
+      eatScriptParams.addAll(params);
     }
 
     return FXInsert(
@@ -356,9 +354,9 @@ class EatProjectParser {
       mix: (fMap['mix'] as num?)?.toDouble() ?? 0.5,
       params: params,
       irSampleName: irSampleName,
-      luaScriptCode: luaScript,
+      eatScriptCode: eatScript,
       presetId: presetId,
-      luaParams: luaParams,
+      eatScriptParams: eatScriptParams,
     );
   }
 
@@ -485,14 +483,14 @@ class EatProjectParser {
             notes: cNotes,
             lyrics: cLyrics,
             automationLanes: cAutomation,
-            luaScriptCode: (() {
-              final rawClip = (cMap['luaScriptCode'] as String?) ?? '';
+            eatScriptCode: (() {
+              final rawClip = (cMap['eatScriptCode'] as String?) ?? '';
               return (rawClip.isNotEmpty && !EatScriptEngine.isEatScript(rawClip))
-                  ? EatTranspiler.transpileLuaPreset(rawClip)
+                  ? EatTranspiler.transpileEatScriptPreset(rawClip)
                   : rawClip;
             })(),
-            luaParams: cMap['luaParams'] is Map ? Map<String, double>.from(
-              (cMap['luaParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
+            eatScriptParams: cMap['eatScriptParams'] is Map ? Map<String, double>.from(
+              (cMap['eatScriptParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
             ) : {},
           ));
         }
@@ -508,8 +506,8 @@ class EatProjectParser {
         startBar: 0,
         barLength: 2,
         notes: notes,
-        luaScriptCode: '',
-        luaParams: {},
+        eatScriptCode: '',
+        eatScriptParams: {},
       ));
     } else {
       if (clips.length == 1) {
@@ -545,49 +543,49 @@ class EatProjectParser {
       for (final mf in rawMidiFx) {
         if (mf is Map) {
           final mfMap = Map<String, dynamic>.from(mf);
-          final rawMfx = (mfMap['luaScriptCode'] as String?) ?? '';
+          final rawMfx = (mfMap['eatScriptCode'] as String?) ?? '';
           final mfxCode = (rawMfx.isNotEmpty && !EatScriptEngine.isEatScript(rawMfx))
-              ? EatTranspiler.transpileLuaPreset(rawMfx)
+              ? EatTranspiler.transpileEatScriptPreset(rawMfx)
               : rawMfx;
           midiFXRack.add(MidiFXInsert(
             id: mfMap['id'] ?? 'mfx_${midiFXRack.length}',
             name: mfMap['name'] ?? 'MIDI FX',
             enabled: _parseBool(mfMap['enabled'], true),
-            luaScriptCode: mfxCode,
-            luaParams: mfMap['luaParams'] is Map ? Map<String, double>.from(
-              (mfMap['luaParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
+            eatScriptCode: mfxCode,
+            eatScriptParams: mfMap['eatScriptParams'] is Map ? Map<String, double>.from(
+              (mfMap['eatScriptParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
             ) : {},
           ));
         }
       }
     }
 
-    final rawScript = map['luaScriptCode'] as String? ?? '';
+    final rawScript = map['eatScriptCode'] as String? ?? '';
     final presetId = (map['presetId'] as String?) ?? (map['preset'] as String?);
     String scriptCode = rawScript;
 
     if (scriptCode.trim().isEmpty && presetId != null && presetId.isNotEmpty) {
-      final preset = LuaScriptLibrary.getPresetById(presetId);
+      final preset = EatScriptLibrary.getPresetById(presetId);
       if (preset != null) {
         scriptCode = preset.eatCode;
       }
     }
 
     if (scriptCode.trim().isEmpty) {
-      final matchedPreset = LuaScriptLibrary.findMatchingScript('', fallbackName: map['name']);
+      final matchedPreset = EatScriptLibrary.findMatchingScript('', fallbackName: map['name']);
       if (matchedPreset != null) {
         scriptCode = matchedPreset.eatCode;
       }
     }
 
     if (scriptCode.isNotEmpty && !EatScriptEngine.isEatScript(scriptCode)) {
-      scriptCode = EatTranspiler.transpileLuaPreset(scriptCode);
+      scriptCode = EatTranspiler.transpileEatScriptPreset(scriptCode);
     }
 
-    final trackTypeStr = map['type'] as String? ?? (scriptCode.isNotEmpty ? 'luaScript' : 'synth');
+    final trackTypeStr = map['type'] as String? ?? (scriptCode.isNotEmpty ? 'eatScript' : 'synth');
     final trackType = TrackType.values.firstWhere(
       (t) => t.name == trackTypeStr,
-      orElse: () => scriptCode.isNotEmpty ? TrackType.luaScript : TrackType.synth,
+      orElse: () => scriptCode.isNotEmpty ? TrackType.eatScript : TrackType.synth,
     );
 
     final activeViewStr = map['activeView'] as String? ?? 'pianoRoll';
@@ -637,9 +635,9 @@ class EatProjectParser {
       eqMidQ: eqMidQ,
       eqHighGain: eqHighGain,
       tags: tags,
-      luaScriptCode: scriptCode,
-      luaParams: map['luaParams'] is Map ? Map<String, double>.from(
-        (map['luaParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
+      eatScriptCode: scriptCode,
+      eatScriptParams: map['eatScriptParams'] is Map ? Map<String, double>.from(
+        (map['eatScriptParams'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
       ) : {},
       steps: steps,
       notes: notes,
@@ -664,12 +662,12 @@ class EatProjectParser {
   }
 }
 
-/// Recursive descent parser for Lua tables and primitives.
-class _LuaValueParser {
+/// Recursive descent parser for Eatscript tables and primitives.
+class _EatValueParser {
   final String source;
   int pos = 0;
 
-  _LuaValueParser(this.source);
+  _EatValueParser(this.source);
 
   dynamic parseTopLevel() {
     _skipWhitespace();
@@ -963,7 +961,7 @@ class _LuaValueParser {
       if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
         pos++;
       } else if (c == '-' && pos + 1 < source.length && source[pos + 1] == '-') {
-        // Handle Lua comment --
+        // Handle comment
         pos += 2;
         if (pos + 1 < source.length && source[pos] == '[' && source[pos + 1] == '[') {
           // Block comment --[[ ... ]]
@@ -979,6 +977,10 @@ class _LuaValueParser {
           while (pos < source.length && source[pos] != '\n' && source[pos] != '\r') {
             pos++;
           }
+        }
+      } else if (c == '#') {
+        while (pos < source.length && source[pos] != '\n' && source[pos] != '\r') {
+          pos++;
         }
       } else {
         break;

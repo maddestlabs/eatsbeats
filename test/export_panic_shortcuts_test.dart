@@ -14,23 +14,23 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Song Export & Settings Isolation Tests', () {
-    test('Exported .eats.lua does NOT contain theme or app settings', () {
+    test('Exported .eats does NOT contain theme or app settings', () {
       final state = DawState();
       state.projectName = 'Pure Song Data';
       state.authorName = 'Producer';
       state.setBpm(130.0);
       state.setThemePreset(EatsThemePreset.midnightBites);
 
-      final luaString = EatsLuaSerializer.serialize(state, projectName: state.projectName);
+      final eatScriptString = EatProjectSerializer.serialize(state, projectName: state.projectName);
 
       // Verify essential project/song data is present
-      expect(luaString, contains('title = "Pure Song Data"'));
-      expect(luaString, contains('bpm = 130.00'));
-      expect(luaString, contains('author = "Producer"'));
+      expect(eatScriptString, contains('title = "Pure Song Data"'));
+      expect(eatScriptString, contains('bpm = 130.00'));
+      expect(eatScriptString, contains('author = "Producer"'));
 
       // Verify theme is NOT serialized in the song file
-      expect(luaString.contains('theme ='), isFalse);
-      expect(luaString.contains('midnightBites'), isFalse);
+      expect(eatScriptString.contains('theme ='), isFalse);
+      expect(eatScriptString.contains('midnightBites'), isFalse);
 
       state.dispose();
     });
@@ -50,7 +50,7 @@ return eatsbeats.song {
 }
 ''';
 
-      state.loadFromEatsLua(legacySongWithTheme);
+      state.loadFromEats(legacySongWithTheme);
 
       // Song data loaded
       expect(state.projectName, equals('Legacy Track'));

@@ -45,17 +45,17 @@ void main() {
       final track = dawState.activeTrack;
 
       // 1. Apply Eats Volts instrument
-      final voltsPreset = LuaScriptLibrary.getScriptById('voltaic_plasma_synth');
-      expect(voltsPreset, isNotNull, reason: 'voltaic_plasma_synth must exist in LuaScriptLibrary');
+      final voltsPreset = EatScriptLibrary.getScriptById('voltaic_plasma_synth');
+      expect(voltsPreset, isNotNull, reason: 'voltaic_plasma_synth must exist in EatScriptLibrary');
       dawState.applyPreset(voltsPreset!, targetTrack: track);
 
       expect(track.name, contains('Volts'));
-      expect(track.type, equals(TrackType.luaScript));
+      expect(track.type, equals(TrackType.eatScript));
 
       // 2. Add Convolution Reverb to the track
       track.fxRack.clear();
-      final convReverbPreset = LuaScriptLibrary.getScriptById('convolution_reverb');
-      expect(convReverbPreset, isNotNull, reason: 'convolution_reverb must exist in LuaScriptLibrary');
+      final convReverbPreset = EatScriptLibrary.getScriptById('convolution_reverb');
+      expect(convReverbPreset, isNotNull, reason: 'convolution_reverb must exist in EatScriptLibrary');
       dawState.addAudioFXFromPreset(track, convReverbPreset!);
 
       expect(track.fxRack.length, equals(1));
@@ -81,12 +81,12 @@ void main() {
 
     test('AudioEngine PCM cache strictly respects 256 capacity limit during rapid note generation', () {
       final track = dawState.activeTrack;
-      final voltsPreset = LuaScriptLibrary.getScriptById('voltaic_plasma_synth')!;
+      final voltsPreset = EatScriptLibrary.getScriptById('voltaic_plasma_synth')!;
       dawState.applyPreset(voltsPreset, targetTrack: track);
 
       // Play 300 notes through playNoteOrSample to exercise _getOrCreateBuffer and _pcmCache eviction
       for (int i = 0; i < 300; i++) {
-        track.luaParams['SparkJitter'] = (i % 100) / 100.0;
+        track.eatScriptParams['SparkJitter'] = (i % 100) / 100.0;
         dawState.audioEngine.playNoteOrSample(
           track: track,
           midiNote: 36 + (i % 24),
@@ -107,7 +107,7 @@ void main() {
 
     test('Rapid Convolution Reverb parameter tweaking executes without memory or structural regression', () {
       final track = dawState.activeTrack;
-      final convReverbPreset = LuaScriptLibrary.getScriptById('convolution_reverb')!;
+      final convReverbPreset = EatScriptLibrary.getScriptById('convolution_reverb')!;
       dawState.addAudioFXFromPreset(track, convReverbPreset);
 
       final fx = track.fxRack.first;

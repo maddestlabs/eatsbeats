@@ -235,12 +235,12 @@ void main() {
       expect(sw.elapsedMilliseconds, lessThan(100));
     });
 
-    test('GraphEvaluator and LuaEngine integrate seamlessly with updated DX7', () {
-      final preset = LuaPresetLibrary.getPresetById('dx7_epiano')!;
-      final compilation = LuaEngine.compile(preset.code);
+    test('GraphEvaluator and EatEngine integrate seamlessly with updated DX7', () {
+      final preset = EatScriptLibrary.getPresetById('dx7_epiano')!;
+      final compilation = EatEngine.compile(preset.code);
       expect(compilation.isSuccess, isTrue);
 
-      final buffer = LuaEngine.synthesizeBuffer(
+      final buffer = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.4,
         freq: 440.0,

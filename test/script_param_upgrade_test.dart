@@ -5,7 +5,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Script Parameter Engine Upgrades (Step & Choice)', () {
-    test('LuaEngine compiles Param.add with 5th step argument', () {
+    test('EatEngine compiles Param.add with 5th step argument', () {
       const code = '''
         Param.add("BankNum", 0, 128, 0, 1)
         Param.add("Cutoff", 20, 20000, 1000)
@@ -15,7 +15,7 @@ void main() {
         end
       ''';
 
-      final res = LuaEngine.compile(code);
+      final res = EatEngine.compile(code);
       expect(res.isSuccess, isTrue);
       expect(res.params.length, equals(2));
 
@@ -29,7 +29,7 @@ void main() {
       expect(cutoffParam.getFormattedValue(1000.4), equals('1000.4'));
     });
 
-    test('LuaEngine compiles Param.choice with string options list', () {
+    test('EatEngine compiles Param.choice with string options list', () {
       const code = '''
         Param.choice("InstrumentStyle", {"Clean Piano", "Acoustic Guitar", "Lead Synth"}, 1)
 
@@ -38,7 +38,7 @@ void main() {
         end
       ''';
 
-      final res = LuaEngine.compile(code);
+      final res = EatEngine.compile(code);
       expect(res.isSuccess, isTrue);
       expect(res.params.length, equals(1));
 

@@ -7,7 +7,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('EatsFileHelper Cross-Platform Tests', () {
-    test('EatsFileHelper exposes pickEatsFile, saveEatsZipFile, and saveEatsLuaFile', () {
+    test('EatsFileHelper exposes pickEatsFile, saveEatsZipFile, and saveEatScriptFile', () {
       final state = DawState();
       state.projectName = 'Picker Test';
       
@@ -16,24 +16,24 @@ void main() {
       expect(zipBytes[0], 0x50); // 'P'
       expect(zipBytes[1], 0x4B); // 'K'
 
-      // Roundtrip through loadFromEatsZipOrLua
+      // Roundtrip through loadFromEatsZipOrProject
       final newState = DawState();
-      newState.loadFromEatsZipOrLua(zipBytes: zipBytes);
+      newState.loadFromEatsZipOrProject(zipBytes: zipBytes);
       expect(newState.projectName, 'Picker Test');
 
       // Test saving does not throw
       expect(() => EatsFileHelper.saveEatsZipFile(zipBytes, 'test.eats.zip'), returnsNormally);
-      expect(() => EatsFileHelper.saveEatsLuaFile(state.exportToEatsLua(), 'test.eats.lua'), returnsNormally);
+      expect(() => EatsFileHelper.saveEatScriptFile(state.exportToEats(), 'test.eats'), returnsNormally);
     });
 
-    test('loadFromEatsZipOrLua correctly handles both lua and zip payloads', () {
+    test('loadFromEatsZipOrProject correctly handles both Eatscript and zip payloads', () {
       final state = DawState();
-      state.projectName = 'Lua Payload Test';
-      final lua = state.exportToEatsLua();
+      state.projectName = 'Eatscript Payload Test';
+      final script = state.exportToEats();
 
       final loadedState = DawState();
-      loadedState.loadFromEatsZipOrLua(luaContent: lua);
-      expect(loadedState.projectName, 'Lua Payload Test');
+      loadedState.loadFromEatsZipOrProject(scriptContent: script);
+      expect(loadedState.projectName, 'Eatscript Payload Test');
     });
   });
 }

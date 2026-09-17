@@ -123,15 +123,15 @@ def process():
     });
 
     test('Preset library contains gm_standard_drum_kit and action_procedural_drum_groover', () {
-      final drumKit = LuaPresetLibrary.getPresetById('gm_standard_drum_kit');
+      final drumKit = EatScriptLibrary.getPresetById('gm_standard_drum_kit');
       expect(drumKit, isNotNull);
       expect(drumKit!.name, equals('GM Standard Drum Kit'));
       expect(drumKit.isInstrument, isTrue);
 
-      final groover = LuaPresetLibrary.getPresetById('action_procedural_drum_groover');
+      final groover = EatScriptLibrary.getPresetById('action_procedural_drum_groover');
       expect(groover, isNotNull);
       expect(groover!.name, equals('Procedural Drum Groover'));
-      expect(groover.category, equals(LuaScriptCategory.projectAction));
+      expect(groover.category, equals(EatScriptCategory.projectAction));
     });
 
     test('GM Standard Drum Kit preset compiles with valid Eatscript GUI layout and parameters', () {
@@ -148,7 +148,7 @@ def process():
     });
 
     test('Modular Drum Machine preset compiles with dedicated drumPads layout node', () {
-      final drumMachine = LuaPresetLibrary.getPresetById('modular_drumpad_kit');
+      final drumMachine = EatScriptLibrary.getPresetById('modular_drumpad_kit');
       expect(drumMachine, isNotNull);
       expect(drumMachine!.name, equals('Modular Drum Machine'));
       expect(drumMachine.isInstrument, isTrue);
@@ -161,7 +161,7 @@ def process():
       expect(comp.guiLayout, isNotNull, reason: 'Expected guiLayout to be parsed');
       expect(comp.guiLayout!.title, equals('MODULAR DRUM MACHINE'));
       expect(
-        comp.guiLayout!.children.any((n) => n.type == LuaGuiNodeType.drumPads),
+        comp.guiLayout!.children.any((n) => n.type == EatScriptGuiNodeType.drumPads),
         isTrue,
         reason: 'Modular Drum Machine should contain a drumPads node in its layout',
       );

@@ -149,7 +149,7 @@ void main() {
       expect(buffer.every((s) => !s.isNaN && !s.isInfinite), isTrue);
     });
 
-    test('LuaPresetLibrary contains all 7 acoustic and folk instruments with GUIs', () {
+    test('EatScriptLibrary contains all 7 acoustic and folk instruments with GUIs', () {
       final ids = [
         'acoustic_steel_guitar',
         'twelve_string_guitar',
@@ -161,13 +161,13 @@ void main() {
       ];
 
       for (final id in ids) {
-        final preset = LuaScriptLibrary.getPresetById(id);
-        expect(preset, isNotNull, reason: 'Preset $id should exist in LuaScriptLibrary');
-        expect(preset!.category, equals(LuaPresetCategory.instrument));
+        final preset = EatScriptLibrary.getPresetById(id);
+        expect(preset, isNotNull, reason: 'Preset $id should exist in EatScriptLibrary');
+        expect(preset!.category, equals(EatScriptCategory.instrument));
       }
     });
 
-    test('LuaEngine compiles and synthesizes all 7 acoustic and folk instruments', () {
+    test('EatEngine compiles and synthesizes all 7 acoustic and folk instruments', () {
       final ids = [
         'acoustic_steel_guitar',
         'twelve_string_guitar',
@@ -179,8 +179,8 @@ void main() {
       ];
 
       for (final id in ids) {
-        final preset = LuaScriptLibrary.getPresetById(id)!;
-        final buf = LuaEngine.synthesizeBuffer(
+        final preset = EatScriptLibrary.getPresetById(id)!;
+        final buf = EatEngine.synthesizeBuffer(
           code: preset.code,
           durationSec: 0.2,
           freq: 261.63,

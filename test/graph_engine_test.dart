@@ -166,30 +166,30 @@ void main() {
       expect(peak, lessThanOrEqualTo(1.0));
     });
 
-    test('LuaPresetLibrary contains FM Acoustic Kick & Snare with custom Hardware GUI', () {
-      final kickPreset = LuaPresetLibrary.getPresetById('fm_acoustic_kick');
+    test('EatScriptLibrary contains FM Acoustic Kick & Snare with custom Hardware GUI', () {
+      final kickPreset = EatScriptLibrary.getPresetById('fm_acoustic_kick');
       expect(kickPreset, isNotNull);
       expect(kickPreset!.name, equals('FM Acoustic Kick'));
 
-      final kickCompilation = LuaEngine.compile(kickPreset.code);
+      final kickCompilation = EatEngine.compile(kickPreset.code);
       expect(kickCompilation.isSuccess, isTrue);
       expect(kickCompilation.params.length, greaterThanOrEqualTo(10));
       expect(kickCompilation.guiLayout, isNotNull);
       expect(kickCompilation.guiLayout!.title, contains('ACOUSTIC KICK'));
 
-      final snarePreset = LuaPresetLibrary.getPresetById('fm_acoustic_snare');
+      final snarePreset = EatScriptLibrary.getPresetById('fm_acoustic_snare');
       expect(snarePreset, isNotNull);
       expect(snarePreset!.name, equals('FM Acoustic Snare'));
 
-      final snareCompilation = LuaEngine.compile(snarePreset.code);
+      final snareCompilation = EatEngine.compile(snarePreset.code);
       expect(snareCompilation.isSuccess, isTrue);
       expect(snareCompilation.guiLayout, isNotNull);
       expect(snareCompilation.guiLayout!.title, contains('ACOUSTIC SNARE'));
     });
 
-    test('LuaEngine.synthesizeBuffer evaluates fm_acoustic_kick script seamlessly', () {
-      final kickPreset = LuaPresetLibrary.getPresetById('fm_acoustic_kick')!;
-      final buffer = LuaEngine.synthesizeBuffer(
+    test('EatEngine.synthesizeBuffer evaluates fm_acoustic_kick script seamlessly', () {
+      final kickPreset = EatScriptLibrary.getPresetById('fm_acoustic_kick')!;
+      final buffer = EatEngine.synthesizeBuffer(
         code: kickPreset.code,
         durationSec: 0.3,
         freq: 55.0,
@@ -368,7 +368,7 @@ void main() {
       expect(rimPcm.any((s) => s.abs() > 0.1), isTrue);
     });
 
-    test('LuaPresetLibrary contains all new drum presets with compiled GUI layouts', () {
+    test('EatScriptLibrary contains all new drum presets with compiled GUI layouts', () {
       final presetIds = [
         'fm_acoustic_tom',
         'fm_acoustic_hihat',
@@ -386,13 +386,13 @@ void main() {
       ];
 
       for (final id in presetIds) {
-        final preset = LuaPresetLibrary.getPresetById(id);
+        final preset = EatScriptLibrary.getPresetById(id);
         expect(preset, isNotNull, reason: 'Preset $id should exist');
-        final comp = LuaEngine.compile(preset!.code);
+        final comp = EatEngine.compile(preset!.code);
         expect(comp.isSuccess, isTrue, reason: 'Preset $id should compile');
         expect(comp.guiLayout, isNotNull, reason: 'Preset $id should have GUI layout');
 
-        final synthBuffer = LuaEngine.synthesizeBuffer(
+        final synthBuffer = EatEngine.synthesizeBuffer(
           code: preset.code,
           durationSec: 0.1,
           freq: 100.0,
@@ -494,16 +494,16 @@ void main() {
       }
     });
 
-    test('VOLTAIC preset compiles in LuaEngine with full GUI and valid synthesis', () {
-      final preset = LuaPresetLibrary.getPresetById('voltaic_plasma_synth');
+    test('VOLTAIC preset compiles in EatEngine with full GUI and valid synthesis', () {
+      final preset = EatScriptLibrary.getPresetById('voltaic_plasma_synth');
       expect(preset, isNotNull);
-      final comp = LuaEngine.compile(preset!.code);
+      final comp = EatEngine.compile(preset!.code);
       expect(comp.isSuccess, isTrue, reason: comp.errorMessage);
       expect(comp.guiLayout, isNotNull);
       expect(comp.params.any((p) => p.name == 'Voltage'), isTrue);
       expect(comp.params.any((p) => p.name == 'SparkGap'), isTrue);
 
-      final pcm = LuaEngine.synthesizeBuffer(
+      final pcm = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.2,
         freq: 220.0,
@@ -606,16 +606,16 @@ void main() {
       }
     });
 
-    test('PYROPHONE preset compiles in LuaEngine with full GUI and valid synthesis', () {
-      final preset = LuaPresetLibrary.getPresetById('pyrophone_synth');
+    test('PYROPHONE preset compiles in EatEngine with full GUI and valid synthesis', () {
+      final preset = EatScriptLibrary.getPresetById('pyrophone_synth');
       expect(preset, isNotNull);
-      final comp = LuaEngine.compile(preset!.code);
+      final comp = EatEngine.compile(preset!.code);
       expect(comp.isSuccess, isTrue, reason: comp.errorMessage);
       expect(comp.guiLayout, isNotNull);
       expect(comp.params.any((p) => p.name == 'FuelPressure'), isTrue);
       expect(comp.params.any((p) => p.name == 'FlameCusp'), isTrue);
 
-      final pcm = LuaEngine.synthesizeBuffer(
+      final pcm = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.2,
         freq: 261.63,
@@ -719,12 +719,12 @@ void main() {
     });
 
     test('Eats Water, Eats Furnace, EatsFX Fire, EatsFX Rain, and EatsFX Wind presets compile and synthesize seamlessly', () {
-      final voltsPreset = LuaPresetLibrary.getPresetById('eats_volts');
-      final furnacePreset = LuaPresetLibrary.getPresetById('eats_furnace');
-      final firePreset = LuaPresetLibrary.getPresetById('eatsfx_fire');
-      final waterPreset = LuaPresetLibrary.getPresetById('eats_water');
-      final rainPreset = LuaPresetLibrary.getPresetById('eatsfx_rain');
-      final windPreset = LuaPresetLibrary.getPresetById('eatsfx_wind');
+      final voltsPreset = EatScriptLibrary.getPresetById('eats_volts');
+      final furnacePreset = EatScriptLibrary.getPresetById('eats_furnace');
+      final firePreset = EatScriptLibrary.getPresetById('eatsfx_fire');
+      final waterPreset = EatScriptLibrary.getPresetById('eats_water');
+      final rainPreset = EatScriptLibrary.getPresetById('eatsfx_rain');
+      final windPreset = EatScriptLibrary.getPresetById('eatsfx_wind');
 
       expect(voltsPreset, isNotNull);
       expect(furnacePreset, isNotNull);
@@ -735,13 +735,13 @@ void main() {
 
       // Verify compile & GUI
       for (final p in [voltsPreset!, furnacePreset!, firePreset!, waterPreset!, rainPreset!, windPreset!]) {
-        final comp = LuaEngine.compile(p.code);
+        final comp = EatEngine.compile(p.code);
         expect(comp.isSuccess, isTrue, reason: '${p.name}: ${comp.errorMessage}');
         expect(comp.guiLayout, isNotNull, reason: '${p.name} missing GUI layout');
       }
 
       // Verify synthesis
-      final pcmWater = LuaEngine.synthesizeBuffer(
+      final pcmWater = EatEngine.synthesizeBuffer(
         code: waterPreset!.code,
         durationSec: 0.2,
         freq: 261.63,
@@ -751,7 +751,7 @@ void main() {
       expect(pcmWater.length, greaterThan(100));
       expect(pcmWater.any((s) => s.abs() > 0.05), isTrue);
 
-      final pcmRain = LuaEngine.synthesizeBuffer(
+      final pcmRain = EatEngine.synthesizeBuffer(
         code: rainPreset!.code,
         durationSec: 0.2,
         freq: 440.0,

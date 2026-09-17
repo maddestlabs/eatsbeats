@@ -69,13 +69,13 @@ void main() {
       expect(maxAmp, greaterThan(0.05));
     });
 
-    test('LuaPresetLibrary contains dx7_epiano and LuaEngine compiles it', () {
-      final preset = LuaScriptLibrary.getPresetById('dx7_epiano');
+    test('EatScriptLibrary contains dx7_epiano and EatEngine compiles it', () {
+      final preset = EatScriptLibrary.getPresetById('dx7_epiano');
       expect(preset, isNotNull);
       expect(preset!.name, equals('Yamaha DX7 E-Piano'));
       expect(preset.code.contains('YAMAHA DX7'), isTrue);
 
-      final buffer = LuaEngine.synthesizeBuffer(
+      final buffer = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.5,
         freq: 440.0,
@@ -86,7 +86,7 @@ void main() {
       expect(buffer.length, equals((44100 * 0.5).toInt()));
       expect(buffer.any((s) => s != 0.0), isTrue);
 
-      final gui = LuaGuiParser.parseFromCode(preset.code);
+      final gui = EatGuiParser.parseFromCode(preset.code);
       expect(gui, isNotNull);
       expect(gui!.title, contains('YAMAHA DX7'));
       expect(gui.children.length, greaterThanOrEqualTo(2));
@@ -148,13 +148,13 @@ void main() {
       expect(differenceDetected, isTrue);
     });
 
-    test('LuaPresetLibrary contains clavinet_d6 and LuaEngine compiles it', () {
-      final preset = LuaScriptLibrary.getPresetById('clavinet_d6');
+    test('EatScriptLibrary contains clavinet_d6 and EatEngine compiles it', () {
+      final preset = EatScriptLibrary.getPresetById('clavinet_d6');
       expect(preset, isNotNull);
       expect(preset!.name, equals('Hohner Clavinet D6'));
       expect(preset.code.contains('HOHNER CLAVINET D6'), isTrue);
 
-      final buffer = LuaEngine.synthesizeBuffer(
+      final buffer = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.4,
         freq: 220.0,
@@ -165,7 +165,7 @@ void main() {
       expect(buffer.length, equals((44100 * 0.4).toInt()));
       expect(buffer.any((s) => s != 0.0), isTrue);
 
-      final gui = LuaGuiParser.parseFromCode(preset.code);
+      final gui = EatGuiParser.parseFromCode(preset.code);
       expect(gui, isNotNull);
       expect(gui!.title, contains('HOHNER CLAVINET D6'));
       expect(gui.children.length, greaterThanOrEqualTo(2));
@@ -214,13 +214,13 @@ void main() {
       expect(buf8and4.any((s) => s != 0.0), isTrue);
     });
 
-    test('LuaPresetLibrary contains harpsichord_cembalo and LuaEngine compiles it', () {
-      final preset = LuaScriptLibrary.getPresetById('harpsichord_cembalo');
+    test('EatScriptLibrary contains harpsichord_cembalo and EatEngine compiles it', () {
+      final preset = EatScriptLibrary.getPresetById('harpsichord_cembalo');
       expect(preset, isNotNull);
       expect(preset!.name, equals('Harpsichord / Cembalo'));
       expect(preset.code.contains('BAROQUE HARPSICHORD'), isTrue);
 
-      final buffer = LuaEngine.synthesizeBuffer(
+      final buffer = EatEngine.synthesizeBuffer(
         code: preset.code,
         durationSec: 0.5,
         freq: 330.0,
@@ -231,7 +231,7 @@ void main() {
       expect(buffer.length, equals((44100 * 0.5).toInt()));
       expect(buffer.any((s) => s != 0.0), isTrue);
 
-      final gui = LuaGuiParser.parseFromCode(preset.code);
+      final gui = EatGuiParser.parseFromCode(preset.code);
       expect(gui, isNotNull);
       expect(gui!.title, contains('BAROQUE HARPSICHORD'));
       expect(gui.children.length, greaterThanOrEqualTo(2));

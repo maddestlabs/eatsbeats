@@ -101,7 +101,7 @@ class _ScriptViewState extends State<ScriptView> {
   // Serialization & Parsing
   // ---------------------------------------------------------------------------
 
-  /// Serializes notes into human-readable, declarative Lua/Eatscript table syntax.
+  /// Serializes notes into human-readable, declarative Eatscript syntax.
   static String _serializeNotesToNotepad(List<Note> notes, String clipName) {
     final buffer = StringBuffer();
     buffer.writeln('-- Clip: "$clipName" | Events: ${notes.length}');

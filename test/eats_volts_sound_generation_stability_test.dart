@@ -12,13 +12,13 @@ void main() {
       expect(() => TrackChannelStrip.safeDisposeNode(null), returnsNormally);
     });
 
-    test('Loading eats_volts.eats.lua and triggering noteOn/noteOff executes cleanly', () async {
+    test('Loading eats_volts.eats and triggering noteOn/noteOff executes cleanly', () async {
       final dawState = DawState();
-      final file = File('demos/eats_volts.eats.lua');
+      final file = File('demos/eats_volts.eats');
       expect(file.existsSync(), isTrue);
 
       final code = file.readAsStringSync();
-      dawState.loadFromEatsLua(code);
+      dawState.loadFromEats(code);
 
       final voltsTrack = dawState.patterns[0].tracks.firstWhere(
         (t) => t.name.contains('Volts'),
@@ -66,9 +66,9 @@ void main() {
 
     test('Playback toggle and pattern switching with Eats Volts runs without error', () async {
       final dawState = DawState();
-      final file = File('demos/eats_volts.eats.lua');
+      final file = File('demos/eats_volts.eats');
       final code = file.readAsStringSync();
-      dawState.loadFromEatsLua(code);
+      dawState.loadFromEats(code);
 
       // Start playback
       dawState.togglePlay();

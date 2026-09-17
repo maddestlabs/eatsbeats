@@ -63,8 +63,8 @@ void main() {
       expect(script, contains('"type": "svg_path"'));
     });
 
-    test('LuaGuiParser parses custom vector skin from script table', () {
-      const luaCode = '''
+    test('EatGuiParser parses custom vector skin from script table', () {
+      const eatScriptCode = '''
 function AcidSynth.gui()
   return {
     panel = {
@@ -91,11 +91,11 @@ function AcidSynth.gui()
 end
 ''';
 
-      final panel = LuaGuiParser.parseFromCode(luaCode);
+      final panel = EatGuiParser.parseFromCode(eatScriptCode);
       expect(panel, isNotNull);
       expect(panel!.children.length, 1);
       final knobNode = panel.children.first;
-      expect(knobNode.type, LuaGuiNodeType.knob);
+      expect(knobNode.type, EatScriptGuiNodeType.knob);
       expect(knobNode.knobStyle, KnobStyle.customVector);
       expect(knobNode.customSkin, isNotNull);
       expect(knobNode.customSkin!.chassisLayers.length, 2);
@@ -105,13 +105,13 @@ end
       expect(knobNode.customSkin!.indicatorLayer.precompiledPath, isNotNull);
     });
 
-    test('LuaGuiSerializer serializes node with customSkin into EatScript', () {
+    test('EatGuiSerializer serializes node with customSkin into EatScript', () {
       final skin = BuiltInVectorSkins.chromeFluted;
-      final panel = LuaGuiPanelDef(
+      final panel = EatScriptGuiPanelDef(
         title: 'CUSTOM RIG',
         children: [
-          LuaGuiNode(
-            type: LuaGuiNodeType.knob,
+          EatScriptGuiNode(
+            type: EatScriptGuiNodeType.knob,
             param: 'Drive',
             label: 'OVERDRIVE',
             knobStyle: KnobStyle.customVector,
@@ -120,7 +120,7 @@ end
         ],
       );
 
-      final code = LuaGuiSerializer.serialize(panel: panel, instrumentName: 'CustomRig');
+      final code = EatGuiSerializer.serialize(panel: panel, instrumentName: 'CustomRig');
       expect(code, contains('def gui():'));
       expect(code, contains('"style": "custom"'));
       expect(code, contains('"chassis": ['));
@@ -128,7 +128,7 @@ end
       expect(code, contains('"type": "svg_path"'));
     });
 
-    test('LuaGuiParser parses panel backgroundSvg for EatsFX Fire and Rain', () {
+    test('EatGuiParser parses panel backgroundSvg for EatsFX Fire and Rain', () {
       const code = '''
 function EatsFXFire.gui()
   return {
@@ -143,7 +143,7 @@ function EatsFXFire.gui()
   }
 end
 ''';
-      final panel = LuaGuiParser.parseFromCode(code);
+      final panel = EatGuiParser.parseFromCode(code);
       expect(panel, isNotNull);
       expect(panel!.backgroundStyle, PanelBackgroundStyle.minimalWhite);
       expect(panel.backgroundSvg, isNotNull);
@@ -151,7 +151,7 @@ end
     });
 
     test('Check concert_grand_piano and EatsFX Rain EatScript roundtrip serialization and parsing', () {
-      final p = LuaScriptLibrary.getPresetById('concert_grand_piano');
+      final p = EatScriptLibrary.getPresetById('concert_grand_piano');
       expect(p, isNotNull);
       final eatCode = p!.eatCode;
       final comp = EatScriptEngine.compile(eatCode);
@@ -161,7 +161,7 @@ end
       expect(comp.guiLayout!.children.length, 2);
 
       // Serialize with changes
-      final serialized = LuaGuiSerializer.serialize(
+      final serialized = EatGuiSerializer.serialize(
         panel: comp.guiLayout!,
         existingScriptCode: eatCode,
         instrumentName: 'ConcertGrandPiano',
@@ -178,7 +178,7 @@ end
       expect(comp2.guiLayout!.children.length, 2);
 
       // Verify EatsFX Rain roundtrip
-      final rain = LuaScriptLibrary.getPresetById('eatsfx_rain');
+      final rain = EatScriptLibrary.getPresetById('eatsfx_rain');
       expect(rain, isNotNull);
       final rainEat = rain!.eatCode;
       final rainComp = EatScriptEngine.compile(rainEat);
@@ -186,7 +186,7 @@ end
       expect(rainComp.guiLayout, isNotNull);
       expect(rainComp.guiLayout!.backgroundSvg, isNotNull);
 
-      final rainSerialized = LuaGuiSerializer.serialize(
+      final rainSerialized = EatGuiSerializer.serialize(
         panel: rainComp.guiLayout!,
         existingScriptCode: rainEat,
         instrumentName: 'EatsFXRain',

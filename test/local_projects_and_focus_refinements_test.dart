@@ -24,21 +24,21 @@ void main() {
   group('EatsStorageHelper Project Management Tests', () {
     test('Can save, list, load, rename, and delete project files', () async {
       const projectName = 'Cyber Funk Groove';
-      const luaContent = 'return { title = "Cyber Funk Groove", bpm = 128 }';
+      const scriptContent = 'return { title = "Cyber Funk Groove", bpm = 128 }';
 
       // 1. Save Project
-      final saved = await EatsStorageHelper.saveProjectFile(projectName, luaContent);
+      final saved = await EatsStorageHelper.saveProjectFile(projectName, scriptContent);
       expect(saved, isNotNull);
       expect(saved!.name, equals(projectName));
-      expect(saved.fileName, anyOf(equals('Cyber Funk Groove.eats'), equals('Cyber Funk Groove.eats.lua')));
+      expect(saved.fileName, anyOf(equals('Cyber Funk Groove.eats'), equals('Cyber Funk Groove.eats')));
 
       // 2. List Projects
       final list = await EatsStorageHelper.listSavedProjects();
       expect(list.any((p) => p.name == projectName), isTrue);
 
       // 3. Load Project
-      final loadedLua = await EatsStorageHelper.loadProjectFile(saved);
-      expect(loadedLua, equals(luaContent));
+      final loadedScript = await EatsStorageHelper.loadProjectFile(saved);
+      expect(loadedScript, equals(scriptContent));
 
       // 4. Rename Project
       final renamed = await EatsStorageHelper.renameProjectFile(saved, 'Cyber Funk 2099');

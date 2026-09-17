@@ -226,7 +226,7 @@ void main() {
   });
 
   group('UrlScriptHelper & Compressed Song Sharing Tests', () {
-    test('Compresses and decompresses Lua scripts via URL-safe Base64 and GZip', () {
+    test('Compresses and decompresses Eatscript via URL-safe Base64 and GZip', () {
       const originalScript = '''
 -- Eatsbeats Project Script
 bpm = 128

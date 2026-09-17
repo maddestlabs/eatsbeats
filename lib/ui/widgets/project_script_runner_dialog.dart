@@ -9,7 +9,7 @@ import 'ai_assistant_dialog.dart';
 
 class ProjectScriptRunnerDialog extends StatefulWidget {
   final DawState dawState;
-  final LuaScriptDef script;
+  final EatScriptDef script;
 
   const ProjectScriptRunnerDialog({
     super.key,
@@ -20,7 +20,7 @@ class ProjectScriptRunnerDialog extends StatefulWidget {
   static Future<ProjectScriptResult?> show(
     BuildContext context, {
     required DawState dawState,
-    required LuaScriptDef script,
+    required EatScriptDef script,
   }) {
     return showDialog<ProjectScriptResult>(
       context: context,
@@ -37,14 +37,14 @@ class ProjectScriptRunnerDialog extends StatefulWidget {
 }
 
 class _ProjectScriptRunnerDialogState extends State<ProjectScriptRunnerDialog> {
-  late final List<LuaParamDef> _paramDefs;
+  late final List<EatParamDef> _paramDefs;
   final Map<String, dynamic> _paramValues = {};
   bool _isExecuting = false;
 
   @override
   void initState() {
     super.initState();
-    final compResult = EatScriptEngine.compile(widget.script.code).toLuaCompilationResult();
+    final compResult = EatScriptEngine.compile(widget.script.code);
     _paramDefs = compResult.params;
     for (final p in _paramDefs) {
       _paramValues[p.name] = p.defaultValue;
@@ -301,7 +301,7 @@ class _ProjectScriptRunnerDialogState extends State<ProjectScriptRunnerDialog> {
     );
   }
 
-  Widget _buildParamControl(LuaParamDef param) {
+  Widget _buildParamControl(EatParamDef param) {
     if (param.options.isNotEmpty) {
       final currentVal = (_paramValues[param.name] ?? param.defaultValue).toDouble();
       final currentIdx = currentVal.round().clamp(0, param.options.length - 1);

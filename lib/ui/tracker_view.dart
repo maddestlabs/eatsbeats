@@ -290,14 +290,14 @@ class _TrackerViewState extends State<TrackerView> {
 
   Future<void> _copyTrackerBlock() async {
     final track = widget.dawState.activeTrack;
-    String lua = '';
+    String script = '';
     int count = 0;
     if (_hasBlockSelection) {
       final minS = _selectionMinStep;
       final maxS = _selectionMaxStep;
       final minC = _selectionMinCol;
       final maxC = _selectionMaxCol;
-      lua = await widget.dawState.copyTrackerBlockToClipboard(
+      script = await widget.dawState.copyTrackerBlockToClipboard(
         startStep: minS,
         endStep: maxS,
         startCol: minC,
@@ -312,7 +312,7 @@ class _TrackerViewState extends State<TrackerView> {
       final c = widget.dawState.trackerSelectedColumn;
       final noteMatch = track.notes.where((n) => n.startStep.toInt() == s && n.column == c).toList();
       if (noteMatch.isNotEmpty) {
-        lua = await widget.dawState.copyNotesToClipboard(track, [noteMatch.first.id]);
+        script = await widget.dawState.copyNotesToClipboard(track, [noteMatch.first.id]);
         count = 1;
       }
     }
@@ -320,7 +320,7 @@ class _TrackerViewState extends State<TrackerView> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(count > 0 ? 'Copied $count note${count != 1 ? 's' : ''} as Lua to clipboard' : 'No notes in selection to copy'),
+        content: Text(count > 0 ? 'Copied $count note${count != 1 ? 's' : ''} as Eatscript to clipboard' : 'No notes in selection to copy'),
         backgroundColor: EatsTheme.panelHeader,
         duration: const Duration(seconds: 2),
       ),
@@ -401,7 +401,7 @@ class _TrackerViewState extends State<TrackerView> {
       return KeyEventResult.handled;
     }
 
-    // Ctrl+C / Cmd+C -> Copy Block Notes as Lua
+    // Ctrl+C / Cmd+C -> Copy Block Notes as Eatscript
     if (isCtrlOrCmd && key == LogicalKeyboardKey.keyC) {
       _copyTrackerBlock();
       return KeyEventResult.handled;
@@ -670,7 +670,7 @@ class _TrackerViewState extends State<TrackerView> {
                     icon: Icon(Icons.copy, color: EatsTheme.primaryCyan, size: 14),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                    tooltip: 'Copy Block as Lua (Ctrl+C)',
+                    tooltip: 'Copy Block as Eatscript (Ctrl+C)',
                     onPressed: _copyTrackerBlock,
                   ),
                   IconButton(
@@ -711,7 +711,7 @@ class _TrackerViewState extends State<TrackerView> {
                   icon: Icon(Icons.copy, color: EatsTheme.primaryCyan, size: 15),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  tooltip: _hasBlockSelection ? 'Copy Block as Lua (Ctrl+C)' : 'Copy Selected Note as Lua (Ctrl+C)',
+                  tooltip: _hasBlockSelection ? 'Copy Block as Eatscript (Ctrl+C)' : 'Copy Selected Note as Eatscript (Ctrl+C)',
                   onPressed: _copyTrackerBlock,
                 ),
                 IconButton(

@@ -15,7 +15,7 @@ class EatsStorageHelperImpl {
   static final Map<String, Uint8List> _testSoundFonts = {};
   static final Map<String, Uint8List> _testModels = {};
   static final Map<String, String> _testProjects = {};
-  static String? _testSessionLua;
+  static String? _testSessionEatScript;
 
   static bool? _testModeOverride;
   static void setTestMode(bool value) {
@@ -123,7 +123,7 @@ class EatsStorageHelperImpl {
     }
     final eatsFile = io.File('${sessDir.path}/autosave.eats');
     if (eatsFile.existsSync()) return eatsFile;
-    final legacyFile = io.File('${sessDir.path}/autosave.eats.lua');
+    final legacyFile = io.File('${sessDir.path}/autosave.eats');
     if (legacyFile.existsSync()) return legacyFile;
     return eatsFile;
   }
@@ -412,22 +412,22 @@ class EatsStorageHelperImpl {
 
   // --- Session Storage API ---
 
-  static Future<void> saveSessionLua(String luaCode) async {
+  static Future<void> saveSessionEatScript(String eatScriptCode) async {
     if (_isTest) {
-      _testSessionLua = luaCode;
+      _testSessionEatScript = eatScriptCode;
       return;
     }
     try {
       final file = _getSessionFile();
-      await file.writeAsString(luaCode, flush: true);
+      await file.writeAsString(eatScriptCode, flush: true);
     } catch (e) {
-      debugPrint('EatsStorageHelper (IO) error saving session Lua: $e');
+      debugPrint('EatsStorageHelper (IO) error saving session Eatscript: $e');
     }
   }
 
-  static Future<String?> loadSessionLua() async {
+  static Future<String?> loadSessionEatScript() async {
     if (_isTest) {
-      return _testSessionLua;
+      return _testSessionEatScript;
     }
     try {
       final file = _getSessionFile();
@@ -438,14 +438,14 @@ class EatsStorageHelperImpl {
         }
       }
     } catch (e) {
-      debugPrint('EatsStorageHelper (IO) error loading session Lua: $e');
+      debugPrint('EatsStorageHelper (IO) error loading session Eatscript: $e');
     }
     return null;
   }
 
-  static Future<void> clearSessionLua() async {
+  static Future<void> clearSessionEatScript() async {
     if (_isTest) {
-      _testSessionLua = null;
+      _testSessionEatScript = null;
       return;
     }
     try {
@@ -454,7 +454,7 @@ class EatsStorageHelperImpl {
         await file.delete();
       }
     } catch (e) {
-      debugPrint('EatsStorageHelper (IO) error clearing session Lua: $e');
+      debugPrint('EatsStorageHelper (IO) error clearing session Eatscript: $e');
     }
   }
 
@@ -537,7 +537,7 @@ class EatsStorageHelperImpl {
       return _testProjects.entries.map((e) {
         return SavedProjectItem(
           id: e.key,
-          name: e.key.replaceAll('.eats.lua', '').replaceAll('.eats', ''),
+          name: e.key.replaceAll('.eats', '').replaceAll('.eats', ''),
           fileName: e.key,
           filePath: 'Projects/${e.key}',
           fileSizeBytes: utf8.encode(e.value).length,
@@ -556,13 +556,11 @@ class EatsStorageHelperImpl {
             final fileName = entity.uri.pathSegments.last;
             final lower = fileName.toLowerCase();
             if (lower.endsWith('.eats') ||
-                lower.endsWith('.eats.lua') ||
-                lower.endsWith('.lua') ||
                 lower.endsWith('.json') ||
                 lower.endsWith('.mid')) {
               final stat = await entity.stat();
               String displayName = fileName;
-              if (displayName.toLowerCase().endsWith('.eats.lua')) {
+              if (displayName.toLowerCase().endsWith('.eats')) {
                 displayName = displayName.substring(0, displayName.length - 9);
               } else if (displayName.toLowerCase().endsWith('.eats')) {
                 displayName = displayName.substring(0, displayName.length - 5);
@@ -591,21 +589,21 @@ class EatsStorageHelperImpl {
     return results;
   }
 
-  static Future<SavedProjectItem?> saveProjectFile(String name, String luaCode) async {
+  static Future<SavedProjectItem?> saveProjectFile(String name, String eatScriptCode) async {
     final sanitizedName = name.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final lower = sanitizedName.toLowerCase();
-    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eats.lua'))
+    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eats'))
         ? sanitizedName
         : '$sanitizedName.eats';
 
     if (_isTest) {
-      _testProjects[fileName] = luaCode;
+      _testProjects[fileName] = eatScriptCode;
       return SavedProjectItem(
         id: fileName,
         name: sanitizedName,
         fileName: fileName,
         filePath: 'Projects/$fileName',
-        fileSizeBytes: utf8.encode(luaCode).length,
+        fileSizeBytes: utf8.encode(eatScriptCode).length,
         lastModified: DateTime.now(),
         isWebStorage: false,
       );
@@ -614,7 +612,7 @@ class EatsStorageHelperImpl {
     try {
       final dir = getProjectsDirectory();
       final file = io.File('${dir.path}/$fileName');
-      await file.writeAsString(luaCode, flush: true);
+      await file.writeAsString(eatScriptCode, flush: true);
       final stat = await file.stat();
 
       return SavedProjectItem(
@@ -683,7 +681,7 @@ class EatsStorageHelperImpl {
   static Future<bool> renameProjectFile(SavedProjectItem item, String newName) async {
     final sanitized = newName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final lower = sanitized.toLowerCase();
-    final newFileName = (lower.endsWith('.eats') || lower.endsWith('.eats.lua'))
+    final newFileName = (lower.endsWith('.eats') || lower.endsWith('.eats'))
         ? sanitized
         : '$sanitized.eats';
 

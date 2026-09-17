@@ -29,7 +29,7 @@ class InteractiveGameCanvasWidget extends StatefulWidget {
   final DawState dawState;
   final TrackChannel track;
   final TrackChannel? hostTrack;
-  final LuaGuiNode node;
+  final EatScriptGuiNode node;
   final Color accentColor;
   final bool isLightChassis;
 
@@ -173,7 +173,7 @@ class _InteractiveGameCanvasWidgetState extends State<InteractiveGameCanvasWidge
     _lastTickStep = currentStep;
 
     // Check automated Jump / Action params
-    final jumpParam = widget.track.luaParams['Jump'] ?? widget.track.luaParams['TriggerJump'] ?? 0.0;
+    final jumpParam = widget.track.eatScriptParams['Jump'] ?? widget.track.eatScriptParams['TriggerJump'] ?? 0.0;
     if (jumpParam > 0.5 && _lastJumpParam <= 0.5) {
       _triggerJump();
     }
@@ -191,7 +191,7 @@ class _InteractiveGameCanvasWidgetState extends State<InteractiveGameCanvasWidge
   }
 
   bool _isNibblesGame() {
-    final code = widget.track.luaScriptCode.toLowerCase();
+    final code = widget.track.eatScriptCode.toLowerCase();
     final name = widget.track.name.toLowerCase();
     final mode = widget.node.canvasMode.toLowerCase();
     return code.contains('nibble') ||
@@ -199,11 +199,11 @@ class _InteractiveGameCanvasWidgetState extends State<InteractiveGameCanvasWidge
         name.contains('nibble') ||
         name.contains('snake') ||
         mode == 'grid' ||
-        widget.node.type == LuaGuiNodeType.dpad;
+        widget.node.type == EatScriptGuiNodeType.dpad;
   }
 
   bool _isRunnerGame() {
-    final code = widget.track.luaScriptCode.toLowerCase();
+    final code = widget.track.eatScriptCode.toLowerCase();
     final name = widget.track.name.toLowerCase();
     return code.contains('runner') ||
         code.contains('sidescroll') ||
@@ -215,13 +215,13 @@ class _InteractiveGameCanvasWidgetState extends State<InteractiveGameCanvasWidge
   void _updateNibbles(double dt, bool stepTriggered) {
     if (_isGameOver) return;
 
-    final speedParam = widget.track.luaParams['Speed'] ?? 12.0;
+    final speedParam = widget.track.eatScriptParams['Speed'] ?? 12.0;
     final tickInterval = 1.0 / math.max(4.0, speedParam);
 
     _tickAccumulator += dt;
 
     // Optional beat sync: turn on step
-    final beatSync = (widget.track.luaParams['BeatSync'] ?? 0.0) > 0.5;
+    final beatSync = (widget.track.eatScriptParams['BeatSync'] ?? 0.0) > 0.5;
     if (beatSync && stepTriggered) {
       // Auto turn rhythmically
       if (_snakeDir.x != 0) {
@@ -366,14 +366,14 @@ class _InteractiveGameCanvasWidgetState extends State<InteractiveGameCanvasWidge
     final isMasterBus = trackId == 'master_bus' || trackId == 'master' || targetTrack.name.toLowerCase().contains('master');
     final targetTrackId = isMasterBus ? null : trackId;
 
-    final gainParam = widget.track.luaParams['Gain'] ?? 1.0;
-    final timebaseParam = widget.track.luaParams['Timebase'] ?? 1.0;
-    final decayParam = widget.track.luaParams['Decay'] ?? 0.6;
-    final modeParam = widget.track.luaParams['Mode'] ?? 0.0;
-    final glowColorParam = widget.track.luaParams['GlowColor'] ?? 0.0;
+    final gainParam = widget.track.eatScriptParams['Gain'] ?? 1.0;
+    final timebaseParam = widget.track.eatScriptParams['Timebase'] ?? 1.0;
+    final decayParam = widget.track.eatScriptParams['Decay'] ?? 0.6;
+    final modeParam = widget.track.eatScriptParams['Mode'] ?? 0.0;
+    final glowColorParam = widget.track.eatScriptParams['GlowColor'] ?? 0.0;
 
     Color effectiveAccent = widget.accentColor;
-    if (widget.track.luaParams.containsKey('GlowColor')) {
+    if (widget.track.eatScriptParams.containsKey('GlowColor')) {
       final colIdx = glowColorParam.toInt().clamp(0, 4);
       const glowPalette = [
         Color(0xFF00FF9D), // Neon Mint

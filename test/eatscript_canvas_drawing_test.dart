@@ -9,9 +9,9 @@ import 'package:eatsbeats/ui/widgets/eatscript_programmable_canvas_widget.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('Lua 2D Canvas Drawing Engine Tests', () {
-    test('LuaCanvasDrawingContext records primitives and parses colors correctly', () {
-      final ctx = LuaCanvasDrawingContext(
+  group('Eatscript 2D Canvas Drawing Engine Tests', () {
+    test('EatCanvasDrawingContext records primitives and parses colors correctly', () {
+      final ctx = EatCanvasDrawingContext(
         width: 320,
         height: 180,
         defaultAccent: const Color(0xFF00E5FF),
@@ -27,30 +27,30 @@ void main() {
       ctx.spectrum(16, 1.0, 0.5, '#00E5FF');
 
       expect(ctx.ops.length, equals(8));
-      expect(ctx.ops[0], isA<LuaCanvasClearOp>());
-      expect((ctx.ops[0] as LuaCanvasClearOp).color, equals(const Color(0xFF111520)));
+      expect(ctx.ops[0], isA<EatCanvasClearOp>());
+      expect((ctx.ops[0] as EatCanvasClearOp).color, equals(const Color(0xFF111520)));
 
-      expect(ctx.ops[1], isA<LuaCanvasGridOp>());
-      expect((ctx.ops[1] as LuaCanvasGridOp).cols, equals(8));
+      expect(ctx.ops[1], isA<EatCanvasGridOp>());
+      expect((ctx.ops[1] as EatCanvasGridOp).cols, equals(8));
 
-      expect(ctx.ops[2], isA<LuaCanvasLineOp>());
-      expect((ctx.ops[2] as LuaCanvasLineOp).strokeWidth, equals(2.5));
+      expect(ctx.ops[2], isA<EatCanvasLineOp>());
+      expect((ctx.ops[2] as EatCanvasLineOp).strokeWidth, equals(2.5));
 
-      expect(ctx.ops[3], isA<LuaCanvasRectOp>());
-      expect((ctx.ops[3] as LuaCanvasRectOp).filled, isTrue);
-      expect((ctx.ops[3] as LuaCanvasRectOp).cornerRadius, equals(4.0));
+      expect(ctx.ops[3], isA<EatCanvasRectOp>());
+      expect((ctx.ops[3] as EatCanvasRectOp).filled, isTrue);
+      expect((ctx.ops[3] as EatCanvasRectOp).cornerRadius, equals(4.0));
 
-      expect(ctx.ops[4], isA<LuaCanvasCircleOp>());
-      expect((ctx.ops[4] as LuaCanvasCircleOp).radius, equals(25.0));
+      expect(ctx.ops[4], isA<EatCanvasCircleOp>());
+      expect((ctx.ops[4] as EatCanvasCircleOp).radius, equals(25.0));
 
-      expect(ctx.ops[5], isA<LuaCanvasTextOp>());
-      expect((ctx.ops[5] as LuaCanvasTextOp).text, equals('FILTER FREQ'));
+      expect(ctx.ops[5], isA<EatCanvasTextOp>());
+      expect((ctx.ops[5] as EatCanvasTextOp).text, equals('FILTER FREQ'));
 
-      expect(ctx.ops[6], isA<LuaCanvasWaveformOp>());
-      expect(ctx.ops[7], isA<LuaCanvasSpectrumOp>());
+      expect(ctx.ops[6], isA<EatCanvasWaveformOp>());
+      expect(ctx.ops[7], isA<EatCanvasSpectrumOp>());
     });
 
-    test('LuaCanvasDrawingEngine parses and evaluates custom Lua draw routine', () {
+    test('EatCanvasDrawingEngine parses and evaluates custom Eatscript draw routine', () {
       const scriptCode = '''
 local CustomSynth = {}
 
@@ -67,7 +67,7 @@ end
 return CustomSynth
 ''';
 
-      final ops = LuaCanvasDrawingEngine.evaluate(
+      final ops = EatCanvasDrawingEngine.evaluate(
         scriptCode: scriptCode,
         width: 320,
         height: 180,
@@ -77,22 +77,22 @@ return CustomSynth
       );
 
       expect(ops.length, equals(7));
-      expect(ops[0], isA<LuaCanvasClearOp>());
-      expect(ops[1], isA<LuaCanvasGridOp>());
-      expect(ops[2], isA<LuaCanvasRectOp>());
-      expect(ops[3], isA<LuaCanvasLineOp>());
-      expect(ops[4], isA<LuaCanvasCircleOp>());
-      expect(ops[5], isA<LuaCanvasTextOp>());
-      expect(ops[6], isA<LuaCanvasWaveformOp>());
+      expect(ops[0], isA<EatCanvasClearOp>());
+      expect(ops[1], isA<EatCanvasGridOp>());
+      expect(ops[2], isA<EatCanvasRectOp>());
+      expect(ops[3], isA<EatCanvasLineOp>());
+      expect(ops[4], isA<EatCanvasCircleOp>());
+      expect(ops[5], isA<EatCanvasTextOp>());
+      expect(ops[6], isA<EatCanvasWaveformOp>());
     });
 
-    test('LuaCanvasDrawingEngine generates responsive fallback vector display when no draw() exists', () {
+    test('EatCanvasDrawingEngine generates responsive fallback vector display when no draw() exists', () {
       const emptyScript = '''
 local SimpleSynth = {}
 return SimpleSynth
 ''';
 
-      final ops = LuaCanvasDrawingEngine.evaluate(
+      final ops = EatCanvasDrawingEngine.evaluate(
         scriptCode: emptyScript,
         width: 340,
         height: 180,
@@ -104,20 +104,20 @@ return SimpleSynth
       );
 
       expect(ops.isNotEmpty, isTrue);
-      expect(ops.any((op) => op is LuaCanvasClearOp), isTrue);
-      expect(ops.any((op) => op is LuaCanvasGridOp), isTrue);
-      expect(ops.any((op) => op is LuaCanvasWaveformOp), isTrue);
-      expect(ops.any((op) => op is LuaCanvasTextOp), isTrue);
+      expect(ops.any((op) => op is EatCanvasClearOp), isTrue);
+      expect(ops.any((op) => op is EatCanvasGridOp), isTrue);
+      expect(ops.any((op) => op is EatCanvasWaveformOp), isTrue);
+      expect(ops.any((op) => op is EatCanvasTextOp), isTrue);
     });
 
-    testWidgets('LuaProgrammableCanvasWidget renders custom 2D canvas at 60fps', (tester) async {
+    testWidgets('EatscriptProgrammableCanvasWidget renders custom 2D canvas at 60fps', (tester) async {
       final dawState = DawState();
       final track = TrackChannel(
         id: 'canvas_synth_1',
         name: 'Acid Vector Synth',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFF00E5FF),
-        luaScriptCode: '''
+        eatScriptCode: '''
 local VectorSynth = {}
 function VectorSynth.draw(canvas, w, h, params, time)
   canvas:clear("#080B12")
@@ -129,8 +129,8 @@ return VectorSynth
 ''',
       );
 
-      const node = LuaGuiNode(
-        type: LuaGuiNodeType.canvas,
+      const node = EatScriptGuiNode(
+        type: EatScriptGuiNodeType.canvas,
         width: 320,
         height: 160,
       );
@@ -139,7 +139,7 @@ return VectorSynth
         MaterialApp(
           home: Scaffold(
             body: Center(
-              child: LuaProgrammableCanvasWidget(
+              child: EatscriptProgrammableCanvasWidget(
                 dawState: dawState,
                 track: track,
                 node: node,
@@ -152,7 +152,7 @@ return VectorSynth
 
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.byType(LuaProgrammableCanvasWidget), findsOneWidget);
+      expect(find.byType(EatscriptProgrammableCanvasWidget), findsOneWidget);
       expect(find.byType(CustomPaint), findsWidgets);
     });
   });

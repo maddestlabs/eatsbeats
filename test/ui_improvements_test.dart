@@ -102,7 +102,7 @@ void main() {
       dawState.dispose();
     });
 
-    test('loadFromEatsLua resets playhead and arranger position to 0', () {
+    test('loadFromEats resets playhead and arranger position to 0', () {
       final dawState = DawState(enableMeterTimer: false);
 
       // Seek playhead away from 0
@@ -126,7 +126,7 @@ Track 1: "Synth Lead" [synth] Vol: 0.80 Pan: 0.00 Mute: false Solo: false Color:
   Clip 1: "Lead P00" Bar: 1 Len: 2 Pattern: 0
     Note: C4 0.0 2.0 0.80
 ''';
-      dawState.loadFromEatsLua(sampleSong);
+      dawState.loadFromEats(sampleSong);
 
       // Verify playhead is reset to 0
       expect(dawState.arrangerStep, equals(0));

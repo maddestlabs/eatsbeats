@@ -14,26 +14,24 @@ class EatsFileHelper {
     }
   }
 
-  /// Save/Download legacy `.eats.lua` file.
-  /// Returns the saved absolute file path (or file name on Web), or null if cancelled.
-  static Future<String?> saveEatsLuaFile(String content, String fileName) async {
-    if (kIsWeb) {
-      return downloadWebFileImpl(content, fileName);
-    } else {
-      return saveEatsLuaFileImpl(content, fileName);
-    }
-  }
-
   /// Save/Download Eatscript `.eats` script file.
   /// Returns the saved absolute file path (or file name on Web), or null if cancelled.
   static Future<String?> saveEatScriptFile(String content, String fileName) async {
     final cleanName = fileName.endsWith('.eats')
         ? fileName
         : '$fileName.eats';
-    return saveEatsLuaFile(content, cleanName);
+    if (kIsWeb) {
+      return downloadWebFileImpl(content, cleanName);
+    } else {
+      return saveEatsFileImpl(content, cleanName);
+    }
   }
 
-  /// Triggers file open dialog for `.eats.zip`, `.zip`, `.eats.lua`, `.sf2`, `.wav`, `.mid`, `.midi`, or `.txt` files.
+  /// Alias for saving an Eatsbeats script or project file.
+  static Future<String?> saveEatsFile(String content, String fileName) =>
+      saveEatScriptFile(content, fileName);
+
+  /// Triggers file open dialog for `.eats.zip`, `.zip`, `.eats`, `.sf2`, `.wav`, `.mid`, `.midi`, or `.txt` files.
   /// Works across Web, iOS, Android, and Desktop (Windows, macOS, Linux).
   static void pickEatsFile(
       Function(Uint8List? zipBytes, String? textContent, String fileName) onFileLoaded) {
@@ -46,14 +44,6 @@ class EatsFileHelper {
     pickEatsFile(onFileLoaded);
   }
 
-  /// Backward compatibility for text-only picking.
-  static void pickEatsLuaFileWeb(Function(String content, String fileName) onFileLoaded) {
-    pickEatsFile((zipBytes, textContent, fileName) {
-      if (textContent != null) {
-        onFileLoaded(textContent, fileName);
-      }
-    });
-  }
 
   /// Initializes global drag & drop listener for audio files (.wav, .mp3).
   static void initGlobalAudioDrop(Function(String fileName, Uint8List fileBytes) onAudioDropped) {

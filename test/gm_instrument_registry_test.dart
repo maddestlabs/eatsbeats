@@ -232,22 +232,22 @@ void main() {
       final pianoTrack = dawState.activePattern.tracks[0];
       expect(pianoTrack.name, equals('Grand Piano'));
       expect(pianoTrack.iconName, equals('piano'));
-      expect(pianoTrack.luaScriptCode, contains('ConcertGrandPiano'));
+      expect(pianoTrack.eatScriptCode, contains('ConcertGrandPiano'));
 
       final celloTrack = dawState.activePattern.tracks[1];
       expect(celloTrack.name, equals('Solo Cello'));
       expect(celloTrack.iconName, equals('strings'));
-      expect(celloTrack.luaScriptCode, contains('SoloCello'));
+      expect(celloTrack.eatScriptCode, contains('SoloCello'));
 
       final organTrack = dawState.activePattern.tracks[2];
       expect(organTrack.name, equals('Church Organ Solo'));
       expect(organTrack.sampleName, equals('super_small_font.sf2'));
-      expect(organTrack.luaParams['PresetNum'], equals(19.0));
+      expect(organTrack.eatScriptParams['PresetNum'], equals(19.0));
 
       final drumTrack = dawState.activePattern.tracks[3];
       expect(drumTrack.iconName, equals('drums'));
       expect(drumTrack.type, equals(TrackType.eatScript));
-      expect(drumTrack.luaScriptCode, contains('gm_standard_drum_kit'));
+      expect(drumTrack.eatScriptCode, contains('gm_standard_drum_kit'));
     });
   });
 }

@@ -69,7 +69,7 @@ Future<String?> saveEatScriptFileImpl(String content, String fileName) async {
   }
 }
 
-Future<String?> saveEatsLuaFileImpl(String content, String fileName) async {
+Future<String?> saveEatsFileImpl(String content, String fileName) async {
   return saveEatScriptFileImpl(content, fileName);
 }
 
@@ -78,7 +78,7 @@ Future<void> pickEatsFileWebImpl(
   try {
     final files = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['zip', 'lua', 'sf2', 'wav', 'mp3', 'mid', 'midi', 'txt', 'eats'],
+      allowedExtensions: ['zip', 'sf2', 'wav', 'mp3', 'mid', 'midi', 'txt', 'eats'],
     );
 
     if (files.isNotEmpty) {

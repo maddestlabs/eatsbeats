@@ -251,14 +251,14 @@ class TransportHeader extends StatelessWidget {
     final cleanProjName = dawState.projectName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final defaultName = cleanProjName.isNotEmpty ? cleanProjName : 'my_song';
     final fileName = '$defaultName.eats';
-    final eatCode = dawState.exportToEatsLua();
+    final eatCode = dawState.exportToEats();
 
     final savedPath = await EatsFileHelper.saveEatScriptFile(eatCode, fileName);
     if (!context.mounted) return;
 
     if (savedPath != null && savedPath.isNotEmpty) {
       final baseName = savedPath.split(RegExp(r'[\\/]')).last;
-      final cleanName = baseName.replaceAll(RegExp(r'\.(eats|eats\.lua|lua)$', caseSensitive: false), '');
+      final cleanName = baseName.replaceAll(RegExp(r'\.eats$', caseSensitive: false), '');
       if (cleanName.isNotEmpty) {
         dawState.projectName = cleanName;
       }
@@ -279,7 +279,7 @@ class TransportHeader extends StatelessWidget {
 
   void _handleLoad(BuildContext context) {
     EatsFileHelper.pickEatsFile((zipBytes, textContent, fileName) {
-      dawState.loadFromEatsZipOrLua(zipBytes: zipBytes, luaContent: textContent, fileName: fileName);
+      dawState.loadFromEatsZipOrProject(zipBytes: zipBytes, scriptContent: textContent, fileName: fileName);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Loaded project "$fileName"'),
@@ -295,7 +295,7 @@ class TransportHeader extends StatelessWidget {
   }
 
   void _showCodeViewDialog(BuildContext context) {
-    final controller = TextEditingController(text: dawState.exportToEatsLua());
+    final controller = TextEditingController(text: dawState.exportToEats());
     final gistUrlController = TextEditingController();
     bool isLoadingGist = false;
 
@@ -459,7 +459,7 @@ class TransportHeader extends StatelessWidget {
                   label: const Text('IMPORT', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                   onPressed: () {
                     if (controller.text.isNotEmpty) {
-                      dawState.loadFromEatsLua(controller.text);
+                      dawState.loadFromEats(controller.text);
                       Navigator.of(context).pop();
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Imported project from Eatscript!')),
@@ -725,7 +725,7 @@ class TransportHeader extends StatelessWidget {
                                   icon: const Icon(Icons.refresh, size: 16),
                                   label: const Text('RESET TO DEFAULT TEMPLATE (CLEAN SLATE)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                                   onPressed: () {
-                                    dawState.loadFromEatsLua(DefaultSong.midnightBites);
+                                    dawState.loadFromEats(DefaultSong.midnightBites);
                                     dawState.clearSavedSession();
                                     Navigator.of(context).pop();
                                     ScaffoldMessenger.of(context).showSnackBar(

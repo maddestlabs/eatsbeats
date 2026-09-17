@@ -232,10 +232,10 @@ class NoteSplitterEngine {
     ];
   }
 
-  /// Splits notes using a LuaScriptDef note splitter preset.
+  /// Splits notes using a EatScriptDef note splitter preset.
   static List<NoteSplitterTrackResult> splitWithPreset(
     List<Note> notes,
-    LuaScriptDef preset, {
+    EatScriptDef preset, {
     Map<String, double>? params,
   }) {
     if (notes.isEmpty) return [];

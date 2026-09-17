@@ -1,4 +1,4 @@
--- Eatsbeats Song File: "Commodore 64 — Cyber Assault (MOS 6581)"
+# Eatsbeats Song File: "Commodore 64 — Cyber Assault (MOS 6581)"
 -- Showcasing the authentic Commodore 64 SID Sound Interface Device (50Hz Chiptune Arp, 12-bit PWM, 23-bit Galois LFSR Noise, 6581 FET Filter)
 
 return eatsbeats.song {
@@ -32,17 +32,17 @@ return eatsbeats.song {
           id = "tr_sid_arp",
           name = "SID 50Hz Arp",
           color = 0xff6c5eb5, -- C64 Royal Indigo
-          type = "luaScript",
+          type = "eatScript",
           presetId = "c64_sid_synth",
           volume = 0.86,
           pan = -0.20,
           isMuted = false,
           isSoloed = false,
-          luaScriptCode = [[
--- @id: c64_sid_synth
--- @name: Commodore 64 SID Synth
--- @category: instrument
--- @description: Authentic MOS 6581 / 8580 Commodore 64 Sound Interface Device.
+          eatScriptCode = [[
+# @id: c64_sid_synth
+# @name: Commodore 64 SID Synth
+# @category: instrument
+# @description: Authentic MOS 6581 / 8580 Commodore 64 Sound Interface Device.
 local C64SID = {}
 function C64SID.init()
   Param.add("Waveform", 0, 5, 0)
@@ -67,7 +67,7 @@ function C64SID.process(time, freq, note, params)
 end
 return C64SID
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["Waveform"] = 0.0, -- Pulse wave with PWM
             ["PulseWidth"] = 1800.0,
             ["PwmRate"] = 2.5,
@@ -101,15 +101,15 @@ return C64SID
           id = "tr_sid_lead",
           name = "SID PWM Lead",
           color = 0xff00e5ff,
-          type = "luaScript",
+          type = "eatScript",
           presetId = "c64_sid_synth",
           volume = 0.90,
           pan = 0.15,
           isMuted = false,
           isSoloed = false,
-          luaScriptCode = [[
--- @name: SID PWM Lead
--- @category: instrument
+          eatScriptCode = [[
+# @name: SID PWM Lead
+# @category: instrument
 local SIDLead = {}
 function SIDLead.init()
   Param.add("Waveform", 0, 5, 0)
@@ -134,7 +134,7 @@ function SIDLead.process(time, freq, note, params)
 end
 return SIDLead
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["Waveform"] = 0.0,
             ["PulseWidth"] = 2048.0,
             ["PwmRate"] = 3.2,
@@ -183,15 +183,15 @@ return SIDLead
           id = "tr_sid_bass",
           name = "SID Saw Bass",
           color = 0xffa0864b, -- C64 Vintage Tan
-          type = "luaScript",
+          type = "eatScript",
           presetId = "c64_sid_synth",
           volume = 0.94,
           pan = 0.00,
           isMuted = false,
           isSoloed = false,
-          luaScriptCode = [[
--- @name: SID Saw Bass
--- @category: instrument
+          eatScriptCode = [[
+# @name: SID Saw Bass
+# @category: instrument
 local SIDBass = {}
 function SIDBass.init()
   Param.add("Waveform", 0, 5, 1) -- 1: Sawtooth
@@ -212,7 +212,7 @@ function SIDBass.process(time, freq, note, params)
 end
 return SIDBass
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["Waveform"] = 1.0, -- Sawtooth
             ["ArpMode"] = 0.0,
             ["ChipModel"] = 0.0,
@@ -274,15 +274,15 @@ return SIDBass
           id = "tr_sid_drums",
           name = "SID Noise Drums",
           color = 0xff3e9b48, -- C64 Vintage Green
-          type = "luaScript",
+          type = "eatScript",
           presetId = "c64_sid_synth",
           volume = 0.80,
           pan = 0.05,
           isMuted = false,
           isSoloed = false,
-          luaScriptCode = [[
--- @name: SID Noise Drums
--- @category: instrument
+          eatScriptCode = [[
+# @name: SID Noise Drums
+# @category: instrument
 local SIDDrums = {}
 function SIDDrums.init()
   Param.add("Waveform", 0, 5, 3) -- 3: 23-bit Galois LFSR Noise
@@ -299,7 +299,7 @@ function SIDDrums.process(time, freq, note, params)
 end
 return SIDDrums
           ]],
-          luaParams = {
+          eatScriptParams = {
             ["Waveform"] = 3.0, -- Noise
             ["ArpMode"] = 0.0,
             ["ChipModel"] = 0.0,

@@ -9,7 +9,7 @@ class EatsStorageHelperImpl {
   static final Map<String, String> _memorySettings = {};
   static final Map<String, Uint8List> _memorySoundFonts = {};
   static final Map<String, String> _memoryProjects = {};
-  static String? _memorySessionLua;
+  static String? _memorySessionEatScript;
 
   static Future<String?> getString(String key) async {
     return _memorySettings[key];
@@ -85,16 +85,16 @@ class EatsStorageHelperImpl {
     _memoryModels.remove(fileName);
   }
 
-  static Future<void> saveSessionLua(String luaCode) async {
-    _memorySessionLua = luaCode;
+  static Future<void> saveSessionEatScript(String eatScriptCode) async {
+    _memorySessionEatScript = eatScriptCode;
   }
 
-  static Future<String?> loadSessionLua() async {
-    return _memorySessionLua;
+  static Future<String?> loadSessionEatScript() async {
+    return _memorySessionEatScript;
   }
 
-  static Future<void> clearSessionLua() async {
-    _memorySessionLua = null;
+  static Future<void> clearSessionEatScript() async {
+    _memorySessionEatScript = null;
   }
 
   // --- Saved Projects Storage API ---
@@ -109,7 +109,7 @@ class EatsStorageHelperImpl {
     return _memoryProjects.entries.map((e) {
       return SavedProjectItem(
         id: e.key,
-        name: e.key.replaceAll('.eats.lua', '').replaceAll('.eats', ''),
+        name: e.key.replaceAll('.eats', '').replaceAll('.eats', ''),
         fileName: e.key,
         filePath: 'Projects/${e.key}',
         fileSizeBytes: utf8.encode(e.value).length,
@@ -119,19 +119,19 @@ class EatsStorageHelperImpl {
     }).toList();
   }
 
-  static Future<SavedProjectItem?> saveProjectFile(String name, String luaCode) async {
+  static Future<SavedProjectItem?> saveProjectFile(String name, String eatScriptCode) async {
     final sanitized = name.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final lower = sanitized.toLowerCase();
-    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eats.lua'))
+    final fileName = (lower.endsWith('.eats') || lower.endsWith('.eats'))
         ? sanitized
         : '$sanitized.eats';
-    _memoryProjects[fileName] = luaCode;
+    _memoryProjects[fileName] = eatScriptCode;
     return SavedProjectItem(
       id: fileName,
       name: sanitized,
       fileName: fileName,
       filePath: 'Projects/$fileName',
-      fileSizeBytes: utf8.encode(luaCode).length,
+      fileSizeBytes: utf8.encode(eatScriptCode).length,
       lastModified: DateTime.now(),
       isWebStorage: false,
     );
@@ -150,7 +150,7 @@ class EatsStorageHelperImpl {
   static Future<bool> renameProjectFile(SavedProjectItem item, String newName) async {
     final sanitized = newName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final lower = sanitized.toLowerCase();
-    final newFileName = (lower.endsWith('.eats') || lower.endsWith('.eats.lua'))
+    final newFileName = (lower.endsWith('.eats') || lower.endsWith('.eats'))
         ? sanitized
         : '$sanitized.eats';
     final code = _memoryProjects.remove(item.fileName) ?? _memoryProjects.remove(item.id) ?? '';

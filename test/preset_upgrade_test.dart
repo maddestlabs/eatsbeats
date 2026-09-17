@@ -10,8 +10,8 @@ void main() {
 
   group('Preset Upgrade & Non-Destructive Migration Tests', () {
     const olderEats303Code = '''
--- @name: Eats 303
--- @category: instrument
+# @name: Eats 303
+# @category: instrument
 local Acid303 = {}
 
 function Acid303.init()
@@ -33,11 +33,11 @@ return Acid303
 ''';
 
     test('Detects upgrade available for older preset script without GUI', () {
-      final isUpgrade = LuaPresetLibrary.isUpgradeAvailable(olderEats303Code, trackName: 'Eats 303');
+      final isUpgrade = EatScriptLibrary.isUpgradeAvailable(olderEats303Code, trackName: 'Eats 303');
       expect(isUpgrade, isTrue);
 
-      final latestPreset = LuaPresetLibrary.getPresetById('jc_303')!;
-      final isLatestUpgrade = LuaPresetLibrary.isUpgradeAvailable(latestPreset.code, trackName: 'JC-303');
+      final latestPreset = EatScriptLibrary.getPresetById('jc_303')!;
+      final isLatestUpgrade = EatScriptLibrary.isUpgradeAvailable(latestPreset.code, trackName: 'JC-303');
       expect(isLatestUpgrade, isFalse);
     });
 
@@ -45,9 +45,9 @@ return Acid303
       final state = DawState();
       final track = state.activeTrack;
       track.name = 'Eats 303';
-      track.type = TrackType.luaScript;
-      track.luaScriptCode = olderEats303Code;
-      track.luaParams = {
+      track.type = TrackType.eatScript;
+      track.eatScriptCode = olderEats303Code;
+      track.eatScriptParams = {
         'Cutoff': 3456.0,
         'Resonance': 14.5,
         'Decay': 0.85,
@@ -55,7 +55,7 @@ return Acid303
       };
 
       // Before upgrade: has no custom GUI layout
-      final beforeComp = LuaEngine.compile(track.luaScriptCode);
+      final beforeComp = EatEngine.compile(track.eatScriptCode);
       expect(beforeComp.guiLayout, isNull);
       expect(state.isPresetUpgradeAvailable(track), isTrue);
 
@@ -64,30 +64,30 @@ return Acid303
 
       // After upgrade: has updated script code with custom GUI
       expect(state.isPresetUpgradeAvailable(track), isFalse);
-      final afterComp = LuaEngine.compile(track.luaScriptCode);
+      final afterComp = EatEngine.compile(track.eatScriptCode);
       expect(afterComp.guiLayout, isNotNull);
       expect(afterComp.guiLayout!.title, contains('303'));
 
       // Verify parameter preservation
-      expect(track.luaParams['Cutoff'], equals(3456.0));
-      expect(track.luaParams['Resonance'], equals(14.5));
-      expect(track.luaParams['Decay'], equals(0.85));
-      expect(track.luaParams['Waveform'], equals(1.0));
+      expect(track.eatScriptParams['Cutoff'], equals(3456.0));
+      expect(track.eatScriptParams['Resonance'], equals(14.5));
+      expect(track.eatScriptParams['Decay'], equals(0.85));
+      expect(track.eatScriptParams['Waveform'], equals(1.0));
 
       // Verify newly defined parameter (Drive) was populated with default
-      expect(track.luaParams.containsKey('Drive'), isTrue);
-      expect(track.luaParams['Drive'], equals(0.25));
+      expect(track.eatScriptParams.containsKey('Drive'), isTrue);
+      expect(track.eatScriptParams['Drive'], equals(0.25));
     });
 
     test('Batch upgrades all project tracks', () {
       final state = DawState();
       final t1 = state.activeTrack;
       t1.name = 'Eats 303';
-      t1.type = TrackType.luaScript;
-      t1.luaScriptCode = olderEats303Code;
+      t1.type = TrackType.eatScript;
+      t1.eatScriptCode = olderEats303Code;
 
       const olderKickCode = '''
--- @name: FM Acoustic Kick
+# @name: FM Acoustic Kick
 local FmAcousticKick = {}
 function FmAcousticKick.init()
   Param.add("NearPitchStart", 100.0, 300.0, 180.0)
@@ -99,10 +99,10 @@ return FmAcousticKick
       final t2 = TrackChannel(
         id: 'kick_tr',
         name: 'FM Acoustic Kick',
-        type: TrackType.luaScript,
+        type: TrackType.eatScript,
         color: const Color(0xFF00FF66),
-        luaScriptCode: olderKickCode,
-        luaParams: {'NearPitchStart': 220.0},
+        eatScriptCode: olderKickCode,
+        eatScriptParams: {'NearPitchStart': 220.0},
       );
       state.activePattern.tracks.add(t2);
 
@@ -111,8 +111,8 @@ return FmAcousticKick
       state.upgradeAllTrackPresets();
 
       expect(state.availablePresetUpgradeCount, equals(0));
-      expect(t2.luaParams['NearPitchStart'], equals(220.0));
-      expect(t2.luaParams.containsKey('NearPitchEnd'), isTrue);
+      expect(t2.eatScriptParams['NearPitchStart'], equals(220.0));
+      expect(t2.eatScriptParams.containsKey('NearPitchEnd'), isTrue);
     });
   });
 }

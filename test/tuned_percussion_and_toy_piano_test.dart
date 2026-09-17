@@ -260,7 +260,7 @@ void main() {
       expect(peakEnergy, greaterThan(earlyEnergy));
     });
 
-    test('LuaScriptLibrary contains all 13 percussion instruments with metadata and valid GUIs', () {
+    test('EatScriptLibrary contains all 13 percussion instruments with metadata and valid GUIs', () {
       final ids = [
         'toy_piano',
         'glockenspiel',
@@ -278,18 +278,18 @@ void main() {
       ];
 
       for (final id in ids) {
-        final preset = LuaScriptLibrary.getPresetById(id);
-        expect(preset, isNotNull, reason: 'Preset $id should exist in LuaScriptLibrary');
-        expect(preset!.category, equals(LuaPresetCategory.instrument));
+        final preset = EatScriptLibrary.getPresetById(id);
+        expect(preset, isNotNull, reason: 'Preset $id should exist in EatScriptLibrary');
+        expect(preset!.category, equals(EatScriptCategory.instrument));
         expect(preset.code.isNotEmpty, isTrue);
 
         // Verify matching logic
-        final matched = LuaScriptLibrary.findMatchingPreset(preset.code);
+        final matched = EatScriptLibrary.findMatchingPreset(preset.code);
         expect(matched?.id, equals(id), reason: 'findMatchingPreset should find $id');
       }
     });
 
-    test('LuaEngine compiles and synthesizes all 13 percussion instruments through dispatch', () {
+    test('EatEngine compiles and synthesizes all 13 percussion instruments through dispatch', () {
       final ids = [
         'toy_piano',
         'glockenspiel',
@@ -307,8 +307,8 @@ void main() {
       ];
 
       for (final id in ids) {
-        final preset = LuaScriptLibrary.getPresetById(id)!;
-        final buf = LuaEngine.synthesizeBuffer(
+        final preset = EatScriptLibrary.getPresetById(id)!;
+        final buf = EatEngine.synthesizeBuffer(
           code: preset.code,
           durationSec: 0.25,
           freq: 440.0,

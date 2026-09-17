@@ -84,13 +84,11 @@ class UrlScriptHelper {
         final data = json.decode(jsonStr) as Map<String, dynamic>;
         if (data.containsKey('files')) {
           final files = data['files'] as Map<String, dynamic>;
-          // Prefer Eatscript (.eats) or legacy .lua / .eats.lua files
+          // Prefer Eatscript (.eats) files
           for (final f in files.values) {
             final fileName = (f['filename'] ?? '').toString().toLowerCase();
             if (fileName.endsWith('.eats') ||
-                fileName.endsWith('.py') ||
-                fileName.endsWith('.lua') ||
-                fileName.endsWith('.eats.lua')) {
+                fileName.endsWith('.py')) {
               final content = f['content'] as String?;
               if (content != null && content.isNotEmpty) return content;
               final rawUrl = f['raw_url'] as String?;
@@ -129,10 +127,10 @@ class UrlScriptHelper {
     return null;
   }
 
-  /// Compresses Lua script code into a URL-safe Base64 payload prefixed with 'gz+'.
-  static String compressScriptToPayload(String luaScript) {
+  /// Compresses Eatscript code into a URL-safe Base64 payload prefixed with 'gz+'.
+  static String compressScriptToPayload(String eatScript) {
     try {
-      final utf8Bytes = utf8.encode(luaScript);
+      final utf8Bytes = utf8.encode(eatScript);
       final compressed = GZipEncoder().encode(utf8Bytes);
       if (compressed != null) {
         final b64 = base64Url.encode(compressed);
@@ -141,7 +139,7 @@ class UrlScriptHelper {
     } catch (e) {
       debugPrint('UrlScriptHelper: Compression error: $e');
     }
-    return 'b64+${base64Url.encode(utf8.encode(luaScript))}';
+    return 'b64+${base64Url.encode(utf8.encode(eatScript))}';
   }
 
   /// Decompresses a GZip / Zlib / Base64 payload.
@@ -166,9 +164,9 @@ class UrlScriptHelper {
     }
   }
 
-  /// Builds a complete shareable web URL for the given Lua script.
-  static String buildShareableUrl(String luaScript, {String baseUrl = 'https://eatsbeats.app'}) {
-    final payload = compressScriptToPayload(luaScript);
+  /// Builds a complete shareable web URL for the given Eatscript.
+  static String buildShareableUrl(String eatScript, {String baseUrl = 'https://eatsbeats.app'}) {
+    final payload = compressScriptToPayload(eatScript);
     final encodedParam = Uri.encodeQueryComponent(payload);
     return '$baseUrl/?script=$encodedParam';
   }

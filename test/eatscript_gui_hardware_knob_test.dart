@@ -99,12 +99,12 @@ def process(sample_rate):
       expect(headNode.hardwareKnobStyle!.scale.labels.length, 11);
     });
 
-    test('LuaGuiSerializer preserves hardware knobs in EatScript serialization', () {
-      final panel = LuaGuiPanelDef(
+    test('EatGuiSerializer preserves hardware knobs in EatScript serialization', () {
+      final panel = EatScriptGuiPanelDef(
         title: 'KICK WORKBENCH',
         children: [
-          LuaGuiNode(
-            type: LuaGuiNodeType.knob,
+          EatScriptGuiNode(
+            type: EatScriptGuiNodeType.knob,
             param: 'Body',
             label: 'body',
             knobStyle: KnobStyle.hardwareKnob,
@@ -113,7 +113,7 @@ def process(sample_rate):
         ],
       );
 
-      final serialized = LuaGuiSerializer.serialize(
+      final serialized = EatGuiSerializer.serialize(
         panel: panel,
         instrumentName: 'KickWorkbench',
       );
@@ -129,12 +129,12 @@ def process(sample_rate):
       expect(knob.knobStyle, KnobStyle.hardwareKnob);
     });
 
-    test('LuaGuiSerializer preserves custom capColor, bodyColor, indicatorColor, dialColor in EatScript', () {
-      final panel = LuaGuiPanelDef(
+    test('EatGuiSerializer preserves custom capColor, bodyColor, indicatorColor, dialColor in EatScript', () {
+      final panel = EatScriptGuiPanelDef(
         title: 'CUSTOM HARDWARE',
         children: [
-          LuaGuiNode(
-            type: LuaGuiNodeType.knob,
+          EatScriptGuiNode(
+            type: EatScriptGuiNodeType.knob,
             param: 'CustomKnob',
             label: 'custom',
             knobStyle: KnobStyle.hardwareKnob,
@@ -147,7 +147,7 @@ def process(sample_rate):
         ],
       );
 
-      final serialized = LuaGuiSerializer.serialize(
+      final serialized = EatGuiSerializer.serialize(
         panel: panel,
         instrumentName: 'CustomColorTest',
       );
@@ -171,19 +171,19 @@ def process(sample_rate):
       expect(knob.hardwareKnobStyle!.scale.tickColor, const Color(0xFF00E5FF));
     });
 
-    test('LuaGuiSerializer and parser support dynamic track color and anatomy sizing (capSize, bodySize, indicator)', () {
-      final panel = LuaGuiPanelDef(
+    test('EatGuiSerializer and parser support dynamic track color and anatomy sizing (capSize, bodySize, indicator)', () {
+      final panel = EatScriptGuiPanelDef(
         title: 'DYNAMIC SIZING & TRACK',
         backgroundStyle: PanelBackgroundStyle.dark,
         children: [
-          LuaGuiNode(
-            type: LuaGuiNodeType.knob,
+          EatScriptGuiNode(
+            type: EatScriptGuiNodeType.knob,
             param: 'TrackKnob',
             label: 'TRACK_KNOB',
             knobStyle: KnobStyle.hardwareKnob,
             hardwareKnobStyle: EatHardwareKnobStyle.standardHardware(),
-            capColor: LuaGuiNode.trackColorSentinel,
-            dialColor: LuaGuiNode.trackColorSentinel,
+            capColor: EatScriptGuiNode.trackColorSentinel,
+            dialColor: EatScriptGuiNode.trackColorSentinel,
             capSize: 0.68,
             bodySize: 1.28,
             indicatorLength: 0.75,
@@ -192,7 +192,7 @@ def process(sample_rate):
         ],
       );
 
-      final serialized = LuaGuiSerializer.serialize(
+      final serialized = EatGuiSerializer.serialize(
         panel: panel,
         instrumentName: 'DynamicTrackTest',
       );
@@ -212,8 +212,8 @@ def process(sample_rate):
       expect(comp.guiLayout!.backgroundColor, isNull);
 
       final knob = comp.guiLayout!.children.first;
-      expect(LuaGuiNode.isTrackColor(knob.capColor), isTrue);
-      expect(LuaGuiNode.isTrackColor(knob.dialColor), isTrue);
+      expect(EatScriptGuiNode.isTrackColor(knob.capColor), isTrue);
+      expect(EatScriptGuiNode.isTrackColor(knob.dialColor), isTrue);
       expect(knob.capSize, 0.68);
       expect(knob.bodySize, 1.28);
       expect(knob.indicatorLength, 0.75);
@@ -225,8 +225,8 @@ def process(sample_rate):
       expect(knob.hardwareKnobStyle!.indicatorWidth, 3.5);
     });
 
-    test('LuaScriptLibrary Kick and Snare Channel Strips compile valid 6-zone hardware panels', () {
-      final kickPreset = LuaScriptLibrary.getPresetById('kick_channel_strip');
+    test('EatScriptLibrary Kick and Snare Channel Strips compile valid 6-zone hardware panels', () {
+      final kickPreset = EatScriptLibrary.getPresetById('kick_channel_strip');
       expect(kickPreset, isNotNull);
       final kickComp = EatScriptEngine.compile(kickPreset!.eatCode);
       expect(kickComp.isSuccess, isTrue);
@@ -234,10 +234,10 @@ def process(sample_rate):
       final kickRow = kickComp.guiLayout!.children.first;
       expect(kickRow.children.length, 6); // 4 knobs, 1 divider, 1 fader
       expect(kickRow.children[0].knobStyle, KnobStyle.hardwareKnob);
-      expect(kickRow.children[5].type, LuaGuiNodeType.slider);
+      expect(kickRow.children[5].type, EatScriptGuiNodeType.slider);
       expect(kickRow.children[5].hardwareScale, isNotNull);
 
-      final snarePreset = LuaScriptLibrary.getPresetById('snare_channel_strip');
+      final snarePreset = EatScriptLibrary.getPresetById('snare_channel_strip');
       expect(snarePreset, isNotNull);
       final snareComp = EatScriptEngine.compile(snarePreset!.eatCode);
       expect(snareComp.isSuccess, isTrue);
@@ -245,7 +245,7 @@ def process(sample_rate):
       final snareRow = snareComp.guiLayout!.children.first;
       expect(snareRow.children.length, 6);
       expect(snareRow.children[0].knobStyle, KnobStyle.hardwareKnob);
-      expect(snareRow.children[5].type, LuaGuiNodeType.slider);
+      expect(snareRow.children[5].type, EatScriptGuiNodeType.slider);
     });
 
     testWidgets('SkeuomorphicHardwareSlider renders with EatScaleGraduation', (tester) async {
@@ -402,18 +402,18 @@ def gui():
     });
 
     test('EatScriptEngine parses and serializes TB-303 potentiometer and selector knobs', () {
-      final panel = LuaGuiPanelDef(
+      final panel = EatScriptGuiPanelDef(
         title: 'TB303 RACK',
         children: [
-          LuaGuiNode(
-            type: LuaGuiNodeType.knob,
+          EatScriptGuiNode(
+            type: EatScriptGuiNodeType.knob,
             param: 'Cutoff',
             label: 'cutoff',
             knobStyle: KnobStyle.hardwareKnob,
             hardwareKnobStyle: EatHardwareKnobStyle.tb303Potentiometer(),
           ),
-          LuaGuiNode(
-            type: LuaGuiNodeType.knob,
+          EatScriptGuiNode(
+            type: EatScriptGuiNodeType.knob,
             param: 'Mode',
             label: 'mode',
             knobStyle: KnobStyle.hardwareKnob,
@@ -422,7 +422,7 @@ def gui():
         ],
       );
 
-      final serialized = LuaGuiSerializer.serialize(
+      final serialized = EatGuiSerializer.serialize(
         panel: panel,
         instrumentName: 'TB303Demo',
       );
@@ -446,35 +446,35 @@ def gui():
     });
 
     test('Dial / scale graduations (clean_ticks, unmarked, bipolar, list) serialize and round-trip successfully', () {
-      final panel = LuaGuiPanelDef(
+      final panel = EatScriptGuiPanelDef(
         title: 'SCALE TEST',
         children: [
-          LuaGuiNode(
-            type: LuaGuiNodeType.knob,
+          EatScriptGuiNode(
+            type: EatScriptGuiNodeType.knob,
             param: 'TicksKnob',
             label: 'TICKS',
             knobStyle: KnobStyle.hardwareKnob,
             hardwareKnobStyle: EatHardwareKnobStyle.vintageBakelite(),
             hardwareScale: EatScaleGraduation.cleanTicks(),
           ),
-          LuaGuiNode(
-            type: LuaGuiNodeType.knob,
+          EatScriptGuiNode(
+            type: EatScriptGuiNodeType.knob,
             param: 'NoneKnob',
             label: 'UNMARKED',
             knobStyle: KnobStyle.hardwareKnob,
             hardwareKnobStyle: EatHardwareKnobStyle.vintageBakelite(),
             hardwareScale: const EatScaleGraduation(tickDivisions: 0, labels: []),
           ),
-          LuaGuiNode(
-            type: LuaGuiNodeType.knob,
+          EatScriptGuiNode(
+            type: EatScriptGuiNodeType.knob,
             param: 'BipolarKnob',
             label: 'BIPOLAR',
             knobStyle: KnobStyle.hardwareKnob,
             hardwareKnobStyle: EatHardwareKnobStyle.vintageBakelite(),
             hardwareScale: EatScaleGraduation.bipolar(),
           ),
-          LuaGuiNode(
-            type: LuaGuiNodeType.knob,
+          EatScriptGuiNode(
+            type: EatScriptGuiNodeType.knob,
             param: 'CustomKnob',
             label: 'CUSTOM',
             knobStyle: KnobStyle.hardwareKnob,
@@ -485,7 +485,7 @@ def gui():
       );
 
       // EatScript serialization check
-      final eatScript = LuaGuiSerializer.serialize(
+      final eatScript = EatGuiSerializer.serialize(
         panel: panel,
         instrumentName: 'ScaleTest',
       );
@@ -518,31 +518,13 @@ def gui():
       // 4. custom list
       expect(nodes[3].hardwareScale, isNotNull);
       expect(nodes[3].hardwareScale!.labels, ['LO', 'HI']);
-
-      // Legacy Lua serialization check
-      final luaScript = LuaGuiSerializer.serializeToLua(
-        panel: panel,
-        instrumentName: 'ScaleTest',
-      );
-      expect(luaScript, contains('scale = "clean_ticks"'));
-      expect(luaScript, contains('scale = "none"'));
-      expect(luaScript, contains('scale = "bipolar"'));
-      expect(luaScript, contains('scale = { "LO", "HI" }'));
-
-      // Lua round-trip parse check
-      final parsedLua = LuaGuiParser.parseFromCode(luaScript);
-      expect(parsedLua, isNotNull);
-      expect(parsedLua!.children[0].hardwareScale!.tickDivisions, 10);
-      expect(parsedLua.children[1].hardwareScale!.tickDivisions, 0);
-      expect(parsedLua.children[2].hardwareScale!.hasCenterDetent, isTrue);
-      expect(parsedLua.children[3].hardwareScale!.labels, ['LO', 'HI']);
     });
 
     test('Eats-303 hardware GUI compiles and contains authentic TB-303 controls', () {
-      final preset = LuaScriptLibrary.getPresetById('eats_303');
+      final preset = EatScriptLibrary.getPresetById('eats_303');
       expect(preset, isNotNull);
 
-      final panel = LuaGuiParser.parseFromCode(preset!.code);
+      final panel = EatGuiParser.parseFromCode(preset!.code);
       expect(panel, isNotNull);
       expect(panel!.title, 'EATS-303 ACID BASSLINE');
       expect(panel.backgroundStyle, PanelBackgroundStyle.minimalWhite);
@@ -569,7 +551,7 @@ def gui():
 
       final switchNode = bottomRow.children[2];
       expect(switchNode.param, 'SubWaveform');
-      expect(switchNode.type, LuaGuiNodeType.switchToggle);
+      expect(switchNode.type, EatScriptGuiNodeType.switchToggle);
 
       final subVolNode = bottomRow.children[3];
       expect(subVolNode.param, 'SubVolume');

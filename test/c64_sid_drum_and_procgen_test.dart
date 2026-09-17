@@ -163,17 +163,17 @@ void main() {
       // 2. Bass Track
       final bassTrack = tracks.firstWhere((t) => t.id == 'proc_track_bass');
       expect(bassTrack.name, equals('C64 SID PWM Bass'));
-      expect(bassTrack.luaScriptCode, contains('Commodore 64'));
+      expect(bassTrack.eatScriptCode, contains('Commodore 64'));
 
       // 3. Chord Track
       final chordTrack = tracks.firstWhere((t) => t.id == 'proc_track_chords');
       expect(chordTrack.name, equals('C64 SID 50Hz Arp'));
-      expect(chordTrack.luaScriptCode, contains('Commodore 64'));
+      expect(chordTrack.eatScriptCode, contains('Commodore 64'));
 
       // 4. Lead Track
       final leadTrack = tracks.firstWhere((t) => t.id == 'proc_track_lead');
       expect(leadTrack.name, equals('C64 SID Hero Lead'));
-      expect(leadTrack.luaScriptCode, contains('Commodore 64'));
+      expect(leadTrack.eatScriptCode, contains('Commodore 64'));
 
       // All tracks have notes
       for (final t in tracks) {

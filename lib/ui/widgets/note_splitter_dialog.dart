@@ -33,26 +33,26 @@ class NoteSplitterDialog extends StatefulWidget {
 }
 
 class _NoteSplitterDialogState extends State<NoteSplitterDialog> {
-  late List<LuaScriptDef> _presets;
-  late LuaScriptDef _selectedPreset;
+  late List<EatScriptDef> _presets;
+  late EatScriptDef _selectedPreset;
   final Map<String, double> _paramValues = {};
-  List<LuaParamDef> _paramDefs = [];
+  List<EatParamDef> _paramDefs = [];
   bool _removeOriginalClip = false;
 
   @override
   void initState() {
     super.initState();
-    _presets = LuaScriptLibrary.getPresetsByCategory(LuaScriptCategory.noteSplitter);
+    _presets = EatScriptLibrary.getPresetsByCategory(EatScriptCategory.noteSplitter);
     if (_presets.isEmpty) {
-      _presets = LuaScriptLibrary.presets.where((p) => p.isNoteSplitter).toList();
+      _presets = EatScriptLibrary.presets.where((p) => p.isNoteSplitter).toList();
     }
-    _selectedPreset = _presets.isNotEmpty ? _presets.first : LuaScriptLibrary.scripts.first;
+    _selectedPreset = _presets.isNotEmpty ? _presets.first : EatScriptLibrary.scripts.first;
     _loadPresetParams(_selectedPreset);
   }
 
-  void _loadPresetParams(LuaScriptDef preset) {
+  void _loadPresetParams(EatScriptDef preset) {
     _paramValues.clear();
-    final compilation = EatScriptEngine.compile(preset.code).toLuaCompilationResult();
+    final compilation = EatScriptEngine.compile(preset.code);
     _paramDefs = compilation.params;
     for (final def in _paramDefs) {
       _paramValues[def.name] = def.defaultValue;
@@ -166,13 +166,13 @@ class _NoteSplitterDialogState extends State<NoteSplitterDialog> {
                   border: Border.all(color: Colors.white12),
                 ),
                 child: DropdownButtonHideUnderline(
-                  child: DropdownButton<LuaScriptDef>(
+                  child: DropdownButton<EatScriptDef>(
                     value: _selectedPreset,
                     isExpanded: true,
                     dropdownColor: const Color(0xFF1F222B),
                     icon: Icon(Icons.arrow_drop_down, color: EatsTheme.primaryCyan),
                     items: _presets.map((preset) {
-                      return DropdownMenuItem<LuaScriptDef>(
+                      return DropdownMenuItem<EatScriptDef>(
                         value: preset,
                         child: Row(
                           children: [

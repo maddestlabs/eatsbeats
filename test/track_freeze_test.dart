@@ -14,8 +14,8 @@ void main() {
         id: 'trk_test_1',
         name: 'Acid Lead',
         color: const Color(0xFF00E5FF),
-        type: TrackType.luaScript,
-        luaScriptCode: 'function process(sampleRate) return 0.5 end',
+        type: TrackType.eatScript,
+        eatScriptCode: 'function process(sampleRate) return 0.5 end',
         notes: [
           Note(id: 'n1', pitch: 60, startStep: 0, durationSteps: 2),
         ],
@@ -27,9 +27,9 @@ void main() {
       expect(hash1, equals(hash2));
       expect(hash1.length, equals(16));
 
-      // Change Lua Code
+      // Change Eatscript Code
       final trackModifiedCode = track.copyWith(
-        luaScriptCode: 'function process(sampleRate) return 0.8 end',
+        eatScriptCode: 'function process(sampleRate) return 0.8 end',
       );
       final hashModifiedCode = TrackFreezeEngine.computeTrackHash(trackModifiedCode, bpm: 120.0, timelineBars: 4);
       expect(hashModifiedCode, isNot(equals(hash1)));

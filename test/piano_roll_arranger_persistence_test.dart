@@ -10,7 +10,7 @@ void main() {
   group('Piano Roll and Arranger Tab Synchronization Tests', () {
     test('Notes edited in Piano Roll persist when switching tabs and track selection', () {
       final state = DawState();
-      state.loadFromEatsLua(DefaultSongEat.midnightBitesEat);
+      state.loadFromEats(DefaultSongEat.midnightBitesEat);
 
       final track = state.activeTrack;
       expect(track.clips.isNotEmpty, isTrue);

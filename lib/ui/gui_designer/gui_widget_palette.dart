@@ -8,7 +8,7 @@ class GuiPaletteItem {
   final String title;
   final String category;
   final IconData icon;
-  final LuaGuiNode Function({String? defaultParam}) createNode;
+  final EatScriptGuiNode Function({String? defaultParam}) createNode;
 
   const GuiPaletteItem({
     required this.id,
@@ -27,8 +27,8 @@ class GuiWidgetPalette {
       title: 'Cream Fluted (Pitch)',
       category: 'HARDWARE CONSOLE',
       icon: Icons.album,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.knob,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.knob,
         param: defaultParam ?? 'Pitch',
         label: (defaultParam ?? 'pitch').toLowerCase(),
         size: 64,
@@ -41,8 +41,8 @@ class GuiWidgetPalette {
       title: 'Bakelite Skirt (Body)',
       category: 'HARDWARE CONSOLE',
       icon: Icons.radio_button_checked,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.knob,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.knob,
         param: defaultParam ?? 'Body',
         label: (defaultParam ?? 'body').toLowerCase(),
         size: 64,
@@ -55,8 +55,8 @@ class GuiWidgetPalette {
       title: 'Anodized Knurled (Head)',
       category: 'HARDWARE CONSOLE',
       icon: Icons.change_circle_outlined,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.knob,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.knob,
         param: defaultParam ?? 'Head',
         label: (defaultParam ?? 'head').toLowerCase(),
         size: 64,
@@ -69,8 +69,8 @@ class GuiWidgetPalette {
       title: 'Two-Tone Stepped (Punch)',
       category: 'HARDWARE CONSOLE',
       icon: Icons.motion_photos_on_outlined,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.knob,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.knob,
         param: defaultParam ?? 'Punch',
         label: (defaultParam ?? 'punch').toLowerCase(),
         size: 64,
@@ -83,8 +83,8 @@ class GuiWidgetPalette {
       title: 'TB-303 Potentiometer (Cutoff)',
       category: 'HARDWARE CONSOLE',
       icon: Icons.grain,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.knob,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.knob,
         param: defaultParam ?? 'Cutoff',
         label: (defaultParam ?? 'cutoff').toLowerCase(),
         size: 64,
@@ -97,8 +97,8 @@ class GuiWidgetPalette {
       title: 'TB-303 Acid Halo (Resonance)',
       category: 'HARDWARE CONSOLE',
       icon: Icons.highlight,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.knob,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.knob,
         param: defaultParam ?? 'Resonance',
         label: (defaultParam ?? 'resonance').toLowerCase(),
         size: 64,
@@ -111,8 +111,8 @@ class GuiWidgetPalette {
       title: 'TB-303 Selector (Mode / Wave)',
       category: 'HARDWARE CONSOLE',
       icon: Icons.adjust,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.knob,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.knob,
         param: defaultParam ?? 'Mode',
         label: (defaultParam ?? 'mode').toLowerCase(),
         size: 68,
@@ -127,8 +127,8 @@ class GuiWidgetPalette {
       title: 'Rotary Knob',
       category: 'CONTROLS',
       icon: Icons.radio_button_checked,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.knob,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.knob,
         param: defaultParam ?? 'Param',
         label: (defaultParam ?? 'KNOB').toUpperCase(),
         size: 52,
@@ -139,8 +139,8 @@ class GuiWidgetPalette {
       title: 'Horizontal Slider',
       category: 'CONTROLS',
       icon: Icons.linear_scale,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.slider,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.slider,
         param: defaultParam ?? 'Param',
         label: (defaultParam ?? 'SLIDER').toUpperCase(),
         orientation: 'horizontal',
@@ -153,8 +153,8 @@ class GuiWidgetPalette {
       title: 'Vertical Fader',
       category: 'CONTROLS',
       icon: Icons.tune,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.slider,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.slider,
         param: defaultParam ?? 'Param',
         label: (defaultParam ?? 'FADER').toUpperCase(),
         orientation: 'vertical',
@@ -167,8 +167,8 @@ class GuiWidgetPalette {
       title: 'Toggle Switch',
       category: 'CONTROLS',
       icon: Icons.toggle_on_outlined,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.switchToggle,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.switchToggle,
         param: defaultParam ?? 'Switch',
         label: (defaultParam ?? 'SWITCH').toUpperCase(),
       ),
@@ -178,8 +178,8 @@ class GuiWidgetPalette {
       title: 'Push Button',
       category: 'CONTROLS',
       icon: Icons.smart_button,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.button,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.button,
         action: 'trigger',
         label: 'TRIGGER',
         width: 90,
@@ -191,8 +191,8 @@ class GuiWidgetPalette {
       title: 'Choice Listbox',
       category: 'CONTROLS',
       icon: Icons.list_alt,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.listBox,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.listBox,
         param: defaultParam ?? 'Mode',
         label: (defaultParam ?? 'CHOICE').toUpperCase(),
         width: 140,
@@ -205,8 +205,8 @@ class GuiWidgetPalette {
       title: 'Segmented Pill Switch',
       category: 'CONTROLS',
       icon: Icons.view_week_outlined,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.segmentedPill,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.segmentedPill,
         param: defaultParam ?? 'Mode',
         label: (defaultParam ?? 'MODE').toUpperCase(),
         options: const ['LP', 'BP', 'HP'],
@@ -217,8 +217,8 @@ class GuiWidgetPalette {
       title: '4x4 Drum Pads',
       category: 'CONTROLS',
       icon: Icons.grid_4x4,
-      createNode: ({String? defaultParam}) => const LuaGuiNode(
-        type: LuaGuiNodeType.drumPads,
+      createNode: ({String? defaultParam}) => const EatScriptGuiNode(
+        type: EatScriptGuiNodeType.drumPads,
       ),
     ),
 
@@ -228,8 +228,8 @@ class GuiWidgetPalette {
       title: 'Nixie Tube Display',
       category: 'DISPLAYS',
       icon: Icons.pin,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.nixie,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.nixie,
         param: defaultParam ?? 'Param',
         label: (defaultParam ?? 'NIXIE').toUpperCase(),
         unit: 'Hz',
@@ -241,8 +241,8 @@ class GuiWidgetPalette {
       title: 'LCD Value Readout',
       category: 'DISPLAYS',
       icon: Icons.monitor,
-      createNode: ({String? defaultParam}) => LuaGuiNode(
-        type: LuaGuiNodeType.lcd,
+      createNode: ({String? defaultParam}) => EatScriptGuiNode(
+        type: EatScriptGuiNodeType.lcd,
         param: defaultParam ?? 'Param',
         label: (defaultParam ?? 'LCD READOUT').toUpperCase(),
       ),
@@ -252,8 +252,8 @@ class GuiWidgetPalette {
       title: 'Stereo VU Meter',
       category: 'DISPLAYS',
       icon: Icons.graphic_eq,
-      createNode: ({String? defaultParam}) => const LuaGuiNode(
-        type: LuaGuiNodeType.meter,
+      createNode: ({String? defaultParam}) => const EatScriptGuiNode(
+        type: EatScriptGuiNodeType.meter,
         size: 110,
       ),
     ),
@@ -262,8 +262,8 @@ class GuiWidgetPalette {
       title: 'Text Label',
       category: 'DISPLAYS',
       icon: Icons.text_fields,
-      createNode: ({String? defaultParam}) => const LuaGuiNode(
-        type: LuaGuiNodeType.label,
+      createNode: ({String? defaultParam}) => const EatScriptGuiNode(
+        type: EatScriptGuiNodeType.label,
         text: 'SECTION',
       ),
     ),
@@ -274,8 +274,8 @@ class GuiWidgetPalette {
       title: 'Audio Oscilloscope',
       category: 'VISUALIZERS',
       icon: Icons.graphic_eq,
-      createNode: ({String? defaultParam}) => const LuaGuiNode(
-        type: LuaGuiNodeType.oscilloscope,
+      createNode: ({String? defaultParam}) => const EatScriptGuiNode(
+        type: EatScriptGuiNodeType.oscilloscope,
         width: 320,
         height: 140,
       ),
@@ -285,8 +285,8 @@ class GuiWidgetPalette {
       title: 'FFT Spectrum Analyzer',
       category: 'VISUALIZERS',
       icon: Icons.equalizer,
-      createNode: ({String? defaultParam}) => const LuaGuiNode(
-        type: LuaGuiNodeType.spectrum,
+      createNode: ({String? defaultParam}) => const EatScriptGuiNode(
+        type: EatScriptGuiNodeType.spectrum,
         width: 320,
         height: 140,
       ),
@@ -296,8 +296,8 @@ class GuiWidgetPalette {
       title: '3D Space Visualizer',
       category: 'VISUALIZERS',
       icon: Icons.view_in_ar,
-      createNode: ({String? defaultParam}) => const LuaGuiNode(
-        type: LuaGuiNodeType.spaceVisualizer,
+      createNode: ({String? defaultParam}) => const EatScriptGuiNode(
+        type: EatScriptGuiNodeType.spaceVisualizer,
         height: 140,
       ),
     ),
@@ -306,8 +306,8 @@ class GuiWidgetPalette {
       title: 'WaveShaper Transfer Canvas',
       category: 'VISUALIZERS',
       icon: Icons.gesture,
-      createNode: ({String? defaultParam}) => const LuaGuiNode(
-        type: LuaGuiNodeType.waveshaperCanvas,
+      createNode: ({String? defaultParam}) => const EatScriptGuiNode(
+        type: EatScriptGuiNodeType.waveshaperCanvas,
         height: 150,
       ),
     ),
@@ -316,8 +316,8 @@ class GuiWidgetPalette {
       title: 'Programmable 2D Canvas',
       category: 'VISUALIZERS',
       icon: Icons.brush_outlined,
-      createNode: ({String? defaultParam}) => const LuaGuiNode(
-        type: LuaGuiNodeType.canvas,
+      createNode: ({String? defaultParam}) => const EatScriptGuiNode(
+        type: EatScriptGuiNodeType.canvas,
         canvasMode: 'custom',
         width: 340,
         height: 180,
@@ -328,8 +328,8 @@ class GuiWidgetPalette {
       title: 'Game D-Pad',
       category: 'VISUALIZERS',
       icon: Icons.gamepad,
-      createNode: ({String? defaultParam}) => const LuaGuiNode(
-        type: LuaGuiNodeType.dpad,
+      createNode: ({String? defaultParam}) => const EatScriptGuiNode(
+        type: EatScriptGuiNodeType.dpad,
         showDpad: true,
       ),
     ),
@@ -340,8 +340,8 @@ class GuiWidgetPalette {
       title: 'Vertical Stack / Column',
       category: 'STRUCTURE',
       icon: Icons.view_column,
-      createNode: ({String? defaultParam}) => const LuaGuiNode(
-        type: LuaGuiNodeType.column,
+      createNode: ({String? defaultParam}) => const EatScriptGuiNode(
+        type: EatScriptGuiNodeType.column,
         children: [],
       ),
     ),
@@ -350,8 +350,8 @@ class GuiWidgetPalette {
       title: 'Chassis Group Bay',
       category: 'STRUCTURE',
       icon: Icons.check_box_outline_blank,
-      createNode: ({String? defaultParam}) => const LuaGuiNode(
-        type: LuaGuiNodeType.group,
+      createNode: ({String? defaultParam}) => const EatScriptGuiNode(
+        type: EatScriptGuiNodeType.group,
         label: 'SUB-SECTION',
         children: [],
       ),
@@ -361,8 +361,8 @@ class GuiWidgetPalette {
       title: 'Vertical Divider Line',
       category: 'STRUCTURE',
       icon: Icons.more_vert,
-      createNode: ({String? defaultParam}) => const LuaGuiNode(
-        type: LuaGuiNodeType.divider,
+      createNode: ({String? defaultParam}) => const EatScriptGuiNode(
+        type: EatScriptGuiNodeType.divider,
       ),
     ),
     GuiPaletteItem(
@@ -370,8 +370,8 @@ class GuiWidgetPalette {
       title: 'Layout Spacer',
       category: 'STRUCTURE',
       icon: Icons.space_bar,
-      createNode: ({String? defaultParam}) => const LuaGuiNode(
-        type: LuaGuiNodeType.spacer,
+      createNode: ({String? defaultParam}) => const EatScriptGuiNode(
+        type: EatScriptGuiNodeType.spacer,
         size: 16,
       ),
     ),

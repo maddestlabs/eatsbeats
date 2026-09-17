@@ -10,12 +10,12 @@ import 'package:eatsbeats/audio/time_context.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late LuaEngine luaEngine;
+  late EatEngine eatEngine;
   late MidiPipelineEngine pipeline;
 
   setUp(() {
-    luaEngine = LuaEngine();
-    pipeline = MidiPipelineEngine(luaEngine: luaEngine);
+    eatEngine = EatEngine();
+    pipeline = MidiPipelineEngine(eatEngine: eatEngine);
   });
 
   group('MidiPipelineEngine Arpeggiator Patterns & Octaves', () {
@@ -129,13 +129,13 @@ void main() {
       track.name = 'Lead Synth';
       final clip = track.clips.first;
 
-      final arpPreset = LuaPresetLibrary.presets.firstWhere((p) => p.id == 'arpeggiator_midi_fx');
+      final arpPreset = EatScriptLibrary.presets.firstWhere((p) => p.id == 'arpeggiator_midi_fx');
       dawState.applyPresetToClip(track, clip, arpPreset);
 
       expect(track.type, equals(TrackType.synth)); // Preserves synth
       expect(track.midiFXRack, isNotEmpty);
       expect(track.midiFXRack.first.name, equals(arpPreset.name));
-      expect(clip.luaScriptCode, isEmpty); // Clip does not store clip-level MIDI scripts
+      expect(clip.eatScriptCode, isEmpty); // Clip does not store clip-level MIDI scripts
     });
 
     test('bakeMidiFXToClip permanently burns evaluated notes into clip and clears cache', () {
@@ -156,7 +156,7 @@ void main() {
       dawState.addMidiFXInsert(
         track,
         name: 'Arp',
-        luaScriptCode: 'arpeggiator',
+        eatScriptCode: 'arpeggiator',
         params: {'Rate': 1.0, 'Octaves': 2.0, 'Pattern': 0.0},
       );
 
@@ -177,12 +177,12 @@ void main() {
     test('Clips are created clean without inheriting synth instrument code and notes remain untouched without MIDI FX', () {
       final track = dawState.activeTrack;
       track.type = TrackType.synth;
-      track.luaScriptCode = '-- Acid Synth DSP code\nfunction Synth.render() end';
+      track.eatScriptCode = '-- Acid Synth DSP code\nfunction Synth.render() end';
       track.notes.clear();
       track.notes.add(Note(id: 'lead_1', pitch: 60, startStep: 0.0, durationSteps: 2.0));
 
       final clip = dawState.activeTrackClip;
-      expect(clip.luaScriptCode, isEmpty); // Does NOT inherit synth DSP
+      expect(clip.eatScriptCode, isEmpty); // Does NOT inherit synth DSP
 
       final evaluated = dawState.getEvaluatedClipNotes(clip, track);
       expect(evaluated.length, equals(1));
@@ -217,8 +217,8 @@ void main() {
 
     test('toggleTrackMidiFXRack master enables and bypasses all inserts', () {
       final track = dawState.activeTrack;
-      dawState.addMidiFXInsert(track, name: 'Arp', luaScriptCode: 'arpeggiator');
-      dawState.addMidiFXInsert(track, name: 'Scale Snap', luaScriptCode: 'scale_snap');
+      dawState.addMidiFXInsert(track, name: 'Arp', eatScriptCode: 'arpeggiator');
+      dawState.addMidiFXInsert(track, name: 'Scale Snap', eatScriptCode: 'scale_snap');
 
       expect(track.midiFXRack.every((f) => f.enabled), isTrue);
 
