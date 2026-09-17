@@ -17,7 +17,7 @@ def init():
         "SubWaveform": eat.param("SubWaveform", 0.0, 1.0, 0.0, step=1.0, allow_variance=False),
         "SubVolume": eat.param("SubVolume", 0.0, 1.0, 0.0, step=0.0),
         "Drive": eat.param("Drive", 0.0, 1.0, 0.25, step=0.0),
-        "Slide": eat.param("Slide", 0.0, 1.0, 0.0, step=0.0),
+        "GlideCurve": eat.param("GlideCurve", 0.0, 2.0, 0.0, step=1.0, allow_variance=False),
     }
 
 # --- Hardware GUI Layout ---
@@ -207,11 +207,15 @@ def gui():
                             "type": "divider",
                         },
                         {
-                            "type": "hslider",
-                            "param": "Slide",
-                            "label": "PORTAMENTO SLIDE",
-                            "width": 150,
-                            "style": "capsule",
+                            "type": "knob",
+                            "param": "GlideCurve",
+                            "label": "GLIDE CURVE",
+                            "size": 44,
+                            "knobStyle": "hardware",
+                            "style": "cream_fluted",
+                            "hardware": "cream_fluted",
+                            "showValue": False,
+                            "bodySize": 1.0,
                         },
                         {
                             "type": "divider",
@@ -236,5 +240,3 @@ def gui():
 # --- Synthesizer Voice DSP Process Hook ---
 def process(time, freq, note, params):
     return 0.0
-
-Eats303 = True

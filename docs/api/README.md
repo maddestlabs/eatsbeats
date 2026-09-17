@@ -2,6 +2,8 @@
 
 Welcome to the **Eatscript API & DSP Reference**. Eatscript is the embedded, pure-Dart, Pythonic audio domain-specific language (DSL) powering **Eatsbeats**.
 
+The interactive web documentation is hosted at **[https://eatsbeats.app/docs/](https://eatsbeats.app/docs/)**, styled in the default **Ate Track** hardware console theme.
+
 Eatscript runs in real time to synthesize instruments, process audio effects, generate algorithmic MIDI patterns, and dynamically declare hardware-inspired virtual instrument control panels.
 
 ---
@@ -50,8 +52,8 @@ def gui():
             "title": "ANALOG LEAD",
             "subtitle": "Virtual Analog Eatscript Synth",
             "background": "dark",
-            "accent": "#00FFE0",
-            "knobStyle": "chrome",
+            "accent": "#FF8C00",
+            "knobStyle": "chromeFluted",
             "layout": [
                 {
                     "type": "row",

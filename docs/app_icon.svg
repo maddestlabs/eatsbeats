@@ -1,0 +1,14 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Ate Track Warm Amber Background Square with rounded corners -->
+  <rect x="32" y="32" width="448" height="448" rx="80" fill="#FF8C00" />
+  
+  <!-- Weathered Dark Rack Monster Head & Open Mouth -->
+  <path d="M 100 100 L 380 100 L 380 220 L 220 220 L 220 340 L 380 340 L 380 410 L 100 410 Z" fill="#141210" />
+  
+  <!-- Amber Monster Eye -->
+  <circle cx="260" cy="160" r="32" fill="#FF8C00" />
+  
+  <!-- Dark Eating Bits -->
+  <rect x="400" y="230" width="48" height="48" rx="8" fill="#141210" />
+  <rect x="400" y="320" width="36" height="36" rx="6" fill="#141210" />
+</svg>

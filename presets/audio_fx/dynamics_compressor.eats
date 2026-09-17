@@ -48,8 +48,12 @@ def gui():
         }
     }
 
+# --- Modular Synthesis Graph Topology ---
+def graph():
+    in_sig = eat.node.input()
+    comp = eat.node.compressor(in_sig, threshold="Threshold", ratio="Ratio", attack="Attack", release="Release", makeup="Makeup", mix="Mix")
+    return comp
+
 # --- Audio FX DSP Process Hook ---
 def process(input_l, input_r, params):
     return [input_l, input_r]
-
-Compressor = True

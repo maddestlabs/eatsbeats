@@ -1,5 +1,10 @@
 # Eatsbeats
-Mobile-first and web-first digital audio workstation (DAW) built with Flutter and powered by **Eatscript**—a pure-Dart, Pythonic audio scripting engine and DSP synthesizer. Utilizes `wajuce` for native Web Audio execution and hardware-accelerated playback.
+Mobile-first and web-first, highly experimental digital audio workstation (DAW) built with Flutter and powered by **Eatscript**: a Pythonic audio scripting engine and DSP synthesizer.
+
+## Built with:
+- Google Antigravity/Gemini for fast AI based development 
+- Dart/Flutter for cross-platform GUI
+- wajuce for native Web Audio execution
 
 ---
 
@@ -12,10 +17,12 @@ Mobile-first and web-first digital audio workstation (DAW) built with Flutter an
 ## Features
 
 - **Native & Web Portability**: Built with Flutter and `wajuce` (native Web Audio backend) for Windows, macOS, Linux, Android, iOS, and Web.
+- **Bi-Directional Modular Synthesis Studio (Eurorack / VCV Rack style)**: Real-time visual cable patching synchronized 1:1 with Pythonic Eatscript (`def graph():`), compiling directly into zero-allocation native C/Dart `GraphNode` DSP audio trees.
 - **Hybrid Music Tracker / Piano Roll / Score / Code editor**: Real-time sequencing synced to live Eatscript clip automation and MIDI FX pipelines.
-- **Dynamic GUI Designer**: Create and customize instrument interfaces with knobs, sliders, XY pads, and ADSR envelopes.
+- **Dynamic GUI Designer**: Create and customize hardware instrument interfaces with knobs, sliders, nixie tubes, oscilloscopes, and ADSR envelopes.
 - **Classic Emulations & Rebirth Template**: Built-in procedural 303 acid basslines with slide/accent, 808/909 drum machines, C64 SID, Yamaha FM/OPL3, and SNES DSP chipsets.
-- **Physical Modeling & SoundFonts**: Commuted waveguide piano physical models, Karplus-Strong string synthesis, and integrated General MIDI SoundFont support.
+- **Physical Modeling & SoundFonts**: Commuted waveguide piano physical models, Karplus-Strong string synthesis, modal resonator banks, and integrated General MIDI SoundFont support.
+- **Studio Master Dynamics & Audio FX**: Native zero-latency VCA compressors, brickwall peak limiters, multimode state-variable filters, tape delays, and stereo modulated choruses.
 
 ---
 

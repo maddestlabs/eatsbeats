@@ -66,5 +66,8 @@ def gui():
             ],
         },
     }
-
-Analog909Snare = True
+# --- Modular Synthesis Graph Topology ---
+def graph():
+    snare = eat.node.tr909_snare(tune="Tune", snappy="Snappy", tone="ToneDecay")
+    out = eat.node.saturate(snare, drive=1.1)
+    return out

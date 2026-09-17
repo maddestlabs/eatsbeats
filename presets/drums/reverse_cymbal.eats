@@ -94,8 +94,12 @@ def gui():
         },
     }
 
+# --- Modular Synthesis Graph Topology ---
+def graph():
+    cymbal = eat.node.reverse_cymbal(duration="SwellDuration", curve="CrescendoCurve", shimmer="ShimmerAir", choke="ChokeSnap")
+    filtered = eat.node.svf(cymbal, cutoff="Tone", type="lowpass")
+    return filtered
+
 # --- Synthesizer Voice DSP Process Hook ---
 def process(time, freq, note, params):
     return 0.0
-
-ReverseCymbal = True

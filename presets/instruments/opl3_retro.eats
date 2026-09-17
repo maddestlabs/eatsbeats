@@ -3,8 +3,6 @@
 # @category: instrument
 # @description: YMF262 / OPL3 2-Op & 4-Op FM synthesis modelled after classic 16-bit retro DOS sound cards.
 
-opl3_retro = True
-
 def init():
     return {
         "Algorithm": eat.param("Algorithm", 0.0, 7.0, 4.0),

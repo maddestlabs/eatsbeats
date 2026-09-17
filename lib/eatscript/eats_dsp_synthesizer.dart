@@ -8,7 +8,6 @@ import '../audio/snes_dsp_engine.dart';
 import '../audio/time_context.dart';
 import '../models/automation_model.dart';
 import '../models/track_model.dart';
-import '../audio/graph/graph_node.dart';
 import '../audio/sid_dsp_engine.dart';
 import 'eats_synth_type.dart';
 import 'eats_tb303_core.dart';
@@ -892,6 +891,10 @@ class EatDspSynthesizer {
         _synthTypeCache[code] = EatSynthType.ym2612;
         return _bufferExecutorCache[code] = _synthesizeYm2612Buffer;
       }
+      if (explicitId == 'poly_synth' || explicitId == 'poly_lead' || explicitId == 'sub_bass_synth') {
+        _synthTypeCache[code] = EatSynthType.polySynth;
+        return _bufferExecutorCache[code] = _synthesizePolySynthBuffer;
+      }
       if (explicitId == 'gm_drum_kit') {
         _synthTypeCache[code] = EatSynthType.gmDrumKit;
         return _bufferExecutorCache[code] = ({
@@ -1235,6 +1238,18 @@ class EatDspSynthesizer {
         code.contains('FMChip')) {
       _synthTypeCache[code] = EatSynthType.ym2612;
       return _bufferExecutorCache[code] = _synthesizeYm2612Buffer;
+    }
+
+    // Poly Synth / Sub Bass / Poly Lead
+    if (code.contains('PolyLeadSynth') ||
+        code.contains('poly_synth') ||
+        code.contains('poly_lead') ||
+        code.contains('Poly Synth') ||
+        code.contains('Poly Lead Synth') ||
+        code.contains('sub_bass_synth') ||
+        code.contains('SubBassSynth')) {
+      _synthTypeCache[code] = EatSynthType.polySynth;
+      return _bufferExecutorCache[code] = _synthesizePolySynthBuffer;
     }
 
     // Default Fallback Synth
@@ -1690,12 +1705,208 @@ class EatDspSynthesizer {
       if (params.containsKey(a)) return params[a]!;
     }
     for (final a in aliases) {
-      final lower = a.toLowerCase();
+      final cleanA = a.toLowerCase().replaceAll('_', '');
       for (final entry in params.entries) {
-        if (entry.key.toLowerCase() == lower) return entry.value;
+        final cleanKey = entry.key.toLowerCase().replaceAll('_', '');
+        if (cleanKey == cleanA) return entry.value;
       }
     }
     return fallback;
+  }
+
+  static Float32List _synthesizePolySynthBuffer({
+    required double durationSec,
+    required double freq,
+    required int note,
+    required Map<String, double> params,
+    int? targetMidiNote,
+    bool isSlide = false,
+    bool isAccent = false,
+    String? trackId,
+    String? articulation,
+    double releaseVelocity = 0.5,
+    List<List<double>>? pitchBendPoints,
+    List<List<double>>? pressurePoints,
+    List<List<double>>? timbrePoints,
+    double velocity = 0.9,
+  }) {
+    final int numSamples = (44100 * durationSec).toInt().clamp(1, 441000);
+    final buffer = Float32List(numSamples);
+
+    if (freq <= 0) return buffer;
+
+    // 1. Resolve Waveform & Oscillator Parameters
+    final double rawWaveform = _resolveParam(params, ['waveform', 'osc_type', 'shape', 'osc', 'wave'], 0.0);
+    final int waveIdx = rawWaveform.round().clamp(0, 5);
+    final double pulseWidth = _resolveParam(params, ['pulse_width', 'pw', 'pwm'], 0.5).clamp(0.05, 0.95);
+    final double subLevel = _resolveParam(params, ['sub_level', 'sub_osc', 'sub'], 0.0).clamp(0.0, 1.0);
+    final double subOctave = _resolveParam(params, ['sub_octave', 'sub_oct'], 1.0);
+    final double subWaveform = _resolveParam(params, ['sub_waveform', 'sub_wave', 'sub_shape'], 0.0);
+    final bool subIsSquare = subWaveform >= 0.5;
+    final double detune = _resolveParam(params, ['detune', 'detune_cents', 'osc2_detune'], 0.0).clamp(0.0, 50.0);
+    final double osc2Mix = _resolveParam(params, ['osc2_mix', 'detune_mix', 'osc_mix'], 0.5).clamp(0.0, 1.0);
+
+    // 2. Resolve Envelopes (ADSR)
+    final double attack = _resolveParam(params, ['attack', 'amp_attack', 'a'], 0.005).clamp(0.0005, 5.0);
+    final double decay = _resolveParam(params, ['decay', 'amp_decay', 'd'], 0.15).clamp(0.005, 10.0);
+    final double sustain = _resolveParam(params, ['sustain', 'amp_sustain', 's'], 0.75).clamp(0.0, 1.0);
+    final double release = _resolveParam(params, ['release', 'amp_release', 'r'], 0.20).clamp(0.005, 10.0);
+
+    // 3. Resolve State-Variable Filter (SVF) Parameters
+    final double cutoff = _resolveParam(params, ['cutoff', 'filter_cutoff', 'fc'], 5000.0).clamp(20.0, 20000.0);
+    final double resonance = _resolveParam(params, ['resonance', 'reso', 'q'], 1.5).clamp(0.1, 10.0);
+    final double filterEnv = _resolveParam(params, ['filter_env', 'env_mod', 'filter_mod'], 0.0).clamp(-2.0, 2.0);
+    final double filterDecay = _resolveParam(params, ['filter_decay', 'f_decay'], 0.25).clamp(0.01, 5.0);
+    final int filterMode = _resolveParam(params, ['filter_mode', 'f_mode', 'mode'], 0.0).round().clamp(0, 2);
+
+    // 4. Resolve Saturation, Drive & Articulation
+    final double drive = _resolveParam(params, ['drive', 'distortion', 'saturation'], 0.0).clamp(0.0, 10.0);
+
+    final art = articulation?.toLowerCase();
+    final isStaccato = (art == 'muted' || art == 'palm_mute' || art == 'staccato');
+    final baseFreq = (art == 'harmonics') ? freq * 2.0 : freq;
+    final double? targetFreq = (isSlide && targetMidiNote != null && targetMidiNote > 0)
+        ? 440.0 * math.pow(2.0, (targetMidiNote - 69) / 12.0)
+        : null;
+
+    final subMult = (subOctave >= 1.5) ? 0.25 : 0.5;
+    final bool hasDetune = detune > 0.001;
+    final double detuneRatio = hasDetune ? math.pow(2.0, detune / 1200.0).toDouble() : 1.0;
+
+    double phase1 = 0.0;
+    double phase2 = 0.0;
+    double subPhase = 0.0;
+    double low = 0.0;
+    double band = 0.0;
+
+    for (int i = 0; i < numSamples; i++) {
+      final time = i / 44100.0;
+      final normTime = numSamples > 1 ? i / (numSamples - 1) : 0.0;
+
+      final bend = Note.interpolateCurve(pitchBendPoints, normTime, 0.0);
+      final press = Note.interpolateCurve(pressurePoints, normTime, velocity);
+      final timbre = Note.interpolateCurve(timbrePoints, normTime, 0.5);
+
+      // Pitch glide interpolation
+      double curF = baseFreq;
+      if (targetFreq != null) {
+        final glideNorm = (normTime * 1.5).clamp(0.0, 1.0);
+        curF = baseFreq + (targetFreq - baseFreq) * glideNorm;
+      }
+      final curFreq = math.max(10.0, curF * math.pow(2.0, bend / 12.0));
+      final subFreq = curFreq * subMult;
+
+      // Phase accumulators
+      phase1 = (phase1 + (curFreq / 44100.0)) % 1.0;
+      subPhase = (subPhase + (subFreq / 44100.0)) % 1.0;
+
+      // Osc 1 wave calculation
+      double osc1;
+      switch (waveIdx) {
+        case 0: // Saw
+          osc1 = 2.0 * phase1 - 1.0;
+          break;
+        case 1: // Sine
+          osc1 = math.sin(2.0 * math.pi * phase1);
+          break;
+        case 2: // Square
+          osc1 = phase1 < 0.5 ? 1.0 : -1.0;
+          break;
+        case 3: // Triangle
+          osc1 = 2.0 * (2.0 * (phase1 - (phase1 + 0.5).floorToDouble())).abs() - 1.0;
+          break;
+        case 4: // Pulse
+          osc1 = phase1 < pulseWidth ? 1.0 : -1.0;
+          break;
+        case 5: // Noise
+        default:
+          osc1 = _fastRnd(i * 1103515245 + 12345);
+          break;
+      }
+
+      double osc = osc1;
+
+      // Osc 2 (Dual Osc Detune) - zero cost when detune == 0
+      if (hasDetune && waveIdx != 5) {
+        phase2 = (phase2 + ((curFreq * detuneRatio) / 44100.0)) % 1.0;
+        double osc2;
+        switch (waveIdx) {
+          case 0:
+            osc2 = 2.0 * phase2 - 1.0;
+            break;
+          case 1:
+            osc2 = math.sin(2.0 * math.pi * phase2);
+            break;
+          case 2:
+            osc2 = phase2 < 0.5 ? 1.0 : -1.0;
+            break;
+          case 3:
+            osc2 = 2.0 * (2.0 * (phase2 - (phase2 + 0.5).floorToDouble())).abs() - 1.0;
+            break;
+          case 4:
+            osc2 = phase2 < pulseWidth ? 1.0 : -1.0;
+            break;
+          default:
+            osc2 = 2.0 * phase2 - 1.0;
+            break;
+        }
+        osc = osc1 * (1.0 - osc2Mix * 0.5) + osc2 * (osc2Mix * 0.5);
+      }
+
+      // Add Sub-Oscillator (Octave -1 / -2 sine or square)
+      if (subLevel > 0.001) {
+        final subSig = subIsSquare
+            ? (subPhase < 0.5 ? 1.0 : -1.0)
+            : math.sin(2.0 * math.pi * subPhase);
+        osc += subSig * subLevel;
+      }
+
+      // Dynamic Envelopes: Amp ADSR and Filter Decay Envelope
+      double env = evaluateAdsr(time, attack, decay, sustain, release, durationSec);
+      if (isStaccato) {
+        env *= math.exp(-time / 0.08);
+      }
+      final filterEnvContour = math.exp(-time / filterDecay);
+
+      // Resonant State-Variable Lowpass / Bandpass / Highpass Filter (Chamberlin SVF)
+      final double dynCutoff = (cutoff * math.pow(2.0, filterEnv * 2.5 * filterEnvContour + (timbre - 0.5) * 1.5)).clamp(20.0, 20000.0);
+      final double f = (2.0 * math.sin(math.pi * (dynCutoff / 44100.0))).clamp(0.001, 0.85);
+      final double q = (1.0 / resonance).clamp(0.05, 10.0);
+
+      low += f * band;
+      final double high = osc - low - q * band;
+      band += f * high;
+
+      double filtered;
+      if (filterMode == 1) {
+        filtered = band;
+      } else if (filterMode == 2) {
+        filtered = high;
+      } else {
+        filtered = low;
+      }
+
+      // Soft Saturation / Overdrive
+      double out;
+      if (drive > 0.001) {
+        out = _tanh(filtered * (1.0 + drive * 2.5));
+      } else {
+        out = filtered.clamp(-1.0, 1.0);
+      }
+
+      // Apply Amplitude Envelope, Pressure, Dynamics & Accent
+      out *= env * press * (isAccent ? 1.25 : 1.0);
+
+      // Boundary fade-in/fade-out to eliminate clicks
+      if (i < 64) {
+        out *= (i / 64.0);
+      } else if (i > numSamples - 64) {
+        out *= ((numSamples - i) / 64.0);
+      }
+
+      buffer[i] = out.clamp(-1.0, 1.0);
+    }
+    return buffer;
   }
 
   static Float32List _synthesizeFallbackSynthBuffer({
@@ -2157,6 +2368,54 @@ class EatDspSynthesizer {
           duration: 0.4,
           sampleIndex: sampleIndex,
         );
+      }
+
+      case EatSynthType.polySynth: {
+        if (freq <= 0) return 0.0;
+        final double rawWaveform = _resolveParam(params, ['waveform', 'osc_type', 'shape', 'osc', 'wave'], 0.0);
+        final int waveIdx = rawWaveform.round().clamp(0, 5);
+        final double pulseWidth = _resolveParam(params, ['pulse_width', 'pw', 'pwm'], 0.5).clamp(0.05, 0.95);
+        final double subLevel = _resolveParam(params, ['sub_level', 'sub_osc', 'sub'], 0.0).clamp(0.0, 1.0);
+        final double attack = _resolveParam(params, ['attack', 'amp_attack', 'a'], 0.005).clamp(0.0005, 5.0);
+        final double decay = _resolveParam(params, ['decay', 'amp_decay', 'd'], 0.15).clamp(0.005, 10.0);
+        final double sustain = _resolveParam(params, ['sustain', 'amp_sustain', 's'], 0.75).clamp(0.0, 1.0);
+        final double release = _resolveParam(params, ['release', 'amp_release', 'r'], 0.20).clamp(0.005, 10.0);
+        final double cutoff = _resolveParam(params, ['cutoff', 'filter_cutoff', 'fc'], 5000.0).clamp(20.0, 20000.0);
+        final double drive = _resolveParam(params, ['drive', 'distortion'], 0.0).clamp(0.0, 10.0);
+
+        final phase = (time * freq) % 1.0;
+        double osc;
+        switch (waveIdx) {
+          case 0:
+            osc = 2.0 * phase - 1.0;
+            break;
+          case 1:
+            osc = math.sin(2.0 * math.pi * phase);
+            break;
+          case 2:
+            osc = phase < 0.5 ? 1.0 : -1.0;
+            break;
+          case 3:
+            osc = 2.0 * (2.0 * (phase - (phase + 0.5).floorToDouble())).abs() - 1.0;
+            break;
+          case 4:
+            osc = phase < pulseWidth ? 1.0 : -1.0;
+            break;
+          case 5:
+          default:
+            osc = _fastRnd(sampleIndex * 1103515245 + 12345);
+            break;
+        }
+
+        if (subLevel > 0.001) {
+          final subPhase = (time * freq * 0.5) % 1.0;
+          osc += math.sin(2.0 * math.pi * subPhase) * subLevel;
+        }
+
+        final env = evaluateAdsr(time, attack, decay, sustain, release, 0.4);
+        final filtered = osc * (cutoff / 5000.0).clamp(0.1, 1.2);
+        final raw = drive > 0.001 ? _tanh(filtered * (1.0 + drive * 2.0)) : filtered;
+        return (raw * env).clamp(-1.0, 1.0);
       }
 
       default: {

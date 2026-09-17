@@ -111,8 +111,13 @@ def gui():
         },
     }
 
+# --- Modular DSP Synthesis Graph ---
+def graph():
+    strum = eat.node.pluck(spread=8.0, bite="PickAttack")
+    strings = eat.node.waveguide(in_sig=strum, damping="StringDamping", feedback=0.995)
+    body = eat.node.acoustic_body(in_sig=strings, profile=0.5, gain="BodyWood")
+    return body
+
 # --- Synthesizer Voice DSP Process Hook ---
 def process(time, freq, note, params):
     return 0.0
-
-SteelAcoustic = True

@@ -94,8 +94,14 @@ def gui():
         },
     }
 
+# --- Modular Physical Modeling Graph Topology ---
+def graph():
+    mallet = eat.node.hammer(hardness="MalletSoftness", click=0.8)
+    pan_resonator = eat.node.modal_bank(mallet, structure="steelpan")
+    body = eat.node.acoustic_body(pan_resonator, profile=0.3, gain="BowlSympathy")
+    presence = eat.node.svf(body, cutoff=6000.0, gain="AirPresence", type="highshelf")
+    return presence
+
 # --- Synthesizer Voice DSP Process Hook ---
 def process(time, freq, note, params):
     return 0.0
-
-SteelDrums = True

@@ -93,6 +93,3 @@ def gui():
             ]
         }
     }
-
-KickChannelStrip = True
-

@@ -45,8 +45,13 @@ def gui():
         },
     }
 
+# --- Modular DSP Audio FX Graph ---
+def graph():
+    in_sig = eat.node.input()
+    echo = eat.node.delay(in_sig=in_sig, time="TimeMs", feedback="Feedback")
+    fx = eat.node.mix(in_sig, echo)
+    return fx
+
 # --- Audio FX DSP Process Hook ---
 def process(input_l, input_r, params):
     return [input_l, input_r]
-
-StereoDelay = True

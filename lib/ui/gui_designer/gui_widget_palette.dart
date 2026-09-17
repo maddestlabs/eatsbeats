@@ -200,6 +200,28 @@ class GuiWidgetPalette {
       ),
     ),
 
+    GuiPaletteItem(
+      id: 'segmented_pill',
+      title: 'Segmented Pill Switch',
+      category: 'CONTROLS',
+      icon: Icons.view_week_outlined,
+      createNode: ({String? defaultParam}) => LuaGuiNode(
+        type: LuaGuiNodeType.segmentedPill,
+        param: defaultParam ?? 'Mode',
+        label: (defaultParam ?? 'MODE').toUpperCase(),
+        options: const ['LP', 'BP', 'HP'],
+      ),
+    ),
+    GuiPaletteItem(
+      id: 'drumpads',
+      title: '4x4 Drum Pads',
+      category: 'CONTROLS',
+      icon: Icons.grid_4x4,
+      createNode: ({String? defaultParam}) => const LuaGuiNode(
+        type: LuaGuiNodeType.drumPads,
+      ),
+    ),
+
     // 2. Displays
     GuiPaletteItem(
       id: 'nixie',
@@ -223,6 +245,26 @@ class GuiWidgetPalette {
         type: LuaGuiNodeType.lcd,
         param: defaultParam ?? 'Param',
         label: (defaultParam ?? 'LCD READOUT').toUpperCase(),
+      ),
+    ),
+    GuiPaletteItem(
+      id: 'meter',
+      title: 'Stereo VU Meter',
+      category: 'DISPLAYS',
+      icon: Icons.graphic_eq,
+      createNode: ({String? defaultParam}) => const LuaGuiNode(
+        type: LuaGuiNodeType.meter,
+        size: 110,
+      ),
+    ),
+    GuiPaletteItem(
+      id: 'label',
+      title: 'Text Label',
+      category: 'DISPLAYS',
+      icon: Icons.text_fields,
+      createNode: ({String? defaultParam}) => const LuaGuiNode(
+        type: LuaGuiNodeType.label,
+        text: 'SECTION',
       ),
     ),
 
@@ -281,6 +323,16 @@ class GuiWidgetPalette {
         height: 180,
       ),
     ),
+    GuiPaletteItem(
+      id: 'dpad',
+      title: 'Game D-Pad',
+      category: 'VISUALIZERS',
+      icon: Icons.gamepad,
+      createNode: ({String? defaultParam}) => const LuaGuiNode(
+        type: LuaGuiNodeType.dpad,
+        showDpad: true,
+      ),
+    ),
 
     // 4. Structure
     GuiPaletteItem(
@@ -294,12 +346,33 @@ class GuiWidgetPalette {
       ),
     ),
     GuiPaletteItem(
+      id: 'group',
+      title: 'Chassis Group Bay',
+      category: 'STRUCTURE',
+      icon: Icons.check_box_outline_blank,
+      createNode: ({String? defaultParam}) => const LuaGuiNode(
+        type: LuaGuiNodeType.group,
+        label: 'SUB-SECTION',
+        children: [],
+      ),
+    ),
+    GuiPaletteItem(
       id: 'divider',
       title: 'Vertical Divider Line',
       category: 'STRUCTURE',
       icon: Icons.more_vert,
       createNode: ({String? defaultParam}) => const LuaGuiNode(
         type: LuaGuiNodeType.divider,
+      ),
+    ),
+    GuiPaletteItem(
+      id: 'spacer',
+      title: 'Layout Spacer',
+      category: 'STRUCTURE',
+      icon: Icons.space_bar,
+      createNode: ({String? defaultParam}) => const LuaGuiNode(
+        type: LuaGuiNodeType.spacer,
+        size: 16,
       ),
     ),
   ];
@@ -312,7 +385,7 @@ class GuiWidgetPaletteDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final categories = ['CONTROLS', 'DISPLAYS', 'VISUALIZERS', 'STRUCTURE'];
+    final categories = ['HARDWARE CONSOLE', 'CONTROLS', 'DISPLAYS', 'VISUALIZERS', 'STRUCTURE'];
 
     return Container(
       width: 220,

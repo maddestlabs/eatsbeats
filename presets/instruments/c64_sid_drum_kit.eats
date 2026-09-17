@@ -88,5 +88,3 @@ def gui():
 def process(time, freq, note, params):
     # Evaluated by SIDDrumKitEngine in EatDspSynthesizer
     return 0.0
-
-SIDDrumKit = True

@@ -67,5 +67,8 @@ def gui():
             ],
         },
     }
-
-Analog909Kick = True
+# --- Modular Synthesis Graph Topology ---
+def graph():
+    kick = eat.node.tr909_kick(tune="Tune", decay="Decay", attack="Attack")
+    out = eat.node.saturate(kick, drive=1.15)
+    return out

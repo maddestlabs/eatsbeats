@@ -479,5 +479,71 @@ return Acid303
       expect(find.text('OSCILLOSCOPE • LEAD SYNTH'), findsOneWidget);
       expect(find.text('SPECTRUM FFT • LEAD SYNTH'), findsOneWidget);
     });
+
+    test('EatScriptGuiSerializer roundtrips meter, drumPads, dpad, group, segmentedPill, label, and spacer', () {
+      const panel = LuaGuiPanelDef(
+        title: 'EXTENDED WIDGET RACK',
+        children: [
+          LuaGuiNode(
+            type: LuaGuiNodeType.row,
+            children: [
+              LuaGuiNode(type: LuaGuiNodeType.meter, size: 120),
+              LuaGuiNode(type: LuaGuiNodeType.drumPads),
+              LuaGuiNode(type: LuaGuiNodeType.dpad),
+              LuaGuiNode(type: LuaGuiNodeType.spacer, size: 24),
+            ],
+          ),
+          LuaGuiNode(
+            type: LuaGuiNodeType.group,
+            label: 'CONTROL CLUSTER',
+            children: [
+              LuaGuiNode(type: LuaGuiNodeType.label, text: 'MODE SECTION'),
+              LuaGuiNode(
+                type: LuaGuiNodeType.segmentedPill,
+                param: 'FilterMode',
+                label: 'MODE',
+                options: ['LP', 'BP', 'HP', 'NOTCH'],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final serialized = LuaGuiSerializer.serialize(panel: panel, instrumentName: 'ExtendedRack');
+      expect(serialized, contains('"type": "meter"'));
+      expect(serialized, contains('"type": "drumpads"'));
+      expect(serialized, contains('"type": "dpad"'));
+      expect(serialized, contains('"type": "spacer"'));
+      expect(serialized, contains('"type": "group"'));
+      expect(serialized, contains('"type": "label"'));
+      expect(serialized, contains('"type": "segmented_pill"'));
+      expect(serialized, contains('"FilterMode"'));
+
+      final parsed = LuaGuiParser.parseFromCode(serialized);
+      expect(parsed, isNotNull);
+      expect(parsed!.children.length, equals(2));
+      expect(parsed.children[0].type, equals(LuaGuiNodeType.row));
+      expect(parsed.children[0].children[0].type, equals(LuaGuiNodeType.meter));
+      expect(parsed.children[0].children[1].type, equals(LuaGuiNodeType.drumPads));
+      expect(parsed.children[0].children[2].type, equals(LuaGuiNodeType.dpad));
+      expect(parsed.children[0].children[3].type, equals(LuaGuiNodeType.spacer));
+      expect(parsed.children[1].type, equals(LuaGuiNodeType.group));
+      expect(parsed.children[1].children[0].type, equals(LuaGuiNodeType.label));
+      expect(parsed.children[1].children[1].type, equals(LuaGuiNodeType.segmentedPill));
+      expect(parsed.children[1].children[1].options, equals(['LP', 'BP', 'HP', 'NOTCH']));
+    });
+
+    test('GuiWidgetPaletteDrawer categories cover all GuiWidgetPalette.items without silent omissions', () {
+      const expectedCategories = ['HARDWARE CONSOLE', 'CONTROLS', 'DISPLAYS', 'VISUALIZERS', 'STRUCTURE'];
+      for (final item in GuiWidgetPalette.items) {
+        expect(
+          expectedCategories.contains(item.category),
+          isTrue,
+          reason: 'Item ${item.id} (${item.title}) has category "${item.category}" which is missing from drawer categories!',
+        );
+      }
+      // Ensure at least 15 items in palette
+      expect(GuiWidgetPalette.items.length, greaterThanOrEqualTo(15));
+    });
   });
 }

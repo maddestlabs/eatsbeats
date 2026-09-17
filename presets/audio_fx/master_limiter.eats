@@ -54,8 +54,12 @@ def gui():
         },
     }
 
+# --- Modular Synthesis Graph Topology ---
+def graph():
+    in_sig = eat.node.input()
+    lim = eat.node.limiter(in_sig, ceiling="Ceiling", release="Release")
+    return lim
+
 # --- Audio FX DSP Process Hook ---
 def process(input_l, input_r, params):
     return [input_l, input_r]
-
-Limiter = True

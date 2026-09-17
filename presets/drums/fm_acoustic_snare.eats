@@ -89,5 +89,3 @@ def gui():
             ],
         },
     }
-
-FmAcousticSnare = True

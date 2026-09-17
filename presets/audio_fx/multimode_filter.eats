@@ -39,6 +39,13 @@ def gui():
         }
     }
 
+# --- Modular Insert Audio FX Graph Topology ---
+def graph():
+    audio_in = eat.node.input()
+    driven = eat.node.saturate(audio_in, drive="Drive")
+    filtered = eat.node.svf(driven, cutoff="Cutoff", reso="Resonance")
+    return filtered
+
 # --- Audio FX DSP Process Hook ---
 def process(input_l, input_r, params):
     return [input_l, input_r]

@@ -3,8 +3,6 @@
 # @category: instrument
 # @description: Physical modeling of natural open fire, living hearths, and campfires: low-frequency turbulent deflagration combustion roar, convective thermal draft drift, supercritical wood sap pocket explosions, flying ember sizzle crackle matrix, and hollow hearth log resonance.
 
-eatsfx_fire = True
-
 def init():
     return {
         "FlameRoar": eat.param("FlameRoar", 0.0, 1.0, 0.60),

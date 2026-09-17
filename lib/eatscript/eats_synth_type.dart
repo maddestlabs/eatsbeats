@@ -11,6 +11,7 @@ enum EatSynthType {
   fmSynth,
   snesDsp,
   ym2612,
+  polySynth,
   defaultSynth,
   userScript;
 

@@ -560,7 +560,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     if (_panel.backgroundColor != null) {
       chassisBg = _panel.backgroundColor!;
     } else if (bgStyle == PanelBackgroundStyle.dark) {
-      chassisBg = EatsTheme.panelBackground;
+      chassisBg = const Color(0xFF1B1D22);
     } else if (isPcbGreen) {
       chassisBg = const Color(0xFF133B1E);
     } else if (isMinimal) {
@@ -589,7 +589,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
       chassisBg = const Color(0xFF121418);
     }
 
-    final isLight = isMinimal || isSilver || isSnes || bgStyle == PanelBackgroundStyle.blondePine || (chassisBg.computeLuminance() > 0.5);
+    final isLight = (chassisBg.computeLuminance() > 0.45) || isMinimal || isSilver || isSnes || bgStyle == PanelBackgroundStyle.blondePine;
     final effectiveTrackColor = widget.target.trackColor;
     final accent = _panel.accentColor ??
         (isMinimal
@@ -1481,7 +1481,7 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
           );
         }
 
-        var style = node.hardwareKnobStyle ?? _resolveDefaultHardwareKnobStyle(effectiveKnobStyle, node.accentColor ?? accent);
+        var style = node.hardwareKnobStyle ?? _resolveDefaultHardwareKnobStyle(effectiveKnobStyle, node.accentColor ?? accent, isLightChassis: isLight);
         Color? resolveTrack(Color? c) => LuaGuiNode.isTrackColor(c) ? (widget.target.trackColor ?? accent) : c;
         final effectiveCap = resolveTrack(node.capColor);
         final effectiveBody = resolveTrack(node.bodyColor);
@@ -1500,19 +1500,37 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
         if (node.bodySize != null) style = style.copyWith(skirtRadiusRatio: node.bodySize);
         if (node.indicatorLength != null) style = style.copyWith(indicatorLength: node.indicatorLength);
         if (node.indicatorWidth != null) style = style.copyWith(indicatorWidth: node.indicatorWidth);
-        if (node.hardwareScale != null) style = style.copyWith(scale: node.hardwareScale);
+        final hasOptions = node.options.isNotEmpty;
+        if (node.hardwareScale != null) {
+          style = style.copyWith(scale: node.hardwareScale);
+        } else if (hasOptions) {
+          final defaultTick = isLight ? const Color(0xFF1E1E24) : const Color(0xFFA0A5B0);
+          final defaultText = isLight ? const Color(0xFF1E1E24) : const Color(0xFFE2DDD5);
+          style = style.copyWith(
+            scale: EatScaleGraduation.optionsSelector(
+              labels: node.options,
+              tickColor: effectiveDial ?? defaultTick,
+              labelColor: effectiveDial ?? defaultText,
+            ),
+          );
+        }
 
         return EatHardwareKnob(
           label: node.label ?? (node.param ?? 'KNOB'),
           showLabelText: node.showLabel,
           showValueText: node.showValue,
-          value: 0.5,
+          value: hasOptions ? 0.0 : 0.5,
           min: 0.0,
-          max: 1.0,
-          defaultValue: 0.5,
+          max: hasOptions ? (node.options.length - 1).toDouble() : 1.0,
+          defaultValue: hasOptions ? 0.0 : 0.5,
+          step: hasOptions ? 1.0 : 0.0,
           size: node.size ?? 60.0,
           style: style,
-          formatValue: node.unit != null ? (v) => '${(v * 100).toStringAsFixed(0)} ${node.unit}' : null,
+          isLightChassis: isLight,
+          options: hasOptions ? node.options : null,
+          formatValue: hasOptions
+              ? (v) => node.options[v.round().clamp(0, node.options.length - 1)]
+              : (node.unit != null ? (v) => '${(v * 100).toStringAsFixed(0)} ${node.unit}' : null),
           onChanged: (_) {},
         );
 
@@ -1830,21 +1848,21 @@ class _GuiDesignerCanvasViewState extends State<GuiDesignerCanvasView> {
     }
   }
 
-  EatHardwareKnobStyle _resolveDefaultHardwareKnobStyle(KnobStyle knobStyle, Color accent) {
+  EatHardwareKnobStyle _resolveDefaultHardwareKnobStyle(KnobStyle knobStyle, Color accent, {bool isLightChassis = false}) {
     switch (knobStyle) {
       case KnobStyle.standard:
-        return EatHardwareKnobStyle.standardHardware(accentColor: accent);
+        return EatHardwareKnobStyle.standardHardware(accentColor: accent, isLightChassis: isLightChassis);
       case KnobStyle.chrome:
-        return EatHardwareKnobStyle.chromeFluted(accentColor: accent);
+        return EatHardwareKnobStyle.chromeFluted(accentColor: accent, isLightChassis: isLightChassis);
       case KnobStyle.vintage:
-        return EatHardwareKnobStyle.vintageBakelite(accentColor: accent);
+        return EatHardwareKnobStyle.vintageBakelite(accentColor: accent, isLightChassis: isLightChassis);
       case KnobStyle.snes:
-        return EatHardwareKnobStyle.snesConsole(accentColor: accent);
+        return EatHardwareKnobStyle.snesConsole(accentColor: accent, isLightChassis: isLightChassis);
       case KnobStyle.minimalWhite:
-        return EatHardwareKnobStyle.minimalWhite(accentColor: accent);
+        return EatHardwareKnobStyle.minimalWhite(accentColor: accent, isLightChassis: isLightChassis);
       case KnobStyle.hardwareKnob:
       default:
-        return EatHardwareKnobStyle.vintageBakelite(accentColor: accent);
+        return EatHardwareKnobStyle.vintageBakelite(accentColor: accent, isLightChassis: isLightChassis);
     }
   }
 }

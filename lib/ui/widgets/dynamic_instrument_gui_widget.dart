@@ -9,6 +9,7 @@ import '../../audio/soundfont_decoder.dart';
 import '../../eatscript/eats_script_engine.dart';
 import '../../eatscript/eats_param_model.dart';
 import '../../eatscript/eats_gui_model.dart';
+import '../../eatscript/eats_gui_serializer.dart';
 import '../../eatscript/eats_script_library.dart';
 import '../../models/daw_state.dart';
 import '../../models/track_model.dart';
@@ -30,6 +31,7 @@ import 'skeuomorphic_hardware_slider.dart';
 import 'skeuomorphic_hardware_switch.dart';
 import '../hardware/eat_hardware_knob.dart';
 import '../hardware/eat_hardware_knob_model.dart';
+import '../hardware/eat_hardware_scale.dart';
 import '../../models/script_preset_model.dart';
 import 'preset_browser_dialog.dart';
 import 'script_search_dialog.dart';
@@ -79,21 +81,21 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     }
   }
 
-  EatHardwareKnobStyle _resolveDefaultHardwareKnobStyle(KnobStyle knobStyle, Color accent) {
+  EatHardwareKnobStyle _resolveDefaultHardwareKnobStyle(KnobStyle knobStyle, Color accent, {bool isLightChassis = false}) {
     switch (knobStyle) {
       case KnobStyle.standard:
-        return EatHardwareKnobStyle.standardHardware(accentColor: accent);
+        return EatHardwareKnobStyle.standardHardware(accentColor: accent, isLightChassis: isLightChassis);
       case KnobStyle.chrome:
-        return EatHardwareKnobStyle.chromeFluted(accentColor: accent);
+        return EatHardwareKnobStyle.chromeFluted(accentColor: accent, isLightChassis: isLightChassis);
       case KnobStyle.vintage:
-        return EatHardwareKnobStyle.vintageBakelite(accentColor: accent);
+        return EatHardwareKnobStyle.vintageBakelite(accentColor: accent, isLightChassis: isLightChassis);
       case KnobStyle.snes:
-        return EatHardwareKnobStyle.snesConsole(accentColor: accent);
+        return EatHardwareKnobStyle.snesConsole(accentColor: accent, isLightChassis: isLightChassis);
       case KnobStyle.minimalWhite:
-        return EatHardwareKnobStyle.minimalWhite(accentColor: accent);
+        return EatHardwareKnobStyle.minimalWhite(accentColor: accent, isLightChassis: isLightChassis);
       case KnobStyle.hardwareKnob:
       default:
-        return EatHardwareKnobStyle.vintageBakelite(accentColor: accent);
+        return EatHardwareKnobStyle.vintageBakelite(accentColor: accent, isLightChassis: isLightChassis);
     }
   }
 
@@ -111,9 +113,15 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           return _buildCustomRackPanel(context, guiLayout, trackCompilation);
         }
 
-        // 2. If dynamic script parameters exist, render default dynamic parameters
+        // 2. If dynamic script parameters exist, render synthesized hardware rack faceplate
         if (trackCompilation.params.isNotEmpty) {
-          return _buildDefaultDynamicParams(context, trackCompilation);
+          final synthesizedLayout = EatGuiSerializer.generateDefaultPanel(
+            title: track.name.toUpperCase(),
+            subtitle: 'Hardware Script Interface',
+            params: trackCompilation.params,
+            accentColor: track.color,
+          );
+          return _buildCustomRackPanel(context, synthesizedLayout, trackCompilation);
         }
 
         // 3. Fallback: Render standard skeuomorphic track instrument panel
@@ -297,13 +305,47 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     LuaGuiPanelDef layout,
     LuaCompilationResult compilation,
   ) {
-    final isGrungy = layout.backgroundStyle == PanelBackgroundStyle.grunge ||
-        (layout.backgroundStyle == PanelBackgroundStyle.dark && EatsTheme.currentPreset == EatsThemePreset.ateTrack);
     final isSilver = layout.backgroundStyle == PanelBackgroundStyle.silver;
     final isSnes = layout.backgroundStyle == PanelBackgroundStyle.snes;
     final isMinimal = layout.backgroundStyle == PanelBackgroundStyle.minimalWhite;
+    final isGrungy = layout.backgroundStyle == PanelBackgroundStyle.grunge ||
+        (layout.backgroundStyle == PanelBackgroundStyle.dark && EatsTheme.currentPreset == EatsThemePreset.ateTrack);
     final textureType = DawTextureEngine.mapStyleToTexture(layout.backgroundStyle);
-    final isLightChassis = isSilver || isSnes || isMinimal || layout.backgroundStyle == PanelBackgroundStyle.blondePine;
+
+    Color basePanel;
+    if (layout.backgroundColor != null) {
+      basePanel = layout.backgroundColor!;
+    } else if (isMinimal) {
+      basePanel = const Color(0xFFECEEF2);
+    } else if (isSnes) {
+      basePanel = const Color(0xFFD8D6CD);
+    } else if (isSilver) {
+      basePanel = const Color(0xFFD4D0C5);
+    } else if (isGrungy) {
+      basePanel = const Color(0xFF26221D);
+    } else if (layout.backgroundStyle == PanelBackgroundStyle.walnut) {
+      basePanel = const Color(0xFF3B2414);
+    } else if (layout.backgroundStyle == PanelBackgroundStyle.mahogany) {
+      basePanel = const Color(0xFF451912);
+    } else if (layout.backgroundStyle == PanelBackgroundStyle.blondePine) {
+      basePanel = const Color(0xFFC7B591);
+    } else if (layout.backgroundStyle == PanelBackgroundStyle.rosewood) {
+      basePanel = const Color(0xFF211310);
+    } else if (layout.backgroundStyle == PanelBackgroundStyle.brushedSteel || layout.backgroundStyle == PanelBackgroundStyle.brushedSteelVert) {
+      basePanel = const Color(0xFF383D47);
+    } else if (layout.backgroundStyle == PanelBackgroundStyle.tolex) {
+      basePanel = const Color(0xFF161618);
+    } else if (layout.backgroundStyle == PanelBackgroundStyle.carbon) {
+      basePanel = const Color(0xFF121418);
+    } else if (layout.backgroundStyle == PanelBackgroundStyle.pcbGreen) {
+      basePanel = const Color(0xFF133B1E);
+    } else if (layout.backgroundStyle == PanelBackgroundStyle.dark) {
+      basePanel = const Color(0xFF1B1D22);
+    } else {
+      basePanel = EatsTheme.panelBackground;
+    }
+
+    final isLightChassis = (basePanel.computeLuminance() > 0.45) || isSilver || isSnes || isMinimal || layout.backgroundStyle == PanelBackgroundStyle.blondePine;
     final baseAccent = layout.accentColor ??
         (isMinimal
             ? const Color(0xFF1E1E24)
@@ -313,36 +355,6 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
     final hasUpgrade = dawState.isPresetUpgradeAvailable(track);
 
     if (hideHeader) {
-      Color basePanel;
-      if (layout.backgroundColor != null) {
-        basePanel = layout.backgroundColor!;
-      } else if (isMinimal) {
-        basePanel = const Color(0xFFECEEF2);
-      } else if (isSnes) {
-        basePanel = const Color(0xFFD8D6CD);
-      } else if (isSilver) {
-        basePanel = const Color(0xFFD4D0C5);
-      } else if (isGrungy) {
-        basePanel = const Color(0xFF26221D);
-      } else if (layout.backgroundStyle == PanelBackgroundStyle.walnut) {
-        basePanel = const Color(0xFF3B2414);
-      } else if (layout.backgroundStyle == PanelBackgroundStyle.mahogany) {
-        basePanel = const Color(0xFF451912);
-      } else if (layout.backgroundStyle == PanelBackgroundStyle.blondePine) {
-        basePanel = const Color(0xFFC7B591);
-      } else if (layout.backgroundStyle == PanelBackgroundStyle.rosewood) {
-        basePanel = const Color(0xFF211310);
-      } else if (layout.backgroundStyle == PanelBackgroundStyle.brushedSteel || layout.backgroundStyle == PanelBackgroundStyle.brushedSteelVert) {
-        basePanel = const Color(0xFF383D47);
-      } else if (layout.backgroundStyle == PanelBackgroundStyle.tolex) {
-        basePanel = const Color(0xFF161618);
-      } else if (layout.backgroundStyle == PanelBackgroundStyle.carbon) {
-        basePanel = const Color(0xFF121418);
-      } else if (layout.backgroundStyle == PanelBackgroundStyle.pcbGreen) {
-        basePanel = const Color(0xFF133B1E);
-      } else {
-        basePanel = EatsTheme.panelBackground;
-      }
 
       final hasSvg = (layout.backgroundSvg != null && layout.backgroundSvg!.isNotEmpty) ||
           (layout.backgroundSvgLayers != null && layout.backgroundSvgLayers!.isNotEmpty);
@@ -1065,6 +1077,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         final paramDef = _findParam(node.param, compilation);
         final rawVal = (track.luaParams[node.param] ?? paramDef.defaultValue).clamp(paramDef.min, paramDef.max);
         final currentVal = paramDef.isInteger ? rawVal.roundToDouble() : rawVal;
+        final effectiveOptions = node.options.isNotEmpty ? node.options : paramDef.options;
+        final hasOptions = effectiveOptions.isNotEmpty;
 
         if (node.knobStyle == KnobStyle.customVector && node.customSkin != null) {
           return SkeuomorphicHardwareKnob(
@@ -1072,8 +1086,8 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             showLabelText: node.showLabel,
             showValueText: node.showValue,
             value: currentVal,
-            min: paramDef.min,
-            max: paramDef.max,
+            min: hasOptions ? 0.0 : paramDef.min,
+            max: hasOptions ? (effectiveOptions.length - 1).toDouble() : paramDef.max,
             defaultValue: paramDef.defaultValue,
             size: node.size ?? 56.0,
             accentColor: accent,
@@ -1081,7 +1095,7 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             customSkin: node.customSkin,
             isLightChassis: isLightChassis,
             onChanged: (val) {
-              final snapped = paramDef.isInteger ? val.roundToDouble() : val;
+              final snapped = (paramDef.isInteger || hasOptions) ? val.roundToDouble() : val;
               _setParam(paramDef.name, snapped);
             },
             onChangeStart: () => dawState.beginHistoryTransaction(
@@ -1090,13 +1104,18 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
             ),
             onChangeEnd: () => dawState.commitHistoryTransaction(),
             formatValue: (v) {
+              if (hasOptions) {
+                final idx = v.round().clamp(0, effectiveOptions.length - 1);
+                final opt = effectiveOptions[idx];
+                return node.unit != null ? '$opt ${node.unit}' : opt;
+              }
               final f = paramDef.getFormattedValue(v);
               return node.unit != null ? '$f ${node.unit}' : f;
             },
           );
         }
 
-        var style = node.hardwareKnobStyle ?? _resolveDefaultHardwareKnobStyle(node.knobStyle, accent);
+        var style = node.hardwareKnobStyle ?? _resolveDefaultHardwareKnobStyle(node.knobStyle, accent, isLightChassis: isLightChassis);
         Color? resolveTrack(Color? c) => LuaGuiNode.isTrackColor(c) ? (track.color) : c;
         final effectiveCap = resolveTrack(node.capColor);
         final effectiveBody = resolveTrack(node.bodyColor);
@@ -1115,21 +1134,35 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
         if (node.bodySize != null) style = style.copyWith(skirtRadiusRatio: node.bodySize);
         if (node.indicatorLength != null) style = style.copyWith(indicatorLength: node.indicatorLength);
         if (node.indicatorWidth != null) style = style.copyWith(indicatorWidth: node.indicatorWidth);
-        if (node.hardwareScale != null) style = style.copyWith(scale: node.hardwareScale);
+        if (node.hardwareScale != null) {
+          style = style.copyWith(scale: node.hardwareScale);
+        } else if (hasOptions) {
+          final defaultTick = isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFA0A5B0);
+          final defaultText = isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFE2DDD5);
+          style = style.copyWith(
+            scale: EatScaleGraduation.optionsSelector(
+              labels: effectiveOptions,
+              tickColor: effectiveDial ?? defaultTick,
+              labelColor: effectiveDial ?? defaultText,
+            ),
+          );
+        }
 
         return EatHardwareKnob(
           label: node.label ?? paramDef.name,
           showLabelText: node.showLabel,
           showValueText: node.showValue,
           value: currentVal,
-          min: paramDef.min,
-          max: paramDef.max,
+          min: hasOptions ? 0.0 : paramDef.min,
+          max: hasOptions ? (effectiveOptions.length - 1).toDouble() : paramDef.max,
           defaultValue: paramDef.defaultValue,
-          step: paramDef.step,
+          step: hasOptions ? 1.0 : paramDef.step,
           size: node.size ?? 60.0,
           style: style,
+          isLightChassis: isLightChassis,
+          options: hasOptions ? effectiveOptions : null,
           onChanged: (val) {
-            final snapped = paramDef.isInteger ? val.roundToDouble() : val;
+            final snapped = (paramDef.isInteger || hasOptions) ? val.roundToDouble() : val;
             _setParam(paramDef.name, snapped);
           },
           onChangeStart: () => dawState.beginHistoryTransaction(
@@ -1138,6 +1171,11 @@ class DynamicInstrumentGuiWidget extends StatelessWidget {
           ),
           onChangeEnd: () => dawState.commitHistoryTransaction(),
           formatValue: (v) {
+            if (hasOptions) {
+              final idx = v.round().clamp(0, effectiveOptions.length - 1);
+              final opt = effectiveOptions[idx];
+              return node.unit != null ? '$opt ${node.unit}' : opt;
+            }
             final f = paramDef.getFormattedValue(v);
             return node.unit != null ? '$f ${node.unit}' : f;
           },

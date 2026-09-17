@@ -115,7 +115,7 @@ class _EatsColorPickerDialogState extends State<EatsColorPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final hsv = HSVColor.fromColor(_currentColor);
+    final hsl = HSLColor.fromColor(_currentColor);
 
     return Dialog(
       backgroundColor: EatsTheme.panelBackground,
@@ -126,10 +126,11 @@ class _EatsColorPickerDialogState extends State<EatsColorPickerDialog> {
       child: Container(
         width: 440,
         padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Title Header
             Row(
               children: [
@@ -239,13 +240,13 @@ class _EatsColorPickerDialogState extends State<EatsColorPickerDialog> {
 
             const Divider(color: Color(0xFF2B3245), height: 20),
 
-            // Custom Fine-Tuning (Hue / Sat / Val & Hex)
+            // Custom Fine-Tuning (Hex, Hue, Saturation, Luminance)
             Row(
               children: [
                 // Live Color Preview Chip
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 50,
+                  height: 50,
                   decoration: BoxDecoration(
                     color: _currentColor,
                     borderRadius: BorderRadius.circular(8),
@@ -294,38 +295,38 @@ class _EatsColorPickerDialogState extends State<EatsColorPickerDialog> {
                     ],
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 12),
 
-                const SizedBox(width: 12),
-
-                // Hue Quick Slider
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'HUE (${hsv.hue.round()}°)',
-                        style: TextStyle(color: EatsTheme.textMuted, fontSize: 9, fontWeight: FontWeight.bold),
+            // Sliders: HUE, SATURATION, LUMINANCE
+            Column(
+              children: [
+                // 1. Hue Slider
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 105,
+                      child: Text(
+                        'HUE (${hsl.hue.round()}°)',
+                        style: TextStyle(color: EatsTheme.textMuted, fontSize: 8.5, fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: 4),
-                      SliderTheme(
+                    ),
+                    Expanded(
+                      child: SliderTheme(
                         data: SliderThemeData(
-                          trackHeight: 6,
-                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                          trackHeight: 5,
+                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.5),
                           activeTrackColor: _currentColor,
                           inactiveTrackColor: const Color(0xFF2B3245),
                           thumbColor: Colors.white,
                         ),
                         child: Slider(
-                          value: hsv.hue,
+                          value: hsl.hue,
                           min: 0.0,
                           max: 360.0,
                           onChanged: (newHue) {
-                            final newColor = HSVColor.fromAHSV(
-                              1.0,
-                              newHue,
-                              hsv.saturation == 0 ? 0.85 : hsv.saturation,
-                              hsv.value == 0 ? 0.95 : hsv.value,
-                            ).toColor();
+                            final newColor = hsl.withHue(newHue).toColor();
                             setState(() {
                               _currentColor = newColor;
                               _hexController.text = _colorToHex(newColor);
@@ -333,8 +334,78 @@ class _EatsColorPickerDialogState extends State<EatsColorPickerDialog> {
                           },
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+                // 2. Saturation Slider
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 105,
+                      child: Text(
+                        'SATURATION (${(hsl.saturation * 100).round()}%)',
+                        style: TextStyle(color: EatsTheme.textMuted, fontSize: 8.5, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Expanded(
+                      child: SliderTheme(
+                        data: SliderThemeData(
+                          trackHeight: 5,
+                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.5),
+                          activeTrackColor: _currentColor,
+                          inactiveTrackColor: const Color(0xFF2B3245),
+                          thumbColor: Colors.white,
+                        ),
+                        child: Slider(
+                          value: hsl.saturation.clamp(0.0, 1.0),
+                          min: 0.0,
+                          max: 1.0,
+                          onChanged: (newSat) {
+                            final newColor = hsl.withSaturation(newSat).toColor();
+                            setState(() {
+                              _currentColor = newColor;
+                              _hexController.text = _colorToHex(newColor);
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                // 3. Luminance Slider
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 105,
+                      child: Text(
+                        'LUMINANCE (${(hsl.lightness * 100).round()}%)',
+                        style: TextStyle(color: EatsTheme.textMuted, fontSize: 8.5, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Expanded(
+                      child: SliderTheme(
+                        data: SliderThemeData(
+                          trackHeight: 5,
+                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.5),
+                          activeTrackColor: _currentColor,
+                          inactiveTrackColor: const Color(0xFF2B3245),
+                          thumbColor: Colors.white,
+                        ),
+                        child: Slider(
+                          value: hsl.lightness.clamp(0.05, 0.95),
+                          min: 0.05,
+                          max: 0.95,
+                          onChanged: (newLum) {
+                            final newColor = hsl.withLightness(newLum).toColor();
+                            setState(() {
+                              _currentColor = newColor;
+                              _hexController.text = _colorToHex(newColor);
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -372,7 +443,8 @@ class _EatsColorPickerDialogState extends State<EatsColorPickerDialog> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
 

@@ -131,8 +131,13 @@ def gui():
         },
     }
 
+# --- Modular DSP Synthesis Graph ---
+def graph():
+    friction = eat.node.bow(pressure="BowPressure", speed=1.0)
+    strings = eat.node.waveguide(in_sig=friction, damping=0.22, feedback=0.994)
+    body = eat.node.acoustic_body(in_sig=strings, profile=0.25, gain="BodyWood")
+    return body
+
 # --- Synthesizer Voice DSP Process Hook ---
 def process(time, freq, note, params):
     return 0.0
-
-SoloViolin = True

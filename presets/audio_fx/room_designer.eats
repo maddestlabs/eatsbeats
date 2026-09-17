@@ -156,5 +156,3 @@ def gui():
 # --- Audio FX DSP Process Hook ---
 def process(input_l, input_r, params):
     return [input_l, input_r]
-
-RoomDesigner = True

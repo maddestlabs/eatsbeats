@@ -109,5 +109,3 @@ def gui():
             ]
         }
     }
-
-UprightBass = True

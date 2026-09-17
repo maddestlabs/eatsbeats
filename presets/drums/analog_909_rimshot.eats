@@ -54,5 +54,8 @@ def gui():
             ],
         },
     }
-
-Analog909Rimshot = True
+# --- Modular Synthesis Graph Topology ---
+def graph():
+    rim = eat.node.tr909_sample(sample="rim", tune="Tune", decay="Decay")
+    out = eat.node.saturate(rim, drive=1.1)
+    return out

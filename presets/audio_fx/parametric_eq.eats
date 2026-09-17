@@ -56,6 +56,16 @@ def gui():
         }
     }
 
+# --- Modular Insert Audio FX Graph Topology ---
+def graph():
+    audio_in = eat.node.input()
+    hpf = eat.node.svf(audio_in, cutoff="HPFFreq", type="highpass")
+    low_shelf = eat.node.svf(hpf, cutoff="LowFreq", gain="LowGain", type="lowshelf")
+    mid1 = eat.node.svf(low_shelf, cutoff="Mid1Freq", reso="Mid1Q", gain="Mid1Gain", type="peaking")
+    mid2 = eat.node.svf(mid1, cutoff="Mid2Freq", reso="Mid2Q", gain="Mid2Gain", type="peaking")
+    high_shelf = eat.node.svf(mid2, cutoff="HighFreq", gain="HighGain", type="highshelf")
+    return high_shelf
+
 # --- Audio FX DSP Process Hook ---
 def process(input_l, input_r, params):
     return [input_l, input_r]

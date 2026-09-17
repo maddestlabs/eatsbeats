@@ -55,4 +55,11 @@ def gui():
         },
     }
 
-Analog909Clap = True
+# --- Modular Synthesis Graph Topology ---
+def graph():
+    noise = eat.node.noise()
+    bpf = eat.node.svf(noise, cutoff=1200.0, reso=2.0, type="bandpass")
+    burst = eat.node.multi_burst(bursts=4, spread=0.011, decay="Decay")
+    vca = eat.node.gain(bpf, gain_cv=burst)
+    out = eat.node.saturate(vca, drive=1.2)
+    return out

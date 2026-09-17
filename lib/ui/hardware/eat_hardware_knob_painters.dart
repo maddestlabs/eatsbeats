@@ -75,7 +75,7 @@ class EatStaticDialPainter extends CustomPainter {
     }
 
     // 3. Dial Scale Graduation Ticks & Detents
-    final tickColor = scale.tickColor ?? const Color(0xFF1E1E24);
+    final tickColor = scale.tickColor ?? (style.isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFA0A5B0));
     _staticStroke.color = tickColor;
 
     final divisions = math.max(1, scale.tickDivisions);
@@ -117,7 +117,7 @@ class EatStaticDialPainter extends CustomPainter {
     if (scale.labels.isNotEmpty) {
       final textCount = scale.labels.length;
       final textRingRadius = tickRingRadius + scale.majorTickLength + 3.0;
-      final textColor = scale.labelColor ?? tickColor;
+      final textColor = scale.labelColor ?? (style.isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFE2DDD5));
 
       for (int i = 0; i < textCount; i++) {
         final label = scale.labels[i];

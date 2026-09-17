@@ -36,6 +36,12 @@ def gui():
         }
     }
 
+# --- Modular Insert Audio FX Graph Topology ---
+def graph():
+    audio_in = eat.node.input()
+    chorus = eat.node.chorus(audio_in, rate="Rate", depth="Depth", feedback="Feedback", mix="Mix")
+    return chorus
+
 # --- Audio FX DSP Process Hook ---
 def process(input_l, input_r, params):
     return [input_l, input_r]

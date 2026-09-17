@@ -52,5 +52,3 @@ def gui():
             ],
         },
     }
-
-LyricVis = True

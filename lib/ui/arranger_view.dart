@@ -232,94 +232,91 @@ class _ArrangerViewState extends State<ArrangerView> {
                           left: const BorderSide(color: EatsTheme.accentGold, width: 3),
                         ),
                       ),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            const Icon(Icons.queue_music, size: 12, color: EatsTheme.accentGold),
-                            const SizedBox(width: 4),
-                            Text(
-                              'CHORDS',
-                              style: EatsTheme.getPrimaryFontStyle(
-                                color: EatsTheme.accentGold,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
+                      child: Row(
+                        children: [
+                          const Icon(Icons.queue_music, size: 12, color: EatsTheme.accentGold),
+                          const SizedBox(width: 4),
+                          Text(
+                            'CHORDS',
+                            style: EatsTheme.getPrimaryFontStyle(
+                              color: EatsTheme.accentGold,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          // Song Key Selector Button
+                          PopupMenuButton<String>(
+                            tooltip: 'Song Key: ${widget.dawState.songKey}',
+                            color: EatsTheme.controlBackground,
+                            padding: EdgeInsets.zero,
+                            popUpAnimationStyle: const AnimationStyle(
+                              duration: Duration(milliseconds: 100),
+                              curve: Curves.fastOutSlowIn,
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: EatsTheme.controlBackground,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: EatsTheme.accentGold.withOpacity(0.5), width: 0.8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    widget.dawState.songKey.replaceAll(' Major', '').replaceAll(' Minor', 'm'),
+                                    style: const TextStyle(color: EatsTheme.accentGold, fontSize: 8.5, fontWeight: FontWeight.bold),
+                                  ),
+                                  const Icon(Icons.arrow_drop_down, size: 10, color: EatsTheme.accentGold),
+                                ],
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            // Song Key Selector Button
-                            PopupMenuButton<String>(
-                              tooltip: 'Song Key: ${widget.dawState.songKey}',
-                              color: EatsTheme.controlBackground,
-                              padding: EdgeInsets.zero,
-                              popUpAnimationStyle: const AnimationStyle(
-                                duration: Duration(milliseconds: 100),
-                                curve: Curves.fastOutSlowIn,
+                            itemBuilder: (context) {
+                              const keys = [
+                                'C Major', 'G Major', 'D Major', 'A Major', 'E Major', 'B Major', 'F# Major', 'Db Major', 'Ab Major', 'Eb Major', 'Bb Major', 'F Major',
+                                'A Minor', 'E Minor', 'B Minor', 'F# Minor', 'C# Minor', 'G# Minor', 'D# Minor', 'Bb Minor', 'F Minor', 'C Minor', 'G Minor', 'D Minor',
+                              ];
+                              return keys.map((k) => PopupMenuItem(value: k, child: Text(k, style: TextStyle(fontSize: 11, color: EatsTheme.textPrimary)))).toList();
+                            },
+                            onSelected: (k) => widget.dawState.setSongKey(k),
+                          ),
+                          const Spacer(),
+                          // Chords Dialog Button
+                          InkWell(
+                            onTap: () {
+                              final curBar = (widget.dawState.arrangerStep ~/ 16).clamp(0, totalBars - 1);
+                              final existing = widget.dawState.getActiveChordAtBar(curBar);
+                              CircleOfFifthsDialog.show(context, dawState: widget.dawState, targetBar: curBar, initialChord: existing);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: EatsTheme.primaryCyan.withOpacity(0.18),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.5), width: 0.8),
                               ),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: EatsTheme.controlBackground,
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: EatsTheme.accentGold.withOpacity(0.5), width: 0.8),
-                                ),
+                              child: Tooltip(
+                                message: 'Chords',
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
+                                    Icon(Icons.album_outlined, size: 11, color: EatsTheme.primaryCyan),
+                                    const SizedBox(width: 3),
                                     Text(
-                                      widget.dawState.songKey.replaceAll(' Major', '').replaceAll(' Minor', 'm'),
-                                      style: const TextStyle(color: EatsTheme.accentGold, fontSize: 8.5, fontWeight: FontWeight.bold),
+                                      'Chords',
+                                      style: TextStyle(
+                                        color: EatsTheme.primaryCyan,
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                    const Icon(Icons.arrow_drop_down, size: 10, color: EatsTheme.accentGold),
                                   ],
                                 ),
                               ),
-                              itemBuilder: (context) {
-                                const keys = [
-                                  'C Major', 'G Major', 'D Major', 'A Major', 'E Major', 'B Major', 'F# Major', 'Db Major', 'Ab Major', 'Eb Major', 'Bb Major', 'F Major',
-                                  'A Minor', 'E Minor', 'B Minor', 'F# Minor', 'C# Minor', 'G# Minor', 'D# Minor', 'Bb Minor', 'F Minor', 'C Minor', 'G Minor', 'D Minor',
-                                ];
-                                return keys.map((k) => PopupMenuItem(value: k, child: Text(k, style: TextStyle(fontSize: 11, color: EatsTheme.textPrimary)))).toList();
-                              },
-                              onSelected: (k) => widget.dawState.setSongKey(k),
                             ),
-                            const SizedBox(width: 4),
-                            // Chords Dialog Button
-                            InkWell(
-                              onTap: () {
-                                final curBar = (widget.dawState.arrangerStep ~/ 16).clamp(0, totalBars - 1);
-                                final existing = widget.dawState.getActiveChordAtBar(curBar);
-                                CircleOfFifthsDialog.show(context, dawState: widget.dawState, targetBar: curBar, initialChord: existing);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: EatsTheme.primaryCyan.withOpacity(0.18),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: EatsTheme.primaryCyan.withOpacity(0.5), width: 0.8),
-                                ),
-                                child: Tooltip(
-                                  message: 'Chords',
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.album_outlined, size: 11, color: EatsTheme.primaryCyan),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        'Chords',
-                                        style: TextStyle(
-                                          color: EatsTheme.primaryCyan,
-                                          fontSize: 8.5,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                     Expanded(
@@ -538,14 +535,13 @@ class _ArrangerViewState extends State<ArrangerView> {
                                           }
                                           widget.dawState.activeTrackIndex = allIdx;
                                         }
+                                        setState(() {
+                                          _isPropertiesExpanded = true;
+                                          _propertiesInitialTab = InspectorTab.track;
+                                        });
                                         if (isDoubleTap) {
                                           if (track.isFolder) {
                                             widget.dawState.toggleFolderCollapsed(track);
-                                          } else {
-                                            // DOUBLE-TAP TRACK HEADER: Expose the Instrument in the Track Properties sidebar
-                                            setState(() {
-                                              _isPropertiesExpanded = true;
-                                            });
                                           }
                                         }
                                      },

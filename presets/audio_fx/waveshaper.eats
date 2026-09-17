@@ -59,8 +59,12 @@ def gui():
         },
     }
 
+# --- Modular DSP Audio FX Graph ---
+def graph():
+    in_sig = eat.node.input()
+    sat = eat.node.saturate(in_sig=in_sig, drive="Pre")
+    return sat
+
 # --- Audio FX DSP Process Hook ---
 def process(input_l, input_r, params):
     return [input_l, input_r]
-
-WaveShaper = True

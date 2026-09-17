@@ -6,7 +6,9 @@ Welcome to the **Eatsbeats** developer and musician documentation. Eatsbeats is 
 
 ## 1. Documentation Index
 
-### 🎹 [Eatscript API & Audio DSP Suite](api/README.md)
+The interactive documentation website is live at **[https://eatsbeats.app/docs/](https://eatsbeats.app/docs/)**, styled in the default **Ate Track** vintage hardware console theme.
+
+### [Eatscript API & Audio DSP Suite](api/README.md)
 The authoritative technical specification and reference manual for Eatscript, the embedded audio DSL:
 - **[01. Syntax & Lifecycle](api/01_eatscript_syntax_lifecycle.md)**: Hook conventions (`init`, `process`, `gui`), script archetypes.
 - **[02. Parameter System & Variance Engine](api/02_parameter_system.md)**: Parameter registration, units, steps, and thermal analog drift.

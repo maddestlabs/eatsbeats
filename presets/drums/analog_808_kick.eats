@@ -97,4 +97,16 @@ def gui():
         },
     }
 
-Analog808Kick = True
+# --- Modular Synthesis Graph Topology ---
+def graph():
+    pitch_sweep = eat.node.pitch_sweep(start="StartFreq", end="Tune", decay="PitchDecay")
+    sine = eat.node.osc(wave="sine", pitch_cv=pitch_sweep)
+    amp_env = eat.node.decay(decay="Decay")
+    body = eat.node.gain(sine, gain_cv=amp_env)
+    tone_filtered = eat.node.svf(body, cutoff="Tone", type="lowpass")
+    noise = eat.node.noise()
+    click_env = eat.node.decay(decay=0.004)
+    click = eat.node.gain(noise, gain_cv=click_env, gain="Click")
+    mix = eat.node.mix(tone_filtered, click)
+    out = eat.node.saturate(mix, drive="Overdrive")
+    return out

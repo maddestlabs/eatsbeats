@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'eats_ast.dart';
+import 'eatscript_graph_model.dart';
 
 class EatRuntimeException implements Exception {
   final String message;
@@ -615,6 +616,9 @@ class EatInterpreter {
     if (l is num && r is num) return l + r;
     if (l is String || r is String) return '${l.toString()}${r.toString()}';
     if (l is List && r is List) return [...l, ...r];
+    if (l is EatscriptNodeDef || r is EatscriptNodeDef) {
+      return l is EatscriptNodeDef ? l : r;
+    }
     throw EatRuntimeException('Cannot add ${l.runtimeType} and ${r.runtimeType}', line: line, column: col);
   }
 
@@ -632,6 +636,9 @@ class EatInterpreter {
         res.addAll(l);
       }
       return res;
+    }
+    if (l is EatscriptNodeDef || r is EatscriptNodeDef) {
+      return l is EatscriptNodeDef ? l : r;
     }
     throw EatRuntimeException('Cannot multiply ${l.runtimeType} by ${r.runtimeType}', line: line, column: col);
   }

@@ -115,6 +115,7 @@ class EatEngineRegistry {
 
     // --- Chiptune & Experimental Models ---
     'c64_sid': const EatGraphModelDescriptor(builder: GraphEvaluator.buildSIDSynth),
+    'c64_sid_synth': const EatGraphModelDescriptor(builder: GraphEvaluator.buildSIDSynth),
     'sid_synth': const EatGraphModelDescriptor(builder: GraphEvaluator.buildSIDSynth),
     'voltaic_plasma': const EatGraphModelDescriptor(builder: GraphEvaluator.buildVoltaicPlasmaSynth, defaultVelocity: 0.85),
     'eats_furnace': const EatGraphModelDescriptor(builder: GraphEvaluator.buildEatsFurnaceSynth, defaultVelocity: 0.85),
@@ -122,6 +123,16 @@ class EatEngineRegistry {
     'fx_wind': const EatGraphModelDescriptor(builder: GraphEvaluator.buildEatsFXWindSynth, defaultVelocity: 0.85),
     'fx_fire': const EatGraphModelDescriptor(builder: GraphEvaluator.buildEatsFXFireSynth, defaultVelocity: 0.85),
     'fx_water': const EatGraphModelDescriptor(builder: GraphEvaluator.buildEatsWaterSynth, defaultVelocity: 0.85),
+    'melodic_tom': const EatGraphModelDescriptor(builder: GraphEvaluator.buildMelodicTom),
+    'reverse_cymbal': const EatGraphModelDescriptor(builder: GraphEvaluator.buildReverseCymbal),
+    'taiko_drum': const EatGraphModelDescriptor(builder: GraphEvaluator.buildTaikoDrum),
+    'acoustic_steel_guitar': const EatGraphModelDescriptor(builder: GraphEvaluator.buildSteelAcousticGuitar),
+    'harpsichord_cembalo': const EatGraphModelDescriptor(builder: GraphEvaluator.buildHarpsichord),
+    'banjo': const EatGraphModelDescriptor(builder: GraphEvaluator.buildBluegrassBanjo),
+    'mandolin': const EatGraphModelDescriptor(builder: GraphEvaluator.buildFolkMandolin),
+    'dobro': const EatGraphModelDescriptor(builder: GraphEvaluator.buildDobroResonator),
+    'pedal_steel': const EatGraphModelDescriptor(builder: GraphEvaluator.buildPedalSteelGuitar),
+    'twelve_string': const EatGraphModelDescriptor(builder: GraphEvaluator.buildTwelveStringGuitar),
 
     // --- Ambient & Synthesizer Pads ---
     'ambient_pad': const EatGraphModelDescriptor(builder: GraphEvaluator.buildAmbientPad, defaultVelocity: 0.9),
@@ -135,10 +146,13 @@ class EatEngineRegistry {
     'tb303': EatSynthType.acid303,
     'acid303': EatSynthType.acid303,
     'eats303': EatSynthType.acid303,
+    'eats_303': EatSynthType.acid303,
     'jc303': EatSynthType.acid303,
     'snes_dsp': EatSynthType.snesDsp,
     'snes_synth': EatSynthType.snesDsp,
+    'snes_console_synth': EatSynthType.snesDsp,
     'ym2612': EatSynthType.ym2612,
+    'ym2612_synth': EatSynthType.ym2612,
     'fm_synth': EatSynthType.fmSynth,
     'procedural_kick': EatSynthType.proceduralKick,
     'procedural_snare': EatSynthType.proceduralSnare,
@@ -146,6 +160,10 @@ class EatEngineRegistry {
     'gm_drum_kit': EatSynthType.gmDrumKit,
     'snes_drum_kit': EatSynthType.snesDrumKit,
     'sid_drum_kit': EatSynthType.sidDrumKit,
+    'c64_sid_drum_kit': EatSynthType.sidDrumKit,
+    'poly_synth': EatSynthType.polySynth,
+    'poly_lead': EatSynthType.polySynth,
+    'sub_bass_synth': EatSynthType.polySynth,
   };
 
   /// Explicit mapping for audio effects.
@@ -170,6 +188,11 @@ class EatEngineRegistry {
     'multimode_filter': EatFxType.fallback,
   };
 
+  static final RegExp _idHeaderRegex = RegExp(
+    r'(?:--|#)\s*@id:\s*([\w\-]+)',
+    caseSensitive: false,
+  );
+
   /// Detects an explicitly declared engine ID from code headers or `eat.use_engine(...)`.
   static String? detectEngineId(String code) {
     final headerMatch = _engineHeaderRegex.firstMatch(code);
@@ -180,6 +203,14 @@ class EatEngineRegistry {
     final fnMatch = _useEngineRegex.firstMatch(code);
     if (fnMatch != null) {
       return normalizeId(fnMatch.group(1)!);
+    }
+
+    final idMatch = _idHeaderRegex.firstMatch(code);
+    if (idMatch != null) {
+      final normId = normalizeId(idMatch.group(1)!);
+      if (isRegistered(normId)) {
+        return normId;
+      }
     }
 
     return null;

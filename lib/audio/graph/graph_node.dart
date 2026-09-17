@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:math' as math;
 
 /// Execution context passed to graph nodes during buffer synthesis.
 class GraphContext {
@@ -12,6 +13,7 @@ class GraphContext {
   final bool isSlide;
   final int? targetMidiNote;
   final Map<String, double> params;
+  final Float32List? inputBuffer;
 
   // Articulations & MPE Dimensions
   final String? articulation;
@@ -58,6 +60,7 @@ class GraphContext {
     this.isSlide = false,
     this.targetMidiNote,
     this.params = const {},
+    this.inputBuffer,
     this.articulation,
     this.releaseVelocity = 0.5,
     this.pitchBendPoints,
@@ -199,3 +202,163 @@ class ParamRefNode extends GraphNode {
     }
   }
 }
+
+/// A node representing incoming channel or bus audio stream for audio effect chains.
+class AudioInputNode extends GraphNode {
+  const AudioInputNode();
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final inBuf = ctx.inputBuffer;
+    if (inBuf != null) {
+      final len = math.min(inBuf.length, outBuffer.length);
+      outBuffer.setRange(0, len, inBuf);
+      if (len < outBuffer.length) {
+        outBuffer.fillRange(len, outBuffer.length, 0.0);
+      }
+    } else {
+      outBuffer.fillRange(0, outBuffer.length, 0.0);
+    }
+  }
+}
+
+/// Pitch, gate, and velocity CV extractor for MIDI-to-modular signal pipelines.
+class MidiToCvNode extends GraphNode {
+  final String outputMode; // 'pitch', 'gate', 'velocity'
+
+  const MidiToCvNode({this.outputMode = 'pitch'});
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    switch (outputMode.toLowerCase()) {
+      case 'gate':
+        outBuffer.fillRange(0, outBuffer.length, 1.0);
+        break;
+      case 'velocity':
+      case 'vel':
+        final v = ctx.velocity;
+        outBuffer.fillRange(0, outBuffer.length, v);
+        break;
+      case 'pitch':
+      default:
+        final f = ctx.freq > 0 ? ctx.freq : 440.0;
+        outBuffer.fillRange(0, outBuffer.length, f);
+        break;
+    }
+  }
+}
+
+/// Bitcrusher & Sample-Rate Decimator Node.
+class BitcrusherNode extends GraphNode {
+  final GraphNode input;
+  final double bits;
+  final String? bitsParam;
+  final double downsample;
+  final String? downsampleParam;
+  final double mix;
+  final String? mixParam;
+
+  const BitcrusherNode({
+    required this.input,
+    this.bits = 8.0,
+    this.bitsParam,
+    this.downsample = 1.0,
+    this.downsampleParam,
+    this.mix = 1.0,
+    this.mixParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    input.process(ctx, outBuffer);
+
+    final double b = (bitsParam != null ? ctx.getParam(bitsParam!, bits) : bits).clamp(1.0, 16.0);
+    final double ds = (downsampleParam != null ? ctx.getParam(downsampleParam!, downsample) : downsample).clamp(1.0, 64.0);
+    final double m = (mixParam != null ? ctx.getParam(mixParam!, mix) : mix).clamp(0.0, 1.0);
+
+    final double steps = math.pow(2.0, b).toDouble();
+    final int stepInterval = ds.toInt().clamp(1, 64);
+
+    double heldSample = 0.0;
+    for (int i = 0; i < outBuffer.length; i++) {
+      final double inSample = outBuffer[i];
+      if (i % stepInterval == 0) {
+        heldSample = (inSample * steps).roundToDouble() / steps;
+      }
+      outBuffer[i] = inSample * (1.0 - m) + heldSample * m;
+    }
+  }
+}
+
+/// Stereo/Mono Chorus & Modulated Delay Node.
+class ChorusNode extends GraphNode {
+  final GraphNode input;
+  final double rateHz;
+  final String? rateParam;
+  final double depth;
+  final String? depthParam;
+  final double feedback;
+  final String? feedbackParam;
+  final double mix;
+  final String? mixParam;
+
+  const ChorusNode({
+    required this.input,
+    this.rateHz = 0.8,
+    this.rateParam,
+    this.depth = 0.65,
+    this.depthParam,
+    this.feedback = 0.2,
+    this.feedbackParam,
+    this.mix = 0.5,
+    this.mixParam,
+  });
+
+  @override
+  void process(GraphContext ctx, Float32List outBuffer) {
+    final int len = outBuffer.length;
+    final Float32List inBuf = ctx.acquireScratch(len);
+    input.process(ctx, inBuf);
+
+    final double rate = (rateParam != null ? ctx.getParam(rateParam!, rateHz) : rateHz).clamp(0.05, 10.0);
+    final double d = (depthParam != null ? ctx.getParam(depthParam!, depth) : depth).clamp(0.0, 1.0);
+    final double fb = (feedbackParam != null ? ctx.getParam(feedbackParam!, feedback) : feedback).clamp(0.0, 0.9);
+    final double m = (mixParam != null ? ctx.getParam(mixParam!, mix) : mix).clamp(0.0, 1.0);
+    final double sr = ctx.sampleRate;
+
+    final int maxDelaySamples = (0.035 * sr).toInt() + 16;
+    final delayLine = Float32List(maxDelaySamples);
+    int writeIdx = 0;
+    const double twoPi = 2.0 * math.pi;
+
+    for (int i = 0; i < len; i++) {
+      final double inSample = inBuf[i];
+      final double t = i / sr;
+      final double lfo = math.sin(twoPi * rate * t);
+      final double delaySec = 0.005 + (0.015 * (lfo * 0.5 + 0.5) * d);
+      final double delaySamples = (delaySec * sr).clamp(1.0, maxDelaySamples - 2.0);
+
+      final double readPos = writeIdx - delaySamples;
+      double rIdx = readPos >= 0 ? readPos : (readPos + maxDelaySamples);
+      while (rIdx >= maxDelaySamples) {
+        rIdx -= maxDelaySamples;
+      }
+      while (rIdx < 0) {
+        rIdx += maxDelaySamples;
+      }
+
+      final int i0 = rIdx.toInt() % maxDelaySamples;
+      final int i1 = (i0 + 1) % maxDelaySamples;
+      final double frac = rIdx - i0;
+      final double wet = delayLine[i0] + frac * (delayLine[i1] - delayLine[i0]);
+
+      delayLine[writeIdx] = inSample + wet * fb;
+      writeIdx = (writeIdx + 1) % maxDelaySamples;
+
+      outBuffer[i] = inSample * (1.0 - m) + wet * m;
+    }
+    ctx.releaseScratch();
+  }
+}
+
+

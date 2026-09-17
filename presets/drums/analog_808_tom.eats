@@ -70,4 +70,12 @@ def gui():
         },
     }
 
-Analog808Tom = True
+# --- Modular Synthesis Graph Topology ---
+def graph():
+    pitch_sweep = eat.node.pitch_sweep(start="StartFreq", end="Tune", decay="PitchDecay")
+    sine = eat.node.osc(wave="sine", pitch_cv=pitch_sweep)
+    decay_env = eat.node.decay(decay="Decay")
+    vca = eat.node.gain(sine, gain_cv=decay_env)
+    shell = eat.node.svf(vca, cutoff=120.0, reso=2.5, gain=3.0, type="peaking")
+    out = eat.node.saturate(shell, drive=1.1)
+    return out

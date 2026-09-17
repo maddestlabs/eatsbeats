@@ -103,5 +103,3 @@ def gui():
 # --- Synthesizer Voice DSP Process Hook ---
 def process(time, freq, note, params):
     return 0.0
-
-FretlessBass = True

@@ -99,8 +99,17 @@ def gui():
         },
     }
 
+# --- Modular DSP Synthesis Graph ---
+def graph():
+    vco1 = eat.node.osc(wave="saw")
+    vco2 = eat.node.osc(wave="saw", detune=4.0)
+    sub = eat.node.sub(octave=-1, level=0.6)
+    sum = eat.node.mix(in_a=vco1, in_b=vco2)
+    vcf = eat.node.moog(in_sig=sum, cutoff="Cutoff", reso="Resonance")
+    env = eat.node.adsr(attack=0.01, decay="Decay", sustain=0.4, release=0.2)
+    sat = eat.node.saturate(in_sig=vcf, drive="Drive")
+    return sat * env
+
 # --- Synthesizer Voice DSP Process Hook ---
 def process(time, freq, note, params):
     return 0.0
-
-MoogSynthBass = True

@@ -98,5 +98,3 @@ def gui():
             ],
         },
     }
-
-FmAcousticTom = True

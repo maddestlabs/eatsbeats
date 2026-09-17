@@ -43,8 +43,12 @@ def gui():
         },
     }
 
+# --- Modular DSP Audio FX Graph ---
+def graph():
+    in_sig = eat.node.input()
+    vcf = eat.node.moog(in_sig=in_sig, cutoff="Cutoff", reso="Resonance")
+    return vcf
+
 # --- Audio FX DSP Process Hook ---
 def process(input_l, input_r, params):
     return [input_l, input_r]
-
-FilterFX = True

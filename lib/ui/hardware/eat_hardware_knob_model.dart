@@ -87,6 +87,9 @@ class EatHardwareKnobStyle {
   // 7. Ambient / Trench Backlight Halo (e.g., D16 Phoscyon 2 acid green or track color)
   final Color? haloColor;
 
+  // 8. Chassis Lighting Context (affects default contrast for legends and markings)
+  final bool isLightChassis;
+
   const EatHardwareKnobStyle({
     this.capStyle = EatCapStyle.flat,
     required this.capColor,
@@ -114,6 +117,7 @@ class EatHardwareKnobStyle {
     this.trackThickness = 2.5,
     this.trackRadiusRatio = 1.15,
     this.haloColor,
+    this.isLightChassis = false,
   });
 
   /// Preset 1: Cream Vintage Fluted (Kick & Snare Pitch).
@@ -122,8 +126,11 @@ class EatHardwareKnobStyle {
   factory EatHardwareKnobStyle.creamFluted({
     Color? accentColor,
     Color? textColor,
+    bool isLightChassis = false,
   }) {
     final active = accentColor ?? const Color(0xFF222226);
+    final defaultTick = isLightChassis ? const Color(0xFF222226) : const Color(0xFFA0A5B0);
+    final defaultText = textColor ?? (isLightChassis ? const Color(0xFF1E1E22) : const Color(0xFFE2DDD5));
     return EatHardwareKnobStyle(
       capStyle: EatCapStyle.insetRim,
       capColor: const Color(0xFFE8E5DC),       // Cream off-white
@@ -140,14 +147,15 @@ class EatHardwareKnobStyle {
       indicatorWidth: 2.2,
       bezelStyle: EatBezelStyle.gutter,
       scale: EatScaleGraduation.lowMidHigh(
-        tickColor: const Color(0xFF222226),
-        labelColor: textColor ?? const Color(0xFF1E1E22),
+        tickColor: defaultTick,
+        labelColor: defaultText,
       ),
       arcMode: EatArcMode.unipolar,
       trackActiveColor: active,
       trackInactiveColor: const Color(0x28000000),
       trackThickness: 2.0,
       trackRadiusRatio: 1.20,
+      isLightChassis: isLightChassis,
     );
   }
 
@@ -157,7 +165,10 @@ class EatHardwareKnobStyle {
   factory EatHardwareKnobStyle.vintageBakelite({
     Color? accentColor,
     Color? textColor,
+    bool isLightChassis = false,
   }) {
+    final defaultTick = isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFA0A5B0);
+    final defaultText = textColor ?? (isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFE2DDD5));
     return EatHardwareKnobStyle(
       capStyle: EatCapStyle.flat,
       capColor: const Color(0xFF202024),       // Deep Bakelite black
@@ -171,10 +182,11 @@ class EatHardwareKnobStyle {
       indicatorWidth: 2.2,
       bezelStyle: EatBezelStyle.gutter,
       scale: EatScaleGraduation.zeroToTen(
-        tickColor: const Color(0xFF1E1E24),
-        labelColor: textColor ?? const Color(0xFF1E1E24),
+        tickColor: defaultTick,
+        labelColor: defaultText,
       ),
       arcMode: EatArcMode.disabled,
+      isLightChassis: isLightChassis,
     );
   }
 
@@ -185,7 +197,10 @@ class EatHardwareKnobStyle {
     bool isSustain = false,
     Color? accentColor,
     Color? textColor,
+    bool isLightChassis = false,
   }) {
+    final defaultTick = isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFA0A5B0);
+    final defaultText = textColor ?? (isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFE2DDD5));
     return EatHardwareKnobStyle(
       capStyle: EatCapStyle.brushedMetal,
       capColor: const Color(0xFFDEDCD5),       // Brushed light metal insert
@@ -203,14 +218,15 @@ class EatHardwareKnobStyle {
       bezelStyle: EatBezelStyle.gutter,
       scale: isSustain
           ? EatScaleGraduation.sustainOneToSix(
-              tickColor: const Color(0xFF1E1E24),
-              labelColor: textColor ?? const Color(0xFF1E1E24),
+              tickColor: defaultTick,
+              labelColor: defaultText,
             )
           : EatScaleGraduation.zeroToTen(
-              tickColor: const Color(0xFF1E1E24),
-              labelColor: textColor ?? const Color(0xFF1E1E24),
+              tickColor: defaultTick,
+              labelColor: defaultText,
             ),
       arcMode: EatArcMode.disabled,
+      isLightChassis: isLightChassis,
     );
   }
 
@@ -219,7 +235,10 @@ class EatHardwareKnobStyle {
   factory EatHardwareKnobStyle.twoToneStepped({
     Color? accentColor,
     Color? textColor,
+    bool isLightChassis = false,
   }) {
+    final defaultTick = isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFA0A5B0);
+    final defaultText = textColor ?? (isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFE2DDD5));
     return EatHardwareKnobStyle(
       capStyle: EatCapStyle.insetRim,
       capColor: const Color(0xFFE2DDD5),       // Cream insert
@@ -233,16 +252,18 @@ class EatHardwareKnobStyle {
       indicatorWidth: 2.2,
       bezelStyle: EatBezelStyle.gutter,
       scale: EatScaleGraduation.zeroToTen(
-        tickColor: const Color(0xFF1E1E24),
-        labelColor: textColor ?? const Color(0xFF1E1E24),
+        tickColor: defaultTick,
+        labelColor: defaultText,
       ),
       arcMode: EatArcMode.disabled,
+      isLightChassis: isLightChassis,
     );
   }
 
   /// Preset 5: Illuminated Modern Studio Encoder (Cyan/Amber LED Pip).
   factory EatHardwareKnobStyle.illuminatedEncoder({
     Color activeColor = const Color(0xFF00E5FF),
+    bool isLightChassis = false,
   }) {
     return EatHardwareKnobStyle(
       capStyle: EatCapStyle.convexDome,
@@ -250,13 +271,16 @@ class EatHardwareKnobStyle {
       bodyColor: const Color(0xFF24242A),
       skirtStyle: EatSkirtStyle.straight,
       skirtRadiusRatio: 1.05,
-      knurlStyle: EatKnurlStyle.serrated,
-      ribCount: 24,
-      ribDepth: 1.4,
+      knurlStyle: EatKnurlStyle.fineSawtooth,
+      ribCount: 40,
+      ribDepth: 1.2,
+      knurlColor: const Color(0xFF121216),
       indicatorStyle: EatIndicatorStyle.illuminatedLed,
       indicatorColor: activeColor,
-      indicatorLength: 0.78,
-      indicatorWidth: 4.0,
+      indicatorLength: 0.82,
+      indicatorWidth: 3.5,
+      bezelStyle: EatBezelStyle.gutter,
+      bezelColor: const Color(0xFF141418),
       scale: EatScaleGraduation.cleanTicks(
         divisions: 10,
         tickColor: activeColor.withOpacity(0.4),
@@ -265,6 +289,7 @@ class EatHardwareKnobStyle {
       trackActiveColor: activeColor,
       trackInactiveColor: const Color(0x33000000),
       trackThickness: 3.0,
+      isLightChassis: isLightChassis,
     );
   }
 
@@ -272,8 +297,11 @@ class EatHardwareKnobStyle {
   factory EatHardwareKnobStyle.standardHardware({
     Color? accentColor,
     Color? textColor,
+    bool isLightChassis = false,
   }) {
     final active = accentColor ?? const Color(0xFF00E5FF);
+    final defaultTick = isLightChassis ? const Color(0xFF3E434F) : const Color(0xFFA0A5B0);
+    final defaultText = textColor ?? (isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFE2DDD5));
     return EatHardwareKnobStyle(
       capStyle: EatCapStyle.flat,
       capColor: const Color(0xFF1E2026),
@@ -291,14 +319,15 @@ class EatHardwareKnobStyle {
       bezelStyle: EatBezelStyle.gutter,
       scale: EatScaleGraduation.cleanTicks(
         divisions: 10,
-        tickColor: const Color(0xFF3E434F),
-        labelColor: textColor ?? const Color(0xFF1E1E24),
+        tickColor: defaultTick,
+        labelColor: defaultText,
       ),
       arcMode: EatArcMode.unipolar,
       trackActiveColor: active,
       trackInactiveColor: const Color(0x33000000),
       trackThickness: 2.5,
       trackRadiusRatio: 1.15,
+      isLightChassis: isLightChassis,
     );
   }
 
@@ -306,7 +335,10 @@ class EatHardwareKnobStyle {
   factory EatHardwareKnobStyle.chromeFluted({
     Color? accentColor,
     Color? textColor,
+    bool isLightChassis = false,
   }) {
+    final defaultTick = isLightChassis ? const Color(0xFF2B2E36) : const Color(0xFFA0A5B0);
+    final defaultText = textColor ?? (isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFE2DDD5));
     return EatHardwareKnobStyle(
       capStyle: EatCapStyle.brushedMetal,
       capColor: const Color(0xFFDCDFE5),
@@ -324,10 +356,11 @@ class EatHardwareKnobStyle {
       bezelStyle: EatBezelStyle.gutter,
       bezelColor: const Color(0xFF80848D),
       scale: EatScaleGraduation.zeroToTen(
-        tickColor: const Color(0xFF2B2E36),
-        labelColor: textColor ?? const Color(0xFF1E1E24),
+        tickColor: defaultTick,
+        labelColor: defaultText,
       ),
       arcMode: EatArcMode.disabled,
+      isLightChassis: isLightChassis,
     );
   }
 
@@ -335,7 +368,10 @@ class EatHardwareKnobStyle {
   factory EatHardwareKnobStyle.snesConsole({
     Color? accentColor,
     Color? textColor,
+    bool isLightChassis = true,
   }) {
+    final defaultTick = isLightChassis ? const Color(0xFF6B6874) : const Color(0xFFA0A5B0);
+    final defaultText = textColor ?? (isLightChassis ? const Color(0xFF51388E) : const Color(0xFFE2DDD5));
     return EatHardwareKnobStyle(
       capStyle: EatCapStyle.convexDome,
       capColor: const Color(0xFFE4E1D8),
@@ -351,10 +387,11 @@ class EatHardwareKnobStyle {
       bezelColor: const Color(0xFFB0ACA0),
       scale: EatScaleGraduation.cleanTicks(
         divisions: 8,
-        tickColor: const Color(0xFF6B6874),
-        labelColor: textColor ?? const Color(0xFF51388E),
+        tickColor: defaultTick,
+        labelColor: defaultText,
       ),
       arcMode: EatArcMode.disabled,
+      isLightChassis: isLightChassis,
     );
   }
 
@@ -362,30 +399,32 @@ class EatHardwareKnobStyle {
   factory EatHardwareKnobStyle.minimalWhite({
     Color? accentColor,
     Color? textColor,
+    bool isLightChassis = true,
   }) {
     final active = accentColor ?? const Color(0xFF1A1A1E);
+    final defaultTick = isLightChassis ? const Color(0xFF28282E) : const Color(0xFFA0A5B0);
+    final defaultText = textColor ?? (isLightChassis ? const Color(0xFF1A1A1E) : const Color(0xFFE2DDD5));
     return EatHardwareKnobStyle(
       capStyle: EatCapStyle.flat,
       capColor: const Color(0xFFF6F6F7),
       bodyColor: const Color(0xFFE4E5E8),
       skirtStyle: EatSkirtStyle.straight,
-      skirtRadiusRatio: 1.0,
-      knurlStyle: EatKnurlStyle.none,
-      indicatorStyle: EatIndicatorStyle.line,
-      indicatorColor: const Color(0xFF1A1A1E),
-      indicatorLength: 0.88,
-      indicatorWidth: 1.6,
+      skirtRadiusRatio: 1.04,
+      knurlStyle: EatKnurlStyle.fineSawtooth,
+      ribCount: 36,
+      ribDepth: 1.0,
+      knurlColor: const Color(0xFFCDCFD6),
+      indicatorStyle: EatIndicatorStyle.pipDot,
+      indicatorColor: active,
+      indicatorLength: 0.76,
+      indicatorWidth: 3.5,
       bezelStyle: EatBezelStyle.none,
-      scale: EatScaleGraduation.cleanTicks(
-        divisions: 8,
-        tickColor: const Color(0xFFBBBDC4),
-        labelColor: textColor ?? const Color(0xFF1E1E24),
+      scale: EatScaleGraduation.zeroToTen(
+        tickColor: defaultTick,
+        labelColor: defaultText,
       ),
-      arcMode: EatArcMode.unipolar,
-      trackActiveColor: active,
-      trackInactiveColor: const Color(0x18000000),
-      trackThickness: 1.8,
-      trackRadiusRatio: 1.12,
+      arcMode: EatArcMode.disabled,
+      isLightChassis: isLightChassis,
     );
   }
 
@@ -395,7 +434,10 @@ class EatHardwareKnobStyle {
   factory EatHardwareKnobStyle.tb303Potentiometer({
     Color? accentColor,
     Color? textColor,
+    bool isLightChassis = false,
   }) {
+    final defaultTick = isLightChassis ? const Color(0xFF22242B) : const Color(0xFFA0A5B0);
+    final defaultText = textColor ?? (isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFE2DDD5));
     return EatHardwareKnobStyle(
       capStyle: EatCapStyle.declinedScoop,
       capColor: const Color(0xFFE2E4E8),
@@ -414,10 +456,11 @@ class EatHardwareKnobStyle {
       bezelColor: const Color(0xFF26282E),
       bezelWidth: 1.4,
       scale: EatScaleGraduation.tb303Dial(
-        tickColor: const Color(0xFF22242B),
-        labelColor: textColor ?? const Color(0xFF1E1E24),
+        tickColor: defaultTick,
+        labelColor: defaultText,
       ),
       arcMode: EatArcMode.disabled,
+      isLightChassis: isLightChassis,
     );
   }
 
@@ -427,8 +470,11 @@ class EatHardwareKnobStyle {
   factory EatHardwareKnobStyle.tb303AcidHalo({
     Color? accentColor,
     Color? textColor,
+    bool isLightChassis = false,
   }) {
     final glow = accentColor ?? const Color(0xFF00FF88);
+    final defaultTick = isLightChassis ? const Color(0xFF22242B) : const Color(0xFFA0A5B0);
+    final defaultText = textColor ?? (isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFE2DDD5));
     return EatHardwareKnobStyle(
       capStyle: EatCapStyle.declinedScoop,
       capColor: const Color(0xFFE0E3E7),
@@ -447,11 +493,12 @@ class EatHardwareKnobStyle {
       bezelColor: const Color(0xFF1E2026),
       bezelWidth: 1.5,
       scale: EatScaleGraduation.tb303Dial(
-        tickColor: const Color(0xFF22242B),
-        labelColor: textColor ?? const Color(0xFF1E1E24),
+        tickColor: defaultTick,
+        labelColor: defaultText,
       ),
       arcMode: EatArcMode.disabled,
       haloColor: glow,
+      isLightChassis: isLightChassis,
     );
   }
 
@@ -463,17 +510,20 @@ class EatHardwareKnobStyle {
     Color? textColor,
     EatScaleGraduation? scale,
     List<String>? labels,
+    bool isLightChassis = false,
   }) {
+    final defaultTick = isLightChassis ? const Color(0xFF1A1A1E) : const Color(0xFFA0A5B0);
+    final defaultText = textColor ?? (isLightChassis ? const Color(0xFF1E1E24) : const Color(0xFFE2DDD5));
     final effectiveScale = scale ??
         (labels != null
             ? EatScaleGraduation.tb303Selector(
                 labels: labels,
-                tickColor: const Color(0xFF1A1A1E),
-                labelColor: textColor ?? const Color(0xFF1E1E24),
+                tickColor: defaultTick,
+                labelColor: defaultText,
               )
             : EatScaleGraduation.zeroToTen(
-                tickColor: const Color(0xFF1A1A1E),
-                labelColor: textColor ?? const Color(0xFF1E1E24),
+                tickColor: defaultTick,
+                labelColor: defaultText,
               ));
 
     return EatHardwareKnobStyle(
@@ -492,6 +542,7 @@ class EatHardwareKnobStyle {
       bezelWidth: 1.4,
       scale: effectiveScale,
       arcMode: EatArcMode.disabled,
+      isLightChassis: isLightChassis,
     );
   }
 
@@ -522,6 +573,7 @@ class EatHardwareKnobStyle {
     double? trackThickness,
     double? trackRadiusRatio,
     Color? haloColor,
+    bool? isLightChassis,
   }) {
     return EatHardwareKnobStyle(
       capStyle: capStyle ?? this.capStyle,
@@ -550,6 +602,7 @@ class EatHardwareKnobStyle {
       trackThickness: trackThickness ?? this.trackThickness,
       trackRadiusRatio: trackRadiusRatio ?? this.trackRadiusRatio,
       haloColor: haloColor ?? this.haloColor,
+      isLightChassis: isLightChassis ?? this.isLightChassis,
     );
   }
 }

@@ -494,7 +494,8 @@ class EatGuiSerializer {
           final indLenStr = node.indicatorLength != null ? ', indicatorLength = ${node.indicatorLength}' : '';
           final indWidthStr = node.indicatorWidth != null ? ', indicatorWidth = ${node.indicatorWidth}' : '';
           final scaleStr = _getScaleStringLua(node);
-          buffer.writeln('$indent{ type = "knob", param = "$param", label = "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr$capStr$bodyStr$indStr$dialStr$capSizeStr$bodySizeStr$indLenStr$indWidthStr$scaleStr },');
+          final optionsStr = node.options.isNotEmpty ? ', options = { ${node.options.map((o) => '"${_escape(o)}"').join(', ')} }' : '';
+          buffer.writeln('$indent{ type = "knob", param = "$param", label = "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr$capStr$bodyStr$indStr$dialStr$capSizeStr$bodySizeStr$indLenStr$indWidthStr$scaleStr$optionsStr },');
         }
         break;
 
@@ -593,6 +594,23 @@ class EatGuiSerializer {
         final dpadStr = node.showDpad ? ', showDpad = true' : '';
         final actionStr = node.showActionButtons ? ', showActionButtons = true' : '';
         buffer.writeln('$indent{ type = "canvas", mode = "$mode"$widthStr$heightStr$dpadStr$actionStr },');
+        break;
+
+      case EatScriptGuiNodeType.meter:
+        final sizeStr = node.size != null ? ', size = ${node.size!.toInt()}' : ', size = 110';
+        buffer.writeln('$indent{ type = "meter"$sizeStr },');
+        break;
+
+      case EatScriptGuiNodeType.drumPads:
+        buffer.writeln('$indent{ type = "drumpads" },');
+        break;
+
+      case EatScriptGuiNodeType.dpad:
+        buffer.writeln('$indent{ type = "dpad" },');
+        break;
+
+      case EatScriptGuiNodeType.gamepad:
+        buffer.writeln('$indent{ type = "gamepad" },');
         break;
 
       case EatScriptGuiNodeType.divider:
@@ -729,7 +747,8 @@ class EatGuiSerializer {
           final indLenStr = node.indicatorLength != null ? ', "indicatorLength": ${node.indicatorLength}' : '';
           final indWidthStr = node.indicatorWidth != null ? ', "indicatorWidth": ${node.indicatorWidth}' : '';
           final scaleStr = _getScaleStringEat(node);
-          buffer.writeln('$indent{"type": "knob", "param": "$param", "label": "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr$accentStr$capStr$bodyStr$indStr$dialStr$capSizeStr$bodySizeStr$indLenStr$indWidthStr$scaleStr},');
+          final optionsStr = node.options.isNotEmpty ? ', "options": [${node.options.map((o) => '"${_escape(o)}"').join(', ')}]' : '';
+          buffer.writeln('$indent{"type": "knob", "param": "$param", "label": "${_escape(label)}"$unitStr$sizeStr$styleStr$showLabelStr$showValueStr$accentStr$capStr$bodyStr$indStr$dialStr$capSizeStr$bodySizeStr$indLenStr$indWidthStr$scaleStr$optionsStr},');
         }
         break;
 
@@ -830,6 +849,24 @@ class EatGuiSerializer {
         final dpadStr = node.showDpad ? ', "showDpad": True' : '';
         final actionStr = node.showActionButtons ? ', "showActionButtons": True' : '';
         buffer.writeln('$indent{"type": "canvas", "mode": "$mode"$widthStr$heightStr$dpadStr$actionStr},');
+        break;
+
+      case EatScriptGuiNodeType.meter:
+        final sizeStr = node.size != null ? ', "size": ${node.size!.toInt()}' : ', "size": 110';
+        final accentStr = node.accentColor != null ? ', "accent": "${_hex(node.accentColor!)}"' : '';
+        buffer.writeln('$indent{"type": "meter"$sizeStr$accentStr},');
+        break;
+
+      case EatScriptGuiNodeType.drumPads:
+        buffer.writeln('$indent{"type": "drumpads"},');
+        break;
+
+      case EatScriptGuiNodeType.dpad:
+        buffer.writeln('$indent{"type": "dpad"},');
+        break;
+
+      case EatScriptGuiNodeType.gamepad:
+        buffer.writeln('$indent{"type": "gamepad"},');
         break;
 
       case EatScriptGuiNodeType.divider:

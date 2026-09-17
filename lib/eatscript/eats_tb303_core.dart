@@ -134,8 +134,8 @@ class EatsTb303Core {
     final double normAccent = (rawAccent > 1.0 ? (rawAccent / 100.0) : rawAccent).clamp(0.0, 1.0);
 
     final drive = params['Overdrive'] ?? params['Drive'] ?? 0.3;
-    final slideParam = params['Slide'] ?? params['Portamento'] ?? params['Glide'] ?? 0.0;
-    final double glideTime = slideParam > 0.01 ? (0.010 + slideParam * 0.200) : 0.060;
+    final glideCurveParam = params['GlideCurve'] ?? params['GlideShape'] ?? params['PortaCurve'] ?? 0.0;
+    const double glideTime = 0.060; // Authentic 60ms TB-303 analog slide time
 
     // Extended parameters (Devil Fish / Octave mods)
     final tuningOffset = params['Tuning'] ?? params['Pitch'] ?? 0.0;
@@ -148,11 +148,21 @@ class EatsTb303Core {
 
     final effectiveFreq = freq * math.pow(2.0, octaveShift + (tuningOffset / 12.0));
 
-    if (fromMidiNote != null && fromMidiNote > 0 && (isSlide || slideParam > 0.01)) {
+    // Retrigger envelope on articulated note boundaries.
+    // When isSlide is active (legato sequencer step), preserve envelope continuity for authentic 303 slides.
+    if (!isSlide) {
+      vState.mainEnv = 1.0;
+      vState.ampEnv = 1.0;
+      vState.rc1 = 0.0;
+      vState.rc2 = 0.0;
+      vState.phase = 0.0;
+      vState.subPhase = 0.0;
+    }
+
+    if (fromMidiNote != null && fromMidiNote > 0 && isSlide) {
       // Authentic TB-303 backward-looking slide: starts at prior note's pitch and glides to this note!
       vState.startFreq = 440.0 * math.pow(2.0, ((fromMidiNote + octaveShift * 12) - 69 + tuningOffset) / 12.0);
-    } else if (!isSlide && slideParam <= 0.01) {
-      vState.reset();
+    } else if (!isSlide) {
       vState.startFreq = effectiveFreq;
     } else {
       vState.startFreq = vState.lastFreq > 0 ? vState.lastFreq : effectiveFreq;
@@ -209,10 +219,27 @@ class EatsTb303Core {
     for (int i = 0; i < numSamples; i++) {
       final time = i / sampleRate;
 
-      // Pitch glide for portamento slide
+      // Pitch glide for slide step in 1V/Oct semitone domain
       double currentFreq = effectiveFreq;
-      if (targetFreq != effectiveFreq || isSlide || slideParam > 0.01 || (vState.startFreq != effectiveFreq)) {
-        currentFreq = targetFreq + (vState.startFreq - targetFreq) * math.exp(-time / glideTime);
+      if (isSlide || targetFreq != effectiveFreq || (vState.startFreq != effectiveFreq)) {
+        final double progress = (time / glideTime).clamp(0.0, 1.0);
+        double factor;
+        if (glideCurveParam >= 1.9) {
+          // S-Curve (cosine ease-in / ease-out)
+          factor = 0.5 * (1.0 + math.cos(math.pi * progress));
+        } else {
+          // 0.0 = Exponential analog RC curve, 1.0 = Linear semitone slew
+          final double expFactor = math.exp(-time / (glideTime * 0.35));
+          final double linFactor = 1.0 - progress;
+          final double blend = glideCurveParam.clamp(0.0, 1.0);
+          factor = (1.0 - blend) * expFactor + blend * linFactor;
+        }
+
+        // Semitone pitch domain interpolation for musical 1V/Oct glide across octaves
+        final double startPitch = 69.0 + 12.0 * (math.log(vState.startFreq / 440.0) / math.ln2);
+        final double targetPitch = 69.0 + 12.0 * (math.log(targetFreq / 440.0) / math.ln2);
+        final double currentPitch = targetPitch + (startPitch - targetPitch) * factor;
+        currentFreq = 440.0 * math.pow(2.0, (currentPitch - 69.0) / 12.0);
       }
       vState.lastFreq = currentFreq;
 
@@ -371,8 +398,8 @@ class EatsTb303Core {
     final double normAccent = (rawAccent > 1.0 ? (rawAccent / 100.0) : rawAccent).clamp(0.0, 1.0);
 
     final drive = params['Overdrive'] ?? params['Drive'] ?? 0.3;
-    final slideParam = params['Slide'] ?? params['Portamento'] ?? params['Glide'] ?? 0.0;
-    final double glideTime = slideParam > 0.01 ? (0.010 + slideParam * 0.200) : 0.060;
+    final glideCurveParam = params['GlideCurve'] ?? params['GlideShape'] ?? params['PortaCurve'] ?? 0.0;
+    const double glideTime = 0.060;
 
     final tuningOffset = params['Tuning'] ?? params['Pitch'] ?? 0.0;
     final octaveShift = (params['Octave'] ?? 0.0).round();
@@ -385,8 +412,13 @@ class EatsTb303Core {
     final effectiveFreq = freq * math.pow(2.0, octaveShift + (tuningOffset / 12.0));
 
     if (sampleIndex == 0) {
-      if (!isSlide && slideParam <= 0.01) {
-        vState.reset();
+      if (!isSlide) {
+        vState.mainEnv = 1.0;
+        vState.ampEnv = 1.0;
+        vState.rc1 = 0.0;
+        vState.rc2 = 0.0;
+        vState.phase = 0.0;
+        vState.subPhase = 0.0;
         vState.startFreq = effectiveFreq;
       } else {
         vState.startFreq = vState.lastFreq > 0 ? vState.lastFreq : effectiveFreq;
@@ -402,10 +434,6 @@ class EatsTb303Core {
     double targetFreq = effectiveFreq;
     if (targetMidiNote != null && targetMidiNote > 0) {
       targetFreq = 440.0 * math.pow(2.0, ((targetMidiNote + octaveShift * 12) - 69 + tuningOffset) / 12.0);
-    } else if (isSlide || slideParam > 0.01) {
-      targetFreq = targetMidiNote != null
-          ? (440.0 * math.pow(2.0, ((targetMidiNote + octaveShift * 12) - 69 + tuningOffset) / 12.0))
-          : effectiveFreq;
     }
 
     final double e = math.pow(normEnv, 2.0).toDouble();
@@ -438,9 +466,27 @@ class EatsTb303Core {
     final double driveGain = drive > 0.02 ? (1.0 + drive * 3.5) : 1.0;
     final time = sampleIndex / sampleRate;
 
+    // Pitch glide for slide step in 1V/Oct semitone domain
     double currentFreq = effectiveFreq;
-    if (targetFreq != effectiveFreq || isSlide || slideParam > 0.01 || (vState.startFreq != effectiveFreq)) {
-      currentFreq = targetFreq + (vState.startFreq - targetFreq) * math.exp(-time / glideTime);
+    if (isSlide || targetFreq != effectiveFreq || (vState.startFreq != effectiveFreq)) {
+      final double progress = (time / glideTime).clamp(0.0, 1.0);
+      double factor;
+      if (glideCurveParam >= 1.9) {
+        // S-Curve (cosine ease-in / ease-out)
+        factor = 0.5 * (1.0 + math.cos(math.pi * progress));
+      } else {
+        // 0.0 = Exponential analog RC curve, 1.0 = Linear semitone slew
+        final double expFactor = math.exp(-time / (glideTime * 0.35));
+        final double linFactor = 1.0 - progress;
+        final double blend = glideCurveParam.clamp(0.0, 1.0);
+        factor = (1.0 - blend) * expFactor + blend * linFactor;
+      }
+
+      // Semitone pitch domain interpolation for musical 1V/Oct glide across octaves
+      final double startPitch = 69.0 + 12.0 * (math.log(vState.startFreq / 440.0) / math.ln2);
+      final double targetPitch = 69.0 + 12.0 * (math.log(targetFreq / 440.0) / math.ln2);
+      final double currentPitch = targetPitch + (startPitch - targetPitch) * factor;
+      currentFreq = 440.0 * math.pow(2.0, (currentPitch - 69.0) / 12.0);
     }
     vState.lastFreq = currentFreq;
 

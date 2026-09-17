@@ -45,6 +45,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
   late TextEditingController _unitController;
   late TextEditingController _svgController;
   late TextEditingController _chassisHexController;
+  late TextEditingController _scaleLabelsController;
 
   @override
   void initState() {
@@ -101,8 +102,9 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     _chassisHexController = TextEditingController(text: _getChassisDisplayText(widget.panel));
 
     final selectedNode = _getSelectedNode();
-    _labelController = TextEditingController(text: selectedNode?.label ?? '');
+    _labelController = TextEditingController(text: selectedNode?.text ?? selectedNode?.label ?? '');
     _unitController = TextEditingController(text: selectedNode?.unit ?? '');
+    _scaleLabelsController = TextEditingController(text: _getScaleLabelsString(selectedNode));
   }
 
   @override
@@ -117,18 +119,16 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     if (oldWidget.panel.backgroundSvg != widget.panel.backgroundSvg) {
       _svgController.text = widget.panel.backgroundSvg ?? '';
     }
-    if (oldWidget.panel.backgroundColor != widget.panel.backgroundColor ||
-        oldWidget.panel.backgroundStyle != widget.panel.backgroundStyle) {
-      final expectedText = _getChassisDisplayText(widget.panel);
-      if (_chassisHexController.text.trim().toLowerCase() != expectedText.toLowerCase()) {
-        _chassisHexController.text = expectedText;
-      }
-    }
+    _chassisHexController.text = _getChassisDisplayText(widget.panel);
 
     final selectedNode = _getSelectedNode();
     if (selectedNode != null) {
-      _labelController.text = selectedNode.label ?? '';
+      _labelController.text = selectedNode.text ?? selectedNode.label ?? '';
       _unitController.text = selectedNode.unit ?? '';
+      final scaleText = _getScaleLabelsString(selectedNode);
+      if (_scaleLabelsController.text != scaleText) {
+        _scaleLabelsController.text = scaleText;
+      }
     }
   }
 
@@ -140,6 +140,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     _unitController.dispose();
     _svgController.dispose();
     _chassisHexController.dispose();
+    _scaleLabelsController.dispose();
     super.dispose();
   }
 
@@ -613,26 +614,6 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       ));
                     },
                   ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: [
-                      _buildPresetChip('🔥 Fire', 'M 100 220 C 60 220, 20 180, 20 130 C 20 90, 60 50, 80 10 C 90 40, 100 60, 110 50 C 130 30, 140 10, 150 0 C 170 50, 190 90, 190 140 C 190 190, 150 220, 100 220 Z M 100 195 C 120 195, 135 175, 135 145 C 135 115, 115 95, 105 70 C 95 95, 75 115, 75 145 C 75 175, 85 195, 100 195 Z'),
-                      _buildPresetChip('🌧 Rain', 'M 60 90 C 45 90, 30 75, 30 60 C 30 45, 42 35, 55 35 C 60 20, 80 10, 105 10 C 130 10, 150 25, 155 45 C 165 45, 175 55, 175 65 C 175 80, 160 90, 145 90 Z M 50 115 L 40 145 M 85 115 L 75 145 M 120 115 L 110 145 M 155 115 L 145 145 M 65 155 L 55 185 M 100 155 L 90 185 M 135 155 L 125 185'),
-                      _buildPresetChip('💨 Wind', 'M 10 50 C 70 50, 120 20, 160 20 C 190 20, 210 35, 210 50 C 210 65, 190 80, 170 80 C 145 80, 135 60, 145 45 C 155 35, 175 40, 175 50 M 20 85 C 80 85, 130 65, 165 65 C 195 65, 220 80, 220 95 C 220 110, 200 120, 180 120 C 160 120, 150 105, 160 95 M 5 120 C 65 120, 110 105, 145 105 C 180 105, 200 115, 210 130'),
-                      ActionChip(
-                        label: const Text('✕ Clear', style: TextStyle(fontSize: 10, color: Colors.white70)),
-                        backgroundColor: Colors.white10,
-                        onPressed: () {
-                          _svgController.clear();
-                          widget.onPanelUpdated(widget.panel.copyWith(
-                            backgroundSvg: null,
-                          ));
-                        },
-                      ),
-                    ],
-                  ),
                 ] else ...[
                   // --- SELECTED WIDGET / STACK ITEM SETTINGS ---
                   Row(
@@ -963,8 +944,8 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                   ],
                   const SizedBox(height: 8),
 
-                  _buildTextField('Display Label', _labelController, (v) {
-                    _updateSelectedNode(selectedNode.copyWith(label: v));
+                  _buildTextField(selectedNode.type == LuaGuiNodeType.label ? 'Text / Header Content' : 'Display Label', _labelController, (v) {
+                    _updateSelectedNode(selectedNode.copyWith(label: v, text: v));
                   }),
                   const SizedBox(height: 8),
 
@@ -972,6 +953,54 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                     _updateSelectedNode(selectedNode.copyWith(unit: v));
                   }),
                   const SizedBox(height: 12),
+
+                  if (selectedNode.type == LuaGuiNodeType.meter) ...[
+                    _buildSectionHeader('VU METER PROPERTIES'),
+                    const SizedBox(height: 6),
+                    Text('Meter Height: ${(selectedNode.size ?? 110).toInt()}px', style: TextStyle(fontSize: 10, color: EatsTheme.textMuted)),
+                    Slider(
+                      value: (selectedNode.size ?? 110).clamp(60.0, 200.0),
+                      min: 60.0,
+                      max: 200.0,
+                      divisions: 14,
+                      activeColor: EatsTheme.primaryCyan,
+                      onChanged: (v) {
+                        _updateSelectedNode(selectedNode.copyWith(size: v));
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  if (selectedNode.type == LuaGuiNodeType.spacer) ...[
+                    _buildSectionHeader('SPACER PROPERTIES'),
+                    const SizedBox(height: 6),
+                    Text('Spacer Size: ${(selectedNode.size ?? 16).toInt()}px', style: TextStyle(fontSize: 10, color: EatsTheme.textMuted)),
+                    Slider(
+                      value: (selectedNode.size ?? 16).clamp(4.0, 96.0),
+                      min: 4.0,
+                      max: 96.0,
+                      divisions: 23,
+                      activeColor: EatsTheme.primaryCyan,
+                      onChanged: (v) {
+                        _updateSelectedNode(selectedNode.copyWith(size: v));
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  if (selectedNode.type == LuaGuiNodeType.segmentedPill) ...[
+                    _buildSectionHeader('SEGMENTED PILL PROPERTIES'),
+                    const SizedBox(height: 6),
+                    _buildTextField(
+                      'Options (comma separated, e.g. LP, BP, HP)',
+                      TextEditingController(text: selectedNode.options.join(', ')),
+                      (v) {
+                        final opts = v.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+                        _updateSelectedNode(selectedNode.copyWith(options: opts));
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
 
                   if (selectedNode.type == LuaGuiNodeType.switchToggle) ...[
                     _buildSectionHeader('SWITCH PROPERTIES'),
@@ -1111,7 +1140,10 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                       const SizedBox(height: 6),
                       _buildDropdown<String>(
                         label: 'Dial / Scale Graduations',
-                        value: _getScalePresetName(selectedNode.hardwareScale ?? (selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite()).scale),
+                        value: _getScalePresetName(
+                          selectedNode.hardwareScale ?? (selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite()).scale,
+                          options: selectedNode.options,
+                        ),
                         items: const [
                           DropdownMenuItem(value: 'zero_to_ten', child: Text('0 to 10 Numbers')),
                           DropdownMenuItem(value: 'clean_ticks', child: Text('Clean Graduation Ticks (10 Ticks)')),
@@ -1120,6 +1152,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                           DropdownMenuItem(value: 'sustain_1_to_6', child: Text('1 to 6 (dyn Sustain Scale)')),
                           DropdownMenuItem(value: 'bipolar', child: Text('-5 to +5 Bipolar Center')),
                           DropdownMenuItem(value: 'mode_steps', child: Text('Mode Selector (Classic / Step / Wave...)')),
+                          DropdownMenuItem(value: 'custom_options', child: Text('Custom Option Labels (e.g. Sine, Saw...)')),
                           DropdownMenuItem(value: 'none', child: Text('Unmarked / No Ticks')),
                         ],
                         onChanged: (v) {
@@ -1128,39 +1161,109 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
                             final tickCol = currentStyle.scale.tickColor ?? selectedNode.dialColor ?? const Color(0xFF1E1E24);
                             final labelCol = currentStyle.scale.labelColor ?? selectedNode.dialColor ?? const Color(0xFF1E1E24);
                             EatScaleGraduation newScale;
+                            List<String> newOptions = selectedNode.options;
                             switch (v) {
+                              case 'custom_options':
+                                final parsedLabels = _scaleLabelsController.text
+                                    .split(',')
+                                    .map((s) => s.trim())
+                                    .where((s) => s.isNotEmpty)
+                                    .toList();
+                                final effectiveLabels = parsedLabels.isNotEmpty ? parsedLabels : ['Sine', 'Saw', 'Square'];
+                                if (_scaleLabelsController.text.isEmpty) {
+                                  _scaleLabelsController.text = effectiveLabels.join(', ');
+                                }
+                                newScale = EatScaleGraduation.optionsSelector(
+                                  labels: effectiveLabels,
+                                  tickColor: tickCol,
+                                  labelColor: labelCol,
+                                );
+                                newOptions = effectiveLabels;
+                                break;
                               case 'clean_ticks':
                                 newScale = EatScaleGraduation.cleanTicks(tickColor: tickCol, labelColor: labelCol);
+                                newOptions = [];
+                                _scaleLabelsController.text = '';
                                 break;
                               case 'tb303_dial':
                                 newScale = EatScaleGraduation.tb303Dial(tickColor: tickCol, labelColor: labelCol);
+                                newOptions = [];
+                                _scaleLabelsController.text = '';
                                 break;
                               case 'low_mid_high':
                                 newScale = EatScaleGraduation.lowMidHigh(tickColor: tickCol, labelColor: labelCol);
+                                newOptions = [];
+                                _scaleLabelsController.text = '';
                                 break;
                               case 'sustain_1_to_6':
                                 newScale = EatScaleGraduation.sustainOneToSix(tickColor: tickCol, labelColor: labelCol);
+                                newOptions = [];
+                                _scaleLabelsController.text = '';
                                 break;
                               case 'bipolar':
                                 newScale = EatScaleGraduation.bipolar(tickColor: tickCol, labelColor: labelCol);
+                                newOptions = [];
+                                _scaleLabelsController.text = '';
                                 break;
                               case 'mode_steps':
                                 newScale = EatScaleGraduation.tb303Selector(tickColor: tickCol, labelColor: labelCol);
+                                newOptions = [];
+                                _scaleLabelsController.text = '';
                                 break;
                               case 'none':
                                 newScale = const EatScaleGraduation(tickDivisions: 0, labels: []);
+                                newOptions = [];
+                                _scaleLabelsController.text = '';
                                 break;
                               case 'zero_to_ten':
                               default:
                                 newScale = EatScaleGraduation.zeroToTen(tickColor: tickCol, labelColor: labelCol);
+                                newOptions = [];
+                                _scaleLabelsController.text = '';
                                 break;
                             }
                             _updateSelectedNode(selectedNode.copyWith(
                               hardwareScale: newScale,
                               hardwareKnobStyle: currentStyle.copyWith(scale: newScale),
+                              options: newOptions,
                             ));
                           }
                         },
+                      ),
+                      const SizedBox(height: 8),
+                      _buildTextField(
+                        'Dial / Option Labels (comma-separated)',
+                        _scaleLabelsController,
+                        (v) {
+                          final labels = v
+                              .split(',')
+                              .map((s) => s.trim())
+                              .where((s) => s.isNotEmpty)
+                              .toList();
+                          final currentStyle = selectedNode.hardwareKnobStyle ?? EatHardwareKnobStyle.vintageBakelite();
+                          final tickCol = currentStyle.scale.tickColor ?? selectedNode.dialColor ?? const Color(0xFF1E1E24);
+                          final labelCol = currentStyle.scale.labelColor ?? selectedNode.dialColor ?? const Color(0xFF1E1E24);
+                          if (labels.isNotEmpty) {
+                            final newScale = EatScaleGraduation.optionsSelector(
+                              labels: labels,
+                              tickColor: tickCol,
+                              labelColor: labelCol,
+                            );
+                            _updateSelectedNode(selectedNode.copyWith(
+                              hardwareScale: newScale,
+                              hardwareKnobStyle: currentStyle.copyWith(scale: newScale),
+                              options: labels,
+                            ));
+                          } else {
+                            final newScale = EatScaleGraduation.zeroToTen(tickColor: tickCol, labelColor: labelCol);
+                            _updateSelectedNode(selectedNode.copyWith(
+                              hardwareScale: newScale,
+                              hardwareKnobStyle: currentStyle.copyWith(scale: newScale),
+                              options: [],
+                            ));
+                          }
+                        },
+                        hintText: 'e.g. Sine, Saw, Square, Tri',
                       ),
                       const SizedBox(height: 10),
                       _buildSectionHeader('HARDWARE KNOB COLORS & ACCENTS'),
@@ -1720,7 +1823,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, void Function(String) onChanged) {
+  Widget _buildTextField(String label, TextEditingController controller, void Function(String) onChanged, {String? hintText}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1738,10 +1841,12 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
             controller: controller,
             onChanged: onChanged,
             style: const TextStyle(fontSize: 11, color: Colors.white),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               isDense: true,
+              hintText: hintText,
+              hintStyle: TextStyle(fontSize: 10, color: EatsTheme.textMuted.withOpacity(0.6)),
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(vertical: 8),
             ),
           ),
         ),
@@ -1799,7 +1904,23 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     return 'vintage_bakelite';
   }
 
-  String _getScalePresetName(EatScaleGraduation scale) {
+  String _getScaleLabelsString(LuaGuiNode? node) {
+    if (node == null) return '';
+    if (node.options.isNotEmpty) {
+      return node.options.join(', ');
+    }
+    final scale = node.hardwareScale ?? node.hardwareKnobStyle?.scale;
+    if (scale != null && scale.labels.isNotEmpty) {
+      final preset = _getScalePresetName(scale);
+      if (preset == 'custom_options') {
+        return scale.labels.join(', ');
+      }
+    }
+    return '';
+  }
+
+  String _getScalePresetName(EatScaleGraduation scale, {List<String>? options}) {
+    if (options != null && options.isNotEmpty) return 'custom_options';
     if (scale.labels.contains('CLASSIC')) return 'mode_steps';
     if (scale.labels.contains('low')) return 'low_mid_high';
     if (scale.labels.contains('dyn') || scale.leadLabel == 'dyn') return 'sustain_1_to_6';
@@ -1808,6 +1929,7 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
     if (scale.labels.contains('0') && scale.hasCenterDetent) return 'bipolar';
     if (scale.tickDivisions == 0 && scale.labels.isEmpty) return 'none';
     if (scale.labels.isEmpty && scale.tickDivisions > 0) return 'clean_ticks';
+    if (scale.labels.isNotEmpty) return 'custom_options';
     return 'zero_to_ten';
   }
 
@@ -2296,18 +2418,5 @@ class _GuiInspectorSidebarState extends State<GuiInspectorSidebar> {
       ),
     );
   }
-
-  Widget _buildPresetChip(String label, String svg) {
-    return ActionChip(
-      label: Text(label, style: const TextStyle(fontSize: 10, color: Colors.white)),
-      backgroundColor: Colors.white12,
-      onPressed: () {
-        _svgController.text = svg;
-        widget.onPanelUpdated(widget.panel.copyWith(
-          backgroundSvg: svg,
-          backgroundSvgOpacity: 0.22,
-        ));
-      },
-    );
-  }
 }
+

@@ -482,11 +482,7 @@ class TransportHeader extends StatelessWidget {
   void _showSettingsDialog(BuildContext context) {
     final titleController = TextEditingController(text: dawState.projectName);
     final authorController = TextEditingController(text: dawState.authorName);
-    bool projectHubExpanded = true;
-    bool sessionPersistenceExpanded = false;
-    bool displayWorkspaceExpanded = false;
-    bool audioEngineExpanded = false;
-    bool creditsExpanded = false;
+    int? activeSection = 0;
 
     showDialog(
       context: context,
@@ -517,10 +513,10 @@ class TransportHeader extends StatelessWidget {
                       _buildCollapsibleSection(
                         title: 'PROJECT HUB',
                         icon: Icons.folder_special,
-                        isExpanded: projectHubExpanded,
+                        isExpanded: activeSection == 0,
                         onToggle: () {
                           setDialogState(() {
-                            projectHubExpanded = !projectHubExpanded;
+                            activeSection = (activeSection == 0) ? null : 0;
                           });
                         },
                         child: Column(
@@ -638,10 +634,10 @@ class TransportHeader extends StatelessWidget {
                       _buildCollapsibleSection(
                         title: 'SESSION PERSISTENCE & AUTO-RESTORE',
                         icon: Icons.history,
-                        isExpanded: sessionPersistenceExpanded,
+                        isExpanded: activeSection == 1,
                         onToggle: () {
                           setDialogState(() {
-                            sessionPersistenceExpanded = !sessionPersistenceExpanded;
+                            activeSection = (activeSection == 1) ? null : 1;
                           });
                         },
                         child: Container(
@@ -747,10 +743,10 @@ class TransportHeader extends StatelessWidget {
                       _buildCollapsibleSection(
                         title: 'DISPLAY & WORKSPACE',
                         icon: Icons.tune,
-                        isExpanded: displayWorkspaceExpanded,
+                        isExpanded: activeSection == 2,
                         onToggle: () {
                           setDialogState(() {
-                            displayWorkspaceExpanded = !displayWorkspaceExpanded;
+                            activeSection = (activeSection == 2) ? null : 2;
                           });
                         },
                         child: Container(
@@ -909,10 +905,10 @@ class TransportHeader extends StatelessWidget {
                       _buildCollapsibleSection(
                         title: 'AUDIO ENGINE CONFIG',
                         icon: Icons.graphic_eq,
-                        isExpanded: audioEngineExpanded,
+                        isExpanded: activeSection == 3,
                         onToggle: () {
                           setDialogState(() {
-                            audioEngineExpanded = !audioEngineExpanded;
+                            activeSection = (activeSection == 3) ? null : 3;
                           });
                         },
                         child: Container(
@@ -935,11 +931,11 @@ class TransportHeader extends StatelessWidget {
                       _buildCollapsibleSection(
                         title: 'CREDITS & ACKNOWLEDGMENTS',
                         icon: Icons.info_outline,
-                        isExpanded: creditsExpanded,
+                        isExpanded: activeSection == 4,
                         isLast: true,
                         onToggle: () {
                           setDialogState(() {
-                            creditsExpanded = !creditsExpanded;
+                            activeSection = (activeSection == 4) ? null : 4;
                           });
                         },
                         child: Container(

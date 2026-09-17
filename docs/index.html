@@ -4,26 +4,59 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Eatscript API & DSP Reference — Eatsbeats</title>
-  <meta name="description" content="Complete API specification and DSP node catalog for Eatscript, the pure-Dart audio scripting language and synthesizer engine powering Eatsbeats.">
+  <meta name="description" content="Complete API specification, DSP node catalog, declarative hardware GUI DSL, and DAW macro engine for Eatscript, the pure-Dart audio language powering Eatsbeats.">
+  <link rel="canonical" href="https://eatsbeats.app/docs/">
+  
+  <!-- Open Graph & Meta -->
+  <meta property="og:title" content="Eatscript API & DSP Reference — Eatsbeats">
+  <meta property="og:description" content="Complete API specification, 60+ physical DSP models, declarative skeuomorphic GUI DSL, and DAW macro automation for Eatsbeats.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://eatsbeats.app/docs/">
+  <meta property="og:image" content="https://eatsbeats.app/docs/app_icon.svg">
+
+  <!-- Icons -->
+  <link rel="icon" type="image/svg+xml" href="app_icon.svg">
+  <link rel="shortcut icon" type="image/svg+xml" href="app_icon.svg">
+
+  <!-- Typography: Roboto Condensed & Roboto Mono matching Eatsbeats Ate Track Theme -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;500;600;700&family=Roboto+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+
   <style>
+    /* ==========================================================================
+       EATSBEATS "ATE TRACK" THEME TOKENS (VINTAGE HARDWARE CONSOLE)
+       Extracted directly from lib/theme/eats_theme.dart (EatsThemePreset.ateTrack)
+       ========================================================================== */
     :root {
-      --bg-main: #0a0e14;
-      --bg-panel: #111722;
-      --bg-card: #172030;
-      --bg-code: #070a0e;
-      --border-color: #243048;
-      --border-highlight: #344868;
-      --text-main: #e2e8f0;
-      --text-muted: #8a9bb5;
-      --accent-cyan: #00ffe0;
-      --accent-pink: #ff007f;
-      --accent-gold: #ffd700;
-      --accent-green: #00ff9d;
-      --font-ui: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      --font-code: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --bg-main: #141210;            /* Weathered vintage rack dark background */
+      --bg-panel: #1B1814;           /* Recessed rack panel surface */
+      --bg-card: #24211D;            /* Aged metal chassis surface */
+      --bg-header: #332F2A;          /* Dark brushed metallic header */
+      --bg-control: #181614;         /* Recessed control well */
+      --bg-code: #0E0D0B;            /* Deep dark code editor background */
+      --bg-code-gutter: #161411;     /* Grungy rack gutter */
+      
+      --border-color: #3B3226;       /* Hardware console bevel border */
+      --border-highlight: #5C4A32;   /* Subtle chassis chamfer */
+      --border-focus: #FF8C00;       /* Glowing amber active outline */
+      
+      --text-main: #FFF2D6;          /* Warm glowing amber-cream readout */
+      --text-secondary: #D4C6B2;     /* Crisp readable vintage panel text */
+      --text-muted: #8E8172;         /* Muted warm beige-grey */
+      
+      --accent-amber: #FF8C00;       /* Signature Ate Track Warm Amber / Nixie Glow */
+      --accent-amber-light: #FFA733; /* Illuminated tube filament highlight */
+      --accent-amber-dim: #7A4505;
+      --accent-glow: rgba(255, 140, 0, 0.35);
+      --accent-glow-subtle: rgba(255, 140, 0, 0.15);
+      
+      --accent-cyan: #00E5FF;        /* Electric LED indicator */
+      --accent-green: #00FF66;       /* Signal VU peak green */
+      --accent-magenta: #FF007A;     /* Secondary function magenta */
+      
+      --font-ui: 'Roboto Condensed', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-code: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -35,9 +68,29 @@
       display: flex;
       height: 100vh;
       overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: 0.2px;
     }
 
-    /* Sidebar Navigation */
+    /* Scrollbars styled as vintage console sliders */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-main);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--border-highlight);
+    }
+
+    /* ==========================================================================
+       Sidebar Navigation
+       ========================================================================== */
     #sidebar {
       width: 320px;
       min-width: 320px;
@@ -46,77 +99,88 @@
       display: flex;
       flex-direction: column;
       z-index: 10;
+      box-shadow: 2px 0 16px rgba(0, 0, 0, 0.45);
     }
 
     .brand {
-      padding: 20px 24px;
+      padding: 18px 22px;
+      background: linear-gradient(180deg, var(--bg-header) 0%, var(--bg-card) 100%);
       border-bottom: 1px solid var(--border-color);
       display: flex;
       align-items: center;
       gap: 12px;
     }
 
-    .brand-logo {
-      width: 36px;
-      height: 36px;
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-pink));
+    .brand-logo-wrap {
+      width: 40px;
+      height: 40px;
+      min-width: 40px;
       border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6), 0 0 12px var(--accent-glow-subtle);
+      overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 800;
-      color: #000;
-      font-size: 18px;
-      letter-spacing: -1px;
+      background-color: #141210;
+    }
+
+    .brand-logo-svg {
+      width: 100%;
+      height: 100%;
+      display: block;
     }
 
     .brand-title h1 {
-      font-size: 17px;
-      font-weight: 800;
-      letter-spacing: 0.5px;
-      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      color: #FFFFFF;
+      line-height: 1.15;
     }
 
     .brand-title span {
       font-size: 11px;
       font-family: var(--font-code);
-      color: var(--accent-cyan);
+      color: var(--accent-amber);
       text-transform: uppercase;
-      letter-spacing: 1.5px;
+      letter-spacing: 1.6px;
+      font-weight: 500;
     }
 
     .search-box {
-      padding: 14px 20px;
+      padding: 12px 18px;
+      background-color: var(--bg-panel);
       border-bottom: 1px solid var(--border-color);
     }
 
     .search-box input {
       width: 100%;
-      background-color: var(--bg-code);
+      background-color: var(--bg-control);
       border: 1px solid var(--border-color);
-      color: #fff;
+      color: var(--text-main);
       padding: 8px 12px;
-      border-radius: 6px;
+      border-radius: 5px;
       font-family: var(--font-ui);
-      font-size: 13px;
+      font-size: 13.5px;
       outline: none;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
     .search-box input:focus {
-      border-color: var(--accent-cyan);
+      border-color: var(--accent-amber);
+      box-shadow: 0 0 8px var(--accent-glow-subtle);
     }
 
     .nav-links {
       flex: 1;
       overflow-y: auto;
-      padding: 16px 12px;
+      padding: 14px 10px;
     }
 
     .nav-group-title {
-      font-size: 11px;
+      font-size: 10.5px;
       text-transform: uppercase;
-      letter-spacing: 1.2px;
+      letter-spacing: 1.4px;
       color: var(--text-muted);
       padding: 12px 12px 6px;
       font-weight: 700;
@@ -126,64 +190,90 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 9px 12px;
-      color: var(--text-muted);
+      padding: 8px 12px;
+      color: var(--text-secondary);
       text-decoration: none;
-      border-radius: 6px;
+      border-radius: 5px;
       font-size: 13.5px;
-      font-weight: 600;
+      font-weight: 500;
       cursor: pointer;
       transition: all 0.15s ease;
-      margin-bottom: 2px;
+      margin-bottom: 3px;
+      border-left: 3px solid transparent;
     }
 
     .nav-item:hover {
-      background-color: rgba(0, 255, 224, 0.08);
-      color: var(--accent-cyan);
+      background-color: rgba(255, 140, 0, 0.08);
+      color: #FFFFFF;
     }
 
     .nav-item.active {
-      background-color: rgba(0, 255, 224, 0.15);
-      color: var(--accent-cyan);
-      border-left: 3px solid var(--accent-cyan);
+      background-color: rgba(255, 140, 0, 0.14);
+      color: #FFFFFF;
+      border-left-color: var(--accent-amber);
     }
 
-    .nav-badge {
-      font-size: 10px;
+    /* Clean, non-emoji numerical badges */
+    .nav-num {
       font-family: var(--font-code);
-      background-color: var(--bg-code);
-      padding: 2px 6px;
-      border-radius: 4px;
-      color: var(--text-muted);
-      margin-left: auto;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent-amber);
+      background-color: rgba(255, 140, 0, 0.12);
+      border: 1px solid rgba(255, 140, 0, 0.25);
+      padding: 1px 5px;
+      border-radius: 3px;
+      letter-spacing: 0.5px;
+      min-width: 22px;
+      text-align: center;
+    }
+
+    .nav-item.active .nav-num {
+      background-color: var(--accent-amber);
+      color: #141210;
+      border-color: var(--accent-amber);
+      box-shadow: 0 0 6px var(--accent-glow);
     }
 
     .sidebar-footer {
-      padding: 16px 20px;
+      padding: 14px 20px;
+      background-color: var(--bg-card);
       border-top: 1px solid var(--border-color);
       display: flex;
       justify-content: space-between;
+      align-items: center;
       font-size: 12px;
       color: var(--text-muted);
     }
 
     .sidebar-footer a {
-      color: var(--accent-cyan);
+      color: var(--accent-amber);
       text-decoration: none;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
     }
 
-    /* Main Content Area */
+    .sidebar-footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* ==========================================================================
+       Main Content Area
+       ========================================================================== */
     #content-pane {
       flex: 1;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
       position: relative;
+      background-color: var(--bg-main);
     }
 
     .topbar {
       height: 60px;
-      background-color: rgba(10, 14, 20, 0.85);
+      background-color: rgba(20, 18, 16, 0.94);
       backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border-color);
       display: flex;
@@ -195,10 +285,22 @@
       z-index: 5;
     }
 
+    .breadcrumb {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
+    }
+
+    .breadcrumb span {
+      color: var(--text-main);
+      font-weight: 700;
+    }
+
     .topbar-actions {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 12px;
     }
 
     .btn {
@@ -206,38 +308,43 @@
       align-items: center;
       gap: 6px;
       padding: 6px 14px;
-      border-radius: 6px;
+      border-radius: 5px;
       font-size: 12.5px;
-      font-weight: 700;
+      font-weight: 600;
       text-decoration: none;
       cursor: pointer;
       transition: all 0.2s;
+      letter-spacing: 0.3px;
     }
 
     .btn-daw {
-      background: linear-gradient(135deg, var(--accent-cyan), #00bfa5);
-      color: #000;
+      background: linear-gradient(135deg, var(--accent-amber) 0%, #E67300 100%);
+      color: #141210;
+      border: 1px solid var(--accent-amber-light);
+      box-shadow: 0 2px 8px rgba(255, 140, 0, 0.25);
     }
 
     .btn-daw:hover {
-      box-shadow: 0 0 16px rgba(0, 255, 224, 0.4);
+      box-shadow: 0 0 16px var(--accent-glow);
+      transform: translateY(-1px);
     }
 
     .btn-github {
       background-color: var(--bg-card);
-      color: var(--text-main);
+      color: var(--text-secondary);
       border: 1px solid var(--border-color);
     }
 
     .btn-github:hover {
       border-color: var(--border-highlight);
+      color: #FFFFFF;
     }
 
     /* Document Body */
     .doc-container {
-      max-width: 920px;
+      max-width: 960px;
       margin: 0 auto;
-      padding: 40px 32px 80px;
+      padding: 40px 32px 90px;
       width: 100%;
     }
 
@@ -247,54 +354,56 @@
 
     .doc-article.active {
       display: block;
-      animation: fadeIn 0.2s ease-in-out;
+      animation: fadeIn 0.18s ease-out;
     }
 
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
+      from { opacity: 0; transform: translateY(5px); }
       to { opacity: 1; transform: translateY(0); }
     }
 
     h1, h2, h3, h4 {
-      color: #fff;
+      color: #FFFFFF;
       font-weight: 700;
       line-height: 1.3;
     }
 
     h1 {
-      font-size: 32px;
+      font-size: 30px;
       margin-bottom: 16px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 16px;
       display: flex;
       align-items: center;
       gap: 12px;
-      border-bottom: 1px solid var(--border-color);
-      padding-bottom: 16px;
+      letter-spacing: 0.4px;
     }
 
     h2 {
-      font-size: 22px;
-      margin: 36px 0 16px;
-      color: var(--accent-cyan);
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      font-size: 21px;
+      margin: 36px 0 14px;
+      color: var(--accent-amber);
+      border-bottom: 1px solid rgba(59, 50, 38, 0.4);
+      padding-bottom: 6px;
+      letter-spacing: 0.3px;
     }
 
     h3 {
-      font-size: 17px;
-      margin: 24px 0 12px;
-      color: #fff;
+      font-size: 16.5px;
+      margin: 24px 0 10px;
+      color: #FFFFFF;
+      letter-spacing: 0.2px;
     }
 
     p, ul, ol {
-      font-size: 15px;
+      font-size: 14.5px;
       line-height: 1.7;
-      color: #cbd5e1;
+      color: var(--text-secondary);
       margin-bottom: 16px;
     }
 
     ul, ol {
-      padding-left: 24px;
+      padding-left: 22px;
     }
 
     li {
@@ -302,7 +411,8 @@
     }
 
     strong {
-      color: #fff;
+      color: #FFFFFF;
+      font-weight: 600;
     }
 
     hr {
@@ -315,26 +425,26 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      margin: 20px 0 28px;
+      margin: 18px 0 28px;
       background-color: var(--bg-card);
-      border-radius: 8px;
+      border-radius: 6px;
       overflow: hidden;
       border: 1px solid var(--border-color);
     }
 
     th, td {
-      padding: 12px 16px;
+      padding: 10px 14px;
       text-align: left;
       font-size: 13.5px;
       border-bottom: 1px solid var(--border-color);
     }
 
     th {
-      background-color: var(--bg-panel);
-      color: var(--accent-cyan);
+      background-color: var(--bg-header);
+      color: var(--accent-amber);
       font-weight: 700;
       text-transform: uppercase;
-      font-size: 12px;
+      font-size: 11.5px;
       letter-spacing: 0.8px;
     }
 
@@ -342,24 +452,28 @@
       border-bottom: none;
     }
 
+    tr:hover td {
+      background-color: rgba(255, 255, 255, 0.02);
+    }
+
     /* Code Blocks */
     code {
       font-family: var(--font-code);
-      font-size: 13px;
+      font-size: 12.5px;
       background-color: var(--bg-code);
       padding: 2px 6px;
       border-radius: 4px;
-      color: var(--accent-cyan);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--accent-amber-light);
+      border: 1px solid rgba(255, 140, 0, 0.2);
     }
 
     pre {
       background-color: var(--bg-code);
       border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 18px 20px;
+      border-radius: 6px;
+      padding: 16px 18px;
       overflow-x: auto;
-      margin: 18px 0 26px;
+      margin: 16px 0 24px;
       position: relative;
     }
 
@@ -367,8 +481,8 @@
       background: none;
       border: none;
       padding: 0;
-      color: #e2e8f0;
-      font-size: 13.5px;
+      color: var(--text-main);
+      font-size: 13px;
       line-height: 1.6;
       display: block;
     }
@@ -380,70 +494,99 @@
       background-color: var(--bg-card);
       border: 1px solid var(--border-color);
       color: var(--text-muted);
-      border-radius: 5px;
+      border-radius: 4px;
       padding: 4px 8px;
       font-size: 11px;
       font-family: var(--font-ui);
+      font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
     }
 
     .copy-btn:hover {
-      color: #fff;
-      border-color: var(--accent-cyan);
+      color: #FFFFFF;
+      border-color: var(--accent-amber);
     }
 
-    /* Alerts / Callouts */
+    /* Callouts / Hardware Badges */
     .callout {
-      background-color: rgba(0, 255, 224, 0.05);
-      border-left: 4px solid var(--accent-cyan);
-      padding: 16px 20px;
-      border-radius: 0 8px 8px 0;
+      background-color: rgba(255, 140, 0, 0.06);
+      border-left: 4px solid var(--accent-amber);
+      padding: 14px 18px;
+      border-radius: 0 6px 6px 0;
       margin: 20px 0;
     }
 
     .callout.important {
-      background-color: rgba(255, 0, 127, 0.06);
-      border-left-color: var(--accent-pink);
+      background-color: rgba(255, 0, 122, 0.06);
+      border-left-color: var(--accent-magenta);
     }
 
-    .callout.gold {
-      background-color: rgba(255, 215, 0, 0.06);
-      border-left-color: var(--accent-gold);
+    .callout.cyan {
+      background-color: rgba(0, 229, 255, 0.06);
+      border-left-color: var(--accent-cyan);
     }
 
     .callout-title {
       font-weight: 700;
-      font-size: 13.5px;
+      font-size: 12.5px;
       text-transform: uppercase;
       letter-spacing: 0.8px;
       margin-bottom: 6px;
-      color: var(--accent-cyan);
+      color: var(--accent-amber);
     }
 
     .callout.important .callout-title {
-      color: var(--accent-pink);
+      color: var(--accent-magenta);
     }
 
-    .callout.gold .callout-title {
-      color: var(--accent-gold);
+    .callout.cyan .callout-title {
+      color: var(--accent-cyan);
+    }
+
+    .tag-badge {
+      display: inline-block;
+      font-family: var(--font-code);
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background-color: rgba(255, 140, 0, 0.12);
+      border: 1px solid rgba(255, 140, 0, 0.25);
+      color: var(--accent-amber-light);
+      margin-right: 4px;
     }
 
     /* Responsive */
-    @media (max-width: 820px) {
+    @media (max-width: 860px) {
       body { flex-direction: column; }
       #sidebar { width: 100%; min-width: 100%; height: auto; border-right: none; }
       .nav-links { max-height: 220px; }
       .doc-container { padding: 24px 18px; }
+      .topbar { padding: 0 18px; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Sidebar -->
+  <!-- ========================================================================
+       SIDEBAR NAVIGATION
+       ======================================================================== -->
   <aside id="sidebar">
     <div class="brand">
-      <div class="brand-logo">EB</div>
+      <div class="brand-logo-wrap">
+        <!-- Authentic Eatsbeats Monster Vector Logo -->
+        <svg class="brand-logo-svg" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+          <!-- Ate Track Warm Amber Background Square with rounded corners -->
+          <rect x="32" y="32" width="448" height="448" rx="80" fill="#FF8C00" />
+          <!-- Weathered Dark Rack Monster Head & Open Mouth -->
+          <path d="M 100 100 L 380 100 L 380 220 L 220 220 L 220 340 L 380 340 L 380 410 L 100 410 Z" fill="#141210" />
+          <!-- Amber Monster Eye -->
+          <circle cx="260" cy="160" r="32" fill="#FF8C00" />
+          <!-- Dark Eating Bits -->
+          <rect x="400" y="230" width="48" height="48" rx="8" fill="#141210" />
+          <rect x="400" y="320" width="36" height="36" rx="6" fill="#141210" />
+        </svg>
+      </div>
       <div class="brand-title">
         <h1>EATSBEATS</h1>
         <span>Eatscript API 2.0</span>
@@ -451,82 +594,89 @@
     </div>
 
     <div class="search-box">
-      <input type="text" id="searchInput" placeholder="Search API nodes & methods..." oninput="filterNavigation()">
+      <input type="text" id="searchInput" placeholder="Search DSP nodes, methods, macros..." oninput="filterNavigation()">
     </div>
 
     <nav class="nav-links">
       <div class="nav-group-title">Getting Started</div>
       <a class="nav-item active" data-target="overview" onclick="switchTab('overview')">
-        <span>📖</span> Overview & Architecture
+        <span class="nav-num">00</span> Overview & Architecture
       </a>
       <a class="nav-item" data-target="lifecycle" onclick="switchTab('lifecycle')">
-        <span>⚙️</span> 01. Syntax & Lifecycle
+        <span class="nav-num">01</span> Syntax & Lifecycle
       </a>
       <a class="nav-item" data-target="params" onclick="switchTab('params')">
-        <span>🎚️</span> 02. Parameters & Variance
+        <span class="nav-num">02</span> Parameters & Variance
       </a>
 
-      <div class="nav-group-title">Synthesis & DSP Catalog</div>
+      <div class="nav-group-title">Synthesis & Hardware UI</div>
       <a class="nav-item" data-target="nodes" onclick="switchTab('nodes')">
-        <span>⚡</span> 03. DSP Node Catalog
+        <span class="nav-num">03</span> DSP Node Catalog
       </a>
       <a class="nav-item" data-target="gui" onclick="switchTab('gui')">
-        <span>🎛️</span> 04. Declarative GUI DSL
+        <span class="nav-num">04</span> Declarative GUI DSL
       </a>
 
-      <div class="nav-group-title">Generators & Macros</div>
+      <div class="nav-group-title">Generators & Automation</div>
       <a class="nav-item" data-target="midi" onclick="switchTab('midi')">
-        <span>🎼</span> 05. MIDI & Music Theory
+        <span class="nav-num">05</span> MIDI & Music Theory
       </a>
       <a class="nav-item" data-target="daw" onclick="switchTab('daw')">
-        <span>🚀</span> 06. DAW & Macro API
+        <span class="nav-num">06</span> DAW & Macro API
       </a>
       <a class="nav-item" data-target="recipes" onclick="switchTab('recipes')">
-        <span>🧪</span> 07. Canonical Recipes
+        <span class="nav-num">07</span> Canonical Recipes
       </a>
       <a class="nav-item" data-target="ai" onclick="switchTab('ai')">
-        <span>🤖</span> AI Agent Skill Grounding
+        <span class="nav-num">08</span> AI Agent Grounding
       </a>
     </nav>
 
     <div class="sidebar-footer">
-      <span>Pure-Dart DSP</span>
-      <a href="../" target="_blank">Launch DAW ↗</a>
+      <span>Theme: Ate Track</span>
+      <a href="https://eatsbeats.app/" target="_blank">Launch DAW ↗</a>
     </div>
   </aside>
 
-  <!-- Content Pane -->
+  <!-- ========================================================================
+       CONTENT PANE
+       ======================================================================== -->
   <main id="content-pane">
     <header class="topbar">
-      <div id="breadcrumb" style="font-size: 13.5px; font-weight: 600; color: var(--text-muted);">
-        API Reference &gt; <span style="color: #fff;" id="currentTabName">Overview & Architecture</span>
+      <div class="breadcrumb">
+        API Reference &gt; <span id="currentTabName">Overview & Architecture</span>
       </div>
       <div class="topbar-actions">
         <a href="https://github.com/maddestlabs/eatsbeats" target="_blank" class="btn btn-github">GitHub Repository</a>
-        <a href="../" target="_blank" class="btn btn-daw">Open Eatsbeats Live</a>
+        <a href="https://eatsbeats.app/" target="_blank" class="btn btn-daw">Open Eatsbeats Live</a>
       </div>
     </header>
 
     <div class="doc-container">
 
-      <!-- SECTION: Overview -->
+      <!-- ====================================================================
+           SECTION 00: OVERVIEW & ARCHITECTURE
+           ==================================================================== -->
       <article id="overview" class="doc-article active">
         <h1>Eatscript Engine API & DSP Reference</h1>
-        <div class="callout gold">
+        
+        <div class="callout">
           <div class="callout-title">Core Governing Principle</div>
-          Eatsbeats uses <strong>Eatscript</strong>, a custom, pure-Dart, Pythonic audio DSP and scripting language. <strong>There is NO Lua engine or runtime in this codebase.</strong> Real-time audio evaluation is sample-by-sample and block-by-block with zero garbage collection allocations.
+          Eatsbeats uses <strong>Eatscript</strong>, a custom, pure-Dart, Pythonic audio DSP and scripting language. <strong>There is NO Lua engine or runtime in this codebase.</strong> Real-time audio evaluation is sample-by-sample and block-by-block with zero garbage collection allocations on the critical rendering path.
         </div>
 
         <h2>High-Level Architecture</h2>
         <p>Eatscript scripts execute inside an isolated <code>EatScriptContext</code> managed by the DAW. Each track channel, insert effect, or pipeline step can host an Eatscript:</p>
         <ul>
-          <li><strong>Track Audio Synthesis</strong>: Generate polyphonic waveforms, sample-accurate frequency modulation, and physical models.</li>
+          <li><strong>Track Audio Synthesis</strong>: Generate polyphonic waveforms, sample-accurate frequency modulation, and physical waveguide models.</li>
           <li><strong>Insert & Master FX</strong>: Process incoming stereo audio with delay lines, choruses, saturators, and bit-crushers.</li>
-          <li><strong>Skeuomorphic GUI Panels</strong>: Return declarative UI trees complete with 6-zone hardware knobs, nixie tubes, and live oscilloscopes.</li>
+          <li><strong>Skeuomorphic GUI Panels</strong>: Return declarative UI trees complete with 6-zone hardware knobs, nixie tubes, LCDs, and live oscilloscopes.</li>
           <li><strong>MIDI Pipeline & Transforms</strong>: Algorithmic Euclidean rhythm generators, chord-followers, and humanization.</li>
+          <li><strong>DAW Macro Orchestration</strong>: Script headlessly via <code>eat.daw</code> or <code>project</code> to create tracks, clips, automation points, and render audio/video.</li>
         </ul>
 
         <h2>Quick Example: Virtual Analog Synth</h2>
+        <p>A complete, self-contained instrument defining parameters, a skeuomorphic control panel, and an audio process hook:</p>
         <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>import math
 
 def init():
@@ -543,8 +693,8 @@ def gui():
             "title": "ANALOG LEAD",
             "subtitle": "Virtual Analog Eatscript Synth",
             "background": "dark",
-            "accent": "#00FFE0",
-            "knobStyle": "chrome",
+            "accent": "#FF8C00",
+            "knobStyle": "chromeFluted",
             "layout": [
                 {
                     "type": "row",
@@ -574,7 +724,9 @@ def process(time, freq, note, params, targetNote=0, isSlide=False, isAccent=Fals
     return math.tanh(osc * env * 1.2)</code></pre>
       </article>
 
-      <!-- SECTION: Lifecycle -->
+      <!-- ====================================================================
+           SECTION 01: SYNTAX & LIFECYCLE
+           ==================================================================== -->
       <article id="lifecycle" class="doc-article">
         <h1>01. Eatscript Syntax & Lifecycle</h1>
         <p>Eatscript uses 4-space indentation, Python functions (<code>def</code>), and hash comments (<code>#</code>). Standard math operations are available via <code>import math</code>.</p>
@@ -589,148 +741,430 @@ def process(time, freq, note, params, targetNote=0, isSlide=False, isAccent=Fals
             <tr><td><strong>Audio FX</strong></td><td><code>def process(input_l, input_r, params)</code></td><td>Insert & Master FX</td></tr>
             <tr><td><strong>MIDI Pipeline</strong></td><td><code>def process(notes, time_ctx)</code></td><td>Track Note Pre-processing</td></tr>
             <tr><td><strong>Automation</strong></td><td><code>def process(time, value, params)</code></td><td>LFOs & Parameter Envelopes</td></tr>
+            <tr><td><strong>Modular Graph</strong></td><td><code>def graph(): return node_tree</code></td><td>Approach C Modular Studio</td></tr>
           </tbody>
         </table>
 
-        <h2>Native Dispatch Delegation</h2>
-        <p>Scripts can delegate sample computation directly to pre-compiled native Dart DSP engines by declaring top-level flags:</p>
-        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># High-Performance Transistor Ladder TB-303
-Eats303 = True
-JC303 = True
+        <h2>High-Performance Native Dispatch Directives</h2>
+        <p>Scripts can delegate sample computation directly to pre-compiled native Dart DSP engines using either:</p>
+        <ol>
+          <li><strong>Header Directive (Recommended)</strong>: <code># @engine: &lt;id&gt;</code></li>
+          <li><strong>Programmatic Binding</strong>: <code>eat.use_engine("&lt;id&gt;")</code> in <code>def init():</code></li>
+          <li><strong>Legacy Boolean Flags</strong>: <code>Eats303 = True</code>, <code>Bitcrusher = True</code>, <code>Analog808Kick = True</code></li>
+        </ol>
 
-# Hardware Bitcrusher & Sample-Rate Reduction
-Bitcrusher = True</code></pre>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Explicit Native Binding
+# @engine: tb303
+
+def init():
+    eat.use_engine("tb303")
+    eat.param("Cutoff", 200.0, 8000.0, 1200.0, unit="Hz")
+    eat.param("Resonance", 0.0, 10.0, 6.0)
+    eat.param("EnvMod", 0.0, 1.0, 0.7)
+    eat.param("Decay", 0.1, 2.0, 0.4, unit="s")</code></pre>
       </article>
 
-      <!-- SECTION: Parameters -->
+      <!-- ====================================================================
+           SECTION 02: PARAMETERS & VARIANCE
+           ==================================================================== -->
       <article id="params" class="doc-article">
         <h1>02. Parameter System & Variance Engine</h1>
-        <p>Parameters are registered in the <code>def init():</code> hook using <code>eat.param()</code>:</p>
+        <p>Parameters are registered in <code>def init():</code> using <code>eat.param()</code>:</p>
         <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>eat.param(
     "Cutoff",             # Parameter name / key
     min=20.0,             # Minimum numeric value
     max=20000.0,          # Maximum numeric value
     default=1500.0,       # Initial default value
     step=1.0,             # Granularity increment (0.0 for continuous)
-    options=[],           # List of string options for switches
+    unit="Hz",            # Display unit (Hz, ms, s, dB, %, etc.)
+    options=[],           # List of string options for discrete switches
     allow_variance=True,  # Whether track variance humanizes this param
     variance_scale=1.0,   # Sensitivity multiplier
 )</code></pre>
 
-        <h2>The Analog Variance Engine</h2>
-        <p>Simulates thermal analog drift and component tolerances across synth voices:</p>
+        <h2>Positional & Keyword Overloads</h2>
+        <p>Eatscript accepts flexible calling conventions:</p>
         <ul>
-          <li><code>eat.variance()</code>: Reads the active track's master variance slider (0.0 to 1.0).</li>
-          <li><code>eat.vary_param(name, params, scale=0.1)</code>: Returns variance-adjusted parameter values.</li>
-          <li><code>eat.vary(val, scale=0.1)</code>: Micro-drift helper for raw floating-point values.</li>
-          <li><code>eat.ignore_variance(name)</code>: Explicitly exempts a parameter from variance modulation.</li>
+          <li><code>eat.param("Cutoff", 20.0, 20000.0, 1500.0)</code> (min, max, default)</li>
+          <li><code>eat.param("Cutoff", 1500.0, 20.0, 20000.0)</code> (default, min, max)</li>
+          <li><code>eat.param("Waveform", 0.0, 3.0, 0.0, step=1.0, options=["SAW", "SQR", "TRI", "SIN"])</code></li>
         </ul>
+
+        <h2>The Analog Variance Engine</h2>
+        <p>Simulates thermal analog drift, component tolerances, and physical performance fluctuations across synth voices:</p>
+        <table>
+          <thead>
+            <tr><th>Method</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>eat.variance()</code></td><td>Reads active track master variance level (0.0 = digital pristine, 1.0 = heavy analog drift).</td></tr>
+            <tr><td><code>eat.vary(val, scale=0.1, min=None, max=None)</code></td><td>Adds randomized micro-drift to any raw value: <code>val ± (val * scale * random)</code>.</td></tr>
+            <tr><td><code>eat.vary_param(name, params, scale=0.1)</code></td><td>Returns variance-adjusted parameter value, honoring track variance slider and exemptions.</td></tr>
+            <tr><td><code>eat.apply_variance(params_map)</code></td><td>Returns cloned dictionary with drift applied to all non-exempt parameters.</td></tr>
+            <tr><td><code>eat.ignore_variance(name)</code></td><td>Explicitly exempts a parameter from variance modulation.</td></tr>
+            <tr><td><code>eat.is_variance_exempt(name)</code></td><td>Returns true if parameter is exempt (e.g. octave, waveform, mode, bank).</td></tr>
+          </tbody>
+        </table>
       </article>
 
-      <!-- SECTION: DSP Node Catalog -->
+      <!-- ====================================================================
+           SECTION 03: DSP NODE CATALOG
+           ==================================================================== -->
       <article id="nodes" class="doc-article">
         <h1>03. DSP Node Catalog</h1>
-        <p>Eatsbeats embeds over 60 physical models, drum machines, keyboards, chiptune chips, and audio effects directly into Dart:</p>
+        <p>Eatsbeats embeds over 60 zero-allocation physical models, drum machines, acoustic instruments, chiptunes, and studio audio effects directly into Dart:</p>
 
         <h2>1. Drum & Percussion Synthesis</h2>
         <table>
-          <thead><tr><th>Engine Flag</th><th>Model Type</th><th>Primary Parameters</th></tr></thead>
+          <thead><tr><th>Engine ID (`# @engine: ...`)</th><th>Legacy Flag</th><th>Primary Parameters</th></tr></thead>
           <tbody>
-            <tr><td><code>Analog808Kick = True</code></td><td>TR-808 Kick Drum</td><td>Tune, Tone, Decay, Punch, Distortion</td></tr>
-            <tr><td><code>Analog808Snare = True</code></td><td>TR-808 Snare Drum</td><td>Snappy, Tone, Decay</td></tr>
-            <tr><td><code>Analog808HiHat = True</code></td><td>TR-808 Hi-Hat</td><td>Decay, Metallic, Tone</td></tr>
-            <tr><td><code>Analog909Kick = True</code></td><td>TR-909 Kick Drum</td><td>Tune, Attack, Decay, Drive</td></tr>
-            <tr><td><code>Analog909Snare = True</code></td><td>TR-909 Snare Drum</td><td>Tune, Snappy, Decay, Tone</td></tr>
+            <tr><td><code>analog_808_kick</code></td><td><code>Analog808Kick = True</code></td><td><code>Tune</code>, <code>Tone</code>, <code>Decay</code>, <code>Punch</code>, <code>Distortion</code></td></tr>
+            <tr><td><code>analog_808_snare</code></td><td><code>Analog808Snare = True</code></td><td><code>Snappy</code>, <code>Tone</code>, <code>Decay</code></td></tr>
+            <tr><td><code>analog_808_hihat</code></td><td><code>Analog808HiHat = True</code></td><td><code>Decay</code>, <code>Metallic</code>, <code>Tone</code></td></tr>
+            <tr><td><code>analog_808_cowbell</code></td><td><code>Analog808Cowbell = True</code></td><td><code>Tune</code>, <code>Decay</code>, <code>HighPass</code></td></tr>
+            <tr><td><code>analog_808_tom</code></td><td><code>Analog808Tom = True</code></td><td><code>Pitch</code>, <code>Decay</code>, <code>LowPass</code></td></tr>
+            <tr><td><code>analog_909_kick</code></td><td><code>Analog909Kick = True</code></td><td><code>Tune</code>, <code>Attack</code>, <code>Decay</code>, <code>Drive</code></td></tr>
+            <tr><td><code>analog_909_snare</code></td><td><code>Analog909Snare = True</code></td><td><code>Tune</code>, <code>Snappy</code>, <code>Decay</code>, <code>Tone</code></td></tr>
+            <tr><td><code>analog_909_closed_hihat</code></td><td><code>Analog909ClosedHiHat = True</code></td><td><code>Decay</code>, <code>Tune</code>, <code>Choke</code></td></tr>
+            <tr><td><code>analog_909_open_hihat</code></td><td><code>Analog909OpenHiHat = True</code></td><td><code>Decay</code>, <code>Tune</code></td></tr>
+            <tr><td><code>analog_909_clap</code></td><td><code>Analog909Clap = True</code></td><td><code>Reverb</code>, <code>Spread</code>, <code>Decay</code></td></tr>
+            <tr><td><code>analog_909_rimshot</code></td><td><code>Analog909Rimshot = True</code></td><td><code>Pitch</code>, <code>Snap</code></td></tr>
+            <tr><td><code>fm_acoustic_kick</code></td><td><code>FmAcousticKick</code></td><td>Dual-mic modal FM bass drum</td></tr>
+            <tr><td><code>fm_acoustic_snare</code></td><td><code>FmAcousticSnare</code></td><td>Dual-mic modal FM snare with shell rattle</td></tr>
           </tbody>
         </table>
 
         <h2>2. Keyboards & Physical Pianos</h2>
         <table>
-          <thead><tr><th>Model Builder</th><th>Physical Instrument</th></tr></thead>
+          <thead><tr><th>Engine ID</th><th>Physical Instrument</th><th>Acoustic Model</th></tr></thead>
           <tbody>
-            <tr><td><code>ConcertGrandPiano</code></td><td>Acoustic Concert Grand with Sympathetic Resonance</td></tr>
-            <tr><td><code>FeltUprightPiano</code></td><td>Muted Upright Piano with Soft Felt Damper</td></tr>
-            <tr><td><code>RhodesEPiano</code></td><td>Vintage Electric Tine Piano with Dynamic Bark</td></tr>
-            <tr><td><code>DX7EPiano</code></td><td>Yamaha 6-Operator FM Electric Piano</td></tr>
-            <tr><td><code>ClavinetD6</code></td><td>Plucked Reed Hohner Clavinet with Magnetic Pickups</td></tr>
+            <tr><td><code>concert_grand_piano</code></td><td>Concert Grand Piano</td><td>Multi-velocity acoustic grand with sympathetic string resonance.</td></tr>
+            <tr><td><code>felt_upright_piano</code></td><td>Felt Upright Piano</td><td>Muted felt hammers with soft mechanical damper absorption.</td></tr>
+            <tr><td><code>honky_tonk_piano</code></td><td>Honky Tonk Piano</td><td>Detuned triple-string chorus and bright tack hammers.</td></tr>
+            <tr><td><code>toy_piano</code></td><td>Toy Piano</td><td>Bell-like metallic rod physical resonator.</td></tr>
+            <tr><td><code>rhodes_epiano</code></td><td>Rhodes Electric Piano</td><td>Tine and pickup physical model with dynamic bell bark.</td></tr>
+            <tr><td><code>dx7_epiano</code></td><td>DX7 Electric Piano</td><td>Authentic 6-operator FM electric piano sound.</td></tr>
+            <tr><td><code>clavinet_d6</code></td><td>Clavinet D6</td><td>Plucked reed with magnetic single-coil pickups.</td></tr>
+            <tr><td><code>harpsichord</code></td><td>Harpsichord</td><td>Bright plectrum-plucked string mechanism.</td></tr>
+            <tr><td><code>glockenspiel</code> / <code>music_box</code></td><td>Bells & Metallophones</td><td>Tuned steel bars with high-frequency transient ring.</td></tr>
+            <tr><td><code>xylophone</code> / <code>vibraphone</code></td><td>Mallets & Resonators</td><td>Resonated rosewood bars and motor tremolo vibrato.</td></tr>
           </tbody>
         </table>
 
         <h2>3. Plucked Strings & Guitars</h2>
-        <p>Waveguide physical models: <code>SpanishGuitar</code>, <code>SteelAcousticGuitar</code>, <code>TwelveStringGuitar</code>, <code>BluegrassBanjo</code>, <code>HawaiianUkulele</code>, <code>SoloViolin</code>, <code>DoubleBass</code>, <code>Sitar</code>.</p>
+        <p>Waveguide physical models implementing Karplus-Strong string equations with body impulse response:</p>
+        <ul>
+          <li><strong>Guitars</strong>: <code>spanish_guitar</code>, <code>flamenco_guitar</code>, <code>steel_acoustic_guitar</code>, <code>twelve_string_guitar</code>, <code>dobro_resonator</code>, <code>pedal_steel_guitar</code>, <code>harp_guitar</code>, <code>reggae_guitar</code>, <code>baroque_guitar</code>.</li>
+          <li><strong>Folk & World</strong>: <code>bluegrass_banjo</code>, <code>folk_mandolin</code>, <code>hawaiian_ukulele</code>, <code>renaissance_lute</code>, <code>sitar</code>.</li>
+          <li><strong>Bowed Strings</strong>: <code>solo_violin</code>, <code>solo_viola</code>, <code>solo_cello</code>, <code>double_bass</code>, <code>string_ensemble</code>.</li>
+        </ul>
 
-        <h2>4. Chiptunes & Retro Silicon</h2>
-        <p><code>SIDSynth = True</code> (Commodore 64 6581/8580), <code>snesDsp = True</code> (Super Nintendo SPC700), <code>ym2612 = True</code> (Sega Genesis 4-Op FM).</p>
+        <h2>4. Bass Synthesizers</h2>
+        <table>
+          <thead><tr><th>Engine ID</th><th>Model Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>tb303</code> / <code>eats303</code></td><td>Roland TB-303 Acid Bass</td><td>Transistor ladder filter, accent discharge, and portamento slide.</td></tr>
+            <tr><td><code>moog_synth_bass</code></td><td>Moog 24dB Ladder</td><td>Resonant transistor ladder lowpass with saturated overdrive.</td></tr>
+            <tr><td><code>poly_synth</code> / <code>poly_lead</code></td><td>Virtual Analog Poly</td><td>Multi-waveform synth (Saw, Square, Tri, Noise), sub-oscillator, SVF filter, ADSR.</td></tr>
+            <tr><td><code>sub_bass_synth</code></td><td>Pure Sub Bass</td><td>Clean low-frequency anchor and 808 sub bass.</td></tr>
+            <tr><td><code>acoustic_bass</code> / <code>upright_bass</code></td><td>Double Bass</td><td>Acoustic cavity body resonance with fingerboard clack.</td></tr>
+            <tr><td><code>fretless_bass</code></td><td>Fretless Electric Bass</td><td>Warm harmonic swell and expressive pitch glissandi.</td></tr>
+          </tbody>
+        </table>
+
+        <h2>5. Chiptunes & Retro Silicon</h2>
+        <ul>
+          <li><code>c64_sid</code>: MOS 6581/8580 wave generator, pulse-width modulation, ring mod, non-linear filter distortion.</li>
+          <li><code>snes_dsp</code>: Super Nintendo SPC700 32kHz downsampling, 8-tap FIR echo, BRR interpolation.</li>
+          <li><code>ym2612</code>: Sega Genesis 4-operator FM sound chip with 9-bit DAC crossover distortion.</li>
+          <li><code>voltaic_plasma</code>: Electric arc discharge audio synthesizer.</li>
+        </ul>
+
+        <h2>6. Built-in Audio Effects</h2>
+        <table>
+          <thead><tr><th>Effect ID</th><th>Primary Parameters</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>compressor</code></td><td><code>Threshold</code>, <code>Ratio</code>, <code>Attack</code>, <code>Release</code>, <code>Makeup</code>, <code>Mix</code></td><td>Studio dynamic range compressor with true logarithmic decibel ballistics.</td></tr>
+            <tr><td><code>limiter</code></td><td><code>Ceiling</code>, <code>Threshold</code>, <code>Release</code></td><td>Zero-overshoot brickwall peak limiter with 2ms lookahead buffer.</td></tr>
+            <tr><td><code>multimode_filter</code></td><td><code>Cutoff</code>, <code>Resonance</code>, <code>GainDb</code>, <code>Type</code></td><td>2-pole RBJ biquad filter (LP, HP, BP, Notch, Peaking, Shelves).</td></tr>
+            <tr><td><code>parametric_eq</code></td><td><code>Band1_Freq</code>..<code>Band5_Freq</code>, <code>Gain</code>, <code>Q</code></td><td>5-band studio parametric EQ with real-time magnitude curve.</td></tr>
+            <tr><td><code>stereo_delay</code></td><td><code>TimeMs</code>, <code>Feedback</code>, <code>Damping</code>, <code>Mix</code></td><td>Ping-pong tape delay line with analog feedback saturation.</td></tr>
+            <tr><td><code>stereo_chorus</code></td><td><code>RateHz</code>, <code>DepthMs</code>, <code>BaseDelayMs</code>, <code>Mix</code></td><td>Dual quadrature LFO multi-voice stereo chorus & flanger.</td></tr>
+            <tr><td><code>bitcrusher</code></td><td><code>Bits</code>, <code>Downsample</code>, <code>Drive</code>, <code>Mix</code></td><td>Hardware sample-rate and quantization bit-depth reduction.</td></tr>
+            <tr><td><code>snes_downsample</code></td><td><code>Rate</code>, <code>EchoVolume</code>, <code>Mix</code></td><td>Authentic Super Nintendo 32kHz interpolation and echo.</td></tr>
+            <tr><td><code>tube_distortion</code></td><td><code>Drive</code>, <code>Bias</code>, <code>Tone</code>, <code>Mix</code></td><td>Asymmetric triode tube saturation.</td></tr>
+            <tr><td><code>cab_designer</code></td><td><code>CabSize</code>, <code>Resonance</code>, <code>MicDistance</code>, <code>Mix</code></td><td>Speaker cabinet impulse and standing wave resonator.</td></tr>
+          </tbody>
+        </table>
+
+        <h2>7. Modular Graph Primitives (`eat.node.*`)</h2>
+        <p>In Approach C, modular racks compile directly from Pythonic <code>def graph():</code> definitions into zero-allocation, native C/Dart <code>GraphNode</code> trees:</p>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>def graph():
+    vco = eat.node.osc(wave="saw", detune=2.5)
+    sub = eat.node.sub(octave=-1, level=0.4)
+    vcf = eat.node.moog(in_sig=vco + sub, cutoff="Cutoff", reso="Reso")
+    env = eat.node.adsr(attack="Attack", decay="Decay", sustain="Sustain", release="Release")
+    sat = eat.node.saturate(in_sig=vcf, drive="Drive")
+    return sat * env</code></pre>
       </article>
 
-      <!-- SECTION: GUI DSL -->
+      <!-- ====================================================================
+           SECTION 04: DECLARATIVE GUI DSL
+           ==================================================================== -->
       <article id="gui" class="doc-article">
         <h1>04. Declarative GUI DSL</h1>
-        <p>Hardware-inspired virtual instrument control panels are declared in <code>def gui():</code>:</p>
+        <p>Hardware-inspired virtual instrument control panels are declared in <code>def gui():</code>. The engine translates these definitions into vector-rendered skeuomorphic chassis:</p>
 
-        <h2>Panel Themes & Skeuomorphic Textures</h2>
-        <p>Available chassis backgrounds: <code>"silver"</code>, <code>"dark"</code>, <code>"snes"</code>, <code>"grunge"</code>, <code>"wood"</code>, <code>"carbon"</code>.</p>
+        <h2>Panel Themes & Chassis Textures</h2>
+        <p>Available chassis textures: <code>"dark"</code>, <code>"silver"</code>, <code>"grunge"</code>, <code>"snes"</code>, <code>"walnut"</code>, <code>"mahogany"</code>, <code>"rosewood"</code>, <code>"brushedSteel"</code>, <code>"matteMetal"</code>, <code>"tolex"</code>, <code>"carbon"</code>, <code>"mesh"</code>, <code>"dx7Membrane"</code>, <code>"pcbGreen"</code>.</p>
 
-        <h2>Interactive Controls</h2>
+        <h2>6-Zone Physical Hardware Knobs</h2>
+        <p>Select from 12 authentic skeuomorphic hardware knob presets using <code>knobStyle: "hardwareKnob"</code> and <code>hardwareKnobStyle: "..."</code>:</p>
+        <table>
+          <thead><tr><th>Hardware Preset</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>tb303_selector</code></td><td>Roland stepped rotary waveform/pattern selector knob.</td></tr>
+            <tr><td><code>tb303_acid_halo</code></td><td>Glowing LED indicator halo ring with silver spun center cap.</td></tr>
+            <tr><td><code>tb303_potentiometer</code></td><td>Fluted silver skirted knob with top indicator notch line.</td></tr>
+            <tr><td><code>vintageBakelite</code></td><td>Deep charcoal/black console body with wide flared skirt and white notch.</td></tr>
+            <tr><td><code>chromeFluted</code></td><td>Machined aluminum audio console knob with dark grooves.</td></tr>
+            <tr><td><code>anodizedKnurled</code></td><td>Diamond-knurled industrial metal perimeter grip ring.</td></tr>
+            <tr><td><code>twoToneStepped</code></td><td>Off-white center cap seated in stepped dark skirt flange.</td></tr>
+            <tr><td><code>illuminatedEncoder</code></td><td>Endless rotary encoder with illuminated cyan or amber LED pip.</td></tr>
+            <tr><td><code>creamFluted</code></td><td>Vintage cream off-white fluted cap with recessed black indicator.</td></tr>
+            <tr><td><code>snesConsole</code></td><td>Authentic console grey with colored jewel indicators.</td></tr>
+            <tr><td><code>minimalWhite</code></td><td>Clean architectural white studio control knob.</td></tr>
+            <tr><td><code>standardHardware</code></td><td>Eatsbeats standard studio brushed metal knob.</td></tr>
+          </tbody>
+        </table>
+
+        <h2>Interactive Controls & Displays</h2>
         <ul>
-          <li><strong>Knobs</strong>: Standard, Chrome, SNES, Vintage Bakelite, or 6-Zone Hardware Knobs (<code>"tb303_selector"</code>, <code>"tb303_acid_halo"</code>, <code>"anodizedKnurled"</code>).</li>
-          <li><strong>Sliders & Faders</strong>: Horizontal and vertical console faders.</li>
-          <li><strong>Switches & Segmented Pills</strong>: Multi-state toggle switches and pill selectors.</li>
-          <li><strong>Scopes & Visualizers</strong>: Real-time <code>oscilloscope</code>, 64-band <code>spectrum</code>, vacuum tube <code>nixie</code>, and dot-matrix <code>lcd</code>.</li>
+          <li><strong>Knobs</strong>: Standard, Chrome, Vintage, SNES, or 6-Zone Hardware Knobs. Custom cap, body, indicator colors, and scales can be overridden per knob.</li>
+          <li><strong>Sliders & Faders</strong>: Horizontal and vertical faders (<code>console</code>, <code>capsule</code>, <code>minimalPill</code>).</li>
+          <li><strong>Switches & Pills</strong>: Multi-state toggles and modern horizontal segmented pills (<code>segmentedPill</code>).</li>
+          <li><strong>Scopes & Visualizers</strong>: Real-time <code>oscilloscope</code>, 64-band FFT <code>spectrum</code>, vacuum tube <code>nixie</code>, dot-matrix <code>lcd</code>, <code>spaceVisualizer</code>, and <code>waveshaperCanvas</code>.</li>
         </ul>
       </article>
 
-      <!-- SECTION: MIDI & Music Theory -->
+      <!-- ====================================================================
+           SECTION 05: MIDI & MUSIC THEORY
+           ==================================================================== -->
       <article id="midi" class="doc-article">
         <h1>05. MIDI & Music Theory API</h1>
         <p>Manipulate note buffers and musical structures inside <code>eat</code>:</p>
+
+        <h2>Note Buffer Operations</h2>
         <ul>
           <li><code>eat.add_note(pitch, start=0.0, duration=1.0, velocity=0.85)</code>: Appends a note.</li>
-          <li><code>eat.scale(root="C", type="minor")</code>: Returns valid in-scale pitch arrays.</li>
-          <li><code>eat.scale_conform(pitch, root=0, is_minor=False)</code>: Quantizes pitch to active scale.</li>
-          <li><code>eat.snap_to_chord(pitch, chord="Am7", mode="chord")</code>: Snaps pitch to chord tones.</li>
-          <li><code>eat.euclidean(step, steps=16, pulses=4, shift=0)</code>: Bjorklund Euclidean rhythms.</li>
-          <li><code>eat.arpeggiate(notes, rate=1.0, octaves=2, pattern="up")</code>: Generates arpeggios.</li>
-          <li><code>eat.chord_follow(notes, mode="chord")</code>: Follows DAW song chord progression.</li>
+          <li><code>eat.get_notes()</code>: Returns current note list as standard dictionaries.</li>
+          <li><code>eat.clear_notes()</code>: Empties current note buffer.</li>
         </ul>
+
+        <h2>Scales & Chord Conformance</h2>
+        <ul>
+          <li><code>eat.scale(root="C", type="minor")</code>: Returns valid in-scale pitch arrays across the keyboard (major, minor, dorian, mixolydian, blues, pentatonic).</li>
+          <li><code>eat.scale_conform(pitch, root=0, is_minor=False)</code>: Quantizes pitch to active song scale.</li>
+          <li><code>eat.scale_snap(notes, key=0, scale=0)</code>: Snaps all notes in a list to specified key and mode.</li>
+          <li><code>eat.snap_to_chord(pitch, chord="Am7", mode="chord")</code>: Snaps pitch to chord tones, chord scale, or root/bass.</li>
+          <li><code>eat.chord_follow(notes, mode="chord")</code>: Follows DAW song chord progression in real time.</li>
+        </ul>
+
+        <h2>Rhythm & Arpeggiation</h2>
+        <ul>
+          <li><code>eat.euclidean(step, steps=16, pulses=4, shift=0)</code>: Step test for Bjorklund Euclidean rhythms.</li>
+          <li><code>eat.euclidean(pulses, steps)</code>: Overload returning a complete binary rhythm list: e.g. <code>eat.euclidean(4, 16)</code>.</li>
+          <li><code>eat.arpeggiate(notes, rate=1.0, octaves=2, pattern="up", gate=0.85, swing=0.0)</code>: Arpeggiator.</li>
+          <li><code>eat.chord_arp(notes, rate=1.0, octaves=1, pattern="up")</code>: Chord-aware arpeggiator.</li>
+          <li><code>eat.humanize(notes, timing=0.02, velocity=0.08)</code>: Micro-timing jitter and velocity variations.</li>
+          <li><code>eat.transpose(notes, semitones=0)</code>: Pitch transpositions.</li>
+        </ul>
+
+        <h2>Randomness Helpers</h2>
+        <p><code>eat.random_int(min=0, max=10)</code>, <code>eat.random_float(min=0.0, max=1.0)</code>, <code>eat.random_choice(list)</code>.</p>
       </article>
 
-      <!-- SECTION: DAW Macro API -->
+      <!-- ====================================================================
+           SECTION 06: DAW & MACRO API
+           ==================================================================== -->
       <article id="daw" class="doc-article">
         <h1>06. DAW & Macro API</h1>
-        <p>Automate the host workstation using <code>eat.daw</code> or <code>project</code>:</p>
-        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Adjust Project Tempo & Key
+        <p>Automate the host workstation headlessly using <code>eat.daw</code> or its global alias <code>project</code>:</p>
+
+        <h2>Global Project Controls</h2>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Adjust Project Tempo & Song Key
 eat.daw.set_tempo(140.0)
 eat.daw.set_key("E Minor")
 
-# Manage Tracks
+# Undo checkpoint & console logging
+eat.daw.checkpoint(label="Generated Acid Bassline")
+eat.daw.log("Pattern generation complete.")</code></pre>
+
+        <h2>Track Channel Management</h2>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Create new track (types: 'synth', 'sampler', 'bass', 'tts', 'script')
 bass = eat.daw.add_track("Sub Bass", type="bass")
 bass.set_volume(0.9)
+bass.set_pan(-0.1)
 bass.set_param("Cutoff", 600.0)
+bass.mute(False)
+bass.solo(False)</code></pre>
 
-# Create Clip & Automate Parameter
-clip = bass.create_clip(start_bar=0, length_bars=4)
+        <h2>Clip Sequencing & Parameter Automation</h2>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Create 4-bar clip on track
+clip = bass.create_clip(start_bar=0, length_bars=4, name="Acid Lead")
+clip.add_note(pitch=36, start=0.0, duration=1.0, velocity=0.95)
+
+# Add Automation Points with Easing Curves
+# Curves: 'linear', 'exponential', 'ease_in_out', 'smooth'
 bass.add_automation_point("Cutoff", step=0.0, val=200.0, easing="exponential")
-bass.add_automation_point("Cutoff", step=64.0, val=2400.0, easing="linear")
+bass.add_automation_point("Cutoff", step=64.0, val=3200.0, easing="linear")</code></pre>
 
-# Offline Audio Export
-eat.daw.render_audio(filename="render.wav", bars=16)</code></pre>
+        <h2>Offline Audio & Video Export</h2>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Export 32-bar master WAV
+eat.daw.render_audio(filename="master.wav", bars=32)
+
+# Render Full HD visualization video
+eat.daw.render_video(
+    filename="render.mp4",
+    fps=60,
+    width=1920,
+    height=1080,
+    bars=16
+)</code></pre>
       </article>
 
-      <!-- SECTION: Canonical Recipes -->
+      <!-- ====================================================================
+           SECTION 07: CANONICAL RECIPES
+           ==================================================================== -->
       <article id="recipes" class="doc-article">
         <h1>07. Canonical Recipes</h1>
-        <p>Explore production-ready starting templates in <a href="api/07_canonical_recipes.md" style="color: var(--accent-cyan);">07_canonical_recipes.md</a> for Virtual Analog Poly Synths, Lo-Fi Bitcrushers, and Generative Euclidean Pattern Generators.</p>
+        <p>Production-ready templates for instruments, modular graphs, effects, and algorithmic MIDI pipelines:</p>
+
+        <h2>1. Virtual Analog Poly Synth (Instrument)</h2>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># @id: va_lead
+import math
+
+def init():
+    return {
+        "Waveform": eat.param("Waveform", 0.0, 1.0, 0.0, step=1.0, options=["SAW", "SQR"], allow_variance=False),
+        "Cutoff": eat.param("Cutoff", 40.0, 14000.0, 2200.0, unit="Hz"),
+        "Resonance": eat.param("Resonance", 0.5, 12.0, 4.0),
+        "Attack": eat.param("Attack", 0.002, 1.0, 0.01, unit="s"),
+        "Decay": eat.param("Decay", 0.05, 3.0, 0.45, unit="s"),
+        "Drive": eat.param("Drive", 0.0, 1.0, 0.2),
+    }
+
+def gui():
+    return {
+        "panel": {
+            "title": "VINTAGE POLY SYNTH",
+            "subtitle": "Virtual Analog 24dB Ladder Synth",
+            "background": "dark",
+            "accent": "#FF8C00",
+            "knobStyle": "chromeFluted",
+            "layout": [
+                {
+                    "type": "row",
+                    "children": [
+                        {"type": "switch", "param": "Waveform", "label": "WAVE", "options": ["SAW", "SQR"]},
+                        {"type": "knob", "param": "Cutoff", "label": "CUTOFF"},
+                        {"type": "knob", "param": "Resonance", "label": "RESO"},
+                        {"type": "knob", "param": "Attack", "label": "ATTACK"},
+                        {"type": "knob", "param": "Decay", "label": "DECAY"},
+                        {"type": "knob", "param": "Drive", "label": "DRIVE"},
+                    ]
+                }
+            ]
+        }
+    }
+
+def process(time, freq, note, params, targetNote=0, isSlide=False, isAccent=False):
+    wave = params.get("Waveform", 0.0)
+    decay = params.get("Decay", 0.45)
+    attack = params.get("Attack", 0.01)
+    drive = params.get("Drive", 0.2)
+    
+    phase = time * freq
+    normPhase = phase - math.floor(phase)
+    saw = 2.0 * normPhase - 1.0
+    sqr = 0.85 if normPhase < 0.5 else -0.85
+    osc = (1.0 - wave) * saw + wave * sqr
+    
+    env = (1.0 - math.exp(-time / max(0.001, attack))) * math.exp(-time / max(0.01, decay))
+    out = osc * env
+    if drive > 0.01:
+        out = math.tanh(out * (1.0 + drive * 4.0))
+    return out</code></pre>
+
+        <h2>2. Modular Sub Lead (Approach C: `def graph():`)</h2>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># @id: modular_sub_lead
+
+def init():
+    return {
+        "Cutoff": eat.param("Cutoff", 40.0, 16000.0, 1800.0, unit="Hz"),
+        "Resonance": eat.param("Resonance", 0.1, 10.0, 1.2),
+        "Drive": eat.param("Drive", 0.0, 5.0, 1.5),
+        "Attack": eat.param("Attack", 0.001, 2.0, 0.01, unit="s"),
+        "Decay": eat.param("Decay", 0.01, 3.0, 0.25, unit="s"),
+        "Sustain": eat.param("Sustain", 0.0, 1.0, 0.7),
+        "Release": eat.param("Release", 0.01, 3.0, 0.35, unit="s"),
+    }
+
+def graph():
+    vco = eat.node.osc(wave="saw", detune=3.0)
+    sub = eat.node.sub(octave=-1, level=0.5)
+    vcf = eat.node.moog(in_sig=vco + sub, cutoff="Cutoff", reso="Resonance")
+    env = eat.node.adsr(attack="Attack", decay="Decay", sustain="Sustain", release="Release")
+    sat = eat.node.saturate(in_sig=vcf, drive="Drive")
+    return sat * env
+
+def process(time, freq, note, params):
+    return 0.0</code></pre>
+
+        <h2>3. Lo-Fi Stereo Bitcrusher (Audio FX)</h2>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># @id: lofi_crusher
+import math
+
+def init():
+    return {
+        "Bits": eat.param("Bits", 2.0, 16.0, 8.0, step=1.0, allow_variance=False),
+        "Downsample": eat.param("Downsample", 1.0, 32.0, 2.0, step=1.0, allow_variance=False),
+        "Mix": eat.param("Mix", 0.0, 1.0, 0.8),
+    }
+
+def process(input_l, input_r, params):
+    bits = params.get("Bits", 8.0)
+    mix = params.get("Mix", 0.8)
+    
+    levels = 2.0 ** bits
+    crushed_l = math.floor(input_l * levels + 0.5) / levels
+    crushed_r = math.floor(input_r * levels + 0.5) / levels
+    
+    out_l = input_l * (1.0 - mix) + crushed_l * mix
+    out_r = input_r * (1.0 - mix) + crushed_r * mix
+    return [out_l, out_r]
+
+Bitcrusher = True</code></pre>
       </article>
 
-      <!-- SECTION: AI Grounding -->
+      <!-- ====================================================================
+           SECTION 08: AI AGENT GROUNDING
+           ==================================================================== -->
       <article id="ai" class="doc-article">
         <h1>AI Agent Skill & Grounding</h1>
+        
         <div class="callout">
           <div class="callout-title">Antigravity AI Agent Skill</div>
-          The Eatscript skill is installed at <code>.agents/skills/eatscript/SKILL.md</code>. When Gemini or any AI pair programmer works on Eatsbeats, this skill automatically provides the grammar rules, parameter definitions, and DSP catalogs.
+          The official Eatscript skill is installed at <code>.agents/skills/eatscript/SKILL.md</code>. When Gemini, Claude, or any AI pair programmer works on Eatsbeats, this skill automatically supplies the grammar rules, parameter definitions, and DSP catalogs.
         </div>
-        <p>AI agents generating scripts should always verify that parameters include <code>min</code>, <code>max</code>, and <code>default</code>, the GUI returns a valid <code>panel</code> dictionary, and DSP calculations use <code>math.tanh</code> or <code>clamp</code> to avoid digital clipping.</p>
+
+        <h2>Strict AI Generation Rules</h2>
+        <ul>
+          <li><strong>NEVER write Lua</strong>: Eatsbeats has NO Lua runtime. Always write Eatscript (Pythonic syntax with <code>def</code>, 4-space indentation, <code>#</code> comments).</li>
+          <li><strong>Parameter Registration</strong>: Always declare continuous parameters with <code>min</code>, <code>max</code>, and <code>default</code> in <code>def init():</code>.</li>
+          <li><strong>Zero Audio Allocations</strong>: Inside <code>def process():</code>, never create objects, arrays, or allocate dynamic memory. Perform pure mathematical evaluations.</li>
+          <li><strong>Safe Clipping</strong>: Always pass audio outputs through <code>math.tanh()</code> or clamp within <code>[-1.0, 1.0]</code> to avoid harsh digital clipping.</li>
+        </ul>
       </article>
 
     </div>
@@ -746,7 +1180,7 @@ eat.daw.render_audio(filename="render.wav", bars=16)</code></pre>
       'midi': '05. MIDI & Music Theory',
       'daw': '06. DAW & Macro API',
       'recipes': '07. Canonical Recipes',
-      'ai': 'AI Agent Skill Grounding'
+      'ai': 'AI Agent Grounding'
     };
 
     function switchTab(tabId) {
@@ -768,7 +1202,13 @@ eat.daw.render_audio(filename="render.wav", bars=16)</code></pre>
       navigator.clipboard.writeText(code).then(() => {
         const orig = btn.innerText;
         btn.innerText = 'Copied!';
-        setTimeout(() => btn.innerText = orig, 2000);
+        btn.style.color = '#FF8C00';
+        btn.style.borderColor = '#FF8C00';
+        setTimeout(() => {
+          btn.innerText = orig;
+          btn.style.color = '';
+          btn.style.borderColor = '';
+        }, 2000);
       });
     }
 

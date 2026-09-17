@@ -3,8 +3,6 @@
 # @category: instrument
 # @description: Physical modeling of atmospheric wind, Aeolian tones, and architectural cavity whistling: fractional Brownian motion aerodynamic gust generator, Strouhal vortex shedding resonance, Harmon-derived window crack cavity notch, and chimney howl modal resonator.
 
-eatsfx_wind = True
-
 def init():
     return {
         "GustSpeed": eat.param("GustSpeed", 0.05, 3.0, 0.25),

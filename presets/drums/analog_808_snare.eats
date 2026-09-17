@@ -69,4 +69,17 @@ def gui():
         },
     }
 
-Analog808Snare = True
+# --- Modular Synthesis Graph Topology ---
+def graph():
+    body1 = eat.node.osc(wave="sine", freq=180.0)
+    body2 = eat.node.osc(wave="sine", freq=330.0)
+    body_mix = eat.node.mix(body1, body2)
+    body_env = eat.node.decay(decay="ToneDecay")
+    body_vca = eat.node.gain(body_mix, gain_cv=body_env)
+    noise = eat.node.noise()
+    noise_hp = eat.node.svf(noise, cutoff=2000.0, type="highpass")
+    wire_env = eat.node.decay(decay="Decay")
+    wire_vca = eat.node.gain(noise_hp, gain_cv=wire_env, gain="Snappy")
+    mix = eat.node.mix(body_vca, wire_vca)
+    out = eat.node.saturate(mix, drive=1.15)
+    return out

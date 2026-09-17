@@ -39,9 +39,16 @@ def gui():
         },
     }
 
+# --- Modular Synthesis Graph Topology ---
+def graph():
+    in_sig = eat.node.input()
+    crushed = eat.node.bitcrush(in_sig, bits="BRRBits", downsample=2.0)
+    filtered = eat.node.svf(crushed, cutoff=8000.0, reso=0.707, type="lowpass")
+    saturated = eat.node.saturate(filtered, drive="Drive")
+    out = eat.node.mix(in_sig, saturated, mix="Mix")
+    return out
+
 # --- Audio FX DSP Process Hook ---
 def process(input_l, input_r, params):
     # Evaluated by SNESDownsamplerEngine in EatDspSynthesizer
     return [input_l, input_r]
-
-SNESDownsampler = True

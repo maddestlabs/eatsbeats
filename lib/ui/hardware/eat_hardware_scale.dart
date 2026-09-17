@@ -250,6 +250,33 @@ class EatScaleGraduation {
     );
   }
 
+  /// Factory for discrete option-based selector knobs (e.g. Waveforms: Saw, Sine, Square, Triangle, etc.)
+  factory EatScaleGraduation.optionsSelector({
+    required List<String> labels,
+    Color? tickColor,
+    Color? labelColor,
+    double startAngle = 2.35619,
+    double sweepAngle = 4.71239,
+  }) {
+    final int count = labels.length;
+    final int divisions = math.max(1, count - 1);
+    final double fontSize = count > 5 ? 7.0 : (count > 3 ? 7.5 : 8.0);
+    return EatScaleGraduation(
+      startAngle: startAngle,
+      sweepAngle: sweepAngle,
+      tickDivisions: divisions,
+      tickLength: 3.5,
+      majorTickLength: 5.5,
+      tickWidth: 1.2,
+      majorTickWidth: 1.6,
+      tickColor: tickColor,
+      labels: labels,
+      labelFontSize: fontSize,
+      labelColor: labelColor,
+      labelDistanceRatio: count > 4 ? 1.34 : 1.28,
+    );
+  }
+
   /// Converts a normalized 0.0..1.0 value to the exact radial angle in radians.
   double valueToAngle(double normalizedValue) {
     return startAngle + (normalizedValue.clamp(0.0, 1.0) * sweepAngle);

@@ -322,6 +322,8 @@ class EatGuiParser {
     List<String> options = [];
     if (m['options'] is List) {
       options = (m['options'] as List).map((e) => e.toString()).toList();
+    } else if (m['options'] is String) {
+      options = (m['options'] as String).split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
     }
 
     List<EatScriptGuiNode> children = [];
@@ -441,12 +443,14 @@ class EatGuiParser {
     final rawScale = m['scale'] ?? m['dialScale'] ?? m['graduations'];
     if (rawScale is List) {
       final labels = rawScale.map((e) => e.toString()).toList();
-      hardwareScale = EatScaleGraduation(
+      hardwareScale = EatScaleGraduation.optionsSelector(
         labels: labels,
-        tickDivisions: math.max(1, labels.length - 1),
         tickColor: dialColor,
         labelColor: dialColor,
       );
+      if (options.isEmpty) {
+        options = labels;
+      }
     } else if (rawScale is String) {
       final s = rawScale.toLowerCase().trim();
       if (s == '0_to_10' || s == '0..10' || s == 'zero_to_ten') {
@@ -472,7 +476,23 @@ class EatGuiParser {
           tickColor: dialColor,
           labelColor: dialColor,
         );
+      } else if (rawScale.contains(',')) {
+        final labels = rawScale.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+        hardwareScale = EatScaleGraduation.optionsSelector(
+          labels: labels,
+          tickColor: dialColor,
+          labelColor: dialColor,
+        );
+        if (options.isEmpty) {
+          options = labels;
+        }
       }
+    } else if (options.isNotEmpty) {
+      hardwareScale = EatScaleGraduation.optionsSelector(
+        labels: options,
+        tickColor: dialColor,
+        labelColor: dialColor,
+      );
     }
 
     if (hardwareKnobStyle != null && hardwareScale != null) {

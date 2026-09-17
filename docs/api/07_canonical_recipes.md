@@ -168,3 +168,99 @@ def process(notes, time_ctx):
             
     return eat.humanize(eat.get_notes(), timing=0.015, velocity=0.05)
 ```
+
+---
+
+## 4. Bi-Directional Modular Graph Synthesizer (Modular Studio)
+
+Eatscript modular synthesizers declare their DSP topology inside `def graph():` using `eat.node.*` primitives. This bi-directionally synchronizes with the **DESIGN > MODULAR** studio canvas in real time.
+
+```python
+# @id: modular_sub_lead
+# @name: Modular Sub Synth
+# @category: synth
+# @description: Dual-oscillator modular synthesis with sub octave, Chamberlin SVF, and soft saturation.
+
+def init():
+    return {
+        "Cutoff": eat.param("Cutoff", 40.0, 16000.0, 1800.0, unit="Hz"),
+        "Resonance": eat.param("Resonance", 0.1, 10.0, 1.2),
+        "Drive": eat.param("Drive", 0.0, 5.0, 1.5),
+        "Attack": eat.param("Attack", 0.001, 2.0, 0.01, unit="s"),
+        "Decay": eat.param("Decay", 0.01, 3.0, 0.25, unit="s"),
+        "Sustain": eat.param("Sustain", 0.0, 1.0, 0.7),
+        "Release": eat.param("Release", 0.01, 3.0, 0.35, unit="s"),
+    }
+
+def graph():
+    vco = eat.node.osc(wave="square", detune=3.0)
+    sub = eat.node.sub(octave=-1, level=0.5)
+    vcf = eat.node.svf(in_sig=vco, cutoff="Cutoff", reso="Resonance")
+    env = eat.node.adsr(attack="Attack", decay="Decay", sustain="Sustain", release="Release")
+    sat = eat.node.saturate(in_sig=vcf, drive="Drive")
+    return sat * env
+
+def process(time, freq, note, params):
+    return 0.0
+```
+
+---
+
+## 5. Modular Drum Synthesis (TR-909 Analog Suite)
+
+```python
+# @id: modular_909_kick
+# @name: Modular 909 Kick
+# @category: instrument
+# @description: Authentic André Michelle physical circuit model: 274Hz->53Hz exponential sweep, single-cycle analog oscillator wavetable, and attack click transient.
+
+def init():
+    return {
+        "Tune": eat.param("Tune", 0.007, 0.03, 0.018, step=0.0),
+        "Attack": eat.param("Attack", 0.0, 2.0, 1.0, step=0.0),
+        "Decay": eat.param("Decay", 0.012, 0.12, 0.05, step=0.0),
+    }
+
+def graph():
+    kick = eat.node.tr909_kick(tune="Tune", decay="Decay", attack="Attack")
+    out = eat.node.saturate(kick, drive=1.15)
+    return out
+
+Analog909Kick = True
+```
+
+---
+
+## 6. Modular Audio FX: Dynamic Range Compressor
+
+```python
+# @id: modular_vca_compressor
+# @name: Modular VCA Compressor
+# @category: audioFx
+# @description: Studio dynamic range compressor with true logarithmic dB ballistics and auto-makeup gain.
+
+def init():
+    return {
+        "Threshold": eat.param("Threshold", -60.0, 0.0, -18.0, unit="dB"),
+        "Ratio": eat.param("Ratio", 1.0, 20.0, 4.0, unit=":1"),
+        "Attack": eat.param("Attack", 0.001, 0.2, 0.02, unit="s"),
+        "Release": eat.param("Release", 0.01, 1.0, 0.25, unit="s"),
+        "Makeup": eat.param("Makeup", 0.0, 24.0, 0.0, unit="dB"),
+        "Mix": eat.param("Mix", 0.0, 1.0, 1.0, unit=""),
+    }
+
+def graph():
+    in_sig = eat.node.input()
+    comp = eat.node.compressor(
+        in_sig, 
+        threshold="Threshold", 
+        ratio="Ratio", 
+        attack="Attack", 
+        release="Release", 
+        makeup="Makeup", 
+        mix="Mix"
+    )
+    return comp
+```
+
+

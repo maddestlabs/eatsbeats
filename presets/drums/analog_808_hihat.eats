@@ -63,4 +63,11 @@ def gui():
         },
     }
 
-Analog808HiHat = True
+# --- Modular Synthesis Graph Topology ---
+def graph():
+    cluster = eat.node.metallic_cluster(tune="Tune")
+    decay_env = eat.node.decay(decay="Decay")
+    vca = eat.node.gain(cluster, gain_cv=decay_env)
+    bpf = eat.node.svf(vca, cutoff="Cutoff", reso=3.2, type="bandpass")
+    out = eat.node.saturate(bpf, drive=1.1)
+    return out

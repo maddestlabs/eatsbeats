@@ -56,4 +56,13 @@ def gui():
         },
     }
 
-Analog808Cowbell = True
+# --- Modular Synthesis Graph Topology ---
+def graph():
+    osc1 = eat.node.osc(wave="square", freq=540.0)
+    osc2 = eat.node.osc(wave="square", freq=800.0)
+    osc_mix = eat.node.mix(osc1, osc2)
+    decay_env = eat.node.decay(decay="Decay")
+    vca = eat.node.gain(osc_mix, gain_cv=decay_env)
+    bpf = eat.node.svf(vca, cutoff="Tune", reso=2.2, type="bandpass")
+    out = eat.node.saturate(bpf, drive=1.2)
+    return out

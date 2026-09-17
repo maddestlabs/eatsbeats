@@ -94,8 +94,13 @@ def gui():
         },
     }
 
+# --- Modular DSP Synthesis Graph ---
+def graph():
+    strike = eat.node.hammer(hardness="MalletHardness", click=1.0)
+    bars = eat.node.modal_bank(in_sig=strike, structure="vibraphone")
+    tube = eat.node.acoustic_body(in_sig=bars, profile=0.6, gain="MotorTremolo")
+    return tube
+
 # --- Synthesizer Voice DSP Process Hook ---
 def process(time, freq, note, params):
     return 0.0
-
-Vibraphone = True

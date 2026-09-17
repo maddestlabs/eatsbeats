@@ -58,20 +58,6 @@ class GrungyRackPanel extends StatelessWidget {
     final isSilver = backgroundStyle == PanelBackgroundStyle.silver;
     final isSnes = backgroundStyle == PanelBackgroundStyle.snes;
     final isMinimal = backgroundStyle == PanelBackgroundStyle.minimalWhite;
-    final isLightChassis = isSilver || isSnes || isMinimal || backgroundStyle == PanelBackgroundStyle.blondePine;
-    final textureType = DawTextureEngine.mapStyleToTexture(backgroundStyle);
-
-    final baseAccent = accentColor ??
-        (isMinimal
-            ? const Color(0xFF2D68FF)
-            : (isSnes
-                ? const Color(0xFFE52521)
-                : (isSilver
-                    ? const Color(0xFF141416)
-                    : (isPcbGreen
-                        ? const Color(0xFF39FF14)
-                        : (isGrungy ? const Color(0xFFFF8C00) : EatsTheme.primaryCyan)))));
-
     Color basePanel;
     if (panelColor != null) {
       basePanel = panelColor!;
@@ -99,9 +85,25 @@ class GrungyRackPanel extends StatelessWidget {
       basePanel = const Color(0xFF161618);
     } else if (backgroundStyle == PanelBackgroundStyle.carbon) {
       basePanel = const Color(0xFF121418);
+    } else if (backgroundStyle == PanelBackgroundStyle.dark) {
+      basePanel = const Color(0xFF1B1D22);
     } else {
       basePanel = EatsTheme.panelBackground;
     }
+
+    final isLightChassis = (basePanel.computeLuminance() > 0.45) || isSilver || isSnes || isMinimal || backgroundStyle == PanelBackgroundStyle.blondePine;
+    final textureType = DawTextureEngine.mapStyleToTexture(backgroundStyle);
+
+    final baseAccent = accentColor ??
+        (isMinimal
+            ? const Color(0xFF2D68FF)
+            : (isSnes
+                ? const Color(0xFFE52521)
+                : (isSilver
+                    ? const Color(0xFF141416)
+                    : (isPcbGreen
+                        ? const Color(0xFF39FF14)
+                        : (isGrungy ? const Color(0xFFFF8C00) : EatsTheme.primaryCyan)))));
 
     Gradient? effectiveGradient = backgroundGradient?.toFlutterGradient();
     if (effectiveGradient == null && isPcbGreen) {
@@ -125,19 +127,23 @@ class GrungyRackPanel extends StatelessWidget {
                 ? const Color(0xFFE5E2D9)
                 : (isSilver
                     ? const Color(0xFFE2DFD6)
-                    : (isGrungy ? const Color(0xFF1E1A16) : (textureType != null ? basePanel.withOpacity(0.92) : EatsTheme.panelHeader)))));
+                    : (isGrungy
+                        ? const Color(0xFF1E1A16)
+                        : (backgroundStyle == PanelBackgroundStyle.dark
+                            ? const Color(0xFF141518)
+                            : (textureType != null ? basePanel.withOpacity(0.92) : EatsTheme.panelHeader))))));
 
-    final titleColor = (isSnes || isSilver || isMinimal || backgroundStyle == PanelBackgroundStyle.blondePine)
+    final titleColor = isLightChassis
         ? const Color(0xFF1E1E24)
         : (isPcbGreen
             ? const Color(0xFFE8F5E9)
-            : (isGrungy ? const Color(0xFFDCD2C5) : EatsTheme.textPrimary));
+            : (isGrungy ? const Color(0xFFDCD2C5) : const Color(0xFFECEEF2)));
 
-    final subtitleColor = (isSnes || isSilver || isMinimal || backgroundStyle == PanelBackgroundStyle.blondePine)
+    final subtitleColor = isLightChassis
         ? const Color(0xFF5E626E)
         : (isPcbGreen
             ? const Color(0xFF81C784)
-            : (isGrungy ? const Color(0xFF8C8275) : EatsTheme.textMuted));
+            : (isGrungy ? const Color(0xFF8C8275) : const Color(0xFF8C92A0)));
 
     final panelContent = Container(
       margin: const EdgeInsets.all(4.0),

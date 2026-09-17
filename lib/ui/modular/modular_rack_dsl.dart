@@ -1,7 +1,9 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'modular_theme.dart';
 import 'modular_module_search_dialog.dart';
 import '../../eatscript/eats_script_engine.dart';
+import '../../eatscript/eatscript_graph_model.dart';
 
 /// Identifies a physical jack on a module in the rack
 class JackKey {
@@ -101,9 +103,275 @@ class ModularRackDefinition {
 
 /// Bi-directional Parser and Serializer between Lua Script code and the Modular Rack Canvas.
 class ModularRackDsl {
-  /// Parses a Lua script for declarative `rack()` or `rack = { ... }` definitions.
-  static ModularRackDefinition? parse(String luaCode) {
-    if (!luaCode.contains('.rack') && !luaCode.contains('rack =') && !luaCode.contains('rack=')) {
+  /// Converts a semantic [EatscriptGraphDef] into a full [ModularRackDefinition] for visual canvas rendering.
+  static ModularRackDefinition fromEatscriptGraph(EatscriptGraphDef graph) {
+    final Map<int, List<DynamicModuleDefinition>> modulesByRow = {1: [], 2: []};
+    final List<DynamicPatchConnection> cables = [];
+
+    final Map<String, JackKey> outJackMap = {};
+    final Map<String, Map<String, JackKey>> inJackMap = {};
+
+    for (final node in graph.nodes) {
+      int row = 1;
+      if (node.type == 'adsr' ||
+          node.type == 'lfo' ||
+          node.type == 'decay' ||
+          node.type == 'multi_burst' ||
+          node.type == 'gain' ||
+          node.type == 'saturate' ||
+          node.type == 'delay' ||
+          node.type == 'chorus' ||
+          node.type == 'tremolo' ||
+          node.type == 'bitcrush' ||
+          node.type == 'bitcrusher' ||
+          node.type == 'acoustic_body' ||
+          node.type == 'mix' ||
+          node.type == 'out') {
+        row = 2;
+      }
+      final rowIndex = row;
+      final modIdx = modulesByRow[rowIndex]!.length;
+
+      Color accentColor = const Color(0xFF00E5FF);
+      String category = 'CORE';
+      int hp = 12;
+
+      switch (node.type.toLowerCase()) {
+        case 'osc':
+          category = 'VCO';
+          accentColor = const Color(0xFFFF5722);
+          hp = 12;
+          break;
+        case 'sub':
+          category = 'VCO';
+          accentColor = const Color(0xFFFF7043);
+          hp = 10;
+          break;
+        case 'noise':
+          category = 'VCO';
+          accentColor = const Color(0xFFB0BEC5);
+          hp = 8;
+          break;
+        case 'lfo':
+          category = 'MOD';
+          accentColor = const Color(0xFFE040FB);
+          hp = 10;
+          break;
+        case 'pitch_sweep':
+          category = 'MOD';
+          accentColor = const Color(0xFFE040FB);
+          hp = 10;
+          break;
+        case 'decay':
+          category = 'MOD';
+          accentColor = const Color(0xFF76FF03);
+          hp = 8;
+          break;
+        case 'gain':
+          category = 'UTIL';
+          accentColor = const Color(0xFF64FFDA);
+          hp = 8;
+          break;
+        case 'multi_burst':
+          category = 'MOD';
+          accentColor = const Color(0xFFFFD600);
+          hp = 10;
+          break;
+        case 'metallic_cluster':
+          category = 'VCO';
+          accentColor = const Color(0xFF90A4AE);
+          hp = 12;
+          break;
+        case 'midi_to_cv':
+        case 'cv':
+          category = 'UTIL';
+          accentColor = const Color(0xFFFF4081);
+          hp = 8;
+          break;
+        case 'svf':
+          category = 'VCF';
+          accentColor = const Color(0xFFFF9800);
+          hp = 14;
+          break;
+        case 'moog':
+          category = 'VCF';
+          accentColor = const Color(0xFFFF9100);
+          hp = 14;
+          break;
+        case 'adsr':
+          category = 'MOD';
+          accentColor = const Color(0xFF00E676);
+          hp = 12;
+          break;
+        case 'saturate':
+          category = 'FX';
+          accentColor = const Color(0xFF00BCD4);
+          hp = 10;
+          break;
+        case 'bitcrush':
+        case 'bitcrusher':
+          category = 'FX';
+          accentColor = const Color(0xFFFFD700);
+          hp = 10;
+          break;
+        case 'chorus':
+          category = 'FX';
+          accentColor = const Color(0xFFAB47BC);
+          hp = 10;
+          break;
+        case 'tremolo':
+          category = 'FX';
+          accentColor = const Color(0xFF00E5FF);
+          hp = 10;
+          break;
+        case 'compressor':
+          category = 'FX';
+          accentColor = const Color(0xFF00FF9D);
+          hp = 14;
+          break;
+        case 'limiter':
+          category = 'FX';
+          accentColor = const Color(0xFFFF3366);
+          hp = 12;
+          break;
+        case 'tr909_kick':
+          category = 'VCO';
+          accentColor = const Color(0xFFFF5722);
+          hp = 14;
+          break;
+        case 'tr909_snare':
+          category = 'VCO';
+          accentColor = const Color(0xFFFF9800);
+          hp = 14;
+          break;
+        case 'tr909_sample':
+        case 'tr909_voice':
+        case 'tr909_hihat':
+        case 'tr909_rimshot':
+          category = 'VCO';
+          accentColor = const Color(0xFFFFD600);
+          hp = 12;
+          break;
+        case 'mix':
+          category = 'UTIL';
+          accentColor = const Color(0xFF78909C);
+          hp = 10;
+          break;
+        case 'hammer':
+          category = 'PHYSICAL';
+          accentColor = const Color(0xFFFF5252);
+          hp = 10;
+          break;
+        case 'pluck':
+          category = 'PHYSICAL';
+          accentColor = const Color(0xFFFF7043);
+          hp = 10;
+          break;
+        case 'bow':
+          category = 'PHYSICAL';
+          accentColor = const Color(0xFFFF4081);
+          hp = 10;
+          break;
+        case 'waveguide':
+          category = 'PHYSICAL';
+          accentColor = const Color(0xFF00E5FF);
+          hp = 14;
+          break;
+        case 'modal_bank':
+          category = 'PHYSICAL';
+          accentColor = const Color(0xFF00B0FF);
+          hp = 14;
+          break;
+        case 'acoustic_body':
+          category = 'PHYSICAL';
+          accentColor = const Color(0xFF8D6E63);
+          hp = 12;
+          break;
+        case 'melodic_tom':
+          category = 'PHYSICAL';
+          accentColor = const Color(0xFF3A86FF);
+          hp = 14;
+          break;
+        case 'reverse_cymbal':
+          category = 'PHYSICAL';
+          accentColor = const Color(0xFFFFBE0B);
+          hp = 14;
+          break;
+        case 'delay':
+          category = 'FX';
+          accentColor = const Color(0xFF00E5FF);
+          hp = 12;
+          break;
+        case 'input':
+        case 'audio_in':
+          category = 'UTIL';
+          accentColor = const Color(0xFF00E676);
+          hp = 8;
+          break;
+        case 'out':
+          category = 'OUT';
+          accentColor = const Color(0xFFFFD600);
+          hp = 10;
+          break;
+      }
+
+      final inJacks = node.ports.where((p) => p.isInput).map((p) => p.name).toList();
+      final outJacks = node.ports.where((p) => !p.isInput).map((p) => p.name).toList();
+
+      final modDef = DynamicModuleDefinition(
+        id: node.id,
+        title: node.title,
+        subtitle: category,
+        hpWidth: hp,
+        accentColor: accentColor,
+        category: category,
+        inputJacks: inJacks.isNotEmpty ? inJacks : ['In'],
+        outputJacks: outJacks.isNotEmpty ? outJacks : ['Out'],
+      );
+      modulesByRow[rowIndex]!.add(modDef);
+
+      final outJackIdx = inJacks.length;
+      outJackMap[node.id] = JackKey(row: rowIndex, moduleIndex: modIdx, jackIndex: outJackIdx, label: outJacks.firstOrNull ?? 'Out');
+
+      inJackMap[node.id] = {};
+      final inputPortDefs = node.ports.where((p) => p.isInput).toList();
+      for (int i = 0; i < inputPortDefs.length; i++) {
+        final p = inputPortDefs[i];
+        inJackMap[node.id]![p.id] = JackKey(row: rowIndex, moduleIndex: modIdx, jackIndex: i, label: p.name);
+        inJackMap[node.id]![p.name] = JackKey(row: rowIndex, moduleIndex: modIdx, jackIndex: i, label: p.name);
+      }
+    }
+
+    for (final c in graph.cables) {
+      final fromJack = outJackMap[c.fromNodeId];
+      final nodeInJacks = inJackMap[c.toNodeId];
+      final toJack = nodeInJacks?[c.toPort] ?? nodeInJacks?['in'] ?? nodeInJacks?.values.firstOrNull;
+
+      if (fromJack != null && toJack != null) {
+        cables.add(DynamicPatchConnection(
+          fromKey: fromJack,
+          toKey: toJack,
+          color: c.color,
+          tension: 0.5,
+        ));
+      }
+    }
+
+    return ModularRackDefinition(
+      totalRows: math.max(2, modulesByRow.keys.reduce(math.max)),
+      modulesByRow: modulesByRow,
+      cables: cables,
+    );
+  }
+
+  /// Parses an Eatscript or legacy Lua script for declarative modular rack definitions.
+  static ModularRackDefinition? parse(String scriptCode) {
+    if (scriptCode.contains('def graph') || (EatScriptEngine.isEatScript(scriptCode) && !scriptCode.contains('function'))) {
+      final graph = EatscriptGraphDef.parse(scriptCode);
+      return fromEatscriptGraph(graph);
+    }
+
+    if (!scriptCode.contains('.rack') && !scriptCode.contains('rack =') && !scriptCode.contains('rack=')) {
       return null;
     }
 
@@ -114,7 +382,7 @@ class ModularRackDsl {
 
       // Extract cables: { from = "1:0:2", to = "1:1:0", color = "audio" }
       final cableRegex = RegExp(r'''\{\s*from\s*=\s*["']([^"']+)["']\s*,\s*to\s*=\s*["']([^"']+)["'](?:\s*,\s*color\s*=\s*["']([^"']+)["'])?''');
-      for (final match in cableRegex.allMatches(luaCode)) {
+      for (final match in cableRegex.allMatches(scriptCode)) {
         final fromStr = match.group(1);
         final toStr = match.group(2);
         final colorStr = match.group(3) ?? 'audio';
@@ -145,7 +413,7 @@ class ModularRackDsl {
 
       // Extract modules: { id = "...", type = "...", hp = 12, row = 1, category = "..." }
       final moduleRegex = RegExp(r'''\{\s*id\s*=\s*["']([^"']+)["']\s*,\s*(?:title|type)\s*=\s*["']([^"']+)["']\s*,\s*hp\s*=\s*(\d+)(?:\s*,\s*row\s*=\s*(\d+))?(?:\s*,\s*category\s*=\s*["']([^"']+)["'])?''');
-      for (final match in moduleRegex.allMatches(luaCode)) {
+      for (final match in moduleRegex.allMatches(scriptCode)) {
         final id = match.group(1) ?? 'mod';
         final title = match.group(2) ?? 'MODULE';
         final hp = int.tryParse(match.group(3) ?? '10') ?? 10;
@@ -241,7 +509,7 @@ class ModularRackDsl {
     switch (signature) {
       case 'acid_303':
         modulesByRow[1] = [
-          const DynamicModuleDefinition(id: 'vco', title: 'TB-303 VCO', subtitle: 'VCO', hpWidth: 12, accentColor: Color(0xFFFF5722), category: 'VCO', inputJacks: ['CV', 'Gate'], outputJacks: ['Saw', 'Square']),
+          const DynamicModuleDefinition(id: 'vco', title: '303 VCO', subtitle: 'VCO', hpWidth: 12, accentColor: Color(0xFFFF5722), category: 'VCO', inputJacks: ['1V/Oct', 'Gate'], outputJacks: ['Saw Out', 'Square']),
           const DynamicModuleDefinition(id: 'vcf', title: '18DB RESO VCF', subtitle: 'VCF', hpWidth: 14, accentColor: Color(0xFFFF9800), category: 'VCF', inputJacks: ['Audio', 'Cutoff CV'], outputJacks: ['LP Out', 'HP Out']),
           const DynamicModuleDefinition(id: 'vca', title: 'ANALOG VCA', subtitle: 'VCA', hpWidth: 12, accentColor: Color(0xFFFFD600), category: 'OUT', inputJacks: ['Audio', 'CV'], outputJacks: ['Audio L', 'Audio R']),
         ];
@@ -441,37 +709,6 @@ class ModularRackDsl {
         ]);
         break;
 
-      case 'snes_console_synth':
-        modulesByRow[1] = [
-          const DynamicModuleDefinition(id: 'brr_vco', title: 'BRR WAVETABLE VCO', subtitle: 'VCO', hpWidth: 16, accentColor: Color(0xFFE52521), category: 'VCO', inputJacks: ['Pitch CV', 'Gate In'], outputJacks: ['Raw Wave', 'Audio Out']),
-          const DynamicModuleDefinition(id: 'snes_adsr', title: 'ADSR / GAIN ENV', subtitle: 'MOD', hpWidth: 14, accentColor: Color(0xFF00E5FF), category: 'MOD', inputJacks: ['Gate In', 'Mod In'], outputJacks: ['Env Out', 'Gain Out']),
-        ];
-        modulesByRow[2] = [
-          const DynamicModuleDefinition(id: 'echo', title: '8-TAP FIR ECHO', subtitle: 'FX', hpWidth: 16, accentColor: Color(0xFFE52521), category: 'FX', inputJacks: ['Audio In', 'Delay CV'], outputJacks: ['Echo Out', 'Wet Out']),
-          const DynamicModuleDefinition(id: 'master', title: 'S-DSP MASTER OUT', subtitle: 'OUT', hpWidth: 14, accentColor: Color(0xFFFFD600), category: 'OUT', inputJacks: ['L In', 'R In'], outputJacks: ['Main L', 'Main R']),
-        ];
-        cables.addAll([
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 1, moduleIndex: 0, jackIndex: 2, label: 'Audio Out'),
-            toKey: JackKey(row: 2, moduleIndex: 0, jackIndex: 0, label: 'Audio In'),
-            color: ModularTheme.cableAudio,
-            tension: 0.5,
-          ),
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 1, moduleIndex: 1, jackIndex: 1, label: 'Env Out'),
-            toKey: JackKey(row: 2, moduleIndex: 0, jackIndex: 1, label: 'Mod In'),
-            color: ModularTheme.cableModulation,
-            tension: 0.6,
-          ),
-          const DynamicPatchConnection(
-            fromKey: JackKey(row: 2, moduleIndex: 0, jackIndex: 2, label: 'Echo Out'),
-            toKey: JackKey(row: 2, moduleIndex: 1, jackIndex: 0, label: 'L In'),
-            color: ModularTheme.cableAudio,
-            tension: 0.45,
-          ),
-        ]);
-        break;
-
       case 'generic':
       default:
         modulesByRow[1] = [
@@ -515,11 +752,12 @@ class ModularRackDsl {
   /// Ensures that [scriptCode] contains a declarative `function <Name>.rack()` block.
   /// If missing, synthesizes and injects the default rack definition based on preset signature.
   static String ensureRackBlock(String scriptCode, {String trackName = ''}) {
-    if (EatScriptEngine.isEatScript(scriptCode) ||
-        scriptCode.contains('.rack') ||
-        scriptCode.contains('rack =') ||
-        scriptCode.contains('rack=') ||
-        scriptCode.contains('def rack(')) {
+    if (EatScriptEngine.isEatScript(scriptCode) || scriptCode.contains('def graph')) {
+      if (scriptCode.contains('def graph')) return scriptCode;
+      final defaultGraph = EatscriptGraphDef.parse(scriptCode, trackName: trackName);
+      return EatscriptGraphDef.serialize(defaultGraph, existingCode: scriptCode, instrumentName: trackName);
+    }
+    if (scriptCode.contains('.rack') || scriptCode.contains('rack =') || scriptCode.contains('rack=')) {
       return scriptCode;
     }
     final defaultRack = generateDefault(scriptCode, trackName: trackName);
@@ -532,8 +770,8 @@ class ModularRackDsl {
     );
   }
 
-  /// Serializes the current modular rack state into standard, readable Lua code.
-  /// If [existingScriptCode] is provided, replaces or injects the `function <Name>.rack()` block.
+  /// Serializes the current modular rack state into standard, readable Lua or Eatscript code.
+  /// If [existingScriptCode] is provided, replaces or injects the modular graph definition.
   static String serialize({
     required int totalRows,
     required Map<int, List<DynamicModuleDefinition>> customModulesByRow,
@@ -541,6 +779,70 @@ class ModularRackDsl {
     String? existingScriptCode,
     String instrumentName = 'Instrument',
   }) {
+    final isEatScript = existingScriptCode != null &&
+        (EatScriptEngine.isEatScript(existingScriptCode) || existingScriptCode.contains('def graph')) &&
+        !existingScriptCode.contains('function');
+
+    if (isEatScript) {
+      final nodes = <EatscriptNodeDef>[];
+      final graphCables = <EatscriptCableDef>[];
+      final Map<String, String> jackToNodeMap = {};
+
+      for (int r = 1; r <= totalRows; r++) {
+        final mods = customModulesByRow[r] ?? [];
+        for (int m = 0; m < mods.length; m++) {
+          final mod = mods[m];
+          String type = 'osc';
+          if (mod.category == 'VCF' || mod.title.contains('VCF') || mod.title.contains('FILTER')) {
+            type = 'svf';
+          } else if (mod.category == 'MOD' || mod.title.contains('ADSR') || mod.title.contains('ENV')) {
+            type = 'adsr';
+          } else if (mod.category == 'FX' && (mod.title.contains('TAPE') || mod.title.contains('DELAY'))) {
+            type = 'delay';
+          } else if (mod.category == 'FX' || mod.title.contains('DRIVE') || mod.title.contains('SATURAT')) {
+            type = 'saturate';
+          } else if (mod.category == 'OUT' || mod.title.contains('OUT') || mod.title.contains('MASTER')) {
+            type = 'out';
+          } else if (mod.title.contains('SUB')) {
+            type = 'sub';
+          }
+
+          final node = EatscriptNodeDef(
+            id: mod.id.replaceAll(RegExp(r'[^A-Za-z0-9_]'), '_').toLowerCase(),
+            type: type,
+            title: mod.title,
+            params: mod.defaultParams ?? {},
+          );
+          nodes.add(node);
+
+          for (int j = 0; j < (mod.inputJacks.length + mod.outputJacks.length); j++) {
+            jackToNodeMap['$r:$m:$j'] = node.id;
+          }
+        }
+      }
+
+      for (final conn in cables) {
+        final fromNode = jackToNodeMap[conn.fromKey.serializedKey];
+        final toNode = jackToNodeMap[conn.toKey.serializedKey];
+        if (fromNode != null && toNode != null) {
+          graphCables.add(EatscriptCableDef(
+            fromNodeId: fromNode,
+            fromPort: 'out',
+            toNodeId: toNode,
+            toPort: 'in',
+            color: conn.color,
+          ));
+        }
+      }
+
+      final graphDef = EatscriptGraphDef(nodes: nodes, cables: graphCables);
+      return EatscriptGraphDef.serialize(
+        graphDef,
+        existingCode: existingScriptCode,
+        instrumentName: instrumentName,
+      );
+    }
+
     // Detect instrument table name from existing code (e.g. 'local FmAcousticKick = {}')
     String tableName = instrumentName;
     if (existingScriptCode != null) {

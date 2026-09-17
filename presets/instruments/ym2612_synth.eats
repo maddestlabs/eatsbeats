@@ -3,8 +3,6 @@
 # @category: instrument
 # @description: Authentic YM2612 / OPN2 4-operator FM sound chip emulation (16-bit arcade & console sound) with 8 selectable routing algorithms, operator feedback, Total Level brightness, and direct register poke access.
 
-ym2612_synth = True
-
 def init():
     return {
         "Algorithm": eat.param("Algorithm", 0.0, 7.0, 4.0),

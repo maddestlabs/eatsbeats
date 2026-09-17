@@ -575,10 +575,9 @@ def gui():
       expect(subVolNode.param, 'SubVolume');
       expect(subVolNode.hardwareKnobStyle!.knurlStyle, EatKnurlStyle.fluted);
 
-      final slideNode = bottomRow.children[5];
-      expect(slideNode.param, 'Slide');
-      expect(slideNode.sliderStyle, SliderStyle.capsule);
-      expect(slideNode.width, 150);
+      final glideNode = bottomRow.children[5];
+      expect(glideNode.param, 'GlideCurve');
+      expect(glideNode.hardwareKnobStyle!.knurlStyle, EatKnurlStyle.fluted);
 
       final driveNode = bottomRow.children[7];
       expect(driveNode.param, 'Drive');

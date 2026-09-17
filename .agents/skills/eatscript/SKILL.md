@@ -163,3 +163,68 @@ Always declare the explicit engine ID in the script header using `# @engine: <id
 - `eat.chord_follow(notes, mode="chord")`
 - `eat.humanize(notes, timing=0.02, velocity=0.08)`
 - `eat.transpose(notes, semitones=0)`
+
+---
+
+## 6. Bi-Directional Modular Synthesis (Approach C: `def graph():`)
+
+Eatsbeats features a real-time modular synthesis studio (VCV Rack / Eurorack style) where **Eatscript `def graph():` is the single source of truth**. Visual drag-and-drop patching in the **DESIGN > MODULAR** tab compiles directly into zero-allocation native Dart/C `GraphNode` audio trees.
+
+### Modular Instrument Archetype
+```python
+# @id: modular_lead
+# @name: Modular Lead
+# @category: synth
+
+def init():
+    return {
+        "Cutoff": eat.param("Cutoff", 40.0, 16000.0, 2200.0, unit="Hz"),
+        "Resonance": eat.param("Resonance", 0.1, 10.0, 1.5),
+        "Drive": eat.param("Drive", 0.0, 4.0, 1.2),
+        "Attack": eat.param("Attack", 0.001, 2.0, 0.01, unit="s"),
+        "Decay": eat.param("Decay", 0.01, 3.0, 0.2, unit="s"),
+        "Sustain": eat.param("Sustain", 0.0, 1.0, 0.6),
+        "Release": eat.param("Release", 0.01, 3.0, 0.3, unit="s"),
+    }
+
+def graph():
+    vco = eat.node.osc(wave="saw", detune=2.5)
+    sub = eat.node.sub(octave=-1, level=0.5)
+    vcf = eat.node.svf(in_sig=vco, cutoff="Cutoff", reso="Resonance", type="lowpass")
+    sat = eat.node.saturate(in_sig=vcf, drive="Drive")
+    env = eat.node.adsr(attack="Attack", decay="Decay", sustain="Sustain", release="Release")
+    return sat * env
+```
+
+### Modular Insert Audio FX Archetype
+```python
+# @id: studio_channel_strip
+# @name: Studio Channel Strip
+# @category: audioFx
+
+def init():
+    return {
+        "Threshold": eat.param("Threshold", -60.0, 0.0, -18.0, unit="dB"),
+        "Ratio": eat.param("Ratio", 1.0, 20.0, 4.0, unit=":1"),
+        "Attack": eat.param("Attack", 0.001, 0.2, 0.015, unit="s"),
+        "Release": eat.param("Release", 0.01, 1.0, 0.1, unit="s"),
+        "Ceiling": eat.param("Ceiling", -6.0, 0.0, -0.1, unit="dB"),
+    }
+
+def graph():
+    in_sig = eat.node.input()
+    comp = eat.node.compressor(in_sig, threshold="Threshold", ratio="Ratio", attack="Attack", release="Release")
+    lim = eat.node.limiter(comp, ceiling="Ceiling")
+    return lim
+```
+
+### Complete `eat.node.*` Primitives Catalog:
+- **Oscillators & Sources**: `osc(wave, pitch_cv, freq)`, `sub(octave, level)`, `noise()`, `metallic_cluster(tune)`, `midi_to_cv()`, `input()`
+- **Envelopes & Modulation**: `adsr(attack, decay, sustain, release)`, `decay(decay)`, `pitch_sweep(start, end, decay)`, `multi_burst(bursts, spread, decay)`, `lfo(rate, depth)`
+- **Physical Modeling**:
+  - *Exciters*: `hammer(hardness, click)`, `pluck(spread, bite)`, `bow(pressure, speed)`
+  - *Resonators*: `waveguide(in_sig, damping, feedback)`, `modal_bank(in_sig, structure="bell"|"vibraphone"|"membrane")`
+  - *Cavity*: `acoustic_body(in_sig, profile, gain)`
+- **Filters & Dynamics**: `svf(in_sig, cutoff, reso, type)`, `moog(in_sig, cutoff, reso)`, `gain(in_sig, gain_cv, gain)`, `compressor(in_sig, threshold, ratio, attack, release, makeup, mix)`, `limiter(in_sig, ceiling, release)`
+- **Studio FX**: `delay(in_sig, time)`, `chorus(in_sig, rate, depth, feedback, mix)`, `tremolo(in_sig, rate, depth)`, `bitcrush(in_sig, bits, downsample, mix)`, `saturate(in_sig, drive)`, `mix(in_a, in_b)`
+- **Drum Synthesis**: `tr909_kick(tune, decay, attack)`, `tr909_snare(tune, snappy, tone)`, `tr909_sample(sample, tune, decay)`, `melodic_tom(decay, coupling, pitch_bend, stick)`, `reverse_cymbal(duration, curve, shimmer, choke)`

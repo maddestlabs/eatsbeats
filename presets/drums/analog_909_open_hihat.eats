@@ -54,5 +54,8 @@ def gui():
             ],
         },
     }
-
-Analog909OpenHiHat = True
+# --- Modular Synthesis Graph Topology ---
+def graph():
+    hh = eat.node.tr909_sample(sample="opened_hihat", tune="Tune", decay="Decay")
+    hpf = eat.node.svf(hh, cutoff=3500.0, type="highpass")
+    return hpf

@@ -180,5 +180,3 @@ def gui():
             ],
         },
     }
-
-EatsVinylPro = True

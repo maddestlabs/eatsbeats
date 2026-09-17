@@ -630,9 +630,13 @@ return SynthLab
 
       for (final target in allTargets) {
         final code = dawState.getScriptCodeForTarget(target);
-        expect(code, isNotEmpty, reason: 'Target ${target.title} should have non-empty Lua code');
+        expect(code, isNotEmpty, reason: 'Target ${target.title} should have non-empty script code');
         if (target.type == ScriptTargetType.trackDsp) {
-          expect(code, contains('.rack()'), reason: 'Target ${target.title} should contain .rack() block');
+          expect(
+            code.contains('.rack()') || code.contains('def graph') || code.contains('def process'),
+            isTrue,
+            reason: 'Target ${target.title} should contain modular graph or DSP process hook',
+          );
         }
       }
     });
@@ -659,22 +663,17 @@ return SimpleSynth
       expect(codeWithRack, contains('return SimpleSynth'));
     });
 
-    test('SNES Synth and SNES Sfxr contain complete modular Lua DSP and rack definitions', () {
+    test('SNES Synth and SNES Sfxr contain complete modular DSP and Eatscript definitions', () {
       final snesSynth = LuaPresetLibrary.getPresetById('snes_console_synth');
       expect(snesSynth, isNotNull);
-      expect(snesSynth!.code, contains('function SNESConsole.wavetable('));
-      expect(snesSynth.code, contains('function SNESConsole.adsr('));
-      expect(snesSynth.code, contains('function SNESConsole.echo('));
-      expect(snesSynth.code, contains('function SNESConsole.process('));
-      expect(snesSynth.code, contains('function SNESConsole.rack('));
+      expect(snesSynth!.code, contains('def process('));
+      expect(snesSynth.code, contains('def init('));
+      expect(snesSynth.code, contains('def gui('));
 
       final snesSfx = LuaPresetLibrary.getPresetById('eats_sfxr');
       expect(snesSfx, isNotNull);
-      expect(snesSfx!.code, contains('function SNESSFX.oscillator('));
-      expect(snesSfx.code, contains('function SNESSFX.envelope('));
-      expect(snesSfx.code, contains('function SNESSFX.echo('));
-      expect(snesSfx.code, contains('function SNESSFX.process('));
-      expect(snesSfx.code, contains('function SNESSFX.rack('));
+      expect(snesSfx!.code, contains('def process('));
+      expect(snesSfx.code, contains('def init('));
     });
   });
 }

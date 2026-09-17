@@ -3,8 +3,6 @@
 # @category: instrument
 # @description: Physical modeling of real-world precipitation, rainfall, and surface impacts: stochastic Poisson droplet micro-noise blips, continuous atmospheric pink rain wash hiss, multi-surface modal cavity resonators (puddle, tin roof, foliage), and gutter drip dynamics.
 
-eatsfx_rain = True
-
 def init():
     return {
         "RainIntensity": eat.param("RainIntensity", 0.0, 1.0, 0.55),

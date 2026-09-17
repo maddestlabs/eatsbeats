@@ -11,6 +11,7 @@ import 'midi_pipeline_engine.dart';
 import 'project_script_engine.dart';
 import 'eats_interpreter.dart';
 import 'eats_engine_registry.dart';
+import 'eatscript_graph_model.dart';
 
 /// The host context in which an Eatscript executes.
 class EatScriptContext {
@@ -18,6 +19,7 @@ class EatScriptContext {
   final List<EatParamDef> params;
   final Map<String, dynamic> paramValues;
   Map<String, dynamic>? guiLayout;
+  EatscriptGraphDef? graphDef;
   String? engineId;
   double tempo;
   int keyRoot;
@@ -33,6 +35,7 @@ class EatScriptContext {
     List<EatParamDef>? params,
     Map<String, dynamic>? paramValues,
     this.guiLayout,
+    this.graphDef,
     this.engineId,
     this.tempo = 120.0,
     this.keyRoot = 0, // C
@@ -65,6 +68,119 @@ class EatHostApi {
       return context.engineId;
     });
     eat['engine'] = eat['use_engine'];
+
+    // 0b. Modular Graph Node API (eat.node.*)
+    final nodeMap = <String, dynamic>{};
+    EatNativeFunction _makeNodeFactory(String type, String defaultTitle) {
+      return EatNativeFunction('eat.node.$type', (pos, kw) {
+        final params = <String, dynamic>{};
+        if (pos.isNotEmpty) {
+          if (type == 'osc') {
+            params['wave'] = pos[0];
+          } else if (type == 'sub') {
+            params['octave'] = pos[0];
+          } else if (type == 'svf' || type == 'moog') {
+            params['cutoff'] = pos[0];
+          } else if (type == 'lfo') {
+            params['rate'] = pos[0];
+          } else if (type == 'saturate') {
+            params['drive'] = pos[0];
+          } else if (type == 'delay') {
+            params['time'] = pos[0];
+          } else if (type == 'hammer') {
+            params['hardness'] = pos[0];
+          } else if (type == 'pluck') {
+            params['spread'] = pos[0];
+          } else if (type == 'bow') {
+            params['pressure'] = pos[0];
+          } else if (type == 'waveguide') {
+            params['feedback'] = pos[0];
+          } else if (type == 'modal_bank') {
+            params['structure'] = pos[0];
+          } else if (type == 'acoustic_body') {
+            params['profile'] = pos[0];
+          } else if (type == 'pitch_sweep') {
+            params['start'] = pos[0];
+            if (pos.length > 1) params['end'] = pos[1];
+            if (pos.length > 2) params['decay'] = pos[2];
+          } else if (type == 'decay') {
+            params['decay'] = pos[0];
+          } else if (type == 'gain') {
+            params['in_sig'] = pos[0];
+            if (pos.length > 1) params['gain'] = pos[1];
+          } else if (type == 'bitcrush') {
+            params['in_sig'] = pos[0];
+            if (pos.length > 1) params['bits'] = pos[1];
+          } else if (type == 'chorus') {
+            params['in_sig'] = pos[0];
+            if (pos.length > 1) params['rate'] = pos[1];
+          } else if (type == 'tremolo') {
+            params['in_sig'] = pos[0];
+            if (pos.length > 1) params['rate'] = pos[1];
+          } else if (type == 'compressor') {
+            params['in_sig'] = pos[0];
+            if (pos.length > 1) params['threshold'] = pos[1];
+            if (pos.length > 2) params['ratio'] = pos[2];
+          } else if (type == 'limiter') {
+            params['in_sig'] = pos[0];
+            if (pos.length > 1) params['ceiling'] = pos[1];
+          }
+        }
+        for (final entry in kw.entries) {
+          params[entry.key] = entry.value;
+        }
+        final node = EatscriptNodeDef(
+          id: kw['id']?.toString() ?? '${type}_${DateTime.now().microsecondsSinceEpoch}',
+          type: type,
+          title: kw['title']?.toString() ?? defaultTitle,
+          params: params,
+        );
+        return node;
+      });
+    }
+
+    nodeMap['osc'] = _makeNodeFactory('osc', 'VCO OSC');
+    nodeMap['sub'] = _makeNodeFactory('sub', 'SUB OSC');
+    nodeMap['noise'] = _makeNodeFactory('noise', 'WHITE NOISE GEN');
+    nodeMap['lfo'] = _makeNodeFactory('lfo', 'LFO MODULATOR');
+    nodeMap['svf'] = _makeNodeFactory('svf', 'SVF FILTER');
+    nodeMap['moog'] = _makeNodeFactory('moog', 'MOOG 24DB LADDER');
+    nodeMap['adsr'] = _makeNodeFactory('adsr', 'ADSR ENV');
+    nodeMap['saturate'] = _makeNodeFactory('saturate', 'SATURATOR');
+    nodeMap['mix'] = _makeNodeFactory('mix', 'SIGNAL MIXER');
+    nodeMap['hammer'] = _makeNodeFactory('hammer', 'HAMMER EXCITER');
+    nodeMap['pluck'] = _makeNodeFactory('pluck', 'PLECTRUM PLUCK');
+    nodeMap['bow'] = _makeNodeFactory('bow', 'BOWED FRICTION');
+    nodeMap['waveguide'] = _makeNodeFactory('waveguide', 'DIGITAL WAVEGUIDE');
+    nodeMap['modal_bank'] = _makeNodeFactory('modal_bank', 'MODAL RESONATOR');
+    nodeMap['acoustic_body'] = _makeNodeFactory('acoustic_body', 'ACOUSTIC BODY');
+    nodeMap['delay'] = _makeNodeFactory('delay', 'STEREO DELAY');
+    nodeMap['input'] = _makeNodeFactory('input', 'AUDIO IN');
+    nodeMap['audio_in'] = nodeMap['input'];
+    nodeMap['pitch_sweep'] = _makeNodeFactory('pitch_sweep', 'PITCH SWEEP');
+    nodeMap['decay'] = _makeNodeFactory('decay', 'DECAY ENV');
+    nodeMap['gain'] = _makeNodeFactory('gain', 'VCA GAIN');
+    nodeMap['multi_burst'] = _makeNodeFactory('multi_burst', 'BURST ENV');
+    nodeMap['metallic_cluster'] = _makeNodeFactory('metallic_cluster', 'METALLIC CLUSTER');
+    nodeMap['midi_to_cv'] = _makeNodeFactory('midi_to_cv', 'MIDI TO CV');
+    nodeMap['cv'] = nodeMap['midi_to_cv'];
+    nodeMap['bitcrush'] = _makeNodeFactory('bitcrush', 'BITCRUSHER');
+    nodeMap['bitcrusher'] = nodeMap['bitcrush'];
+    nodeMap['chorus'] = _makeNodeFactory('chorus', 'STEREO CHORUS');
+    nodeMap['tremolo'] = _makeNodeFactory('tremolo', 'STEREO TREMOLO');
+    nodeMap['compressor'] = _makeNodeFactory('compressor', 'DYNAMICS COMPRESSOR');
+    nodeMap['limiter'] = _makeNodeFactory('limiter', 'MASTER LIMITER');
+    nodeMap['tr909_kick'] = _makeNodeFactory('tr909_kick', 'TR-909 KICK');
+    nodeMap['tr909_snare'] = _makeNodeFactory('tr909_snare', 'TR-909 SNARE');
+    nodeMap['tr909_sample'] = _makeNodeFactory('tr909_sample', 'TR-909 ROM VOICE');
+    nodeMap['tr909_voice'] = nodeMap['tr909_sample'];
+    nodeMap['tr909_hihat'] = nodeMap['tr909_sample'];
+    nodeMap['tr909_rimshot'] = _makeNodeFactory('tr909_rimshot', 'TR-909 RIMSHOT');
+    nodeMap['melodic_tom'] = _makeNodeFactory('melodic_tom', 'MELODIC TOM');
+    nodeMap['reverse_cymbal'] = _makeNodeFactory('reverse_cymbal', 'REVERSE CYMBAL');
+    nodeMap['out'] = _makeNodeFactory('out', 'MASTER OUT');
+
+    eat['node'] = nodeMap;
 
     // 1. Parameter Registration
     eat['param'] = EatNativeFunction('eat.param', (pos, kw) {

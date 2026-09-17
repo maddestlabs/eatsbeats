@@ -67,6 +67,7 @@ class _EatscriptWorkbenchViewState extends State<EatscriptWorkbenchView> {
   String _scriptFilterQuery = '';
   DesignStudioViewMode _viewMode = DesignStudioViewMode.code;
   bool _isGuiDesignMode = false;
+  bool _splitShowsGui = true;
 
   String _lastCode = '';
 
@@ -596,9 +597,106 @@ class _EatscriptWorkbenchViewState extends State<EatscriptWorkbenchView> {
             Container(width: 2, color: const Color(0xFF2B3245)),
             Expanded(
               flex: 6,
-              child: ModularRackCanvas(
-                dawState: widget.dawState,
-                track: activeTrack,
+              child: Column(
+                children: [
+                  Container(
+                    height: 28,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    color: const Color(0xFF0F1218),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              _splitShowsGui ? Icons.dashboard_outlined : Icons.cable,
+                              size: 13,
+                              color: _splitShowsGui ? EatsTheme.secondaryMagenta : EurorackTheme.cableAudio,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _splitShowsGui ? 'LIVE HARDWARE FACEPLATE' : 'MODULAR PATCHBAY',
+                              style: EatsTheme.getDisplayFontStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                color: EatsTheme.textLight,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            InkWell(
+                              onTap: () => setState(() => _splitShowsGui = true),
+                              borderRadius: BorderRadius.circular(3),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _splitShowsGui ? EatsTheme.secondaryMagenta.withOpacity(0.25) : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(3),
+                                  border: _splitShowsGui ? Border.all(color: EatsTheme.secondaryMagenta, width: 0.8) : null,
+                                ),
+                                child: Text(
+                                  'FACEPLATE',
+                                  style: TextStyle(
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: _splitShowsGui ? EatsTheme.secondaryMagenta : EatsTheme.textMuted,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            InkWell(
+                              onTap: () => setState(() => _splitShowsGui = false),
+                              borderRadius: BorderRadius.circular(3),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: !_splitShowsGui ? EurorackTheme.cableAudio.withOpacity(0.25) : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(3),
+                                  border: !_splitShowsGui ? Border.all(color: EurorackTheme.cableAudio, width: 0.8) : null,
+                                ),
+                                child: Text(
+                                  'MODULAR',
+                                  style: TextStyle(
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: !_splitShowsGui ? EurorackTheme.cableAudio : EatsTheme.textMuted,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: _splitShowsGui
+                        ? Container(
+                            color: EatsTheme.panelBackground,
+                            padding: const EdgeInsets.all(12),
+                            alignment: Alignment.center,
+                            child: SingleChildScrollView(
+                              child: DynamicInstrumentGuiWidget(
+                                dawState: widget.dawState,
+                                track: activeTrack,
+                                hostTrack: activeTarget.trackId == widget.dawState.masterTrack.id
+                                    ? widget.dawState.masterTrack
+                                    : widget.dawState.tracks.firstWhere(
+                                        (t) => t.id == activeTarget.trackId,
+                                        orElse: () => activeTrack,
+                                      ),
+                              ),
+                            ),
+                          )
+                        : ModularRackCanvas(
+                            dawState: widget.dawState,
+                            track: activeTrack,
+                          ),
+                  ),
+                ],
               ),
             ),
           ],
