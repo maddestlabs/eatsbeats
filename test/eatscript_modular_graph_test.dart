@@ -531,6 +531,114 @@ def graph():
       expect(graph.findNode('tom')?.type, 'melodic_tom');
       expect(graph.findNode('cym')?.type, 'reverse_cymbal');
     });
+
+    test('Revamped Elemental Presets (Eats Volts, Eats Furnace, Eats Water) parse modular def graph(), compile to GraphNode, and render audio without NaN', () {
+      final volts = EatBuiltinPresets.presets.firstWhere((p) => p.id == 'eats_volts');
+      final furnace = EatBuiltinPresets.presets.firstWhere((p) => p.id == 'eats_furnace');
+      final water = EatBuiltinPresets.presets.firstWhere((p) => p.id == 'eats_water');
+
+      for (final p in [volts, furnace, water]) {
+        expect(p.code, contains('def graph():'), reason: '${p.name} must have a native def graph()');
+        final graph = EatscriptGraphDef.parse(p.code, trackName: p.name);
+        expect(graph.nodes.length, greaterThanOrEqualTo(6), reason: '${p.name} must parse into modular nodes');
+
+        final compiled = graph.compileToGraphNode({
+          'SynthTone': 0.70,
+          'Decay': 0.5,
+          'Tone': 8000.0,
+          'Depth': 6000.0,
+        });
+        final outBuffer = Float32List(512);
+        final context = GraphContext(
+          durationSec: 0.5,
+          freq: 220.0,
+          midiNote: 57,
+          velocity: 0.85,
+        );
+        compiled.process(context, outBuffer);
+
+        bool hasSignal = false;
+        for (int i = 0; i < outBuffer.length; i++) {
+          expect(outBuffer[i].isNaN, isFalse, reason: '${p.name} produced NaN');
+          expect(outBuffer[i].isInfinite, isFalse, reason: '${p.name} produced Infinity');
+          if (outBuffer[i].abs() > 0.0001) hasSignal = true;
+        }
+        expect(hasSignal, isTrue, reason: '${p.name} must produce audible audio signal');
+      }
+    });
+
+    test('Eats Volts, Furnace, and Water support diminishing/eliminating synth tone (SynthTone = 0.0) while retaining elemental textures', () {
+      final volts = EatBuiltinPresets.presets.firstWhere((p) => p.id == 'eats_volts');
+      final furnace = EatBuiltinPresets.presets.firstWhere((p) => p.id == 'eats_furnace');
+      final water = EatBuiltinPresets.presets.firstWhere((p) => p.id == 'eats_water');
+
+      for (final p in [volts, furnace, water]) {
+        final graph = EatscriptGraphDef.parse(p.code, trackName: p.name);
+
+        // Compile with SynthTone = 0.0 (synthetic carrier completely removed)
+        final compiled = graph.compileToGraphNode({
+          'SynthTone': 0.0,
+          'CrackleRate': 0.6,
+          'GridHum': 0.4,
+          'CombustionRoar': 0.5,
+          'SapCrackle': 0.5,
+          'Turbulence': 0.6,
+          'DropletRate': 0.6,
+          'Decay': 0.5,
+          'Tone': 8000.0,
+          'Depth': 6000.0,
+        });
+
+        final outBuffer = Float32List(512);
+        final context = GraphContext(
+          durationSec: 0.5,
+          freq: 440.0,
+          midiNote: 69,
+          velocity: 0.85,
+        );
+        compiled.process(context, outBuffer);
+
+        for (int i = 0; i < outBuffer.length; i++) {
+          expect(outBuffer[i].isNaN, isFalse, reason: '${p.name} with SynthTone=0 produced NaN');
+          expect(outBuffer[i].isInfinite, isFalse, reason: '${p.name} with SynthTone=0 produced Infinity');
+        }
+      }
+    });
+
+    test('EatScriptEngine registers and executes all new modular elemental eat.node.* factories', () {
+      const script = '''
+def graph():
+    arc = eat.node.plasma_arc(spark_width=0.15, jitter=0.4)
+    crackle = eat.node.corona_crackle(density=0.5, sizzle_bright=0.8)
+    hum = eat.node.mains_hum(mains_freq=60.0, hum_level=0.3)
+    snap = eat.node.breakdown_snap(snap_level=0.8)
+    ozone = eat.node.ozone_drive(crackle, drive=1.5)
+    flame = eat.node.singing_flame(flame_cusp=0.4, resonance=0.5)
+    roar = eat.node.combustion_roar(roar_level=0.4, draft_flutter=0.3)
+    sap = eat.node.sap_crackle(sap_density=0.5, ember_sizzle=0.4)
+    hydro = eat.node.hydraulophone(bubble_chirp=0.4, viscosity=0.3)
+    vortex = eat.node.hydro_vortex(vortex_level=0.5, churn_speed=0.4)
+    splash = eat.node.droplet_splash(droplet_rate=0.5, spray_hiss=0.3)
+    plunge = eat.node.plunge_impact(snap_level=0.7)
+    return ozone
+''';
+      final result = EatScriptEngine.compile(script);
+      expect(result.isSuccess, isTrue);
+      final graph = EatscriptGraphDef.parse(script);
+      expect(graph.nodes.length, greaterThanOrEqualTo(12));
+      expect(graph.findNode('arc')?.type, 'plasma_arc');
+      expect(graph.findNode('crackle')?.type, 'corona_crackle');
+      expect(graph.findNode('hum')?.type, 'mains_hum');
+      expect(graph.findNode('snap')?.type, 'breakdown_snap');
+      expect(graph.findNode('ozone')?.type, 'ozone_drive');
+      expect(graph.findNode('flame')?.type, 'singing_flame');
+      expect(graph.findNode('roar')?.type, 'combustion_roar');
+      expect(graph.findNode('sap')?.type, 'sap_crackle');
+      expect(graph.findNode('hydro')?.type, 'hydraulophone');
+      expect(graph.findNode('vortex')?.type, 'hydro_vortex');
+      expect(graph.findNode('splash')?.type, 'droplet_splash');
+      expect(graph.findNode('plunge')?.type, 'plunge_impact');
+    });
   });
 }
 

@@ -126,6 +126,13 @@ class ModularRackDsl {
           node.type == 'bitcrusher' ||
           node.type == 'acoustic_body' ||
           node.type == 'mix' ||
+          node.type == 'mains_hum' ||
+          node.type == 'breakdown_snap' ||
+          node.type == 'ignition_snap' ||
+          node.type == 'ozone_drive' ||
+          node.type == 'sap_crackle' ||
+          node.type == 'droplet_splash' ||
+          node.type == 'plunge_impact' ||
           node.type == 'out') {
         row = 2;
       }
@@ -296,6 +303,67 @@ class ModularRackDsl {
           category = 'PHYSICAL';
           accentColor = const Color(0xFFFFBE0B);
           hp = 14;
+          break;
+        case 'plasma_arc':
+          category = 'VCO';
+          accentColor = const Color(0xFF00F0FF);
+          hp = 14;
+          break;
+        case 'corona_crackle':
+          category = 'PHYSICAL';
+          accentColor = const Color(0xFFFFB300);
+          hp = 10;
+          break;
+        case 'mains_hum':
+          category = 'UTIL';
+          accentColor = const Color(0xFF78909C);
+          hp = 8;
+          break;
+        case 'breakdown_snap':
+        case 'ignition_snap':
+          category = 'MOD';
+          accentColor = const Color(0xFFFF5252);
+          hp = 8;
+          break;
+        case 'ozone_drive':
+          category = 'FX';
+          accentColor = const Color(0xFFE040FB);
+          hp = 10;
+          break;
+        case 'singing_flame':
+          category = 'VCO';
+          accentColor = const Color(0xFFFF5722);
+          hp = 14;
+          break;
+        case 'combustion_roar':
+          category = 'PHYSICAL';
+          accentColor = const Color(0xFFFF3D00);
+          hp = 10;
+          break;
+        case 'sap_crackle':
+          category = 'PHYSICAL';
+          accentColor = const Color(0xFFFFAB00);
+          hp = 10;
+          break;
+        case 'hydraulophone':
+          category = 'VCO';
+          accentColor = const Color(0xFF00E5FF);
+          hp = 14;
+          break;
+        case 'hydro_vortex':
+          category = 'PHYSICAL';
+          accentColor = const Color(0xFF00B4D8);
+          hp = 10;
+          break;
+        case 'droplet_splash':
+          category = 'PHYSICAL';
+          accentColor = const Color(0xFF0077B6);
+          hp = 10;
+          break;
+        case 'plunge_impact':
+          category = 'MOD';
+          accentColor = const Color(0xFF48CAE4);
+          hp = 8;
           break;
         case 'delay':
           category = 'FX';

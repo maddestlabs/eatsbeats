@@ -793,6 +793,8 @@ class GraphEvaluator {
     const plasmaVca = GainNode(
       input: plasmaOsc,
       gainSource: plasmaEnv,
+      staticGain: 0.85,
+      gainParam: 'SynthTone',
     );
 
     // 2. Stochastic Corona Discharge & Ion Wind Sizzle
@@ -924,6 +926,8 @@ class GraphEvaluator {
     const flameVca = GainNode(
       input: flameOsc,
       gainSource: flameEnv,
+      staticGain: 0.85,
+      gainParam: 'SynthTone',
     );
 
     // 2. Turbulent Combustion Roar & Convective Draft
@@ -1058,6 +1062,8 @@ class GraphEvaluator {
     const waterVca = GainNode(
       input: waterOsc,
       gainSource: waterEnv,
+      staticGain: 0.85,
+      gainParam: 'SynthTone',
     );
 
     // 2. Hydrodynamic Vortex & Whirlpool Churn

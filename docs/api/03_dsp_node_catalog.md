@@ -167,8 +167,21 @@ In Eatsbeats Approach C, modular racks compile directly from Pythonic `def graph
 | `eat.node.pluck()` | Plectrum guitar/harp pluck exciter. | `spread=...`, `bite=...` |
 | `eat.node.bow()` | Continuous bowed string physical friction exciter. | `pressure=...`, `speed=...` |
 | `eat.node.waveguide()` | Dual-rail digital waveguide string delay line with damping. | `in_sig=...`, `damping=...`, `feedback=...` |
-| `eat.node.modal_bank()` | High-order modal resonator bank for physical bars, bells, and membranes. | `in_sig=...`, `structure="bell"|"vibraphone"|"membrane"` |
+| `eat.node.modal_bank()` | High-order modal resonator bank for physical bars, bells, and membranes. | `in_sig=...`, `structure="bell"|"vibraphone"|"membrane"|"pipe"|"cavity"` |
 | `eat.node.acoustic_body()` | Morphable wooden acoustic body resonator. | `in_sig=...`, `profile=...`, `gain=...` |
+| `eat.node.plasma_arc()` | High-voltage electric arc discharge oscillator with micro-jitter & duty cycle. | `spark_width=...`, `jitter=...`, `sub_harmonic=...` |
+| `eat.node.corona_crackle()` | Stochastic Poisson ion-wind leakage and air ionization sizzle. | `density=...`, `sizzle_bright=...` |
+| `eat.node.mains_hum()` | 50Hz/60Hz transformer magnetostriction hum with odd harmonic bleed. | `mains_freq=60.0`, `hum_level=...` |
+| `eat.node.breakdown_snap()` | Dielectric breakdown strike attack snap and sputter release exciter. | `snap_level=...`, `decay=...` |
+| `eat.node.ozone_drive()` | Non-linear asymmetric dielectric arc saturation waveshaper. | `in_sig=...`, `drive=...`, `bias=...` |
+| `eat.node.singing_flame()` | Kastner Rijke thermoacoustic singing flame pipe oscillator. | `flame_cusp=...`, `drift=...`, `resonance=...` |
+| `eat.node.combustion_roar()` | 1/f turbulent convective air roar and oxygen draft flutter. | `roar_level=...`, `draft_flutter=...` |
+| `eat.node.sap_crackle()` | Supercritical wood sap pocket explosions and flying ember matrix. | `sap_density=...`, `ember_sizzle=...` |
+| `eat.node.ignition_snap()` | Deflagration flashover whoosh and smolder attack transient. | `snap_level=...`, `decay=...` |
+| `eat.node.hydraulophone()` | Pressurized waterjet & Minnaert cavitation fluid oscillator. | `bubble_chirp=...`, `viscosity=...`, `current_drift=...` |
+| `eat.node.hydro_vortex()` | Submerged hydrodynamic whirlpool vortex turbulence & churning eddies. | `vortex_level=...`, `churn_speed=...` |
+| `eat.node.droplet_splash()` | Stochastic droplet surface impact plinks & foam spray matrix. | `droplet_rate=...`, `spray_hiss=...` |
+| `eat.node.plunge_impact()` | Hydraulic crown plunge surface impact transient & wake sputter. | `snap_level=...`, `decay=...` |
 | `eat.node.delay()` | Modulated tape and stereo echo delay line. Normalizes milliseconds to seconds. | `in_sig=...`, `time=...` |
 | `eat.node.bitcrush()` | Hardware bit-depth quantization and sample-rate decimation. | `in_sig=...`, `bits=8.0`, `downsample=1.0`, `mix=1.0` |
 | `eat.node.chorus()` | Dual quadrature LFO modulated delay for stereo width and ensemble shimmer. | `in_sig=...`, `rate=0.8`, `depth=0.65`, `feedback=0.2`, `mix=0.5` |

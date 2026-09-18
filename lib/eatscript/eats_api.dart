@@ -178,6 +178,19 @@ class EatHostApi {
     nodeMap['tr909_rimshot'] = _makeNodeFactory('tr909_rimshot', 'TR-909 RIMSHOT');
     nodeMap['melodic_tom'] = _makeNodeFactory('melodic_tom', 'MELODIC TOM');
     nodeMap['reverse_cymbal'] = _makeNodeFactory('reverse_cymbal', 'REVERSE CYMBAL');
+    nodeMap['plasma_arc'] = _makeNodeFactory('plasma_arc', 'PLASMA ARC CORE');
+    nodeMap['corona_crackle'] = _makeNodeFactory('corona_crackle', 'CORONA SIZZLE');
+    nodeMap['mains_hum'] = _makeNodeFactory('mains_hum', '60Hz MAINS HUM');
+    nodeMap['breakdown_snap'] = _makeNodeFactory('breakdown_snap', 'DIELECTRIC SNAP');
+    nodeMap['ozone_drive'] = _makeNodeFactory('ozone_drive', 'OZONE DRIVE');
+    nodeMap['singing_flame'] = _makeNodeFactory('singing_flame', 'SINGING FLAME');
+    nodeMap['combustion_roar'] = _makeNodeFactory('combustion_roar', 'COMBUSTION ROAR');
+    nodeMap['sap_crackle'] = _makeNodeFactory('sap_crackle', 'SAP EXPLOSIONS');
+    nodeMap['ignition_snap'] = _makeNodeFactory('ignition_snap', 'IGNITION SNAP');
+    nodeMap['hydraulophone'] = _makeNodeFactory('hydraulophone', 'HYDRAULOPHONE JET');
+    nodeMap['hydro_vortex'] = _makeNodeFactory('hydro_vortex', 'HYDRO VORTEX');
+    nodeMap['droplet_splash'] = _makeNodeFactory('droplet_splash', 'DROPLET SPLASH');
+    nodeMap['plunge_impact'] = _makeNodeFactory('plunge_impact', 'PLUNGE IMPACT');
     nodeMap['out'] = _makeNodeFactory('out', 'MASTER OUT');
 
     eat['node'] = nodeMap;

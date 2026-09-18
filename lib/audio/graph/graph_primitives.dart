@@ -848,15 +848,15 @@ class GainNode extends GraphNode {
   void process(GraphContext ctx, Float32List outBuffer) {
     input.process(ctx, outBuffer);
 
+    final double g = gainParam != null ? ctx.getParam(gainParam!, staticGain) : staticGain;
     if (gainSource != null) {
       final Float32List modBuf = ctx.acquireScratch(outBuffer.length);
       gainSource!.process(ctx, modBuf);
       for (int i = 0; i < outBuffer.length; i++) {
-        outBuffer[i] *= modBuf[i];
+        outBuffer[i] *= (modBuf[i] * g);
       }
       ctx.releaseScratch();
     } else {
-      final double g = gainParam != null ? ctx.getParam(gainParam!, staticGain) : staticGain;
       for (int i = 0; i < outBuffer.length; i++) {
         outBuffer[i] *= g;
       }

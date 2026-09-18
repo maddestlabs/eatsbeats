@@ -218,6 +218,64 @@ class EatscriptNodeDef {
           EatscriptPortDef(id: 'gate', name: 'Gate In', isInput: true, signalType: 'gate'),
           EatscriptPortDef(id: 'out', name: 'Cymbal Out', isInput: false, signalType: 'audio'),
         ];
+      case 'plasma_arc':
+        return const [
+          EatscriptPortDef(id: 'pitch_cv', name: 'Pitch CV', isInput: true, signalType: 'cv'),
+          EatscriptPortDef(id: 'out', name: 'Arc Out', isInput: false, signalType: 'audio'),
+        ];
+      case 'corona_crackle':
+        return const [
+          EatscriptPortDef(id: 'rate_cv', name: 'Rate CV', isInput: true, signalType: 'cv'),
+          EatscriptPortDef(id: 'out', name: 'Sizzle Out', isInput: false, signalType: 'audio'),
+        ];
+      case 'mains_hum':
+        return const [
+          EatscriptPortDef(id: 'out', name: 'Hum Out', isInput: false, signalType: 'audio'),
+        ];
+      case 'breakdown_snap':
+      case 'ignition_snap':
+        return const [
+          EatscriptPortDef(id: 'gate', name: 'Trigger', isInput: true, signalType: 'gate'),
+          EatscriptPortDef(id: 'out', name: 'Snap Out', isInput: false, signalType: 'audio'),
+        ];
+      case 'ozone_drive':
+        return const [
+          EatscriptPortDef(id: 'in', name: 'Audio In', isInput: true, signalType: 'audio'),
+          EatscriptPortDef(id: 'out', name: 'Ozone Out', isInput: false, signalType: 'audio'),
+        ];
+      case 'singing_flame':
+        return const [
+          EatscriptPortDef(id: 'pitch_cv', name: 'Pitch CV', isInput: true, signalType: 'cv'),
+          EatscriptPortDef(id: 'out', name: 'Flame Out', isInput: false, signalType: 'audio'),
+        ];
+      case 'combustion_roar':
+        return const [
+          EatscriptPortDef(id: 'draft_cv', name: 'Draft CV', isInput: true, signalType: 'cv'),
+          EatscriptPortDef(id: 'out', name: 'Roar Out', isInput: false, signalType: 'audio'),
+        ];
+      case 'sap_crackle':
+        return const [
+          EatscriptPortDef(id: 'out', name: 'Sap Out', isInput: false, signalType: 'audio'),
+        ];
+      case 'hydraulophone':
+        return const [
+          EatscriptPortDef(id: 'pitch_cv', name: 'Pitch CV', isInput: true, signalType: 'cv'),
+          EatscriptPortDef(id: 'out', name: 'Jet Out', isInput: false, signalType: 'audio'),
+        ];
+      case 'hydro_vortex':
+        return const [
+          EatscriptPortDef(id: 'speed_cv', name: 'Speed CV', isInput: true, signalType: 'cv'),
+          EatscriptPortDef(id: 'out', name: 'Vortex Out', isInput: false, signalType: 'audio'),
+        ];
+      case 'droplet_splash':
+        return const [
+          EatscriptPortDef(id: 'out', name: 'Splash Out', isInput: false, signalType: 'audio'),
+        ];
+      case 'plunge_impact':
+        return const [
+          EatscriptPortDef(id: 'gate', name: 'Trigger', isInput: true, signalType: 'gate'),
+          EatscriptPortDef(id: 'out', name: 'Plunge Out', isInput: false, signalType: 'audio'),
+        ];
       case 'out':
       default:
         return const [
@@ -462,6 +520,32 @@ class EatscriptGraphDef {
         return 'MELODIC TOM';
       case 'reverse_cymbal':
         return 'REVERSE CYMBAL';
+      case 'plasma_arc':
+        return 'PLASMA ARC CORE';
+      case 'corona_crackle':
+        return 'CORONA SIZZLE';
+      case 'mains_hum':
+        return '60Hz MAINS HUM';
+      case 'breakdown_snap':
+        return 'DIELECTRIC SNAP';
+      case 'ozone_drive':
+        return 'OZONE DRIVE';
+      case 'singing_flame':
+        return 'SINGING FLAME';
+      case 'combustion_roar':
+        return 'COMBUSTION ROAR';
+      case 'sap_crackle':
+        return 'SAP EXPLOSIONS';
+      case 'ignition_snap':
+        return 'IGNITION SNAP';
+      case 'hydraulophone':
+        return 'HYDRAULOPHONE JET';
+      case 'hydro_vortex':
+        return 'HYDRO VORTEX';
+      case 'droplet_splash':
+        return 'DROPLET SPLASH';
+      case 'plunge_impact':
+        return 'PLUNGE IMPACT';
       case 'input':
       case 'audio_in':
         return 'AUDIO IN';
@@ -779,18 +863,26 @@ class EatscriptGraphDef {
         case 'modal_bank':
           final inCable = cables.where((c) => c.toNodeId == node.id && (c.toPort == 'in' || c.toPort == 'in_sig')).firstOrNull;
           final inNode = inCable != null ? (builtNodes[inCable.fromNodeId] ?? const NoiseNode()) : (builtNodes.values.lastOrNull ?? const NoiseNode());
-          final structure = node.params['structure']?.toString() ?? 'bell';
+          final structure = node.params['structure']?.toString().toLowerCase() ?? 'bell';
           List<double> ratios = [1.0, 2.76, 5.4, 8.9];
           List<double> gains = [1.0, 0.6, 0.4, 0.25];
           List<double> qFactors = [80.0, 60.0, 45.0, 30.0];
-          if (structure == 'bar' || structure == 'vibraphone') {
+          if (structure == 'pipe' || structure == 'chimney' || structure == 'tube') {
+            ratios = [1.0, 2.0, 3.0, 4.0, 5.0];
+            gains = [1.0, 0.75, 0.5, 0.3, 0.18];
+            qFactors = [60.0, 45.0, 35.0, 25.0, 20.0];
+          } else if (structure == 'cavity' || structure == 'spark_gap') {
+            ratios = [1.0, 2.2, 3.8, 5.2];
+            gains = [1.0, 0.65, 0.4, 0.25];
+            qFactors = [50.0, 40.0, 30.0, 25.0];
+          } else if (structure == 'bar' || structure == 'vibraphone') {
             ratios = [1.0, 3.98, 9.25, 16.3];
             gains = [1.0, 0.7, 0.35, 0.15];
             qFactors = [120.0, 90.0, 60.0, 40.0];
-          } else if (structure == 'membrane' || structure == 'drum') {
+          } else if (structure == 'membrane' || structure == 'drum' || structure == 'pool' || structure == 'basin') {
             ratios = [1.0, 1.59, 2.14, 2.65];
             gains = [1.0, 0.8, 0.5, 0.3];
-            qFactors = [25.0, 20.0, 15.0, 12.0];
+            qFactors = [35.0, 25.0, 20.0, 15.0];
           }
           gn = ModalResonatorBankNode(input: inNode, modeFreqRatios: ratios, modeGains: gains, modeQFactors: qFactors);
           break;
@@ -954,6 +1046,156 @@ class EatscriptGraphDef {
             crescendoCurve: curve,
             shimmerAir: shimmer,
             chokeSnap: choke,
+          );
+          break;
+
+        case 'plasma_arc':
+          final pitchCable = cables.where((c) => c.toNodeId == node.id && (c.toPort == 'pitch_cv' || c.toPort == 'pitch')).firstOrNull;
+          final pitchNode = pitchCable != null ? builtNodes[pitchCable.fromNodeId] : null;
+          final sparkW = resolveNum(node.params['spark_width'] ?? node.params['SparkGap'], 0.15);
+          final jit = resolveNum(node.params['jitter'] ?? node.params['Jitter'], 0.35);
+          final sub = resolveNum(node.params['sub_harmonic'] ?? node.params['SubHarmonic'], 0.0);
+          gn = PlasmaArcOscNode(
+            freqSource: pitchNode,
+            sparkWidth: sparkW,
+            sparkWidthParam: node.params['spark_width'] is String ? node.params['spark_width'] : (node.params['SparkGap'] is String ? node.params['SparkGap'] : null),
+            jitter: jit,
+            jitterParam: node.params['jitter'] is String ? node.params['jitter'] : (node.params['Jitter'] is String ? node.params['Jitter'] : null),
+            subHarmonic: sub,
+            subHarmonicParam: node.params['sub_harmonic'] is String ? node.params['sub_harmonic'] : (node.params['SubHarmonic'] is String ? node.params['SubHarmonic'] : null),
+          );
+          break;
+
+        case 'corona_crackle':
+          final dens = resolveNum(node.params['density'] ?? node.params['CrackleRate'], 0.40);
+          final bright = resolveNum(node.params['sizzle_bright'] ?? node.params['brightness'], 0.70);
+          gn = PoissonCrackleNode(
+            density: dens,
+            densityParam: node.params['density'] is String ? node.params['density'] : (node.params['CrackleRate'] is String ? node.params['CrackleRate'] : null),
+            sizzleBright: bright,
+            sizzleBrightParam: node.params['sizzle_bright'] is String ? node.params['sizzle_bright'] : null,
+          );
+          break;
+
+        case 'mains_hum':
+          final mFreq = resolveNum(node.params['mains_freq'] ?? node.params['freq'], 60.0);
+          final hLevel = resolveNum(node.params['hum_level'] ?? node.params['GridHum'], 0.35);
+          gn = SubstationHumNode(
+            mainsFreq: mFreq,
+            humLevel: hLevel,
+            humLevelParam: node.params['hum_level'] is String ? node.params['hum_level'] : (node.params['GridHum'] is String ? node.params['GridHum'] : null),
+          );
+          break;
+
+        case 'breakdown_snap':
+        case 'ignition_snap':
+          final sLevel = resolveNum(node.params['snap_level'] ?? (node.params['SnapAttack'] ?? 0.90), 0.90);
+          final sDecay = resolveNum(node.params['decay'] ?? (node.params['sputter_decay'] ?? 0.05), 0.05);
+          gn = BreakdownExciterNode(
+            snapLevel: sLevel,
+            snapLevelParam: node.params['snap_level'] is String ? node.params['snap_level'] : (node.params['SnapAttack'] is String ? node.params['SnapAttack'] : null),
+            sputterDecay: sDecay,
+          );
+          break;
+
+        case 'ozone_drive':
+          final inCable = cables.where((c) => c.toNodeId == node.id && (c.toPort == 'in' || c.toPort == 'in_sig')).firstOrNull;
+          final inNode = inCable != null ? (builtNodes[inCable.fromNodeId] ?? const SineOscNode()) : (builtNodes.values.lastOrNull ?? const SineOscNode());
+          final d = resolveNum(node.params['drive'] ?? node.params['OzoneDrive'], 1.35);
+          final b = resolveNum(node.params['bias'], 0.10);
+          gn = OzoneSaturationNode(
+            input: inNode,
+            drive: d,
+            driveParam: node.params['drive'] is String ? node.params['drive'] : (node.params['OzoneDrive'] is String ? node.params['OzoneDrive'] : null),
+            bias: b,
+          );
+          break;
+
+        case 'singing_flame':
+          final pitchCable = cables.where((c) => c.toNodeId == node.id && (c.toPort == 'pitch_cv' || c.toPort == 'pitch')).firstOrNull;
+          final pitchNode = pitchCable != null ? builtNodes[pitchCable.fromNodeId] : null;
+          final cusp = resolveNum(node.params['flame_cusp'] ?? node.params['FlameCusp'], 0.45);
+          final drift = resolveNum(node.params['drift'] ?? (node.params['thermal_drift'] ?? node.params['ThermalDrift']), 0.30);
+          final reso = resolveNum(node.params['resonance'] ?? (node.params['tube_resonance'] ?? node.params['TubeResonance']), 0.50);
+          gn = ThermoacousticFlameOscNode(
+            freqSource: pitchNode,
+            flameCusp: cusp,
+            flameCuspParam: node.params['flame_cusp'] is String ? node.params['flame_cusp'] : (node.params['FlameCusp'] is String ? node.params['FlameCusp'] : null),
+            thermalDrift: drift,
+            thermalDriftParam: node.params['drift'] is String ? node.params['drift'] : (node.params['ThermalDrift'] is String ? node.params['ThermalDrift'] : null),
+            tubeResonance: reso,
+            tubeResonanceParam: node.params['resonance'] is String ? node.params['resonance'] : (node.params['TubeResonance'] is String ? node.params['TubeResonance'] : null),
+          );
+          break;
+
+        case 'combustion_roar':
+          final rLevel = resolveNum(node.params['roar_level'] ?? node.params['CombustionRoar'], 0.35);
+          final dFlutter = resolveNum(node.params['draft_flutter'] ?? (node.params['DraftFlutter'] ?? node.params['OxygenDraft']), 0.40);
+          gn = CombustionRoarNode(
+            roarLevel: rLevel,
+            roarLevelParam: node.params['roar_level'] is String ? node.params['roar_level'] : (node.params['CombustionRoar'] is String ? node.params['CombustionRoar'] : null),
+            draftFlutter: dFlutter,
+            draftFlutterParam: node.params['draft_flutter'] is String ? node.params['draft_flutter'] : (node.params['DraftFlutter'] is String ? node.params['DraftFlutter'] : (node.params['OxygenDraft'] is String ? node.params['OxygenDraft'] : null)),
+          );
+          break;
+
+        case 'sap_crackle':
+          final sDens = resolveNum(node.params['sap_density'] ?? (node.params['SapCrackle'] ?? node.params['density']), 0.40);
+          final eSizzle = resolveNum(node.params['ember_sizzle'] ?? (node.params['EmberSizzle'] ?? 0.35), 0.35);
+          gn = SapExplosionCrackleNode(
+            sapDensity: sDens,
+            sapDensityParam: node.params['sap_density'] is String ? node.params['sap_density'] : (node.params['SapCrackle'] is String ? node.params['SapCrackle'] : null),
+            emberSizzle: eSizzle,
+            emberSizzleParam: node.params['ember_sizzle'] is String ? node.params['ember_sizzle'] : (node.params['EmberSizzle'] is String ? node.params['EmberSizzle'] : null),
+          );
+          break;
+
+        case 'hydraulophone':
+          final pitchCable = cables.where((c) => c.toNodeId == node.id && (c.toPort == 'pitch_cv' || c.toPort == 'pitch')).firstOrNull;
+          final pitchNode = pitchCable != null ? builtNodes[pitchCable.fromNodeId] : null;
+          final chirp = resolveNum(node.params['bubble_chirp'] ?? node.params['BubblePinch'], 0.45);
+          final visc = resolveNum(node.params['viscosity'] ?? node.params['Viscosity'], 0.40);
+          final cDrift = resolveNum(node.params['current_drift'] ?? node.params['CurrentDrift'], 0.35);
+          gn = HydraulophoneOscNode(
+            freqSource: pitchNode,
+            bubbleChirp: chirp,
+            bubbleChirpParam: node.params['bubble_chirp'] is String ? node.params['bubble_chirp'] : (node.params['BubblePinch'] is String ? node.params['BubblePinch'] : null),
+            viscosity: visc,
+            viscosityParam: node.params['viscosity'] is String ? node.params['viscosity'] : (node.params['Viscosity'] is String ? node.params['Viscosity'] : null),
+            currentDrift: cDrift,
+            currentDriftParam: node.params['current_drift'] is String ? node.params['current_drift'] : (node.params['CurrentDrift'] is String ? node.params['CurrentDrift'] : null),
+          );
+          break;
+
+        case 'hydro_vortex':
+          final vLevel = resolveNum(node.params['vortex_level'] ?? (node.params['Turbulence'] ?? node.params['VortexTurbulence']), 0.35);
+          final cSpeed = resolveNum(node.params['churn_speed'] ?? node.params['WaterFlow'], 0.40);
+          gn = HydrodynamicVortexNode(
+            vortexLevel: vLevel,
+            vortexLevelParam: node.params['vortex_level'] is String ? node.params['vortex_level'] : (node.params['Turbulence'] is String ? node.params['Turbulence'] : (node.params['VortexTurbulence'] is String ? node.params['VortexTurbulence'] : null)),
+            churnSpeed: cSpeed,
+            churnSpeedParam: node.params['churn_speed'] is String ? node.params['churn_speed'] : (node.params['WaterFlow'] is String ? node.params['WaterFlow'] : null),
+          );
+          break;
+
+        case 'droplet_splash':
+          final dRate = resolveNum(node.params['droplet_rate'] ?? (node.params['DropletRate'] ?? node.params['DropletPlink']), 0.40);
+          final sHiss = resolveNum(node.params['spray_hiss'] ?? node.params['SprayHiss'], 0.35);
+          gn = DropletSplashMatrixNode(
+            dropletRate: dRate,
+            dropletRateParam: node.params['droplet_rate'] is String ? node.params['droplet_rate'] : (node.params['DropletRate'] is String ? node.params['DropletRate'] : (node.params['DropletPlink'] is String ? node.params['DropletPlink'] : null)),
+            sprayHiss: sHiss,
+            sprayHissParam: node.params['spray_hiss'] is String ? node.params['spray_hiss'] : (node.params['SprayHiss'] is String ? node.params['SprayHiss'] : null),
+          );
+          break;
+
+        case 'plunge_impact':
+          final snapL = resolveNum(node.params['snap_level'] ?? node.params['PlungeImpact'], 0.85);
+          final wDecay = resolveNum(node.params['decay'] ?? (node.params['wake_decay'] ?? 0.09), 0.09);
+          gn = PlungeImpactExciterNode(
+            snapLevel: snapL,
+            snapLevelParam: node.params['snap_level'] is String ? node.params['snap_level'] : (node.params['PlungeImpact'] is String ? node.params['PlungeImpact'] : null),
+            wakeDecay: wDecay,
           );
           break;
 

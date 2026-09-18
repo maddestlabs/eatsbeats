@@ -4405,6 +4405,7 @@ def process(time, freq, note, params):
 # --- Parameter Definitions ---
 def init():
     return {
+        "SynthTone": eat.param("SynthTone", 0.0, 1.0, 0.70, step=0.0),
         "FuelPressure": eat.param("FuelPressure", 0.1, 3.0, 1.25, step=0.0),
         "FlameCusp": eat.param("FlameCusp", 0.0, 1.0, 0.45, step=0.0),
         "TubeResonance": eat.param("TubeResonance", 0.0, 1.0, 0.5, step=0.0),
@@ -4441,6 +4442,14 @@ def gui():
                         {
                             "type": "row",
                             "children": [
+                                {
+                                    "type": "knob",
+                                    "param": "SynthTone",
+                                    "label": "SYNTH TONE",
+                                    "unit": "%",
+                                    "knobStyle": "chrome",
+                                    "size": 52,
+                                },
                                 {
                                     "type": "knob",
                                     "param": "FuelPressure",
@@ -4615,6 +4624,21 @@ def gui():
             ],
         },
     }
+
+# --- Modular DSP Synthesis Graph ---
+def graph():
+    flame_core = eat.node.singing_flame(flame_cusp="FlameCusp", resonance="TubeResonance")
+    flame_vca = eat.node.gain(in_sig=flame_core, gain="SynthTone")
+    roar = eat.node.combustion_roar(roar_level="CombustionRoar", draft_flutter="OxygenDraft")
+    sap = eat.node.sap_crackle(sap_density="SapCrackle", ember_sizzle="EmberSizzle")
+    snap = eat.node.ignition_snap(snap_level="IgnitionSnap")
+    sum1 = eat.node.mix(in_a=flame_vca, in_b=roar, gain_a=0.85, gain_b=0.6)
+    sum2 = eat.node.mix(in_a=sap, in_b=snap, gain_a=0.5, gain_b=0.7)
+    mixed_flame = eat.node.mix(in_a=sum1, in_b=sum2, gain_a=1.0, gain_b=1.0)
+    draft_tube = eat.node.modal_bank(in_sig=mixed_flame, structure="pipe", brightness=0.6)
+    tone_lp = eat.node.svf(in_sig=draft_tube, cutoff="Tone", type="lowpass")
+    env = eat.node.adsr(attack=0.006, decay="Decay", sustain=0.85, release=0.10)
+    return tone_lp * env
 
 # --- Synthesizer Voice DSP Process Hook ---
 def process(time, freq, note, params):
@@ -4863,6 +4887,7 @@ def process(time, freq, note, params):
 # --- Parameter Definitions ---
 def init():
     return {
+        "SynthTone": eat.param("SynthTone", 0.0, 1.0, 0.70, step=0.0),
         "Voltage": eat.param("Voltage", 0.1, 3.0, 1.25, step=0.0),
         "SparkGap": eat.param("SparkGap", 0.02, 0.5, 0.15, step=0.0),
         "Jitter": eat.param("Jitter", 0.0, 1.0, 0.45, step=0.0),
@@ -4899,6 +4924,14 @@ def gui():
                         {
                             "type": "row",
                             "children": [
+                                {
+                                    "type": "knob",
+                                    "param": "SynthTone",
+                                    "label": "SYNTH TONE",
+                                    "unit": "%",
+                                    "knobStyle": "chrome",
+                                    "size": 52,
+                                },
                                 {
                                     "type": "knob",
                                     "param": "Voltage",
@@ -5072,6 +5105,22 @@ def gui():
         },
     }
 
+# --- Modular DSP Synthesis Graph ---
+def graph():
+    arc_core = eat.node.plasma_arc(spark_width="SparkGap", jitter="Jitter", sub_harmonic="SubHarmonic")
+    arc_vca = eat.node.gain(in_sig=arc_core, gain="SynthTone")
+    corona = eat.node.corona_crackle(density="CrackleRate", sizzle_bright=0.75)
+    hum = eat.node.mains_hum(mains_freq=60.0, hum_level="GridHum")
+    snap = eat.node.breakdown_snap(snap_level="SnapAttack")
+    sum1 = eat.node.mix(in_a=arc_vca, in_b=corona, gain_a=0.9, gain_b=0.5)
+    sum2 = eat.node.mix(in_a=hum, in_b=snap, gain_a=0.4, gain_b=0.75)
+    mixed_arc = eat.node.mix(in_a=sum1, in_b=sum2, gain_a=1.0, gain_b=1.0)
+    cavity = eat.node.modal_bank(in_sig=mixed_arc, structure="cavity", brightness=0.75)
+    ozone = eat.node.ozone_drive(in_sig=cavity, drive="OzoneDrive")
+    tone_lp = eat.node.svf(in_sig=ozone, cutoff="Tone", type="lowpass")
+    env = eat.node.adsr(attack=0.003, decay="Decay", sustain=0.88, release=0.06)
+    return tone_lp * env
+
 # --- Synthesizer Voice DSP Process Hook ---
 def process(time, freq, note, params):
     return 0.0
@@ -5091,6 +5140,7 @@ def process(time, freq, note, params):
 # --- Parameter Definitions ---
 def init():
     return {
+        "SynthTone": eat.param("SynthTone", 0.0, 1.0, 0.70, step=0.0),
         "WaterFlow": eat.param("WaterFlow", 0.1, 3.0, 1.25, step=0.0),
         "BubblePinch": eat.param("BubblePinch", 0.0, 1.0, 0.45, step=0.0),
         "Viscosity": eat.param("Viscosity", 0.0, 1.0, 0.4, step=0.0),
@@ -5127,6 +5177,14 @@ def gui():
                         {
                             "type": "row",
                             "children": [
+                                {
+                                    "type": "knob",
+                                    "param": "SynthTone",
+                                    "label": "SYNTH TONE",
+                                    "unit": "%",
+                                    "knobStyle": "chrome",
+                                    "size": 52,
+                                },
                                 {
                                     "type": "knob",
                                     "param": "WaterFlow",
@@ -5300,6 +5358,21 @@ def gui():
             ],
         },
     }
+
+# --- Modular DSP Synthesis Graph ---
+def graph():
+    jet_core = eat.node.hydraulophone(bubble_chirp="BubblePinch", viscosity="Viscosity", current_drift="CurrentDrift")
+    jet_vca = eat.node.gain(in_sig=jet_core, gain="SynthTone")
+    vortex = eat.node.hydro_vortex(vortex_level="Turbulence", churn_speed="WaterFlow")
+    splash = eat.node.droplet_splash(droplet_rate="DropletRate", spray_hiss="SprayHiss")
+    plunge = eat.node.plunge_impact(snap_level="PlungeImpact")
+    sum1 = eat.node.mix(in_a=jet_vca, in_b=vortex, gain_a=0.85, gain_b=0.5)
+    sum2 = eat.node.mix(in_a=splash, in_b=plunge, gain_a=0.5, gain_b=0.7)
+    mixed_fluid = eat.node.mix(in_a=sum1, in_b=sum2, gain_a=1.0, gain_b=1.0)
+    basin = eat.node.modal_bank(in_sig=mixed_fluid, structure="membrane", brightness=0.85)
+    depth_lp = eat.node.svf(in_sig=basin, cutoff="Depth", type="lowpass")
+    env = eat.node.adsr(attack=0.008, decay="Decay", sustain=0.88, release=0.12)
+    return depth_lp * env
 
 # --- Synthesizer Voice DSP Process Hook ---
 def process(time, freq, note, params):
