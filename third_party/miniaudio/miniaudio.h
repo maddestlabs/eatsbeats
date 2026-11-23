@@ -42015,6 +42015,8 @@ static ma_result ma_device_init__webaudio(ma_device* pDevice, const ma_device_co
         ma_audio_worklet_thread_initialized_data* pInitParameters;
         void* pStackBuffer;
 
+        MA_ZERO_OBJECT(&audioContextAttributes);
+
         if (pConfig->performanceProfile == ma_performance_profile_conservative) {
             audioContextAttributes.latencyHint = MA_WEBAUDIO_LATENCY_HINT_PLAYBACK;
         } else {
