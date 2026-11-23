@@ -11,6 +11,7 @@ https://opensource.org/licenses/MIT.
 #define DSY_MAYTRIG_H
 
 #include <stdint.h>
+#include <stdlib.h>
 #ifdef __cplusplus
 
 namespace daisysp

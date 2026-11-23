@@ -11,6 +11,7 @@ https://opensource.org/licenses/MIT.
 #define DSY_CLOCKEDNOISE_H
 
 #include <stdint.h>
+#include <stdlib.h>
 #ifdef __cplusplus
 
 /** @file clockednoise.h */

@@ -13,6 +13,7 @@ https://opensource.org/licenses/MIT.
 #define DSY_CORE_DSP
 #include <cassert>
 #include <cstdint>
+#include <cstdlib>
 #include <random>
 #include <cmath>
 
