@@ -1,0 +1,10 @@
+#include "eatsbeats/export/clap/tb303_clap_adapter.hpp"
+
+/**
+ * Eatsbeats Eats-303 Reference CLAP Plugin DSO Entry Point.
+ *
+ * Exports official C-ABI:
+ * - clap_entry (clap_plugin_entry_t)
+ * - clap.plugin-factory (clap_plugin_factory_t)
+ */
+EATS_CLAP_EXPORT_PLUGIN(::eatsbeats::export_clap::Eats303ClapAdapter)

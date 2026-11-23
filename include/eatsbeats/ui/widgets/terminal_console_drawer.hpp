@@ -1,0 +1,139 @@
+#ifndef EATS_TERMINAL_CONSOLE_DRAWER_HPP
+#define EATS_TERMINAL_CONSOLE_DRAWER_HPP
+
+#include <cstdint>
+#include <string>
+#include <memory>
+#include <vector>
+#include <string_view>
+#include <functional>
+#include "eatsbeats/terminal/terminal_grid.hpp"
+#include "eatsbeats/terminal/ansi_parser.hpp"
+#include "eatsbeats/eatscript/repl.hpp"
+#include "eatsbeats/abi/host_registry.hpp"
+#include "eatsbeats/ui/batch_renderer_2d.hpp"
+#include "eatsbeats/ui/theme.hpp"
+#include "eatsbeats/input/pointer_event.hpp"
+#include "eatsbeats/core/geometry.hpp"
+#include "eatsbeats/presenter/frame_time_context.hpp"
+#include "eatsbeats/ui/input/focus_manager.hpp"
+#include "eatsbeats/ui/widgets/sliding_dock.hpp"
+
+namespace eatsbeats::audio {
+    class AudioEngine;
+}
+
+namespace eatsbeats::ui {
+
+struct TerminalCallbacks {
+    std::function<bool(const std::string& name, const std::string& engineType)> onTrackCreate;
+    std::function<bool(uint32_t trackIndex)> onTrackDelete;
+    std::function<std::vector<std::string>()> onTrackList;
+    std::function<bool(const std::string& macroId, std::string& outMessage)> onMacroRun;
+    std::function<int(int fromPitch, int toPitch, int trackIndex)> onNotesReplace;
+    std::function<void(int viewIndex)> onNavigateView;
+    std::function<bool()> onToggleLoop;
+    std::function<bool()> onToggleMetronome;
+    std::function<void()> onToggleKeyboard;
+    std::function<void()> onToggleBrowser;
+};
+
+/**
+ * @brief Interactive In-DAW WebGPU Terminal & Live REPL Console Drawer.
+ * Embedded directly in the GUI desktop and web DAW, docked above the bottom nav bar.
+ * Powered by hardware-accelerated monospace font rendering, dual-buffered TerminalGrid,
+ * zero-allocation ANSI escape stream parser, and the Pythonic Eatscript REPL with live
+ * Host ABI audio engine reflection.
+ */
+class TerminalConsoleDrawer : public IFocusable {
+public:
+    TerminalConsoleDrawer();
+    ~TerminalConsoleDrawer() override;
+
+    void layout(float screenWidth, float bottomNavTopY, float uiScale = 1.0f, float customTabX = -1.0f, float customTabW = -1.0f);
+    void update(const FrameTimeContext& time) noexcept;
+    void render(BatchRenderer2D& r, const ThemeTokens& theme, float uiScale = 1.0f);
+
+    bool handlePointer(const PointerEvent& ev);
+    bool handleKey(int key, int scancode, int action, int mods) override;
+    bool handleChar(char32_t codepoint) override;
+
+    bool onFocusGained() override {
+        isFocused_ = true;
+        setExpanded(true);
+        return true;
+    }
+    void onFocusLost() override {
+        isFocused_ = false;
+    }
+    [[nodiscard]] bool isFocused() const noexcept override {
+        return isFocused_ || isExpanded();
+    }
+    void setFocused(bool focused) noexcept {
+        isFocused_ = focused;
+    }
+
+    void bindAudioEngine(audio::AudioEngine* engine);
+    void setCallbacks(TerminalCallbacks callbacks) noexcept;
+
+    [[nodiscard]] bool isExpanded() const noexcept { return drawer_.isExpanded(); }
+    void setExpanded(bool exp) noexcept;
+    void toggleExpanded() noexcept { setExpanded(!drawer_.isExpanded()); }
+
+    [[nodiscard]] float getDrawerHeight() const noexcept {
+        return drawer_.isExpanded() ? (drawerHeight_ + kPullTabHeight) : kPullTabHeight;
+    }
+
+    [[nodiscard]] core::Rect2D getDrawerBounds() const noexcept { return drawerBounds_; }
+    [[nodiscard]] core::Rect2D getPullTabBounds() const noexcept { return pullTabBounds_; }
+
+    [[nodiscard]] SlidingDrawer& getDrawer() noexcept { return drawer_; }
+    [[nodiscard]] const SlidingDrawer& getDrawer() const noexcept { return drawer_; }
+
+    void executeCommand(const std::string& command);
+    void setInputText(const std::string& text);
+    void logCommandExecution(const std::string& title);
+    [[nodiscard]] const std::string& getCurrentLine() const noexcept { return currentLine_; }
+    void clear();
+
+    [[nodiscard]] const terminal::TerminalGrid& getGrid() const noexcept { return grid_; }
+    [[nodiscard]] terminal::TerminalGrid& getGrid() noexcept { return grid_; }
+    [[nodiscard]] const eatscript::ReplEngine& getRepl() const noexcept { return repl_; }
+    [[nodiscard]] eatscript::ReplEngine& getRepl() noexcept { return repl_; }
+
+private:
+    void printWelcomeBanner();
+    void printPrompt();
+    void printHelpGuide();
+    void commitCurrentLine();
+    void setupHostBindings();
+    bool dispatchShellCommand(const std::string& cmd);
+
+    static constexpr float kPullTabHeight{20.0f};
+    static constexpr float kDefaultDrawerHeight{260.0f};
+    static constexpr float kCellWidth{8.0f};
+    static constexpr float kCellHeight{16.0f};
+
+    SlidingDrawer drawer_;
+    bool isFocused_{false};
+    float drawerHeight_{kDefaultDrawerHeight};
+    core::Rect2D drawerBounds_{};
+    core::Rect2D pullTabBounds_{};
+    core::Rect2D terminalAreaBounds_{};
+
+    terminal::TerminalGrid grid_{100, 30};
+    terminal::AnsiParser parser_{grid_};
+    abi::HostRegistry hostRegistry_{};
+    eatscript::ReplEngine repl_{&hostRegistry_};
+    audio::AudioEngine* audioEngine_{nullptr};
+    TerminalCallbacks callbacks_{};
+
+    std::string currentLine_{};
+    size_t cursorCol_{0};
+    double cursorBlinkTimer_{0.0};
+    bool cursorBlinkState_{true};
+};
+
+} // namespace eatsbeats::ui
+
+#endif // EATS_TERMINAL_CONSOLE_DRAWER_HPP

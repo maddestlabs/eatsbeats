@@ -1,0 +1,14 @@
+# @id: seq_trap_snare
+# @name: Trap Snare & Ghost
+# @category: midiSeq
+# @description: Crisp trap snare on beats 2 and 4 with syncopated ghost notes and pickup roll.
+# @tags: snare, trap, ghost, roll, hiphop
+
+-- Clip: "Trap Snare & Ghost" | Events: 5
+-- Syntax: { pitch = "C4", step = 0.0, dur = 1.0, vel = 0.85, slide = true }
+
+{ pitch = "D2", step = 4.0, dur = 1.0, vel = 0.95, accent = true }
+{ pitch = "D2", step = 9.0, dur = 0.5, vel = 0.45 }
+{ pitch = "D2", step = 11.0, dur = 0.5, vel = 0.55 }
+{ pitch = "D2", step = 12.0, dur = 1.0, vel = 0.95, accent = true }
+{ pitch = "D2", step = 15.0, dur = 0.5, vel = 0.50 }

@@ -1,0 +1,13 @@
+# @id: seq_offbeat_hats
+# @name: Offbeat Open Hats
+# @category: midiSeq
+# @description: Classic open hi-hat on the offbeats (and of each beat) for driving house & techno energy.
+# @tags: hihat, openhat, house, techno, upbeat
+
+-- Clip: "Offbeat Open Hats" | Events: 4
+-- Syntax: { pitch = "C4", step = 0.0, dur = 1.0, vel = 0.85, slide = true }
+
+{ pitch = "A#2", step = 2.0, dur = 1.5, vel = 0.88, accent = true }
+{ pitch = "A#2", step = 6.0, dur = 1.5, vel = 0.85 }
+{ pitch = "A#2", step = 10.0, dur = 1.5, vel = 0.88, accent = true }
+{ pitch = "A#2", step = 14.0, dur = 1.5, vel = 0.85 }

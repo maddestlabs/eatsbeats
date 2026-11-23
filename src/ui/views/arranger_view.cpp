@@ -1,0 +1,3018 @@
+#include "eatsbeats/ui/views/arranger_view.hpp"
+#include "eatsbeats/ui/draw_utils.hpp"
+#include "eatsbeats/audio/audio_engine.hpp"
+#include "eatsbeats/project/preset_loader.hpp"
+#include "eatsbeats/project/preset_manager.hpp"
+#include "eatsbeats/project/eats_builtin_presets.hpp"
+#include "eatsbeats/ui/clay/clay_context.hpp"
+#include "clay.h"
+#include <algorithm>
+#include <cmath>
+#include <filesystem>
+#include <atomic>
+
+namespace eatsbeats::ui {
+
+static const float kQuickPalette[8][3] = {
+    {0.13f, 0.96f, 0.91f}, // Neon Cyan (0xFF21F4E8)
+    {1.0f,  0.0f,  0.48f}, // Hot Pink (0xFFFF007A)
+    {0.0f,  1.0f,  0.40f}, // Acid Green (0xFF00FF66)
+    {0.74f, 0.0f,  1.0f }, // Electric Purple (0xFFBD00FF)
+    {1.0f,  0.55f, 0.0f }, // Neon Amber (0xFFFF8C00)
+    {1.0f,  0.90f, 0.0f }, // Yellow (0xFFFFE600)
+    {1.0f,  0.20f, 0.20f}, // Crimson Red (0xFFFF3333)
+    {0.20f, 0.60f, 1.0f }  // Sky Blue (0xFF3399FF)
+};
+
+ArrangerView::ArrangerView() {
+    clayContext_ = std::make_unique<clay::ClayContext>();
+    clayContext_->initialize(1280.0f, 720.0f);
+
+    // 1. DXVII E-Piano (Single default track)
+    ArrangerTimelineTrack t1;
+    t1.id = "trk_1";
+    t1.name = "DXVII E-Piano";
+    t1.instrument = "DXVII E-Piano";
+    t1.instrumentEngine = "dxvii_epiano";
+    t1.iconRef = "preset:inst_epiano";
+    t1.r = 0.62f; t1.g = 0.31f; t1.b = 0.87f;
+    t1.knob1 = 0.15f; t1.knob1Name = "ALGO";
+    t1.knob2 = 0.85f; t1.knob2Name = "FEEDBACK";
+    t1.knob3 = 0.35f; t1.knob3Name = "CHORUS";
+    t1.knob4 = 0.85f; t1.knob4Name = "VOLUME";
+    t1.chordFollowMode = theory::ChordFollowMode::Chord;
+
+    if (auto p = eatsbeats::project::BuiltinPresetRegistry::createPresetById("dxvii_epiano")) {
+        t1.eatscriptCode = p->rawScript;
+        t1.customGuiPanel = createGuiPanelFromPresetDefinition(*p);
+        auto kList = extractKnobsFromPresetDefinition(*p);
+        t1.knobs.clear();
+        for (const auto& k : kList) {
+            t1.knobs.push_back({k.name, k.label, k.value, k.display});
+        }
+    }
+
+    ArrangerTimelineClip c1{"c1", "FM Chords", 0, 1, 8, 0.62f, 0.31f, 0.87f, false, false, false, 8, 0, 1.0f, false};
+    c1.notes = {
+        // Bar 1-2: C Major (C4, E4, G4, B4)
+        {60, 0.0f, 7.5f, 0.75f}, {64, 0.0f, 7.5f, 0.70f}, {67, 0.0f, 7.5f, 0.80f}, {71, 0.0f, 7.5f, 0.75f},
+        // Bar 3-4: G Major (G3, B3, D4, G4)
+        {55, 8.0f, 7.5f, 0.75f}, {59, 8.0f, 7.5f, 0.70f}, {62, 8.0f, 7.5f, 0.80f}, {67, 8.0f, 7.5f, 0.85f},
+        // Bar 5-6: A Minor (A3, C4, E4, G4)
+        {57, 16.0f, 7.5f, 0.70f}, {60, 16.0f, 7.5f, 0.65f}, {64, 16.0f, 7.5f, 0.75f}, {67, 16.0f, 7.5f, 0.80f},
+        // Bar 7-8: F Major (F3, A3, C4, E4)
+        {53, 24.0f, 7.5f, 0.80f}, {57, 24.0f, 7.5f, 0.75f}, {60, 24.0f, 7.5f, 0.85f}, {64, 24.0f, 7.5f, 0.90f}
+    };
+    t1.clips.push_back(c1);
+    t1.audioFx.push_back({"Chorus / Flanger", "CHORUS_FLANGER", 0.50f, 0.75f, true});
+
+    tracks_ = {t1};
+    refreshAllClipChords();
+    syncDrawerDataForTrack(0);
+
+    // Connect Reusable PluginSearchDialog callbacks
+    pluginDialog_.onPluginSelected = [this](PluginDialogMode mode, const PluginEntry& entry, uint32_t targetIdx) {
+        if (mode == PluginDialogMode::AddInstrument) {
+            uint32_t effectiveTrackIdx = targetIdx;
+            if (targetIdx >= tracks_.size()) {
+                // New track: pass entry.id directly to ensure immediate correct engine configuration
+                addTrack(entry.name, entry.name, entry.r, entry.g, entry.b, entry.id);
+                effectiveTrackIdx = activeTrackIndex_;
+            } else {
+                // Change instrument
+                tracks_[targetIdx].instrument = entry.name;
+                tracks_[targetIdx].instrumentEngine = entry.id;
+                tracks_[targetIdx].r = entry.r;
+                tracks_[targetIdx].g = entry.g;
+                tracks_[targetIdx].b = entry.b;
+                for (auto& cl : tracks_[targetIdx].clips) {
+                    cl.r = entry.r; cl.g = entry.g; cl.b = entry.b;
+                }
+                syncDrawerDataForTrack(targetIdx);
+            }
+            if (onInstrumentChanged) {
+                onInstrumentChanged(effectiveTrackIdx, entry.id, entry.name);
+            }
+        } else if (mode == PluginDialogMode::AddMidiFx) {
+            addMidiFxToTrack(targetIdx, entry.name, entry.id);
+        } else if (mode == PluginDialogMode::AddAudioFx) {
+            addAudioFxToTrack(targetIdx, entry.name, entry.id);
+        }
+    };
+
+    // Connect Reusable CircleOfFifthsDialog callbacks (Eatsbeats parity)
+    circleOfFifthsDialog_.onChordApplied = [this](const theory::ChordEvent& chord) {
+        addOrUpdateChord(chord);
+    };
+    circleOfFifthsDialog_.onChordDeleted = [this](const std::string& chordId) {
+        removeChord(chordId);
+    };
+    circleOfFifthsDialog_.onProgressionApplied = [this](const theory::ChordProgressionPreset& preset, uint32_t startBar) {
+        applyChordProgressionPreset(preset, startBar);
+    };
+    circleOfFifthsDialog_.onAuditionChord = [this](const theory::ChordEvent& chord) {
+        if (onAuditionChord) onAuditionChord(chord);
+    };
+    circleOfFifthsDialog_.onExtractFromActiveTrack = [this]() {
+        extractChordsFromTrack(activeTrackIndex_);
+    };
+    circleOfFifthsDialog_.onExtractFromActiveClip = [this]() {
+        if (selectedClipIndex_ >= 0) {
+            extractChordsFromClip(activeTrackIndex_, static_cast<uint32_t>(selectedClipIndex_));
+        } else {
+            extractChordsFromTrack(activeTrackIndex_);
+        }
+    };
+
+    // Connect Reusable IconSearchDialog callbacks
+    iconDialog_.onIconSelected = [this](const std::string& iconRef, uint32_t targetIdx) {
+        if (targetIdx < tracks_.size()) {
+            tracks_[targetIdx].iconRef = iconRef;
+            drawerData_.iconRef = iconRef;
+            if (onTrackIconChanged) {
+                onTrackIconChanged(targetIdx, iconRef);
+            }
+        }
+    };
+
+    // Initialize Default Chord Track progression (Pop Classic / Synthwave: C - G - Am - F)
+    chordTrack_ = {
+        {"chord_0",  0,  2.0f, 0, theory::ChordQuality::Major, -1},  // Bar 1-2: C Major
+        {"chord_2",  2,  2.0f, 7, theory::ChordQuality::Major, -1},  // Bar 3-4: G Major
+        {"chord_4",  4,  2.0f, 9, theory::ChordQuality::Minor, -1},  // Bar 5-6: A Minor
+        {"chord_6",  6,  2.0f, 5, theory::ChordQuality::Major, -1},  // Bar 7-8: F Major
+        {"chord_8",  8,  2.0f, 0, theory::ChordQuality::Major, -1},  // Bar 9-10: C Major
+        {"chord_10", 10, 2.0f, 7, theory::ChordQuality::Major, -1},  // Bar 11-12: G Major
+        {"chord_12", 12, 2.0f, 9, theory::ChordQuality::Minor, -1},  // Bar 13-14: A Minor
+        {"chord_14", 14, 2.0f, 5, theory::ChordQuality::Major, -1}   // Bar 15-16: F Major
+    };
+
+    // Shared TrackPropertiesDrawer callbacks across Arranger and Mixer
+    propertiesDrawer_.onVolumeChanged = [this](uint32_t trackIdx, float vol) {
+        if (trackIdx < tracks_.size()) {
+            tracks_[trackIdx].volume = vol;
+            if (onVolumeChanged) onVolumeChanged(trackIdx, vol);
+        }
+    };
+    propertiesDrawer_.onPanChanged = [this](uint32_t trackIdx, float pan) {
+        if (trackIdx < tracks_.size()) {
+            tracks_[trackIdx].pan = pan;
+            if (onPanChanged) onPanChanged(trackIdx, pan);
+        }
+    };
+    propertiesDrawer_.onMuteToggled = [this](uint32_t trackIdx, bool mute) {
+        if (trackIdx < tracks_.size()) {
+            tracks_[trackIdx].mute = mute;
+            if (onMuteToggled) onMuteToggled(trackIdx, mute);
+        }
+    };
+    propertiesDrawer_.onSoloToggled = [this](uint32_t trackIdx, bool solo) {
+        if (trackIdx < tracks_.size()) {
+            tracks_[trackIdx].solo = solo;
+            if (onSoloToggled) onSoloToggled(trackIdx, solo);
+        }
+    };
+    propertiesDrawer_.onColorChanged = [this](uint32_t trackIdx, float r, float g, float b) {
+        if (trackIdx < tracks_.size()) {
+            tracks_[trackIdx].r = r;
+            tracks_[trackIdx].g = g;
+            tracks_[trackIdx].b = b;
+            for (auto& cl : tracks_[trackIdx].clips) {
+                cl.r = r; cl.g = g; cl.b = b;
+            }
+        }
+    };
+    propertiesDrawer_.onParamChanged = [this](uint32_t trackIdx, const std::string& paramName, float normVal) {
+        if (trackIdx < tracks_.size()) {
+            auto& trk = tracks_[trackIdx];
+            trk.setKnobValue(paramName, normVal);
+            drawerData_.setKnobValue(paramName, normVal);
+
+            std::string lowerParam = paramName;
+            for (char& c : lowerParam) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+            if (lowerParam == "cutoff" || lowerParam == "tone" || lowerParam == "param1") {
+                trk.knob1 = normVal;
+            } else if (lowerParam == "resonance" || lowerParam == "snappy" || lowerParam == "punch" || lowerParam == "param2") {
+                trk.knob2 = normVal;
+            } else if (lowerParam == "decay" || lowerParam == "tune" || lowerParam == "bright" || lowerParam == "param3") {
+                trk.knob3 = normVal;
+            } else if (lowerParam == "accent" || lowerParam == "tuning" || lowerParam == "crack" || lowerParam == "detune" || lowerParam == "param4") {
+                trk.knob4 = normVal;
+            }
+        }
+        if (onParamChanged) {
+            onParamChanged(trackIdx, paramName, normVal);
+        }
+    };
+    propertiesDrawer_.onAuditionNote = [this](uint32_t trackIdx, uint8_t note, float vel) {
+        if (onAuditionNote) {
+            onAuditionNote(trackIdx, note, vel);
+        }
+    };
+    propertiesDrawer_.onTabSelected = [this](TrackPropertiesTab tab) {
+        inspectorTab_ = (tab == TrackPropertiesTab::Clip) ? ArrangerInspectorTab::Clip : ArrangerInspectorTab::Track;
+        drawerData_.tab = tab;
+    };
+    propertiesDrawer_.onChordFollowChanged = [this](uint32_t trackIdx, theory::ChordFollowMode mode) {
+        if (trackIdx < tracks_.size()) {
+            tracks_[trackIdx].chordFollowMode = mode;
+            drawerData_.chordFollowMode = mode;
+            if (onTrackChordFollowChanged) onTrackChordFollowChanged(trackIdx, mode);
+        }
+    };
+    propertiesDrawer_.onBakeChords = [this](uint32_t trackIdx) {
+        bakeChordsToTrack(trackIdx);
+        drawerData_.chordFollowMode = theory::ChordFollowMode::Off;
+    };
+    propertiesDrawer_.onEditInPianoRoll = [this](uint32_t trackIdx, int clipIdx) {
+        if (onEditClipInPianoRoll) {
+            onEditClipInPianoRoll(trackIdx, clipIdx);
+        }
+    };
+    propertiesDrawer_.getPanel().getPluginSearchDialog().onPluginSelected =
+        [this](PluginDialogMode mode, const PluginEntry& entry, uint32_t targetIdx) {
+            if (mode == PluginDialogMode::AddInstrument) {
+                if (targetIdx < tracks_.size()) {
+                    tracks_[targetIdx].instrument = entry.name;
+                    tracks_[targetIdx].instrumentEngine = entry.id;
+                    tracks_[targetIdx].r = entry.r;
+                    tracks_[targetIdx].g = entry.g;
+                    tracks_[targetIdx].b = entry.b;
+                    syncDrawerDataForTrack(targetIdx);
+                    if (onInstrumentChanged) {
+                        onInstrumentChanged(targetIdx, entry.id, entry.name);
+                    }
+                }
+            } else if (mode == PluginDialogMode::AddMidiFx) {
+                if (targetIdx < tracks_.size()) {
+                    TrackMidiFxItem mfx;
+                    mfx.id = entry.id;
+                    mfx.name = entry.name;
+                    mfx.type = (entry.engineTag.empty() || entry.engineTag == "MIDI Processor" || entry.engineTag == "DSP Effect") ? entry.name : entry.engineTag;
+                    mfx.enabled = true;
+                    mfx.isExpanded = true;
+                    mfx.ensureDefaultKnobs();
+                    tracks_[targetIdx].midiFx.push_back(mfx);
+                    drawerData_.midiFx.push_back(mfx);
+                    if (onMidiFxChanged) onMidiFxChanged(targetIdx);
+                }
+            } else if (mode == PluginDialogMode::AddAudioFx) {
+                if (targetIdx < tracks_.size()) {
+                    TrackAudioFxItem afx;
+                    afx.id = entry.id;
+                    afx.name = entry.name;
+                    afx.type = entry.engineTag.empty() ? entry.name : entry.engineTag;
+                    afx.enabled = true;
+                    afx.isExpanded = true;
+                    afx.ensureDefaultKnobs();
+                    tracks_[targetIdx].audioFx.push_back(afx);
+                    drawerData_.audioFx.push_back(afx);
+                    if (onAudioFxChanged) onAudioFxChanged(targetIdx);
+                }
+            }
+        };
+    propertiesDrawer_.onRemoveMidiFx = [this](uint32_t trackIdx, size_t fxIdx) {
+        if (trackIdx < tracks_.size() && fxIdx < tracks_[trackIdx].midiFx.size()) {
+            tracks_[trackIdx].midiFx.erase(tracks_[trackIdx].midiFx.begin() + fxIdx);
+            syncDrawerDataForTrack(trackIdx);
+            if (onMidiFxChanged) onMidiFxChanged(trackIdx);
+        }
+    };
+    propertiesDrawer_.onRemoveAudioFx = [this](uint32_t trackIdx, size_t fxIdx) {
+        if (trackIdx < tracks_.size() && fxIdx < tracks_[trackIdx].audioFx.size()) {
+            tracks_[trackIdx].audioFx.erase(tracks_[trackIdx].audioFx.begin() + fxIdx);
+            syncDrawerDataForTrack(trackIdx);
+            if (onAudioFxChanged) onAudioFxChanged(trackIdx);
+        }
+    };
+    propertiesDrawer_.onToggleMidiFx = [this](uint32_t trackIdx, size_t fxIdx, bool en) {
+        if (trackIdx < tracks_.size() && fxIdx < tracks_[trackIdx].midiFx.size()) {
+            tracks_[trackIdx].midiFx[fxIdx].enabled = en;
+            if (fxIdx < drawerData_.midiFx.size()) {
+                drawerData_.midiFx[fxIdx].enabled = en;
+            }
+            if (onToggleMidiFx) onToggleMidiFx(trackIdx, fxIdx, en);
+            if (onMidiFxChanged) onMidiFxChanged(trackIdx);
+        }
+    };
+    propertiesDrawer_.onToggleAudioFx = [this](uint32_t trackIdx, size_t fxIdx, bool en) {
+        if (trackIdx < tracks_.size() && fxIdx < tracks_[trackIdx].audioFx.size()) {
+            tracks_[trackIdx].audioFx[fxIdx].enabled = en;
+            if (onToggleAudioFx) onToggleAudioFx(trackIdx, fxIdx, en);
+            if (onAudioFxChanged) onAudioFxChanged(trackIdx);
+        }
+    };
+    propertiesDrawer_.onReorderAudioFx = [this](uint32_t trackIdx, size_t fromIdx, size_t toIdx) {
+        if (trackIdx < tracks_.size()) {
+            auto& list = tracks_[trackIdx].audioFx;
+            if (fromIdx < list.size() && toIdx < list.size() && fromIdx != toIdx) {
+                auto item = list[fromIdx];
+                list.erase(list.begin() + fromIdx);
+                list.insert(list.begin() + toIdx, item);
+                drawerData_.audioFx = list;
+                if (onAudioFxChanged) onAudioFxChanged(trackIdx);
+            }
+        }
+    };
+    propertiesDrawer_.onReorderMidiFx = [this](uint32_t trackIdx, size_t fromIdx, size_t toIdx) {
+        if (trackIdx < tracks_.size()) {
+            auto& list = tracks_[trackIdx].midiFx;
+            if (fromIdx < list.size() && toIdx < list.size() && fromIdx != toIdx) {
+                auto item = list[fromIdx];
+                list.erase(list.begin() + fromIdx);
+                list.insert(list.begin() + toIdx, item);
+                drawerData_.midiFx = list;
+                if (onMidiFxChanged) onMidiFxChanged(trackIdx);
+            }
+        }
+    };
+    propertiesDrawer_.onAudioFxChanged = [this](uint32_t trackIdx) {
+        if (trackIdx < tracks_.size()) {
+            tracks_[trackIdx].audioFx = drawerData_.audioFx;
+            if (onAudioFxChanged) onAudioFxChanged(trackIdx);
+        }
+    };
+    propertiesDrawer_.onMidiFxChanged = [this](uint32_t trackIdx) {
+        if (trackIdx < tracks_.size()) {
+            tracks_[trackIdx].midiFx = drawerData_.midiFx;
+            if (onMidiFxChanged) onMidiFxChanged(trackIdx);
+        }
+    };
+    propertiesDrawer_.onMidiFxParamChanged = [this](uint32_t trackIdx, const std::string& paramName, float normVal) {
+        if (trackIdx < tracks_.size()) {
+            tracks_[trackIdx].midiFx = drawerData_.midiFx;
+            if (onMidiFxParamChanged) {
+                onMidiFxParamChanged(trackIdx, paramName, normVal);
+            }
+            if (onMidiFxChanged) {
+                onMidiFxChanged(trackIdx);
+            }
+        }
+    };
+    propertiesDrawer_.onAudioFxParamChanged = [this](uint32_t trackIdx, size_t fxIdx, const std::string& paramName, float normVal) {
+        if (onAudioFxParamChanged) {
+            onAudioFxParamChanged(trackIdx, fxIdx, paramName, normVal);
+        }
+    };
+    propertiesDrawer_.onChooseTrackIcon = [this](uint32_t trackIdx) {
+        if (trackIdx < tracks_.size()) {
+            iconDialog_.open(tracks_[trackIdx].name, trackIdx, tracks_[trackIdx].iconRef);
+        }
+    };
+    propertiesDrawer_.onOpenPresets = [this](uint32_t trackIdx) {
+        if (trackIdx < tracks_.size()) {
+            pluginDialog_.open(PluginDialogMode::SelectPreset, tracks_[trackIdx].name, trackIdx);
+        }
+    };
+    propertiesDrawer_.onOpenFullscreenDevice = [this](uint32_t trackIdx) {
+        if (onOpenFullscreenDevice) onOpenFullscreenDevice(trackIdx);
+    };
+    propertiesDrawer_.onOpenDetachedWindow = [this](uint32_t trackIdx) {
+        if (onOpenDetachedWindow) onOpenDetachedWindow(trackIdx);
+    };
+    propertiesDrawer_.onOpenFullscreenAudioFx = [this](uint32_t trackIdx, size_t fxIdx) {
+        if (onOpenFullscreenAudioFx) onOpenFullscreenAudioFx(trackIdx, fxIdx);
+    };
+    propertiesDrawer_.onOpenDesign = [this](uint32_t idx) {
+        if (onOpenDesign) onOpenDesign(idx);
+    };
+    propertiesDrawer_.onOpenFullscreenMidiFx = [this](uint32_t trackIdx, size_t fxIdx) {
+        if (onOpenFullscreenMidiFx) onOpenFullscreenMidiFx(trackIdx, fxIdx);
+    };
+    propertiesDrawer_.onTrackRenameWithText = [this](uint32_t trackIdx, const std::string& newName) {
+        if (trackIdx < tracks_.size() && !newName.empty()) {
+            tracks_[trackIdx].name = newName;
+            drawerData_.trackName = newName;
+            if (trackIdx < drawerData_.allTrackNames.size()) {
+                drawerData_.allTrackNames[trackIdx] = newName;
+            }
+            if (onTrackRename) {
+                onTrackRename(trackIdx, newName);
+            }
+        }
+    };
+    propertiesDrawer_.onAddClip = [this](uint32_t trackIdx) {
+        addClipToTrack(trackIdx);
+        if (onAddClip) onAddClip(trackIdx);
+    };
+    propertiesDrawer_.onDeleteTrack = [this](uint32_t trackIdx) {
+        if (onTrackDeleted) {
+            onTrackDeleted(trackIdx);
+        } else {
+            deleteTrack(trackIdx);
+        }
+    };
+    propertiesDrawer_.onDuplicateTrack = [this](uint32_t trackIdx) {
+        if (onTrackDuplicated) {
+            onTrackDuplicated(trackIdx);
+        } else {
+            duplicateTrack(trackIdx);
+        }
+    };
+    propertiesDrawer_.onDuplicateClip = [this](uint32_t trackIdx, int clipIdx) {
+        duplicateClip(trackIdx, clipIdx);
+        if (onDuplicateClip) onDuplicateClip(trackIdx, clipIdx);
+    };
+    propertiesDrawer_.onDeleteClip = [this](uint32_t trackIdx, int clipIdx) {
+        deleteClip(trackIdx, clipIdx);
+        if (onDeleteClip) onDeleteClip(trackIdx, clipIdx);
+    };
+}
+
+ArrangerView::~ArrangerView() = default;
+
+void ArrangerView::setMasterLevels(float masterVol, float masterPan, bool masterMute,
+                                   float masterPeakL, float masterPeakR,
+                                   const float* chPeaksL, const float* chPeaksR, size_t numPeaks) {
+    masterVolume_ = masterVol;
+    masterPan_ = masterPan;
+    masterMute_ = masterMute;
+    masterPeakL_ = masterPeakL;
+    masterPeakR_ = masterPeakR;
+    if (chPeaksL && chPeaksR && numPeaks > 0) {
+        chPeaksL_.assign(chPeaksL, chPeaksL + numPeaks);
+        chPeaksR_.assign(chPeaksR, chPeaksR + numPeaks);
+    }
+}
+
+void ArrangerView::setMasterLevels(float masterVol, float masterPan, bool masterMute,
+                                   float masterPeakL, float masterPeakR,
+                                   std::span<const float> chPeaksL, std::span<const float> chPeaksR) {
+    masterVolume_ = masterVol;
+    masterPan_ = masterPan;
+    masterMute_ = masterMute;
+    masterPeakL_ = masterPeakL;
+    masterPeakR_ = masterPeakR;
+    size_t numPeaks = std::min(chPeaksL.size(), chPeaksR.size());
+    if (numPeaks > 0) {
+        chPeaksL_.assign(chPeaksL.data(), chPeaksL.data() + numPeaks);
+        chPeaksR_.assign(chPeaksR.data(), chPeaksR.data() + numPeaks);
+    }
+}
+
+void ArrangerView::setActiveTrack(uint32_t idx) noexcept {
+    if (idx < tracks_.size()) {
+        activeTrackIndex_ = idx;
+        syncDrawerDataForTrack(idx);
+    }
+}
+
+void ArrangerView::syncDrawerDataForTrack(uint32_t trackIdx) {
+    if (trackIdx >= tracks_.size()) return;
+    auto& track = tracks_[trackIdx];
+    const std::string& expectedEngine = track.instrumentEngine.empty() ? "synth" : track.instrumentEngine;
+
+    if (!track.customGuiPanel.has_value()) {
+        if (!track.eatscriptCode.empty()) {
+            try {
+                auto def = eatsbeats::project::PresetLoader::parseFromEatscript(track.eatscriptCode);
+                track.customGuiPanel = createGuiPanelFromPresetDefinition(def);
+                if (track.knobs.empty()) {
+                    track.knobs = extractKnobsFromPresetDefinition(def);
+                }
+            } catch (...) {}
+        } else {
+            eatsbeats::project::PresetDefinition def{};
+            bool loaded = false;
+            if (!expectedEngine.empty() && eatsbeats::project::PresetManager::instance().loadPresetDefinition(expectedEngine, def)) {
+                loaded = true;
+            } else if (!track.instrument.empty() && eatsbeats::project::PresetManager::instance().loadPresetDefinition(track.instrument, def)) {
+                loaded = true;
+            } else {
+                auto opt = eatsbeats::project::BuiltinPresetRegistry::createPresetById(expectedEngine);
+                if (!opt) opt = eatsbeats::project::BuiltinPresetRegistry::createPresetById(track.instrument);
+                if (opt) {
+                    def = *opt;
+                    loaded = true;
+                }
+            }
+            if (loaded) {
+                track.customGuiPanel = createGuiPanelFromPresetDefinition(def);
+                if (track.knobs.empty()) {
+                    track.knobs = extractKnobsFromPresetDefinition(def);
+                }
+                if (track.eatscriptCode.empty()) {
+                    track.eatscriptCode = def.rawScript;
+                }
+            }
+        }
+    }
+
+    if (trackIdx == activeTrackIndex_) {
+        drawerData_.trackId = track.id;
+        drawerData_.trackIndex = trackIdx;
+        drawerData_.totalTracks = static_cast<uint32_t>(tracks_.size());
+        drawerData_.trackName = track.name;
+        drawerData_.instrument = track.instrument;
+        drawerData_.instrumentEngine = expectedEngine;
+        drawerData_.eatscriptCode = track.eatscriptCode;
+        drawerData_.presetTitle = track.instrument.empty() ? track.name : track.instrument;
+        drawerData_.presetSubtitle = track.name + " • " + (track.instrument.empty() ? "Track" : track.instrument);
+        drawerData_.iconRef = track.iconRef;
+        drawerData_.r = track.r;
+        drawerData_.g = track.g;
+        drawerData_.b = track.b;
+        drawerData_.volume = track.volume;
+        drawerData_.pan = track.pan;
+        drawerData_.mute = track.mute;
+        drawerData_.solo = track.solo;
+        drawerData_.chordFollowMode = track.chordFollowMode;
+        if (track.knobs.empty()) {
+            drawerData_.knobs.clear();
+            drawerData_.syncKnobsIfEmpty();
+            track.knobs = drawerData_.knobs;
+        } else {
+            drawerData_.knobs = track.knobs;
+        }
+        drawerData_.midiFx = track.midiFx;
+        drawerData_.audioFx = track.audioFx;
+        drawerData_.customGuiPanel = track.customGuiPanel;
+    }
+}
+
+void ArrangerView::setSelectedClip(int idx) noexcept {
+    selectedClipIndex_ = idx;
+}
+
+void ArrangerView::toggleLoop() noexcept {
+    loopEnabled_ = !loopEnabled_;
+    if (onToggleLoop) {
+        onToggleLoop(loopEnabled_);
+    }
+}
+
+void ArrangerView::setLoopRange(uint32_t startStep, uint32_t endStep) noexcept {
+    if (startStep > endStep) {
+        std::swap(startStep, endStep);
+    }
+    loopStartStep_ = startStep;
+    loopEndStep_ = (std::max)(startStep + 1, endStep);
+    if (onLoopRangeChanged) {
+        onLoopRangeChanged(loopStartStep_, loopEndStep_);
+    }
+}
+
+void ArrangerView::addTrack(const std::string& name, const std::string& instrument, float r, float g, float b, const std::string& instrumentEngine) {
+    static std::atomic<uint64_t> s_arrangerTrackSeq{100};
+    ArrangerTimelineTrack t;
+    t.id = "trk_" + std::to_string(++s_arrangerTrackSeq);
+    t.name = name;
+    t.instrument = instrument;
+    t.instrumentEngine = instrumentEngine.empty() ? "synth" : instrumentEngine;
+    t.iconRef = "preset:inst_synth";
+    t.r = r; t.g = g; t.b = b;
+    // Clean track ready for audio or MIDI clips - no default clip inserted
+    t.clips.clear();
+
+    eatsbeats::project::PresetDefinition def{};
+    bool loadedDef = false;
+    if (!t.instrumentEngine.empty() && eatsbeats::project::PresetManager::instance().loadPresetDefinition(t.instrumentEngine, def)) {
+        loadedDef = true;
+    } else if (!t.instrument.empty() && eatsbeats::project::PresetManager::instance().loadPresetDefinition(t.instrument, def)) {
+        loadedDef = true;
+    } else {
+        auto opt = eatsbeats::project::BuiltinPresetRegistry::createPresetById(t.instrumentEngine);
+        if (!opt) opt = eatsbeats::project::BuiltinPresetRegistry::createPresetById(t.instrument);
+        if (opt) {
+            def = *opt;
+            loadedDef = true;
+        }
+    }
+    if (loadedDef) {
+        t.customGuiPanel = createGuiPanelFromPresetDefinition(def);
+        t.knobs = extractKnobsFromPresetDefinition(def);
+        t.eatscriptCode = def.rawScript;
+    }
+
+    tracks_.push_back(t);
+    activeTrackIndex_ = static_cast<uint32_t>(tracks_.size() - 1);
+    selectedClipIndex_ = -1;
+    inspectorTab_ = ArrangerInspectorTab::Track;
+    inspectorOpen_ = true;
+    syncDrawerDataForTrack(activeTrackIndex_);
+    if (onTrackAdded) {
+        onTrackAdded(activeTrackIndex_);
+    }
+    if (onTrackSelected) {
+        onTrackSelected(activeTrackIndex_);
+    }
+}
+
+void ArrangerView::addClipToTrack(uint32_t trackIdx, uint32_t startBar, uint32_t lengthBars) {
+    if (trackIdx >= tracks_.size()) return;
+    auto& track = tracks_[trackIdx];
+    if (startBar == 1 && !track.clips.empty()) {
+        uint32_t endB = 1;
+        for (const auto& c : track.clips) {
+            endB = std::max(endB, c.startBar + c.lengthBars);
+        }
+        startBar = endB;
+    }
+    createEmptyClipAt(trackIdx, startBar, lengthBars);
+}
+
+void ArrangerView::addClipWithNotes(uint32_t trackIdx,
+                                   const std::string& clipName,
+                                   uint32_t startBar,
+                                   uint32_t lengthBars,
+                                   const std::vector<ArrangerClipNote>& notes,
+                                   const std::string& eatscriptCode) {
+    if (trackIdx >= tracks_.size()) return;
+    auto& track = tracks_[trackIdx];
+    std::string cid = "clip_" + std::to_string(trackIdx + 1) + "_" + std::to_string(startBar) + "_" + std::to_string(track.clips.size() + 1);
+    ArrangerTimelineClip cl;
+    cl.id = cid;
+    cl.name = clipName.empty() ? (track.name + " Clip " + std::to_string(track.clips.size() + 1)) : clipName;
+    cl.trackIndex = trackIdx;
+    cl.startBar = startBar;
+    cl.lengthBars = lengthBars;
+    cl.r = track.r;
+    cl.g = track.g;
+    cl.b = track.b;
+    cl.isAudio = false;
+    cl.isLooped = false;
+    cl.loopLengthBars = lengthBars;
+    cl.volumeScale = 1.0f;
+    cl.mute = false;
+    cl.notes = notes;
+    cl.eatscriptCode = eatscriptCode;
+    updateClipDetectedChords(cl);
+    track.clips.push_back(cl);
+    selectedClipIndex_ = static_cast<int>(track.clips.size() - 1);
+    activeTrackIndex_ = trackIdx;
+    inspectorTab_ = ArrangerInspectorTab::Clip;
+    inspectorOpen_ = true;
+    if (onClipsChanged) onClipsChanged();
+    if (onTrackSelected) onTrackSelected(activeTrackIndex_);
+}
+
+void ArrangerView::createEmptyClipAt(uint32_t trackIdx, uint32_t startBar, uint32_t lengthBars) {
+    if (trackIdx >= tracks_.size()) return;
+    auto& track = tracks_[trackIdx];
+    std::string cid = "clip_" + std::to_string(trackIdx + 1) + "_" + std::to_string(startBar);
+    ArrangerTimelineClip cl;
+    cl.id = cid;
+    cl.name = track.name + " Clip " + std::to_string(track.clips.size() + 1);
+    cl.trackIndex = trackIdx;
+    cl.startBar = startBar;
+    cl.lengthBars = lengthBars;
+    cl.r = track.r;
+    cl.g = track.g;
+    cl.b = track.b;
+    cl.isAudio = false;
+    cl.isLooped = false;
+    cl.loopLengthBars = lengthBars;
+    cl.volumeScale = 1.0f;
+    cl.mute = false;
+    track.clips.push_back(cl);
+    selectedClipIndex_ = static_cast<int>(track.clips.size() - 1);
+    activeTrackIndex_ = trackIdx;
+    inspectorTab_ = ArrangerInspectorTab::Clip;
+    inspectorOpen_ = true;
+    if (onClipsChanged) onClipsChanged();
+    if (onTrackSelected) onTrackSelected(activeTrackIndex_);
+}
+
+void ArrangerView::duplicateClip(uint32_t trackIdx, int clipIdx) {
+    if (trackIdx >= tracks_.size()) return;
+    auto& track = tracks_[trackIdx];
+    if (clipIdx < 0 || clipIdx >= static_cast<int>(track.clips.size())) return;
+
+    const auto& src = track.clips[clipIdx];
+    ArrangerTimelineClip dup = src;
+    dup.id = "clip_" + std::to_string(trackIdx + 1) + "_" + std::to_string(track.clips.size() + 1);
+    dup.name = src.name + " (Copy)";
+    dup.startBar = src.startBar + src.lengthBars;
+    track.clips.push_back(dup);
+
+    activeTrackIndex_ = trackIdx;
+    selectedClipIndex_ = static_cast<int>(track.clips.size() - 1);
+    inspectorTab_ = ArrangerInspectorTab::Clip;
+    inspectorOpen_ = true;
+    if (onClipsChanged) onClipsChanged();
+    if (onTrackSelected) onTrackSelected(activeTrackIndex_);
+}
+
+void ArrangerView::deleteClip(uint32_t trackIdx, int clipIdx) {
+    if (trackIdx >= tracks_.size()) return;
+    auto& track = tracks_[trackIdx];
+    if (clipIdx < 0 || clipIdx >= static_cast<int>(track.clips.size())) return;
+
+    track.clips.erase(track.clips.begin() + clipIdx);
+    if (track.clips.empty()) {
+        selectedClipIndex_ = -1;
+        inspectorTab_ = ArrangerInspectorTab::Track;
+    } else {
+        selectedClipIndex_ = std::min(clipIdx, static_cast<int>(track.clips.size() - 1));
+        inspectorTab_ = ArrangerInspectorTab::Clip;
+    }
+    activeTrackIndex_ = trackIdx;
+    if (onClipsChanged) onClipsChanged();
+    if (onTrackSelected) onTrackSelected(activeTrackIndex_);
+}
+
+void ArrangerView::deleteTrack(uint32_t trackIdx, bool notify) {
+    if (tracks_.size() <= 1 || trackIdx >= tracks_.size()) return;
+    tracks_.erase(tracks_.begin() + trackIdx);
+    if (activeTrackIndex_ >= tracks_.size()) {
+        activeTrackIndex_ = static_cast<uint32_t>(tracks_.size() - 1);
+    }
+    for (size_t t = 0; t < tracks_.size(); ++t) {
+        for (auto& cl : tracks_[t].clips) {
+            cl.trackIndex = static_cast<uint32_t>(t);
+        }
+    }
+    selectedClipIndex_ = -1;
+    inspectorTab_ = ArrangerInspectorTab::Track;
+    drawerData_.tab = TrackPropertiesTab::Track;
+    drawerData_.selectedClipIndex = -1;
+    drawerData_.totalTracks = static_cast<uint32_t>(tracks_.size());
+    drawerData_.trackIndex = activeTrackIndex_;
+    drawerData_.allTrackNames.clear();
+    for (const auto& trk : tracks_) {
+        drawerData_.allTrackNames.push_back(trk.name);
+    }
+    syncDrawerDataForTrack(activeTrackIndex_);
+    if (notify && onTrackDeleted) onTrackDeleted(trackIdx);
+    if (onClipsChanged) onClipsChanged();
+    if (onTrackSelected) onTrackSelected(activeTrackIndex_);
+}
+
+void ArrangerView::duplicateTrack(uint32_t trackIdx) {
+    if (trackIdx >= tracks_.size()) return;
+    static std::atomic<uint64_t> s_dupTrackSeq{500};
+    ArrangerTimelineTrack dup = tracks_[trackIdx];
+    dup.id = "trk_" + std::to_string(++s_dupTrackSeq);
+    dup.name += " (Copy)";
+    uint32_t newTrackIdx = static_cast<uint32_t>(tracks_.size());
+    for (size_t i = 0; i < dup.clips.size(); ++i) {
+        dup.clips[i].id = "clip_" + std::to_string(newTrackIdx + 1) + "_" + std::to_string(i + 1);
+        dup.clips[i].trackIndex = newTrackIdx;
+    }
+    tracks_.push_back(dup);
+    activeTrackIndex_ = newTrackIdx;
+    selectedClipIndex_ = -1;
+    drawerData_.totalTracks = static_cast<uint32_t>(tracks_.size());
+    drawerData_.trackIndex = activeTrackIndex_;
+    if (onTrackDuplicated) onTrackDuplicated(trackIdx);
+    if (onTrackAdded) onTrackAdded(activeTrackIndex_);
+    if (onClipsChanged) onClipsChanged();
+    if (onTrackSelected) onTrackSelected(activeTrackIndex_);
+}
+
+void ArrangerView::addMidiFxToTrack(uint32_t trackIdx, const std::string& name, const std::string& type) {
+    if (trackIdx < tracks_.size()) {
+        tracks_[trackIdx].midiFx.push_back({name, type, 0, 0, true});
+        if (onMidiFxChanged) onMidiFxChanged(trackIdx);
+    }
+}
+
+void ArrangerView::addAudioFxToTrack(uint32_t trackIdx, const std::string& name, const std::string& type) {
+    if (trackIdx < tracks_.size()) {
+        tracks_[trackIdx].audioFx.push_back({name, type, 0.5f, 0.5f, true});
+        if (onAudioFxChanged) onAudioFxChanged(trackIdx);
+    }
+}
+
+int ArrangerView::getTrackIndexAt(float x, float y) const noexcept {
+    float minX = tracksListBounds_.x;
+    float maxX = gridBounds_.x + gridBounds_.w;
+    if (x < minX || x > maxX) return -1;
+    if (y < tracksListBounds_.y || y > tracksListBounds_.y + tracksListBounds_.h) return -1;
+
+    float localY = y - tracksListBounds_.y + scrollY_;
+    if (localY < 0.0f) return -1;
+    int idx = static_cast<int>(localY / trackRowHeight_);
+    if (idx >= 0 && idx < static_cast<int>(tracks_.size())) {
+        return idx;
+    }
+    return -1;
+}
+
+bool ArrangerView::isBelowLastTrack(float x, float y) const noexcept {
+    float minX = tracksListBounds_.x;
+    float maxX = gridBounds_.x + gridBounds_.w;
+    if (x < minX || x > maxX) return false;
+    if (y < tracksListBounds_.y || y > tracksListBounds_.y + tracksListBounds_.h) return false;
+
+    float localY = y - tracksListBounds_.y + scrollY_;
+    float bottomOfLastTrack = static_cast<float>(tracks_.size()) * trackRowHeight_;
+    return localY >= bottomOfLastTrack;
+}
+
+uint32_t ArrangerView::getBarAt(float x) const noexcept {
+    if (gridBounds_.w > 0.0f && x >= gridBounds_.x) {
+        float relX = x - gridBounds_.x + scrollX_;
+        return static_cast<uint32_t>(std::max(1.0f, std::floor(relX / barWidth_) + 1.0f));
+    }
+    return 1;
+}
+
+// -------------------------------------------------------------------------
+// Chord Track & Music Theory APIs
+// -------------------------------------------------------------------------
+
+void ArrangerView::addOrUpdateChord(const theory::ChordEvent& chord) {
+    auto it = std::find_if(chordTrack_.begin(), chordTrack_.end(), [&](const theory::ChordEvent& c) {
+        return c.id == chord.id;
+    });
+
+    if (it != chordTrack_.end()) {
+        *it = chord;
+    } else {
+        // Remove any chord starting at the exact same bar to prevent exact overlap
+        chordTrack_.erase(
+            std::remove_if(chordTrack_.begin(), chordTrack_.end(), [&](const theory::ChordEvent& c) {
+                return c.startBar == chord.startBar;
+            }),
+            chordTrack_.end()
+        );
+        chordTrack_.push_back(chord);
+    }
+
+    std::sort(chordTrack_.begin(), chordTrack_.end(), [](const theory::ChordEvent& a, const theory::ChordEvent& b) {
+        return a.startBar < b.startBar;
+    });
+    if (onChordTrackChanged) onChordTrackChanged();
+}
+
+void ArrangerView::removeChord(const std::string& chordId) {
+    chordTrack_.erase(
+        std::remove_if(chordTrack_.begin(), chordTrack_.end(), [&](const theory::ChordEvent& c) {
+            return c.id == chordId;
+        }),
+        chordTrack_.end()
+    );
+    if (onChordTrackChanged) onChordTrackChanged();
+}
+
+const theory::ChordEvent* ArrangerView::getActiveChordAtBar(float bar) const noexcept {
+    for (const auto& chord : chordTrack_) {
+        if (bar >= static_cast<float>(chord.startBar) && bar < static_cast<float>(chord.startBar) + chord.barLength) {
+            return &chord;
+        }
+    }
+    return nullptr;
+}
+
+const theory::ChordEvent* ArrangerView::getActiveChordAtStep(float step) const noexcept {
+    return getActiveChordAtBar(step / 16.0f);
+}
+
+void ArrangerView::setSongKey(int rootPitchClass, bool isMinor) noexcept {
+    songKeyRoot_ = (rootPitchClass % 12 + 12) % 12;
+    isSongKeyMinor_ = isMinor;
+}
+
+std::string ArrangerView::getSongKeyName() const {
+    return std::string(theory::ChordTheory::pitchClassNames[songKeyRoot_]) +
+           (isSongKeyMinor_ ? " Minor" : " Major");
+}
+
+void ArrangerView::applyChordProgressionPreset(const theory::ChordProgressionPreset& preset, uint32_t startBar) {
+    uint32_t curBar = startBar;
+    for (const auto& chordDef : preset.chords) {
+        int rootPc = (songKeyRoot_ + chordDef.rootOffset) % 12;
+
+        // Clear overlapping
+        chordTrack_.erase(
+            std::remove_if(chordTrack_.begin(), chordTrack_.end(), [&](const theory::ChordEvent& c) {
+                return c.startBar >= curBar && c.startBar < curBar + static_cast<uint32_t>(std::ceil(chordDef.barLength));
+            }),
+            chordTrack_.end()
+        );
+
+        theory::ChordEvent ev;
+        ev.id = "chord_" + std::to_string(curBar) + "_" + std::to_string(rootPc);
+        ev.startBar = curBar;
+        ev.barLength = chordDef.barLength;
+        ev.rootPitchClass = rootPc;
+        ev.quality = chordDef.quality;
+        ev.bassPitchClass = -1;
+        chordTrack_.push_back(ev);
+
+        curBar += std::max(1u, static_cast<uint32_t>(std::round(chordDef.barLength)));
+    }
+
+    std::sort(chordTrack_.begin(), chordTrack_.end(), [](const theory::ChordEvent& a, const theory::ChordEvent& b) {
+        return a.startBar < b.startBar;
+    });
+    if (onChordTrackChanged) onChordTrackChanged();
+}
+
+uint32_t ArrangerView::extractChordsFromTrack(uint32_t trackIdx) {
+    if (trackIdx >= tracks_.size()) return 0;
+    const auto& track = tracks_[trackIdx];
+
+    std::vector<theory::TheoryNote> allNotes;
+    for (const auto& clip : track.clips) {
+        float clipStartStep = static_cast<float>(clip.startBar - 1) * 16.0f;
+        for (const auto& n : clip.notes) {
+            theory::TheoryNote tn;
+            tn.pitch = n.pitch;
+            tn.startStep = clipStartStep + (n.startBeat * 4.0f);
+            tn.durationSteps = n.lengthBeats * 4.0f;
+            tn.velocity = n.velocity;
+            allNotes.push_back(tn);
+        }
+    }
+
+    auto extracted = theory::ChordTheory::extractChordsFromNotes(allNotes, 0, totalBars_, 16);
+    uint32_t count = static_cast<uint32_t>(extracted.size());
+    for (const auto& c : extracted) {
+        addOrUpdateChord(c);
+    }
+    return count;
+}
+
+uint32_t ArrangerView::extractChordsFromClip(uint32_t trackIdx, uint32_t clipIdx) {
+    if (trackIdx >= tracks_.size() || clipIdx >= tracks_[trackIdx].clips.size()) return 0;
+    const auto& clip = tracks_[trackIdx].clips[clipIdx];
+
+    std::vector<theory::TheoryNote> notes;
+    for (const auto& n : clip.notes) {
+        theory::TheoryNote tn;
+        tn.pitch = n.pitch;
+        tn.startStep = n.startBeat * 4.0f;
+        tn.durationSteps = n.lengthBeats * 4.0f;
+        tn.velocity = n.velocity;
+        notes.push_back(tn);
+    }
+
+    uint32_t clipStartBar0 = (clip.startBar > 0) ? (clip.startBar - 1) : 0;
+    auto extracted = theory::ChordTheory::extractChordsFromNotes(notes, clipStartBar0, clip.lengthBars, 16);
+    uint32_t count = static_cast<uint32_t>(extracted.size());
+    for (const auto& c : extracted) {
+        addOrUpdateChord(c);
+    }
+    return count;
+}
+
+void ArrangerView::updateClipDetectedChords(ArrangerTimelineClip& clip) {
+    if (clip.notes.empty()) {
+        clip.detectedChords.clear();
+        return;
+    }
+    std::vector<theory::TheoryNote> tnotes;
+    tnotes.reserve(clip.notes.size());
+    for (const auto& n : clip.notes) {
+        theory::TheoryNote tn;
+        tn.pitch = n.pitch;
+        tn.startStep = n.startBeat * 4.0f; // 4 steps per beat
+        tn.durationSteps = n.lengthBeats * 4.0f;
+        tn.velocity = n.velocity;
+        tnotes.push_back(tn);
+    }
+    uint32_t effBars = clip.isLooped ? clip.loopLengthBars : clip.lengthBars;
+    if (effBars == 0) effBars = 1;
+    clip.detectedChords = theory::ChordTheory::extractChordsFromNotes(tnotes, 0, effBars, 16);
+}
+
+void ArrangerView::refreshAllClipChords() {
+    for (auto& track : tracks_) {
+        for (auto& clip : track.clips) {
+            updateClipDetectedChords(clip);
+        }
+    }
+}
+
+const theory::ChordEvent* ArrangerView::getActiveChordForTrackAtBar([[maybe_unused]] uint32_t trackIdx, float bar) const noexcept {
+    return getActiveChordAtBar(bar);
+}
+
+std::vector<ArrangerView::OverviewChordInfo> ArrangerView::getHarmonicOverviewChords() const {
+    std::vector<OverviewChordInfo> result;
+    result.reserve(chordTrack_.size());
+    for (const auto& ch : chordTrack_) {
+        OverviewChordInfo info;
+        info.chord = ch;
+        info.sourceTrackIdx = -1;
+        info.sourceTrackName = "Chord Track";
+        info.sourceClipIdx = -1;
+        info.startBar = static_cast<float>(ch.startBar);
+        info.barLength = ch.barLength;
+        result.push_back(info);
+    }
+    return result;
+}
+
+void ArrangerView::bakeChordsToTrack(uint32_t trackIdx) {
+    if (trackIdx >= tracks_.size()) return;
+    auto& track = tracks_[trackIdx];
+    if (track.chordFollowMode == theory::ChordFollowMode::Off) return;
+
+    for (auto& clip : track.clips) {
+        float clipStartBar = static_cast<float>(clip.startBar - 1);
+        for (auto& note : clip.notes) {
+            float noteBar = clipStartBar + (note.startBeat / 4.0f);
+            const auto* chord = getActiveChordAtBar(noteBar);
+            if (chord) {
+                note.pitch = static_cast<uint8_t>(theory::ChordTheory::remapPitchForChord(
+                    note.pitch, *chord, track.chordFollowMode));
+            }
+        }
+        updateClipDetectedChords(clip);
+    }
+    track.chordFollowMode = theory::ChordFollowMode::Off;
+    if (onTrackChordFollowChanged) {
+        onTrackChordFollowChanged(trackIdx, theory::ChordFollowMode::Off);
+    }
+}
+
+void ArrangerView::layout(const Rect2D& bounds, const ViewContext& ctx) {
+    bounds_ = bounds;
+    trackHeaderWidth_ = ctx.isMobile ? 130.0f : 190.0f;
+    inspectorWidth_ = ctx.isMobile ? 260.0f : 320.0f;
+
+    propertiesDrawer_.layout(bounds, ctx.browserOffset);
+    inspectorOpen_ = propertiesDrawer_.isExpanded();
+
+    float inspW = propertiesDrawer_.getEffectiveWidth();
+    if (inspW > bounds_.w - 60.0f) {
+        inspW = std::max(0.0f, bounds_.w - 60.0f);
+    }
+    float mainW = std::max(60.0f, bounds_.w - inspW - ctx.browserOffset);
+
+    if (clayContext_ && clayContext_->isInitialized()) {
+        clayContext_->setDimensions(bounds_.w, bounds_.h);
+        clayContext_->beginLayout();
+
+        CLAY(CLAY_ID("ArrangerViewRoot"), {
+            .layout = {
+                .sizing = { CLAY_SIZING_FIXED(bounds_.w), CLAY_SIZING_FIXED(bounds_.h) },
+                .childGap = 0,
+                .childAlignment = { CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP },
+                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+            }
+        }) {
+            // Main workspace column
+            CLAY(CLAY_ID("ArrangerMainWorkspace"), {
+                .layout = {
+                    .sizing = { CLAY_SIZING_FIXED(mainW), CLAY_SIZING_GROW(0) },
+                    .childGap = 0,
+                    .childAlignment = { CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP },
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                }
+            }) {
+                // Ruler row
+                CLAY(CLAY_ID("RulerRow"), {
+                    .layout = {
+                        .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(rulerHeight_) },
+                        .childGap = 0,
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                    }
+                }) {
+                    CLAY(CLAY_ID("RulerHeaderSpacer"), {
+                        .layout = { .sizing = { CLAY_SIZING_FIXED(trackHeaderWidth_), CLAY_SIZING_FIXED(rulerHeight_) } }
+                    }) {}
+                    CLAY(CLAY_ID("TimelineRuler"), {
+                        .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(rulerHeight_) } }
+                    }) {}
+                }
+
+                // Minimap row
+                CLAY(CLAY_ID("MinimapRow"), {
+                    .layout = {
+                        .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(minimapHeight_) },
+                        .childGap = 0,
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                    }
+                }) {
+                    CLAY(CLAY_ID("MinimapHeaderSpacer"), {
+                        .layout = { .sizing = { CLAY_SIZING_FIXED(trackHeaderWidth_), CLAY_SIZING_FIXED(minimapHeight_) } }
+                    }) {}
+                    CLAY(CLAY_ID("TimelineMinimap"), {
+                        .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(minimapHeight_) } }
+                    }) {}
+                }
+
+                // Chord Lane row
+                CLAY(CLAY_ID("ChordLaneRow"), {
+                    .layout = {
+                        .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(chordLaneHeight_) },
+                        .childGap = 0,
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                    }
+                }) {
+                    CLAY(CLAY_ID("ChordHeader"), {
+                        .layout = { .sizing = { CLAY_SIZING_FIXED(trackHeaderWidth_), CLAY_SIZING_FIXED(chordLaneHeight_) } }
+                    }) {}
+                    CLAY(CLAY_ID("ChordLane"), {
+                        .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(chordLaneHeight_) } }
+                    }) {}
+                }
+
+                // Tracks and Timeline Grid row
+                CLAY(CLAY_ID("TracksAndGridRow"), {
+                    .layout = {
+                        .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
+                        .childGap = 0,
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                    }
+                }) {
+                    CLAY(CLAY_ID("TrackHeadersList"), {
+                        .layout = { .sizing = { CLAY_SIZING_FIXED(trackHeaderWidth_), CLAY_SIZING_GROW(0) } }
+                    }) {}
+                    CLAY(CLAY_ID("TimelineGrid"), {
+                        .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } }
+                    }) {}
+                }
+            }
+
+            // Right Inspector Slot
+            if (inspW > 0.0f) {
+                CLAY(CLAY_ID("ArrangerInspectorSlot"), {
+                    .layout = {
+                        .sizing = { CLAY_SIZING_FIXED(inspW), CLAY_SIZING_GROW(0) },
+                    }
+                }) {}
+            }
+        }
+
+        clayContext_->endLayout(0.016f);
+
+        auto rhData = clayContext_->getElementData(CLAY_ID("RulerHeaderSpacer"));
+        if (rhData.found) {
+            rulerHeaderBounds_ = Rect2D(bounds_.x + rhData.boundingBox.x, bounds_.y + rhData.boundingBox.y,
+                                        rhData.boundingBox.width, rhData.boundingBox.height);
+        } else {
+            rulerHeaderBounds_ = Rect2D(bounds_.x, bounds_.y, trackHeaderWidth_, rulerHeight_);
+        }
+        loopToggleBounds_ = Rect2D(rulerHeaderBounds_.x + 8.0f, rulerHeaderBounds_.y + (rulerHeight_ - 20.0f) * 0.5f,
+                                   rulerHeaderBounds_.w - 16.0f, 20.0f);
+
+        auto rData = clayContext_->getElementData(CLAY_ID("TimelineRuler"));
+        if (rData.found) {
+            rulerBounds_ = Rect2D(bounds_.x + rData.boundingBox.x, bounds_.y + rData.boundingBox.y,
+                                  rData.boundingBox.width, rData.boundingBox.height);
+        }
+        auto mData = clayContext_->getElementData(CLAY_ID("TimelineMinimap"));
+        if (mData.found) {
+            minimapBounds_ = Rect2D(bounds_.x + mData.boundingBox.x, bounds_.y + mData.boundingBox.y,
+                                    mData.boundingBox.width, mData.boundingBox.height);
+        }
+        auto chHData = clayContext_->getElementData(CLAY_ID("ChordHeader"));
+        if (chHData.found) {
+            chordHeaderBounds_ = Rect2D(bounds_.x + chHData.boundingBox.x, bounds_.y + chHData.boundingBox.y,
+                                        chHData.boundingBox.width, chHData.boundingBox.height);
+        }
+        auto chLData = clayContext_->getElementData(CLAY_ID("ChordLane"));
+        if (chLData.found) {
+            chordLaneBounds_ = Rect2D(bounds_.x + chLData.boundingBox.x, bounds_.y + chLData.boundingBox.y,
+                                      chLData.boundingBox.width, chLData.boundingBox.height);
+        }
+        auto trkData = clayContext_->getElementData(CLAY_ID("TrackHeadersList"));
+        if (trkData.found) {
+            tracksListBounds_ = Rect2D(bounds_.x + trkData.boundingBox.x, bounds_.y + trkData.boundingBox.y,
+                                       trkData.boundingBox.width, trkData.boundingBox.height);
+        }
+        auto grData = clayContext_->getElementData(CLAY_ID("TimelineGrid"));
+        if (grData.found) {
+            gridBounds_ = Rect2D(bounds_.x + grData.boundingBox.x, bounds_.y + grData.boundingBox.y,
+                                 grData.boundingBox.width, grData.boundingBox.height);
+        }
+        inspectorBounds_ = propertiesDrawer_.getDrawerBounds();
+    } else {
+        rulerHeaderBounds_ = Rect2D(bounds_.x, bounds_.y, trackHeaderWidth_, rulerHeight_);
+        loopToggleBounds_ = Rect2D(rulerHeaderBounds_.x + 8.0f, rulerHeaderBounds_.y + (rulerHeight_ - 20.0f) * 0.5f,
+                                   rulerHeaderBounds_.w - 16.0f, 20.0f);
+        rulerBounds_ = Rect2D(bounds_.x + trackHeaderWidth_, bounds_.y, mainW - trackHeaderWidth_, rulerHeight_);
+        minimapBounds_ = Rect2D(bounds_.x + trackHeaderWidth_, bounds_.y + rulerHeight_, mainW - trackHeaderWidth_, minimapHeight_);
+
+        // Dedicated Chord Track Lane & Chord Header Card (Eatsbeats parity)
+        chordLaneBounds_ = Rect2D(bounds_.x + trackHeaderWidth_, bounds_.y + rulerHeight_ + minimapHeight_, mainW - trackHeaderWidth_, chordLaneHeight_);
+        chordHeaderBounds_ = Rect2D(bounds_.x, bounds_.y + rulerHeight_ + minimapHeight_, trackHeaderWidth_, chordLaneHeight_);
+
+        float gridTopY = bounds_.y + rulerHeight_ + minimapHeight_ + chordLaneHeight_;
+        float gridH = bounds_.h - rulerHeight_ - minimapHeight_ - chordLaneHeight_;
+
+        tracksListBounds_ = Rect2D(bounds_.x, gridTopY, trackHeaderWidth_, gridH);
+        gridBounds_ = Rect2D(bounds_.x + trackHeaderWidth_, gridTopY, mainW - trackHeaderWidth_, gridH);
+        inspectorBounds_ = propertiesDrawer_.getDrawerBounds();
+    }
+
+    // + ADD track row directly below the last track
+    float addRowY = tracksListBounds_.y + static_cast<float>(tracks_.size()) * trackRowHeight_ - scrollY_;
+    addTrackRowBounds_ = Rect2D(tracksListBounds_.x + 10.0f, addRowY + 8.0f, trackHeaderWidth_ - 20.0f, 32.0f);
+
+    pluginDialog_.layout(bounds_.w, bounds_.h);
+    circleOfFifthsDialog_.layout(bounds_.w, bounds_.h);
+    iconDialog_.layout(bounds_.w, bounds_.h);
+}
+
+void ArrangerView::render(const ViewContext& ctx) {
+    auto& r = *ctx.renderer;
+    const auto& theme = *ctx.theme;
+
+    float frameDt = ctx.dt > 0.0f ? ctx.dt : 0.016f;
+    propertiesDrawer_.update(frameDt);
+    propertiesDrawer_.layout(bounds_, ctx.browserOffset);
+
+    if (kineticScroller_.isGliding()) {
+        float dx = 0.0f, dy = 0.0f;
+        kineticScroller_.step(ctx.dt > 0.0f ? ctx.dt : 0.016f, dx, dy);
+        scrollX_ = (std::max)(0.0f, scrollX_ - dx);
+        float maxScrollY = (std::max)(0.0f, static_cast<float>(tracks_.size()) * trackRowHeight_ - gridBounds_.h);
+        scrollY_ = std::clamp(scrollY_ - dy, 0.0f, maxScrollY);
+    }
+
+    // Follow playback if enabled
+    if (followPlayback_ && ctx.audioEngine && ctx.audioEngine->getSequencer().isPlaying()) {
+        float curStep = static_cast<float>(ctx.audioEngine->getSequencer().getTransport().getCurrentStep());
+        float playheadX = (curStep / 16.0f) * barWidth_;
+        float targetScroll = playheadX - (gridBounds_.w * 0.4f);
+        if (targetScroll < 0.0f) targetScroll = 0.0f;
+        scrollX_ += (targetScroll - scrollX_) * 0.15f;
+    }
+
+    renderGrid(ctx);
+    renderChordLane(ctx);
+    renderClips(ctx);
+    renderTrackHeaders(ctx);
+    renderRulerAndMinimap(ctx);
+    renderPropertiesDrawer(ctx);
+
+    // 6. Playhead Indicator
+    if (ctx.audioEngine) {
+        float curStep = static_cast<float>(ctx.audioEngine->getSequencer().getTransport().getCurrentStep());
+        float playheadX = gridBounds_.x + (curStep / 16.0f) * barWidth_ - scrollX_;
+        if (playheadX >= gridBounds_.x && playheadX <= gridBounds_.x + gridBounds_.w) {
+            drawLine(r, playheadX, rulerBounds_.y, playheadX, gridBounds_.y + gridBounds_.h,
+                     theme.playhead.r, theme.playhead.g, theme.playhead.b, 0.95f, 2.0f);
+            drawTriangle(r, playheadX - 6.0f, rulerBounds_.y,
+                         playheadX + 6.0f, rulerBounds_.y,
+                         playheadX, rulerBounds_.y + 10.0f,
+                         theme.playhead.r, theme.playhead.g, theme.playhead.b, 1.0f);
+        }
+    }
+
+    // 7. Follow Indicator Badge
+    if (followPlayback_) {
+        drawRoundedRect(r, gridBounds_.x + gridBounds_.w - 86.0f, rulerBounds_.y + 4.0f, 78.0f, 20.0f, 3.0f,
+                        theme.secondaryAccent.r * 0.25f, theme.secondaryAccent.g * 0.25f, theme.secondaryAccent.b * 0.25f, 0.85f);
+        drawText(r, "[F] FOLLOW", gridBounds_.x + gridBounds_.w - 80.0f, rulerBounds_.y + 6.5f, 9.5f,
+                 theme.secondaryAccent.r, theme.secondaryAccent.g, theme.secondaryAccent.b, 1.0f);
+    }
+
+    // 8. Reusable Contextual Dialogs (Rendered on top if open)
+    // Note: pluginDialog_ and iconDialog_ are rendered at the top-level overlay pass in GuiWindow for full-screen backdrop coverage
+    if (circleOfFifthsDialog_.isOpen()) {
+        circleOfFifthsDialog_.render(r, theme);
+    }
+}
+
+void ArrangerView::renderGrid(const ViewContext& ctx) {
+    auto& r = *ctx.renderer;
+    const auto& theme = *ctx.theme;
+
+    // Grid Background
+    drawRect(r, gridBounds_.x, gridBounds_.y, gridBounds_.w, gridBounds_.h,
+             theme.backgroundDark.r, theme.backgroundDark.g, theme.backgroundDark.b, 1.0f);
+
+    // Bar vertical lines & alternating subtle shading
+    for (uint32_t bar = 1; bar <= totalBars_; ++bar) {
+        float bx = gridBounds_.x + static_cast<float>(bar - 1) * barWidth_ - scrollX_;
+        if (bx + barWidth_ < gridBounds_.x || bx > gridBounds_.x + gridBounds_.w) continue;
+
+        if (bar % 2 == 0) {
+            drawRect(r, bx, gridBounds_.y, barWidth_, gridBounds_.h,
+                     theme.panelBackground.r, theme.panelBackground.g, theme.panelBackground.b, 0.22f);
+        }
+        drawLine(r, bx, gridBounds_.y, bx, gridBounds_.y + gridBounds_.h,
+                 theme.gridLineMinor.r, theme.gridLineMinor.g, theme.gridLineMinor.b, 0.35f, 1.0f);
+    }
+
+    // Horizontal track row separators
+    for (size_t t = 0; t <= tracks_.size(); ++t) {
+        float rowY = gridBounds_.y + static_cast<float>(t) * trackRowHeight_ - scrollY_;
+        if (rowY < gridBounds_.y || rowY > gridBounds_.y + gridBounds_.h) continue;
+
+        drawLine(r, gridBounds_.x, rowY, gridBounds_.x + gridBounds_.w, rowY,
+                 theme.borderSubtle.r, theme.borderSubtle.g, theme.borderSubtle.b, 0.40f, 1.0f);
+    }
+
+    // Translucent Loop Region Column across timeline grid
+    if (loopEndStep_ > loopStartStep_) {
+        float stepW = barWidth_ / 16.0f;
+        float lsX = gridBounds_.x + static_cast<float>(loopStartStep_) * stepW - scrollX_;
+        float leX = gridBounds_.x + static_cast<float>(loopEndStep_) * stepW - scrollX_;
+
+        float visX1 = (std::max)(lsX, gridBounds_.x);
+        float visX2 = (std::min)(leX, gridBounds_.x + gridBounds_.w);
+        if (visX2 > visX1) {
+            float alpha = loopEnabled_ ? 0.10f : 0.03f;
+            drawRect(r, visX1, gridBounds_.y, visX2 - visX1, gridBounds_.h,
+                     theme.loopRegion.r, theme.loopRegion.g, theme.loopRegion.b, alpha);
+            if (loopEnabled_) {
+                if (lsX >= gridBounds_.x && lsX <= gridBounds_.x + gridBounds_.w) {
+                    drawLine(r, lsX, gridBounds_.y, lsX, gridBounds_.y + gridBounds_.h,
+                             theme.primaryAccent.r, theme.primaryAccent.g, theme.primaryAccent.b, 0.30f, 1.0f);
+                }
+                if (leX >= gridBounds_.x && leX <= gridBounds_.x + gridBounds_.w) {
+                    drawLine(r, leX, gridBounds_.y, leX, gridBounds_.y + gridBounds_.h,
+                             theme.primaryAccent.r, theme.primaryAccent.g, theme.primaryAccent.b, 0.30f, 1.0f);
+                }
+            }
+        }
+    }
+}
+
+void ArrangerView::renderChordLane(const ViewContext& ctx) {
+    auto& r = *ctx.renderer;
+    const auto& theme = *ctx.theme;
+
+    // 1. Background strip for Harmonic Overview Lane
+    drawRect(r, chordLaneBounds_.x, chordLaneBounds_.y, chordLaneBounds_.w, chordLaneBounds_.h,
+             0.075f, 0.080f, 0.095f, 0.98f);
+    drawLine(r, chordLaneBounds_.x, chordLaneBounds_.y + chordLaneBounds_.h,
+             chordLaneBounds_.x + chordLaneBounds_.w, chordLaneBounds_.y + chordLaneBounds_.h,
+             theme.borderSubtle.r, theme.borderSubtle.g, theme.borderSubtle.b, 0.80f, 1.5f);
+
+    // 2. Bar vertical marker ticks
+    for (uint32_t bar = 1; bar <= totalBars_; ++bar) {
+        float bx = chordLaneBounds_.x + static_cast<float>(bar - 1) * barWidth_ - scrollX_;
+        if (bx < chordLaneBounds_.x - 10.0f || bx > chordLaneBounds_.x + chordLaneBounds_.w) continue;
+
+        drawLine(r, bx, chordLaneBounds_.y, bx, chordLaneBounds_.y + chordLaneBounds_.h,
+                 theme.gridLineMinor.r, theme.gridLineMinor.g, theme.gridLineMinor.b, 0.40f, 1.0f);
+    }
+
+    // 3. Render Chord Blocks
+    if (chordTrack_.empty()) {
+        drawText(r, "♫ CHORD TRACK • Click + or double-click to add chords / open Circle of Fifths",
+                 chordLaneBounds_.x + 20.0f, chordLaneBounds_.y + 9.0f, 10.0f,
+                 theme.textMuted.r, theme.textMuted.g, theme.textMuted.b, 0.75f);
+        return;
+    }
+
+    for (size_t i = 0; i < chordTrack_.size(); ++i) {
+        const auto& chord = chordTrack_[i];
+        float cx = chordLaneBounds_.x + static_cast<float>(chord.startBar) * barWidth_ - scrollX_;
+        float cw = chord.barLength * barWidth_;
+        float cy = chordLaneBounds_.y + 2.0f;
+        float ch = chordLaneBounds_.h - 4.0f;
+
+        // Culling
+        if (cx + cw < chordLaneBounds_.x || cx > chordLaneBounds_.x + chordLaneBounds_.w) continue;
+
+        bool isSelected = (selectedChordIndex_ == static_cast<int>(i));
+
+        // Harmonic Color Palette (Eatsbeats visual aesthetic)
+        float bgR = 0.12f, bgG = 0.22f, bgB = 0.32f;
+        float edgeR = 0.18f, edgeG = 0.75f, edgeB = 0.90f;
+
+        if (chord.quality == theory::ChordQuality::Minor || chord.quality == theory::ChordQuality::Minor7 || chord.quality == theory::ChordQuality::Min9) {
+            bgR = 0.26f; bgG = 0.12f; bgB = 0.30f;
+            edgeR = 0.85f; edgeG = 0.30f; edgeB = 0.80f;
+        } else if (chord.quality == theory::ChordQuality::Dominant7 || chord.quality == theory::ChordQuality::Dom9) {
+            bgR = 0.30f; bgG = 0.20f; bgB = 0.10f;
+            edgeR = 0.98f; edgeG = 0.65f; edgeB = 0.20f;
+        } else if (chord.quality == theory::ChordQuality::Diminished || chord.quality == theory::ChordQuality::HalfDiminished7) {
+            bgR = 0.28f; bgG = 0.10f; bgB = 0.14f;
+            edgeR = 0.95f; edgeG = 0.25f; edgeB = 0.35f;
+        } else if (chord.quality == theory::ChordQuality::Sus2 || chord.quality == theory::ChordQuality::Sus4) {
+            bgR = 0.10f; bgG = 0.25f; bgB = 0.22f;
+            edgeR = 0.25f; edgeG = 0.88f; edgeB = 0.65f;
+        }
+
+        if (isSelected) {
+            bgR = std::min(1.0f, bgR * 1.5f + 0.1f);
+            bgG = std::min(1.0f, bgG * 1.5f + 0.1f);
+            bgB = std::min(1.0f, bgB * 1.5f + 0.1f);
+            edgeR = 1.0f; edgeG = 0.92f; edgeB = 0.40f; // Glowing Gold outline
+        }
+
+        // Draw block body
+        drawRoundedRect(r, cx + 1.0f, cy, std::max(4.0f, cw - 2.0f), ch, 4.0f, bgR, bgG, bgB, 0.92f);
+
+        // Subtle gradient sheen on top half
+        drawRoundedRect(r, cx + 1.0f, cy, std::max(4.0f, cw - 2.0f), ch * 0.45f, 4.0f,
+                        1.0f, 1.0f, 1.0f, 0.08f);
+
+        // Glowing outline
+        drawRoundedRectOutline(r, cx + 1.0f, cy, std::max(4.0f, cw - 2.0f), ch, 4.0f,
+                               edgeR, edgeG, edgeB, isSelected ? 1.0f : 0.75f, isSelected ? 2.0f : 1.2f);
+
+        // Roman numeral badge (e.g. I, vi, V, IV)
+        std::string roman = theory::ChordTheory::getRomanNumeral(
+            songKeyRoot_, isSongKeyMinor_, chord.rootPitchClass, chord.quality);
+        float badgeW = std::clamp(static_cast<float>(roman.length()) * 7.5f + 8.0f, 18.0f, 34.0f);
+        float badgeH = 14.0f;
+        float badgeX = cx + 5.0f;
+        float badgeY = cy + (ch - badgeH) * 0.5f;
+
+        if (cw >= 40.0f) {
+            drawRoundedRect(r, badgeX, badgeY, badgeW, badgeH, 3.0f, 0.05f, 0.05f, 0.07f, 0.85f);
+            drawRoundedRectOutline(r, badgeX, badgeY, badgeW, badgeH, 3.0f, edgeR, edgeG, edgeB, 0.8f, 1.0f);
+            drawText(r, roman, badgeX + (badgeW - static_cast<float>(roman.length()) * 5.5f) * 0.5f,
+                     badgeY + 2.5f, 8.5f, edgeR, edgeG, edgeB, 1.0f);
+        }
+
+        // Chord Name Text (e.g. "C", "Am", "G7", "F/A")
+        std::string chordName = chord.getDisplayName();
+        float textX = (cw >= 40.0f) ? (badgeX + badgeW + 6.0f) : (cx + 5.0f);
+        if (textX + 16.0f <= cx + cw) {
+            drawText(r, chordName, textX, cy + 6.5f, 11.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+        }
+    }
+}
+
+void ArrangerView::renderClips(const ViewContext& ctx) {
+    auto& r = *ctx.renderer;
+    const auto& theme = *ctx.theme;
+
+    for (size_t t = 0; t < tracks_.size(); ++t) {
+        float rowY = gridBounds_.y + static_cast<float>(t) * trackRowHeight_ - scrollY_;
+        if (rowY + trackRowHeight_ < gridBounds_.y || rowY > gridBounds_.y + gridBounds_.h) continue;
+
+        const auto& track = tracks_[t];
+        for (size_t c = 0; c < track.clips.size(); ++c) {
+            const auto& clip = track.clips[c];
+            float cx = gridBounds_.x + static_cast<float>(clip.startBar - 1) * barWidth_ - scrollX_;
+            float cw = static_cast<float>(clip.lengthBars) * barWidth_ - 2.0f;
+            float cy = rowY + 3.0f;
+            float ch = trackRowHeight_ - 6.0f;
+
+            if (cx + cw < gridBounds_.x || cx > gridBounds_.x + gridBounds_.w) continue;
+
+            bool isSelected = (static_cast<int>(t) == static_cast<int>(activeTrackIndex_) &&
+                               static_cast<int>(c) == selectedClipIndex_);
+
+            // 1. Clip Body Base (dark translucent well tinted with track color)
+            drawRoundedRect(r, cx, cy, cw, ch, 4.0f,
+                            0.06f + clip.r * 0.10f, 0.06f + clip.g * 0.10f, 0.06f + clip.b * 0.10f, 0.94f);
+
+            // 2. Header Bar (vibrant track-tinted banner)
+            drawRoundedRect(r, cx, cy, cw, 18.0f, 3.5f,
+                            0.12f + clip.r * 0.30f, 0.12f + clip.g * 0.30f, 0.12f + clip.b * 0.30f, 0.96f);
+
+            // 3. Gold Index Badge '00' on left
+            drawRoundedRect(r, cx + 4.0f, cy + 3.0f, 16.0f, 12.0f, 2.0f,
+                            1.0f, 0.75f, 0.0f, 0.90f);
+            drawText(r, "00", cx + 6.0f, cy + 4.0f, 8.5f,
+                     0.05f, 0.05f, 0.05f, 1.0f);
+
+            // 4. Clip Name
+            drawText(r, clip.name, cx + 24.0f, cy + 4.0f, 10.0f,
+                     1.0f, 1.0f, 1.0f, 0.95f);
+
+            // 5. Top-Right Loop Resize Handle & Icon (Width: 22px, Height: 18px)
+            float loopBtnX = cx + cw - 20.0f;
+            float loopBtnY = cy + 2.0f;
+            drawCircle(r, loopBtnX + 7.0f, loopBtnY + 7.0f, 6.0f,
+                       clip.isLooped ? 1.0f : 0.25f, clip.isLooped ? 0.75f : 0.25f, clip.isLooped ? 0.0f : 0.30f, 0.8f);
+            drawCircle(r, loopBtnX + 7.0f, loopBtnY + 7.0f, 4.5f,
+                       0.08f, 0.08f, 0.10f, 1.0f);
+            drawText(r, "R", loopBtnX + 4.5f, loopBtnY + 3.0f, 8.0f,
+                     clip.isLooped ? 1.0f : 0.8f, clip.isLooped ? 0.75f : 0.8f, clip.isLooped ? 0.0f : 0.8f, 1.0f);
+
+            // 6. Bottom-Right Standard Resize Handle (< >)
+            drawText(r, "<>", cx + cw - 16.0f, cy + ch - 16.0f, 9.0f,
+                     1.0f, 1.0f, 1.0f, 0.75f);
+
+            // 7. Note preview blocks inside clip body (sharp rectangles matching track color with velocity intensity)
+            float noteAreaY = cy + 20.0f;
+            float noteAreaH = clip.detectedChords.empty() ? (ch - 22.0f) : (ch - 37.0f);
+            float patternW = static_cast<float>(clip.isLooped ? clip.loopLengthBars : clip.lengthBars) * barWidth_;
+            int cycles = clip.isLooped ? static_cast<int>(std::ceil(static_cast<float>(clip.lengthBars) / static_cast<float>(clip.loopLengthBars))) : 1;
+            float clipBeats = static_cast<float>(clip.isLooped ? clip.loopLengthBars : clip.lengthBars) * 4.0f;
+
+            for (int cyc = 0; cyc < cycles; ++cyc) {
+                float cycleStartX = cx + static_cast<float>(cyc) * patternW;
+
+                // Loop cycle vertical separator
+                if (cyc > 0 && cycleStartX < cx + cw) {
+                    drawLine(r, cycleStartX, cy + 18.0f, cycleStartX, cy + ch,
+                             0.1f, 0.1f, 0.15f, 0.8f, 1.5f);
+                }
+
+                if (!clip.notes.empty()) {
+                    for (const auto& note : clip.notes) {
+                        float nx = cycleStartX + (note.startBeat / clipBeats) * patternW;
+                        float nw = std::max(3.0f, (note.lengthBeats / clipBeats) * patternW - 1.5f);
+                        if (nx + nw > cx + cw || nx < cx) continue;
+
+                        float pitchNorm = std::clamp((static_cast<float>(note.pitch) - 34.0f) / 44.0f, 0.0f, 1.0f);
+                        float ny = (noteAreaY + noteAreaH - 6.0f) - pitchNorm * (noteAreaH - 8.0f);
+                        float nh = 5.0f;
+
+                        // Notes match track color with intensity varied by velocity
+                        float v = std::clamp(note.velocity, 0.10f, 1.0f);
+                        float intensity = 0.35f + 0.65f * v;
+                        float nr = std::clamp(clip.r * intensity, 0.0f, 1.0f);
+                        float ng = std::clamp(clip.g * intensity, 0.0f, 1.0f);
+                        float nb = std::clamp(clip.b * intensity, 0.0f, 1.0f);
+                        float na = 0.50f + 0.50f * v;
+
+                        // Pure sharp rectangle (performant single-quad draw)
+                        drawRect(r, nx, ny, nw, nh, nr, ng, nb, na);
+                    }
+                } else if (clip.isAudio) {
+                    // Stylized audio waveform preview for audio clips
+                    int waveSegments = static_cast<int>(patternW / 4.0f);
+                    for (int s = 0; s < waveSegments; ++s) {
+                        float wx = cycleStartX + static_cast<float>(s) * 4.0f;
+                        if (wx > cx + cw) break;
+                        float phase = static_cast<float>(s) * 0.28f;
+                        float amp = std::abs(std::sin(phase) * 0.65f + std::sin(phase * 2.3f) * 0.35f);
+                        float wh = std::max(2.0f, amp * (noteAreaH - 6.0f));
+                        float wy = noteAreaY + (noteAreaH - wh) * 0.5f;
+                        drawRect(r, wx, wy, 2.5f, wh, clip.r * 0.75f, clip.g * 0.75f, clip.b * 0.75f, 0.65f);
+                    }
+                }
+            }
+
+            // 7b. Clip Chord Progression Text (render raw detected chord names & Roman numerals directly over clip)
+            if (!clip.detectedChords.empty()) {
+                float chordTextY = cy + ch - 15.0f;
+                float effBars = static_cast<float>(clip.isLooped ? clip.loopLengthBars : clip.lengthBars);
+                if (effBars <= 0.0f) effBars = 1.0f;
+
+                // Color: match notes in the respective clip (brightened slightly for crisp visibility against dark clip body)
+                float noteTextR = std::clamp(clip.r * 1.35f, 0.40f, 1.0f);
+                float noteTextG = std::clamp(clip.g * 1.35f, 0.40f, 1.0f);
+                float noteTextB = std::clamp(clip.b * 1.35f, 0.40f, 1.0f);
+
+                for (int cyc = 0; cyc < cycles; ++cyc) {
+                    float cycleStartX = cx + static_cast<float>(cyc) * patternW;
+
+                    for (const auto& chord : clip.detectedChords) {
+                        float chX = cycleStartX + (static_cast<float>(chord.startBar) / effBars) * patternW + 4.0f;
+                        float chW = (chord.barLength / effBars) * patternW - 4.0f;
+                        if (chX + 10.0f > cx + cw || chX < cx) continue;
+                        if (chW < 12.0f) continue;
+
+                        std::string cname = chord.getDisplayName();
+                        std::string roman = theory::ChordTheory::getRomanNumeral(
+                            songKeyRoot_, isSongKeyMinor_, chord.rootPitchClass, chord.quality);
+
+                        if (chW > 38.0f) {
+                            // Roman numeral in theme highlight color
+                            drawText(r, roman, chX, chordTextY, 8.5f,
+                                     theme.highlight.r, theme.highlight.g, theme.highlight.b, 0.95f);
+                            float romanOffset = static_cast<float>(roman.length()) * 6.5f + 4.0f;
+                            // Chord name in note color
+                            drawText(r, cname, chX + romanOffset, chordTextY, 9.5f,
+                                     noteTextR, noteTextG, noteTextB, 1.0f);
+                        } else {
+                            // Just chord name when width is compact
+                            drawText(r, cname, chX, chordTextY, 8.5f,
+                                     noteTextR, noteTextG, noteTextB, 1.0f);
+                        }
+                    }
+                }
+            }
+
+            // 8. Selection outline with glowing accent
+            if (isSelected) {
+                drawRoundedRectOutline(r, cx, cy, cw, ch, 4.0f,
+                                       theme.primaryAccent.r, theme.primaryAccent.g, theme.primaryAccent.b, 1.0f, 2.0f);
+            } else {
+                drawRoundedRectOutline(r, cx, cy, cw, ch, 4.0f,
+                                       clip.r * 0.5f, clip.g * 0.5f, clip.b * 0.5f, 0.6f, 1.0f);
+            }
+        }
+    }
+}
+
+void ArrangerView::renderTrackHeaders(const ViewContext& ctx) {
+    auto& r = *ctx.renderer;
+    const auto& theme = *ctx.theme;
+
+    // -------------------------------------------------------------------------
+    // Chord Track Lane Header Card (Eatsbeats Parity)
+    // -------------------------------------------------------------------------
+    drawRect(r, chordHeaderBounds_.x, chordHeaderBounds_.y, chordHeaderBounds_.w, chordHeaderBounds_.h,
+             0.09f, 0.10f, 0.13f, 0.98f);
+    drawLine(r, chordHeaderBounds_.x, chordHeaderBounds_.y + chordHeaderBounds_.h,
+             chordHeaderBounds_.x + chordHeaderBounds_.w, chordHeaderBounds_.y + chordHeaderBounds_.h,
+             theme.borderSubtle.r, theme.borderSubtle.g, theme.borderSubtle.b, 0.80f, 1.5f);
+    drawLine(r, chordHeaderBounds_.x + chordHeaderBounds_.w, chordHeaderBounds_.y,
+             chordHeaderBounds_.x + chordHeaderBounds_.w, chordHeaderBounds_.y + chordHeaderBounds_.h,
+             theme.borderSubtle.r, theme.borderSubtle.g, theme.borderSubtle.b, 0.85f, 2.0f);
+
+    // Cyan harmonic stripe on left edge
+    drawRect(r, chordHeaderBounds_.x, chordHeaderBounds_.y, 4.0f, chordHeaderBounds_.h,
+             0.18f, 0.85f, 0.95f, 1.0f);
+
+    // "CHORD TRACK" Title
+    drawText(r, "CHORD TRACK", chordHeaderBounds_.x + 10.0f, chordHeaderBounds_.y + 8.5f, 10.0f,
+             0.18f, 0.85f, 0.95f, 1.0f);
+
+    // Song Key badge
+    char keyBuf[16];
+    const char* pcName = (songKeyRoot_ < 12) ? theory::ChordTheory::pitchClassNames[songKeyRoot_] : "C";
+    snprintf(keyBuf, sizeof(keyBuf), "%s%s", pcName, isSongKeyMinor_ ? "m" : " maj");
+    float keyBadgeW = static_cast<float>(std::strlen(keyBuf)) * 6.5f + 10.0f;
+    float keyBadgeX = chordHeaderBounds_.x + chordHeaderBounds_.w - keyBadgeW - 28.0f;
+    drawRoundedRect(r, keyBadgeX, chordHeaderBounds_.y + 4.0f, keyBadgeW, chordHeaderBounds_.h - 8.0f, 3.0f,
+                    0.14f, 0.16f, 0.22f, 0.9f);
+    drawRoundedRectOutline(r, keyBadgeX, chordHeaderBounds_.y + 4.0f, keyBadgeW, chordHeaderBounds_.h - 8.0f, 3.0f,
+                           0.28f, 0.35f, 0.48f, 0.8f, 1.0f);
+    drawText(r, std::string_view(keyBuf), keyBadgeX + 5.0f, chordHeaderBounds_.y + 8.0f, 8.5f,
+             theme.primaryAccent.r, theme.primaryAccent.g, theme.primaryAccent.b, 1.0f);
+
+    // [ + ] button to open Circle of Fifths
+    float addBtnX = chordHeaderBounds_.x + chordHeaderBounds_.w - 22.0f;
+    float addBtnY = chordHeaderBounds_.y + 4.0f;
+    float addBtnW = 16.0f;
+    float addBtnH = chordHeaderBounds_.h - 8.0f;
+    drawRoundedRect(r, addBtnX, addBtnY, addBtnW, addBtnH, 3.0f, 0.18f * 0.3f, 0.85f * 0.3f, 0.95f * 0.3f, 0.9f);
+    drawRoundedRectOutline(r, addBtnX, addBtnY, addBtnW, addBtnH, 3.0f, 0.18f, 0.85f, 0.95f, 0.8f, 1.0f);
+    drawText(r, "+", addBtnX + 4.5f, addBtnY + 4.0f, 9.5f, 0.18f, 0.85f, 0.95f, 1.0f);
+
+    // Header strip container
+    drawRect(r, tracksListBounds_.x, tracksListBounds_.y, tracksListBounds_.w, tracksListBounds_.h,
+             theme.panelBackground.r, theme.panelBackground.g, theme.panelBackground.b, 0.98f);
+    drawLine(r, tracksListBounds_.x + tracksListBounds_.w, tracksListBounds_.y,
+             tracksListBounds_.x + tracksListBounds_.w, tracksListBounds_.y + tracksListBounds_.h,
+             theme.borderSubtle.r, theme.borderSubtle.g, theme.borderSubtle.b, 0.85f, 2.0f);
+
+    for (size_t t = 0; t < tracks_.size(); ++t) {
+        float rowY = tracksListBounds_.y + static_cast<float>(t) * trackRowHeight_ - scrollY_;
+        if (rowY + trackRowHeight_ < tracksListBounds_.y || rowY > tracksListBounds_.y + tracksListBounds_.h) continue;
+
+        const auto& track = tracks_[t];
+        bool isActive = (activeTrackIndex_ == t);
+
+        // Track header card body
+        drawRect(r, tracksListBounds_.x, rowY, tracksListBounds_.w, trackRowHeight_,
+                 isActive ? theme.panelBackground.r * 1.35f : theme.panelBackground.r,
+                 isActive ? theme.panelBackground.g * 1.35f : theme.panelBackground.g,
+                 isActive ? theme.panelBackground.b * 1.35f : theme.panelBackground.b, 0.95f);
+
+        // Left vertical colored track stripe
+        drawRect(r, tracksListBounds_.x, rowY, 6.0f, trackRowHeight_,
+                 track.r, track.g, track.b, 1.0f);
+
+        // Track Vector Icon Glyph
+        float iconBoxX = tracksListBounds_.x + 10.0f;
+        float iconBoxSize = 15.0f;
+        float iconBoxY = rowY + (trackRowHeight_ - iconBoxSize) * 0.5f;
+        Color iconCol = isActive ? theme.primaryAccent : Color{track.r, track.g, track.b, 1.0f};
+        std::string_view iconRef = track.iconRef.empty() ? std::string_view("preset:inst_synth") : std::string_view(track.iconRef);
+        IconRegistry::instance().renderIcon(r, iconRef, iconBoxX, iconBoxY, iconBoxSize, iconCol);
+
+        // Track Name (size 10.0f matching clip title text)
+        Color trackNameCol = isActive ? theme.primaryAccent : theme.textPrimary;
+        drawTextLeftAlignedY(r, track.name, iconBoxX + iconBoxSize + 6.0f, rowY + trackRowHeight_ * 0.5f, 10.0f,
+                             trackNameCol.r, trackNameCol.g, trackNameCol.b, 1.0f);
+
+        // MUTE, SOLO Buttons
+        float btnW = 16.0f;
+        float btnH = 13.0f;
+        float btnY = rowY + 8.0f;
+
+        // Mute
+        drawRoundedRect(r, tracksListBounds_.x + tracksListBounds_.w - 42.0f, btnY, btnW, btnH, 2.0f,
+                        track.mute ? 0.85f : 0.20f, 0.20f, 0.20f, 0.95f);
+        drawText(r, "M", tracksListBounds_.x + tracksListBounds_.w - 38.0f, btnY + 2.5f, 8.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+        // Solo
+        drawRoundedRect(r, tracksListBounds_.x + tracksListBounds_.w - 22.0f, btnY, btnW, btnH, 2.0f,
+                        track.solo ? 0.95f : 0.20f, track.solo ? 0.80f : 0.20f, 0.10f, 0.95f);
+        drawText(r, "S", tracksListBounds_.x + tracksListBounds_.w - 18.0f, btnY + 2.5f, 8.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+        // Volume Horizontal Pill Slider (VOL)
+        drawText(r, "VOL", tracksListBounds_.x + 14.0f, rowY + 40.0f, 8.5f,
+                 theme.textMuted.r, theme.textMuted.g, theme.textMuted.b, 0.8f);
+
+        float sliderW = tracksListBounds_.w - 75.0f;
+        float sliderH = 4.0f;
+        float sliderX = tracksListBounds_.x + 36.0f;
+        float sliderY = rowY + 44.0f;
+
+        Color trackCol{track.r, track.g, track.b, 1.0f};
+        float normV = std::clamp(track.volume / 1.5f, 0.0f, 1.0f);
+        SliderStyleCore volStyle = SliderStyleCore::horizontalTrack(trackCol, sliderH);
+        drawUnifiedSlider(r, Rect2D{sliderX, sliderY, sliderW, sliderH}, normV, volStyle, trackCol, &theme);
+
+        // Pan Micro-Knob with center detent indicator line
+        float knobX = tracksListBounds_.x + tracksListBounds_.w - 22.0f;
+        float knobY = rowY + 46.0f;
+        float normPan = std::clamp((track.pan + 1.0f) * 0.5f, 0.0f, 1.0f);
+        KnobStyleCore panStyle = KnobStyleCore::micro(trackCol, true);
+        drawUnifiedKnob(r, knobX, knobY, 9.0f, normPan, panStyle, {}, {}, &theme);
+
+        drawLine(r, tracksListBounds_.x, rowY + trackRowHeight_, tracksListBounds_.x + tracksListBounds_.w, rowY + trackRowHeight_,
+                 theme.borderSubtle.r, theme.borderSubtle.g, theme.borderSubtle.b, 0.45f, 1.0f);
+    }
+
+    // 5. '+ ADD TRACK' Row directly below last track
+    float addRowY = tracksListBounds_.y + static_cast<float>(tracks_.size()) * trackRowHeight_ - scrollY_;
+    if (addRowY + 32.0f >= tracksListBounds_.y && addRowY <= tracksListBounds_.y + tracksListBounds_.h) {
+        addTrackRowBounds_ = Rect2D(tracksListBounds_.x + 12.0f, addRowY + 6.0f, tracksListBounds_.w - 24.0f, 26.0f);
+        drawRoundedRect(r, addTrackRowBounds_.x, addTrackRowBounds_.y, addTrackRowBounds_.w, addTrackRowBounds_.h, 5.0f,
+                        theme.controlBackground.r, theme.controlBackground.g, theme.controlBackground.b, 0.9f);
+        drawRoundedRectOutline(r, addTrackRowBounds_.x, addTrackRowBounds_.y, addTrackRowBounds_.w, addTrackRowBounds_.h, 5.0f,
+                               theme.primaryAccent.r * 0.6f, theme.primaryAccent.g * 0.6f, theme.primaryAccent.b * 0.6f, 0.8f, 1.0f);
+        drawText(r, "+ ADD", addTrackRowBounds_.x + (addTrackRowBounds_.w * 0.5f) - 18.0f, addTrackRowBounds_.y + 7.0f, 10.5f,
+                 theme.primaryAccent.r, theme.primaryAccent.g, theme.primaryAccent.b, 1.0f);
+    }
+}
+
+void ArrangerView::renderRulerAndMinimap(const ViewContext& ctx) {
+    auto& r = *ctx.renderer;
+    const auto& theme = *ctx.theme;
+
+    // 0. Header Spacer Area: Loop Toggle Button to the left of the timeline ruler
+    drawRect(r, rulerHeaderBounds_.x, rulerHeaderBounds_.y, rulerHeaderBounds_.w, rulerHeaderBounds_.h,
+             theme.panelHeader.r, theme.panelHeader.g, theme.panelHeader.b, 1.0f);
+    drawLine(r, rulerHeaderBounds_.x, rulerHeaderBounds_.y + rulerHeaderBounds_.h,
+             rulerHeaderBounds_.x + rulerHeaderBounds_.w, rulerHeaderBounds_.y + rulerHeaderBounds_.h,
+             theme.borderSubtle.r, theme.borderSubtle.g, theme.borderSubtle.b, 0.7f, 1.0f);
+    drawLine(r, rulerHeaderBounds_.x + rulerHeaderBounds_.w, rulerHeaderBounds_.y,
+             rulerHeaderBounds_.x + rulerHeaderBounds_.w, rulerHeaderBounds_.y + rulerHeaderBounds_.h,
+             theme.borderSubtle.r, theme.borderSubtle.g, theme.borderSubtle.b, 0.85f, 1.5f);
+
+    // Loop Toggle Button (tactile styled pill badge)
+    Color btnBg = loopEnabled_
+        ? Color(theme.primaryAccent.r * 0.25f, theme.primaryAccent.g * 0.25f, theme.primaryAccent.b * 0.25f, 0.95f)
+        : Color(theme.controlBackground.r, theme.controlBackground.g, theme.controlBackground.b, 0.90f);
+    Color btnBorder = loopEnabled_ ? theme.primaryAccent : theme.borderSubtle;
+    Color textColor = loopEnabled_ ? theme.primaryAccent : theme.textMuted;
+
+    drawRoundedRect(r, loopToggleBounds_.x, loopToggleBounds_.y, loopToggleBounds_.w, loopToggleBounds_.h, 4.0f,
+                    btnBg.r, btnBg.g, btnBg.b, btnBg.a);
+    drawRoundedRectOutline(r, loopToggleBounds_.x, loopToggleBounds_.y, loopToggleBounds_.w, loopToggleBounds_.h, 4.0f,
+                           btnBorder.r, btnBorder.g, btnBorder.b, btnBorder.a, loopEnabled_ ? 1.5f : 1.0f);
+
+    // LED Status Indicator Light
+    float ledX = loopToggleBounds_.x + 10.0f;
+    float ledY = loopToggleBounds_.y + loopToggleBounds_.h * 0.5f;
+    Color ledColor = loopEnabled_ ? theme.primaryAccent : Color(0.35f, 0.35f, 0.40f, 0.8f);
+    drawCircle(r, ledX, ledY, 3.5f, ledColor.r, ledColor.g, ledColor.b, 1.0f);
+
+    // Loop Text Label
+    std::string loopLabel = loopEnabled_ ? "LOOP [ON]" : "LOOP [OFF]";
+    drawText(r, loopLabel, loopToggleBounds_.x + 20.0f, loopToggleBounds_.y + 4.5f, 9.5f,
+             textColor.r, textColor.g, textColor.b, 1.0f);
+
+    // 1. Time Ruler Bar
+    drawRect(r, rulerBounds_.x, rulerBounds_.y, rulerBounds_.w, rulerBounds_.h,
+             theme.panelHeader.r, theme.panelHeader.g, theme.panelHeader.b, 1.0f);
+    drawLine(r, rulerBounds_.x, rulerBounds_.y + rulerBounds_.h, rulerBounds_.x + rulerBounds_.w, rulerBounds_.y + rulerBounds_.h,
+             theme.borderSubtle.r, theme.borderSubtle.g, theme.borderSubtle.b, 0.7f, 1.0f);
+
+    for (uint32_t bar = 1; bar <= totalBars_; ++bar) {
+        float bx = rulerBounds_.x + static_cast<float>(bar - 1) * barWidth_ - scrollX_;
+        if (bx < rulerBounds_.x - 10.0f || bx > rulerBounds_.x + rulerBounds_.w) continue;
+
+        drawLine(r, bx, rulerBounds_.y + rulerBounds_.h - 8.0f, bx, rulerBounds_.y + rulerBounds_.h,
+                 theme.textMuted.r, theme.textMuted.g, theme.textMuted.b, 0.6f, 1.0f);
+
+        char barBuf[16];
+        snprintf(barBuf, sizeof(barBuf), "%u", bar);
+        drawText(r, std::string_view(barBuf), bx + 4.0f, rulerBounds_.y + 7.0f, 10.0f,
+                 theme.textPrimary.r, theme.textPrimary.g, theme.textPrimary.b, 0.9f);
+    }
+
+    // Loop Region Overlay & Handles in Time Ruler
+    if (loopEndStep_ > loopStartStep_) {
+        float stepW = barWidth_ / 16.0f;
+        float loopStartX = rulerBounds_.x + static_cast<float>(loopStartStep_) * stepW - scrollX_;
+        float loopEndX = rulerBounds_.x + static_cast<float>(loopEndStep_) * stepW - scrollX_;
+
+        float rulerVisX1 = (std::max)(loopStartX, rulerBounds_.x);
+        float rulerVisX2 = (std::min)(loopEndX, rulerBounds_.x + rulerBounds_.w);
+        if (rulerVisX2 > rulerVisX1) {
+            float bandAlpha = loopEnabled_ ? 0.30f : 0.10f;
+            drawRect(r, rulerVisX1, rulerBounds_.y, rulerVisX2 - rulerVisX1, rulerBounds_.h,
+                     theme.primaryAccent.r, theme.primaryAccent.g, theme.primaryAccent.b, bandAlpha);
+
+            // Top Connecting Loop Bar
+            float barAlpha = loopEnabled_ ? 0.95f : 0.40f;
+            drawRect(r, rulerVisX1, rulerBounds_.y, rulerVisX2 - rulerVisX1, 3.0f,
+                     theme.primaryAccent.r, theme.primaryAccent.g, theme.primaryAccent.b, barAlpha);
+        }
+
+        // Loop Start Marker Handle [►
+        if (loopStartX >= rulerBounds_.x - 14.0f && loopStartX <= rulerBounds_.x + rulerBounds_.w + 14.0f) {
+            drawLine(r, loopStartX, rulerBounds_.y, loopStartX, rulerBounds_.y + rulerBounds_.h,
+                     theme.primaryAccent.r, theme.primaryAccent.g, theme.primaryAccent.b, loopEnabled_ ? 0.95f : 0.45f, 2.0f);
+
+            float flagW = 14.0f;
+            float flagH = 14.0f;
+            float flagX = loopStartX;
+            float flagY = rulerBounds_.y + 1.0f;
+            drawRoundedRect(r, flagX, flagY, flagW, flagH, 2.5f,
+                            theme.primaryAccent.r * 0.95f, theme.primaryAccent.g * 0.95f, theme.primaryAccent.b * 0.95f,
+                            loopEnabled_ ? 1.0f : 0.50f);
+            drawTriangle(r, flagX + 4.0f, flagY + 3.0f,
+                            flagX + 4.0f, flagY + flagH - 3.0f,
+                            flagX + flagW - 3.0f, flagY + flagH * 0.5f,
+                            0.05f, 0.05f, 0.07f, 1.0f);
+        }
+
+        // Loop End Marker Handle ◄]
+        if (loopEndX >= rulerBounds_.x - 14.0f && loopEndX <= rulerBounds_.x + rulerBounds_.w + 14.0f) {
+            drawLine(r, loopEndX, rulerBounds_.y, loopEndX, rulerBounds_.y + rulerBounds_.h,
+                     theme.primaryAccent.r, theme.primaryAccent.g, theme.primaryAccent.b, loopEnabled_ ? 0.95f : 0.45f, 2.0f);
+
+            float flagW = 14.0f;
+            float flagH = 14.0f;
+            float flagX = loopEndX - flagW;
+            float flagY = rulerBounds_.y + 1.0f;
+            drawRoundedRect(r, flagX, flagY, flagW, flagH, 2.5f,
+                            theme.primaryAccent.r * 0.95f, theme.primaryAccent.g * 0.95f, theme.primaryAccent.b * 0.95f,
+                            loopEnabled_ ? 1.0f : 0.50f);
+            drawTriangle(r, flagX + flagW - 4.0f, flagY + 3.0f,
+                            flagX + flagW - 4.0f, flagY + flagH - 3.0f,
+                            flagX + 3.0f, flagY + flagH * 0.5f,
+                            0.05f, 0.05f, 0.07f, 1.0f);
+        }
+    }
+
+    // 2. Timeline Minimap Scrollbar
+    drawRect(r, minimapBounds_.x, minimapBounds_.y, minimapBounds_.w, minimapBounds_.h,
+             0.05f, 0.05f, 0.07f, 0.95f);
+    drawLine(r, minimapBounds_.x, minimapBounds_.y + minimapBounds_.h, minimapBounds_.x + minimapBounds_.w, minimapBounds_.y + minimapBounds_.h,
+             theme.borderSubtle.r, theme.borderSubtle.g, theme.borderSubtle.b, 0.6f, 1.0f);
+
+    float totalArrangerW = static_cast<float>(totalBars_) * barWidth_;
+    float scaleFactor = minimapBounds_.w / totalArrangerW;
+
+    // Render miniature thumbnail clips in minimap
+    for (size_t t = 0; t < tracks_.size(); ++t) {
+        for (const auto& cl : tracks_[t].clips) {
+            float mcx = minimapBounds_.x + (static_cast<float>(cl.startBar - 1) * barWidth_) * scaleFactor;
+            float mcw = (static_cast<float>(cl.lengthBars) * barWidth_) * scaleFactor;
+            float mcy = minimapBounds_.y + 2.0f + static_cast<float>(t % 3) * 3.5f;
+            drawRect(r, mcx, mcy, std::max(2.0f, mcw), 2.5f,
+                     cl.r, cl.g, cl.b, 0.85f);
+        }
+    }
+
+    // Render loop range in minimap
+    if (loopEndStep_ > loopStartStep_) {
+        float mlsX = minimapBounds_.x + ((static_cast<float>(loopStartStep_) / 16.0f) * barWidth_) * scaleFactor;
+        float mleX = minimapBounds_.x + ((static_cast<float>(loopEndStep_) / 16.0f) * barWidth_) * scaleFactor;
+        drawRect(r, mlsX, minimapBounds_.y, (std::max)(2.0f, mleX - mlsX), minimapBounds_.h,
+                 theme.primaryAccent.r, theme.primaryAccent.g, theme.primaryAccent.b, loopEnabled_ ? 0.30f : 0.10f);
+    }
+
+    // Render Draggable Viewport Window Thumb
+    float thumbStartX = minimapBounds_.x + (scrollX_ * scaleFactor);
+    float thumbW = std::clamp(gridBounds_.w * scaleFactor, 24.0f, minimapBounds_.w);
+
+    drawRoundedRect(r, thumbStartX, minimapBounds_.y + 1.0f, thumbW, minimapBounds_.h - 2.0f, 2.0f,
+                    theme.primaryAccent.r * 0.35f, theme.primaryAccent.g * 0.35f, theme.primaryAccent.b * 0.35f, 0.70f);
+    drawRoundedRectOutline(r, thumbStartX, minimapBounds_.y + 1.0f, thumbW, minimapBounds_.h - 2.0f, 2.0f,
+                           theme.primaryAccent.r, theme.primaryAccent.g, theme.primaryAccent.b, 0.95f, 1.0f);
+}
+
+void ArrangerView::syncDrawerData() {
+    if (activeTrackIndex_ < tracks_.size()) {
+        auto& track = tracks_[activeTrackIndex_];
+        const std::string& expectedEngine = track.instrumentEngine.empty() ? "synth" : track.instrumentEngine;
+        bool trackChanged = (drawerData_.trackIndex != activeTrackIndex_ ||
+                             drawerData_.totalTracks != tracks_.size() ||
+                             drawerData_.trackName != track.name ||
+                             drawerData_.instrument != track.instrument ||
+                             drawerData_.instrumentEngine != expectedEngine ||
+                             drawerData_.customGuiPanel.has_value() != track.customGuiPanel.has_value() ||
+                             (!track.customGuiPanel.has_value() && !track.instrumentEngine.empty()));
+        if (trackChanged || !drawerData_.customGuiPanel.has_value() || drawerData_.knobs.empty()) {
+            syncDrawerDataForTrack(activeTrackIndex_);
+        }
+
+        if (drawerData_.allTrackNames.size() != tracks_.size()) {
+            drawerData_.allTrackNames.clear();
+            drawerData_.allTrackNames.reserve(tracks_.size());
+            for (const auto& trk : tracks_) {
+                drawerData_.allTrackNames.push_back(trk.name);
+            }
+        } else {
+            for (size_t i = 0; i < tracks_.size(); ++i) {
+                if (drawerData_.allTrackNames[i] != tracks_[i].name) {
+                    drawerData_.allTrackNames[i] = tracks_[i].name;
+                }
+            }
+        }
+
+        drawerData_.r = track.r;
+        drawerData_.g = track.g;
+        drawerData_.b = track.b;
+        drawerData_.volume = track.volume;
+        drawerData_.pan = track.pan;
+        drawerData_.mute = track.mute;
+        drawerData_.solo = track.solo;
+        drawerData_.chordFollowMode = track.chordFollowMode;
+        drawerData_.isMasterSelected = false;
+        drawerData_.isMixerMode = false;
+        drawerData_.tab = (inspectorTab_ == ArrangerInspectorTab::Clip) ? TrackPropertiesTab::Clip : TrackPropertiesTab::Track;
+
+        std::string_view desiredTitle = track.instrument.empty() ? std::string_view(track.name) : std::string_view(track.instrument);
+        if (drawerData_.presetTitle != desiredTitle) {
+            drawerData_.presetTitle = desiredTitle;
+        }
+        std::string_view trkInst = track.instrument.empty() ? std::string_view("Track") : std::string_view(track.instrument);
+        std::string_view sep = " • ";
+        size_t neededSubLen = track.name.size() + sep.size() + trkInst.size();
+        bool subMatches = (drawerData_.presetSubtitle.size() == neededSubLen) &&
+                          (drawerData_.presetSubtitle.compare(0, track.name.size(), track.name) == 0) &&
+                          (drawerData_.presetSubtitle.compare(track.name.size(), sep.size(), sep) == 0) &&
+                          (drawerData_.presetSubtitle.compare(track.name.size() + sep.size(), trkInst.size(), trkInst) == 0);
+        if (!subMatches) {
+            drawerData_.presetSubtitle.clear();
+            drawerData_.presetSubtitle.reserve(neededSubLen);
+            drawerData_.presetSubtitle.append(track.name);
+            drawerData_.presetSubtitle.append(sep);
+            drawerData_.presetSubtitle.append(trkInst);
+        }
+
+        drawerData_.knob1 = track.knob1;
+        drawerData_.knob2 = track.knob2;
+        drawerData_.knob3 = track.knob3;
+        drawerData_.knob4 = track.knob4;
+        drawerData_.knob1Name = track.knob1Name;
+        drawerData_.knob2Name = track.knob2Name;
+        drawerData_.knob3Name = track.knob3Name;
+        drawerData_.knob4Name = track.knob4Name;
+
+        // If in Clip tab and no clip was selected, auto-select clip 0 if available
+        if (inspectorTab_ == ArrangerInspectorTab::Clip && selectedClipIndex_ < 0 && !track.clips.empty()) {
+            selectedClipIndex_ = 0;
+        }
+
+        if (drawerData_.selectedClipIndex != selectedClipIndex_) {
+            drawerData_.selectedClipIndex = selectedClipIndex_;
+            if (selectedClipIndex_ >= 0 && selectedClipIndex_ < static_cast<int>(track.clips.size())) {
+                const auto& cl = track.clips[selectedClipIndex_];
+                drawerData_.clipName = cl.name;
+            } else {
+                drawerData_.clipName.clear();
+            }
+        }
+
+        if (selectedClipIndex_ >= 0 && selectedClipIndex_ < static_cast<int>(track.clips.size())) {
+            const auto& cl = track.clips[selectedClipIndex_];
+            drawerData_.clipStartBar = cl.startBar;
+            drawerData_.clipLengthBars = cl.lengthBars;
+            drawerData_.clipLooped = cl.isLooped;
+            drawerData_.clipLoopLengthBars = cl.loopLengthBars;
+            drawerData_.clipTranspose = cl.transposeSemitones;
+        } else {
+            drawerData_.clipStartBar = 0;
+            drawerData_.clipLengthBars = 0;
+            drawerData_.clipLooped = false;
+            drawerData_.clipLoopLengthBars = 0;
+            drawerData_.clipTranspose = 0;
+        }
+
+        if (drawerData_.midiFx.size() != track.midiFx.size()) {
+            drawerData_.midiFx = track.midiFx;
+        }
+        if (drawerData_.audioFx.size() != track.audioFx.size()) {
+            drawerData_.audioFx = track.audioFx;
+        }
+        drawerData_.syncKnobsIfEmpty();
+    }
+}
+
+void ArrangerView::renderPropertiesDrawer(const ViewContext& ctx) {
+    syncDrawerData();
+
+    propertiesDrawer_.render(*ctx.renderer, *ctx.theme, drawerData_, ctx.mouseX, ctx.mouseY);
+}
+
+bool ArrangerView::handlePointer(const PointerEvent& ev, const ViewContext& ctx) {
+    // 0. Forward to Reusable Contextual Dialog if open
+    if (pluginDialog_.isOpen()) {
+        return pluginDialog_.handlePointer(ev);
+    }
+    if (propertiesDrawer_.isPluginDialogOpen()) {
+        if (propertiesDrawer_.handlePointer(ev, drawerData_, ctx)) {
+            inspectorOpen_ = propertiesDrawer_.isExpanded();
+            return true;
+        }
+        return true;
+    }
+    if (circleOfFifthsDialog_.isOpen()) {
+        return circleOfFifthsDialog_.handlePointer(ev);
+    }
+    if (iconDialog_.isOpen()) {
+        if (ev.action == PointerAction::Scroll) {
+            return iconDialog_.handleScroll(ev.scrollY);
+        }
+        return iconDialog_.handlePointer(ev);
+    }
+
+    // 0. Disallow arranger interactions in Project Browser area
+    if (ctx.browserOffset > 0.0f && ev.x >= bounds_.x + bounds_.w - ctx.browserOffset) {
+        return false;
+    }
+
+    // Disallow interactions outside arranger bounds when not actively dragging
+    const bool isDragging = (dragMode_ != ClipDragMode::None) || propertiesDrawer_.isDragging();
+    if (!isDragging && !bounds_.contains(ev.x, ev.y)) {
+        return false;
+    }
+
+    // 0a. Properties Drawer (Active Drag, Pull-Tab, or expanded sidebar interaction & scroll)
+    if (propertiesDrawer_.isDragging() ||
+        propertiesDrawer_.getPullTabBounds().contains(ev.x, ev.y) ||
+        (propertiesDrawer_.isExpanded() && propertiesDrawer_.getDrawerBounds().contains(ev.x, ev.y))) {
+        syncDrawerData();
+        if (propertiesDrawer_.handlePointer(ev, drawerData_, ctx)) {
+            inspectorOpen_ = propertiesDrawer_.isExpanded();
+            if (activeTrackIndex_ < tracks_.size()) {
+                tracks_[activeTrackIndex_].knobs = drawerData_.knobs;
+            }
+        }
+        return true;
+    }
+
+    // 0b. Mouse Wheel / 2D Scroll on Arranger Grid
+    if (ev.action == PointerAction::Scroll) {
+        float totalArrangerW = static_cast<float>(totalBars_) * barWidth_;
+        scrollX_ = std::clamp(scrollX_ - ev.scrollX * 30.0f, 0.0f, std::max(0.0f, totalArrangerW - gridBounds_.w));
+        scrollY_ = std::max(0.0f, scrollY_ - ev.scrollY * 30.0f);
+        return true;
+    }
+
+    if (ev.action == PointerAction::Up) {
+        if (isAuditioningChord_) {
+            isAuditioningChord_ = false;
+            if (onAuditionChordEnd) {
+                onAuditionChordEnd();
+            }
+        }
+    }
+
+    // 0c. Active Continuous Drags (Move, LoopResize, EdgeResize, ViewportPan, MinimapScrub, PlayheadScrub, ChordMove, ChordResize)
+    if (dragMode_ != ClipDragMode::None) {
+        if (ev.action == PointerAction::Move) {
+            if (dragMode_ == ClipDragMode::ChordMove) {
+                if (dragChordIdx_ >= 0 && dragChordIdx_ < static_cast<int>(chordTrack_.size())) {
+                    float dx = ev.x - dragStartPointerX_;
+                    int deltaBars = static_cast<int>(std::round(dx / barWidth_));
+                    int targetBar = std::max(0, static_cast<int>(dragChordOrigStartBar_) + deltaBars);
+                    chordTrack_[dragChordIdx_].startBar = static_cast<uint32_t>(targetBar);
+                }
+                return true;
+            } else if (dragMode_ == ClipDragMode::ChordResize) {
+                if (dragChordIdx_ >= 0 && dragChordIdx_ < static_cast<int>(chordTrack_.size())) {
+                    float dx = ev.x - dragStartPointerX_;
+                    int deltaBars = static_cast<int>(std::round(dx / barWidth_));
+                    float newLen = std::max(0.5f, dragChordOrigLength_ + static_cast<float>(deltaBars));
+                    chordTrack_[dragChordIdx_].barLength = newLen;
+                }
+                return true;
+            } else if (dragMode_ == ClipDragMode::ViewportPan) {
+                float totalArrangerW = static_cast<float>(totalBars_) * barWidth_;
+                scrollX_ = std::clamp(dragStartScrollX_ - (ev.x - dragStartPointerX_), 0.0f, std::max(0.0f, totalArrangerW - gridBounds_.w));
+                scrollY_ = std::max(0.0f, dragStartScrollY_ - (ev.y - dragStartPointerY_));
+                return true;
+            } else if (dragMode_ == ClipDragMode::MinimapScrub) {
+                float totalArrangerW = static_cast<float>(totalBars_) * barWidth_;
+                float normX = (ev.x - minimapBounds_.x) / std::max(1.0f, minimapBounds_.w);
+                scrollX_ = std::clamp(normX * totalArrangerW - (gridBounds_.w * 0.5f), 0.0f, std::max(0.0f, totalArrangerW - gridBounds_.w));
+                return true;
+            } else if (dragMode_ == ClipDragMode::PlayheadScrub ||
+                       dragMode_ == ClipDragMode::LoopStartDrag ||
+                       dragMode_ == ClipDragMode::LoopEndDrag ||
+                       dragMode_ == ClipDragMode::LoopBarDrag) {
+                float totalArrangerW = static_cast<float>(totalBars_) * barWidth_;
+                float maxScrollX = (std::max)(0.0f, totalArrangerW - gridBounds_.w);
+                float maxTotalSteps = static_cast<float>(totalBars_ * 16);
+
+                // Auto-panning if dragged past visible edge of timeline lane
+                if (ev.x > rulerBounds_.x + rulerBounds_.w) {
+                    float overflow = ev.x - (rulerBounds_.x + rulerBounds_.w);
+                    float panSpeed = std::clamp(overflow * 0.35f, 4.0f, 40.0f);
+                    scrollX_ = std::clamp(scrollX_ + panSpeed, 0.0f, maxScrollX);
+                } else if (ev.x < rulerBounds_.x) {
+                    float underflow = rulerBounds_.x - ev.x;
+                    float panSpeed = std::clamp(underflow * 0.35f, 4.0f, 40.0f);
+                    scrollX_ = std::clamp(scrollX_ - panSpeed, 0.0f, maxScrollX);
+                }
+
+                float localX = ev.x - rulerBounds_.x + scrollX_;
+                float rawStep = std::clamp((localX / barWidth_) * 16.0f, 0.0f, maxTotalSteps);
+
+                if (dragMode_ == ClipDragMode::PlayheadScrub) {
+                    if (ctx.audioEngine) {
+                        ctx.audioEngine->getSequencer().getTransport().setPosition(static_cast<uint32_t>(rawStep));
+                    }
+                } else if (dragMode_ == ClipDragMode::LoopStartDrag) {
+                    uint32_t snappedStep = static_cast<uint32_t>(std::clamp(std::round(rawStep / 4.0f) * 4.0f, 0.0f, maxTotalSteps));
+                    if (snappedStep > loopEndStep_) {
+                        // Dynamically switch roles
+                        loopStartStep_ = loopEndStep_;
+                        loopEndStep_ = snappedStep;
+                        dragMode_ = ClipDragMode::LoopEndDrag;
+                    } else {
+                        loopStartStep_ = snappedStep;
+                    }
+                    if (ctx.audioEngine) {
+                        ctx.audioEngine->getSequencer().getTransport().setLoopRange(loopStartStep_, loopEndStep_);
+                    }
+                    if (onLoopRangeChanged) {
+                        onLoopRangeChanged(loopStartStep_, loopEndStep_);
+                    }
+                } else if (dragMode_ == ClipDragMode::LoopEndDrag) {
+                    uint32_t snappedStep = static_cast<uint32_t>(std::clamp(std::round(rawStep / 4.0f) * 4.0f, 0.0f, maxTotalSteps));
+                    if (snappedStep < loopStartStep_) {
+                        // Dynamically switch roles
+                        loopEndStep_ = loopStartStep_;
+                        loopStartStep_ = snappedStep;
+                        dragMode_ = ClipDragMode::LoopStartDrag;
+                    } else {
+                        loopEndStep_ = snappedStep;
+                    }
+                    if (ctx.audioEngine) {
+                        ctx.audioEngine->getSequencer().getTransport().setLoopRange(loopStartStep_, loopEndStep_);
+                    }
+                    if (onLoopRangeChanged) {
+                        onLoopRangeChanged(loopStartStep_, loopEndStep_);
+                    }
+                } else if (dragMode_ == ClipDragMode::LoopBarDrag) {
+                    float dx = ev.x - dragStartPointerX_;
+                    int deltaSteps = static_cast<int>(std::round((dx / barWidth_) * 16.0f / 4.0f) * 4.0f);
+                    int newStart = std::clamp(static_cast<int>(dragLoopOrigStartStep_) + deltaSteps,
+                                              0, static_cast<int>(maxTotalSteps - dragLoopOrigLengthSteps_));
+                    loopStartStep_ = static_cast<uint32_t>(newStart);
+                    loopEndStep_ = loopStartStep_ + dragLoopOrigLengthSteps_;
+                    if (ctx.audioEngine) {
+                        ctx.audioEngine->getSequencer().getTransport().setLoopRange(loopStartStep_, loopEndStep_);
+                    }
+                    if (onLoopRangeChanged) {
+                        onLoopRangeChanged(loopStartStep_, loopEndStep_);
+                    }
+                }
+                return true;
+            } else if (dragMode_ == ClipDragMode::TrackVolume) {
+                if (dragOrigTrackIdx_ < tracks_.size()) {
+                    float dx = ev.x - dragStartPointerX_;
+                    float sliderW = tracksListBounds_.w - 75.0f;
+                    float norm = std::clamp((dragStartVal_ / 1.5f) + (dx / sliderW), 0.0f, 1.0f);
+                    tracks_[dragOrigTrackIdx_].volume = norm * 1.5f;
+                    if (onVolumeChanged) onVolumeChanged(dragOrigTrackIdx_, tracks_[dragOrigTrackIdx_].volume);
+                }
+                return true;
+            } else if (dragMode_ == ClipDragMode::TrackPan) {
+                if (dragOrigTrackIdx_ < tracks_.size()) {
+                    float dx = ev.x - dragStartPointerX_;
+                    tracks_[dragOrigTrackIdx_].pan = std::clamp(dragStartVal_ + (dx / 80.0f), -1.0f, 1.0f);
+                    if (onPanChanged) onPanChanged(dragOrigTrackIdx_, tracks_[dragOrigTrackIdx_].pan);
+                }
+                return true;
+            } else if (dragMode_ == ClipDragMode::InspectorVolume) {
+                if (activeTrackIndex_ < tracks_.size()) {
+                    float dx = ev.x - dragStartPointerX_;
+                    float cardW = inspectorBounds_.w - 20.0f;
+                    float sbVolW = cardW - 120.0f;
+                    float norm = std::clamp((dragStartVal_ / 1.5f) + (dx / sbVolW), 0.0f, 1.0f);
+                    tracks_[activeTrackIndex_].volume = norm * 1.5f;
+                    if (onVolumeChanged) onVolumeChanged(activeTrackIndex_, tracks_[activeTrackIndex_].volume);
+                }
+                return true;
+            } else if (dragMode_ == ClipDragMode::InspectorPan) {
+                if (activeTrackIndex_ < tracks_.size()) {
+                    float dx = ev.x - dragStartPointerX_;
+                    tracks_[activeTrackIndex_].pan = std::clamp(dragStartVal_ + (dx / 80.0f), -1.0f, 1.0f);
+                    if (onPanChanged) onPanChanged(activeTrackIndex_, tracks_[activeTrackIndex_].pan);
+                }
+                return true;
+            } else if (dragMode_ == ClipDragMode::InspectorKnob) {
+                if (activeTrackIndex_ < tracks_.size() && dragKnobIdx_ >= 0) {
+                    float dy = dragStartPointerY_ - ev.y;
+                    float newVal = std::clamp(dragStartVal_ + (dy / 120.0f), 0.0f, 1.0f);
+                    auto& trk = tracks_[activeTrackIndex_];
+                    std::string kname;
+                    if (dragKnobIdx_ == 0) { trk.knob1 = newVal; kname = trk.knob1Name; }
+                    else if (dragKnobIdx_ == 1) { trk.knob2 = newVal; kname = trk.knob2Name; }
+                    else if (dragKnobIdx_ == 2) { trk.knob3 = newVal; kname = trk.knob3Name; }
+                    else if (dragKnobIdx_ == 3) { trk.knob4 = newVal; kname = trk.knob4Name; }
+                    if (onParamChanged) onParamChanged(activeTrackIndex_, kname, newVal);
+                }
+                return true;
+            } else if (dragClipIdx_ >= 0 && dragOrigTrackIdx_ < tracks_.size()) {
+                float dx = ev.x - dragStartPointerX_;
+                float dy = ev.y - dragStartPointerY_;
+                int deltaBars = static_cast<int>(std::round(dx / barWidth_));
+                int deltaTracks = static_cast<int>(std::round(dy / trackRowHeight_));
+
+                // Move Clip Horizontally and Vertically across tracks
+                if (dragMode_ == ClipDragMode::Move) {
+                    uint32_t targetTrackIdx = static_cast<uint32_t>(std::clamp(static_cast<int>(dragOrigTrackIdx_) + deltaTracks,
+                                                                               0, static_cast<int>(tracks_.size()) - 1));
+                    int targetStartBar = std::max(1, static_cast<int>(dragOrigStartBar_) + deltaBars);
+
+                    if (targetTrackIdx != activeTrackIndex_) {
+                        auto clipData = tracks_[activeTrackIndex_].clips[dragClipIdx_];
+                        tracks_[activeTrackIndex_].clips.erase(tracks_[activeTrackIndex_].clips.begin() + dragClipIdx_);
+
+                        clipData.trackIndex = targetTrackIdx;
+                        clipData.startBar = static_cast<uint32_t>(targetStartBar);
+                        tracks_[targetTrackIdx].clips.push_back(clipData);
+
+                        activeTrackIndex_ = targetTrackIdx;
+                        dragClipIdx_ = static_cast<int>(tracks_[targetTrackIdx].clips.size() - 1);
+                        selectedClipIndex_ = dragClipIdx_;
+                    } else {
+                        tracks_[activeTrackIndex_].clips[dragClipIdx_].startBar = static_cast<uint32_t>(targetStartBar);
+                    }
+                    return true;
+                }
+
+                // Loop Resize (from upper right loop icon)
+                if (dragMode_ == ClipDragMode::LoopResize) {
+                    int newLen = std::max(1, static_cast<int>(dragOrigLengthBars_) + deltaBars);
+                    auto& clip = tracks_[activeTrackIndex_].clips[dragClipIdx_];
+                    clip.lengthBars = static_cast<uint32_t>(newLen);
+                    if (clip.lengthBars > dragOrigLengthBars_) {
+                        clip.isLooped = true;
+                        clip.loopLengthBars = dragOrigLengthBars_;
+                    } else {
+                        clip.isLooped = false;
+                    }
+                    return true;
+                }
+
+                // Standard Edge Resize Right
+                if (dragMode_ == ClipDragMode::ResizeRight) {
+                    int newLen = std::max(1, static_cast<int>(dragOrigLengthBars_) + deltaBars);
+                    auto& clip = tracks_[activeTrackIndex_].clips[dragClipIdx_];
+                    clip.lengthBars = static_cast<uint32_t>(newLen);
+                    return true;
+                }
+            }
+        } else if (ev.action == PointerAction::Up) {
+            bool clipDrag = (dragMode_ == ClipDragMode::Move ||
+                             dragMode_ == ClipDragMode::LoopResize ||
+                             dragMode_ == ClipDragMode::ResizeRight ||
+                             dragMode_ == ClipDragMode::ResizeLeft);
+            if (dragMode_ == ClipDragMode::ChordMove || dragMode_ == ClipDragMode::ChordResize) {
+                std::sort(chordTrack_.begin(), chordTrack_.end(), [](const theory::ChordEvent& a, const theory::ChordEvent& b) {
+                    return a.startBar < b.startBar;
+                });
+                if (onChordTrackChanged) onChordTrackChanged();
+            }
+            if (dragMode_ == ClipDragMode::TouchPan) {
+                kineticScroller_.endDrag(ev.timestampMs);
+            }
+            dragMode_ = ClipDragMode::None;
+            dragClipIdx_ = -1;
+            dragKnobIdx_ = -1;
+            dragChordIdx_ = -1;
+            if (clipDrag && onClipsChanged) {
+                onClipsChanged();
+            }
+            return true;
+        }
+    }
+
+    // 0d. Middle-Click Pan anywhere
+    if (ev.button == PointerButton::Middle && ev.action == PointerAction::Down) {
+        dragMode_ = ClipDragMode::ViewportPan;
+        dragStartPointerX_ = ev.x;
+        dragStartPointerY_ = ev.y;
+        dragStartScrollX_ = scrollX_;
+        dragStartScrollY_ = scrollY_;
+        return true;
+    }
+
+
+    // 2. Timeline Minimap Scrubbing / Jump
+    if (minimapBounds_.contains(ev.x, ev.y)) {
+        if (ev.action == PointerAction::Down || (ev.action == PointerAction::Move && dragMode_ == ClipDragMode::MinimapScrub)) {
+            dragMode_ = ClipDragMode::MinimapScrub;
+            float totalArrangerW = static_cast<float>(totalBars_) * barWidth_;
+            float normX = (ev.x - minimapBounds_.x) / minimapBounds_.w;
+            scrollX_ = std::clamp(normX * totalArrangerW - (gridBounds_.w * 0.5f), 0.0f, totalArrangerW - gridBounds_.w);
+            return true;
+        } else if (ev.action == PointerAction::Up) {
+            dragMode_ = ClipDragMode::None;
+            return true;
+        }
+    }
+
+    // 2b. Loop Toggle Button in Ruler Header Spacer Click
+    if (loopToggleBounds_.contains(ev.x, ev.y)) {
+        if (ev.action == PointerAction::Down) {
+            toggleLoop();
+            if (ctx.audioEngine) {
+                ctx.audioEngine->getSequencer().getTransport().setLoopEnabled(loopEnabled_);
+            }
+            return true;
+        }
+    }
+
+    // 3. Time Ruler Scrubbing & Loop Points Dragging
+    if (rulerBounds_.contains(ev.x, ev.y)) {
+        float stepW = barWidth_ / 16.0f;
+        float loopStartX = rulerBounds_.x + static_cast<float>(loopStartStep_) * stepW - scrollX_;
+        float loopEndX = rulerBounds_.x + static_cast<float>(loopEndStep_) * stepW - scrollX_;
+
+        bool hitStart = (ev.x >= loopStartX - 6.0f && ev.x <= loopStartX + 16.0f);
+        bool hitEnd = (ev.x >= loopEndX - 16.0f && ev.x <= loopEndX + 6.0f);
+        bool hitBar = (ev.y <= rulerBounds_.y + 10.0f && ev.x > loopStartX + 16.0f && ev.x < loopEndX - 16.0f);
+
+        if (ev.action == PointerAction::Down) {
+            if (hitStart) {
+                dragMode_ = ClipDragMode::LoopStartDrag;
+                dragStartPointerX_ = ev.x;
+                return true;
+            } else if (hitEnd) {
+                dragMode_ = ClipDragMode::LoopEndDrag;
+                dragStartPointerX_ = ev.x;
+                return true;
+            } else if (hitBar) {
+                dragMode_ = ClipDragMode::LoopBarDrag;
+                dragStartPointerX_ = ev.x;
+                dragLoopOrigStartStep_ = loopStartStep_;
+                dragLoopOrigLengthSteps_ = loopEndStep_ - loopStartStep_;
+                return true;
+            } else {
+                dragMode_ = ClipDragMode::PlayheadScrub;
+                float localX = ev.x - rulerBounds_.x + scrollX_;
+                float clickedStep = std::max(0.0f, (localX / barWidth_) * 16.0f);
+                if (ctx.audioEngine) {
+                    ctx.audioEngine->getSequencer().getTransport().setPosition(static_cast<uint32_t>(clickedStep));
+                }
+                return true;
+            }
+        } else if (ev.action == PointerAction::Up) {
+            dragMode_ = ClipDragMode::None;
+            return true;
+        }
+    }
+
+    // 3b. Chord Track Lane Header Card Click (Opens Circle of Fifths dialog)
+    if (chordHeaderBounds_.contains(ev.x, ev.y)) {
+        if (ev.action == PointerAction::Down) {
+            circleOfFifthsDialog_.open(0, songKeyRoot_, isSongKeyMinor_);
+            return true;
+        }
+    }
+
+    // 3c. Chord Track Lane Interaction (Audition on click, Edit in Circle of Fifths on double-click)
+    if (chordLaneBounds_.contains(ev.x, ev.y)) {
+        if (ev.action == PointerAction::Down) {
+            float localX = ev.x - chordLaneBounds_.x + scrollX_;
+            int clickedBar = static_cast<int>(localX / barWidth_);
+
+            for (size_t i = 0; i < chordTrack_.size(); ++i) {
+                const auto& chord = chordTrack_[i];
+                float cx = static_cast<float>(chord.startBar) * barWidth_;
+                float cw = chord.barLength * barWidth_;
+
+                if (localX >= cx && localX <= cx + cw) {
+                    selectedChordIndex_ = static_cast<int>(i);
+
+                    // Audition chord
+                    isAuditioningChord_ = true;
+                    if (onAuditionChord) {
+                        onAuditionChord(chord);
+                    }
+
+                    // Check double click -> Open Circle of Fifths for this chord
+                    auto now = std::chrono::steady_clock::now();
+                    auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastOverviewClickTime_).count();
+                    if (lastClickedOverviewChordIdx_ == static_cast<int>(i) && elapsedMs < 400) {
+                        lastOverviewClickTime_ = std::chrono::steady_clock::time_point{};
+                        lastClickedOverviewChordIdx_ = -1;
+                        circleOfFifthsDialog_.openForChord(chord, songKeyRoot_, isSongKeyMinor_);
+                        return true;
+                    }
+                    lastOverviewClickTime_ = now;
+                    lastClickedOverviewChordIdx_ = static_cast<int>(i);
+                    return true;
+                }
+            }
+
+            // Clicked empty lane space
+            selectedChordIndex_ = -1;
+            auto now = std::chrono::steady_clock::now();
+            auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastOverviewClickTime_).count();
+            if (lastClickedOverviewChordIdx_ == -2 && elapsedMs < 400) {
+                lastOverviewClickTime_ = std::chrono::steady_clock::time_point{};
+                lastClickedOverviewChordIdx_ = -1;
+                circleOfFifthsDialog_.open(static_cast<uint32_t>(std::max(0, clickedBar)), songKeyRoot_, isSongKeyMinor_);
+                return true;
+            }
+            lastOverviewClickTime_ = now;
+            lastClickedOverviewChordIdx_ = -2;
+            return true;
+        }
+    }
+
+    // 4. Track Headers Clicking & Volume/Pan Dragging
+    if (tracksListBounds_.contains(ev.x, ev.y)) {
+        // '+ ADD TRACK' Row Click
+        if (addTrackRowBounds_.contains(ev.x, ev.y)) {
+            if (ev.action == PointerAction::Down) {
+                pluginDialog_.open(PluginDialogMode::AddInstrument, "", static_cast<uint32_t>(tracks_.size()));
+                return true;
+            }
+        }
+
+        if (ev.action == PointerAction::Down) {
+            float localY = ev.y - tracksListBounds_.y + scrollY_;
+            int clickedTrack = static_cast<int>(localY / trackRowHeight_);
+            if (clickedTrack >= 0 && clickedTrack < static_cast<int>(tracks_.size())) {
+                activeTrackIndex_ = static_cast<uint32_t>(clickedTrack);
+                selectedClipIndex_ = -1;
+                inspectorTab_ = ArrangerInspectorTab::Track; // Expose Track properties
+                inspectorOpen_ = true;
+                if (onTrackSelected) onTrackSelected(activeTrackIndex_);
+
+                float rowY = tracksListBounds_.y + static_cast<float>(clickedTrack) * trackRowHeight_ - scrollY_;
+                float btnY = rowY + 8.0f;
+
+                auto openTrackTitleEdit = [this, clickedTrack, &ctx]() {
+                    if (ctx.onOpenValueEdit) {
+                        ValueEditRequest req;
+                        req.title = "EDIT TRACK PROPERTIES";
+                        req.paramName = "Track Name";
+                        req.isTextMode = true;
+                        req.initialText = tracks_[clickedTrack].name;
+                        req.accentColor = Color(tracks_[clickedTrack].r, tracks_[clickedTrack].g, tracks_[clickedTrack].b, 1.0f);
+                        req.onCommitText = [this, clickedTrack](const std::string& newName) {
+                            if (!newName.empty()) {
+                                tracks_[clickedTrack].name = newName;
+                                drawerData_.trackName = newName;
+                                if (clickedTrack < drawerData_.allTrackNames.size()) {
+                                    drawerData_.allTrackNames[clickedTrack] = newName;
+                                }
+                                if (onTrackRename) {
+                                    onTrackRename(clickedTrack, newName);
+                                }
+                            }
+                        };
+                        ctx.onOpenValueEdit(req);
+                    }
+                };
+
+                Rect2D muteRect(tracksListBounds_.x + tracksListBounds_.w - 42.0f, btnY, 16.0f, 13.0f);
+                Rect2D soloRect(tracksListBounds_.x + tracksListBounds_.w - 22.0f, btnY, 16.0f, 13.0f);
+
+                if (muteRect.contains(ev.x, ev.y)) {
+                    tracks_[clickedTrack].mute = !tracks_[clickedTrack].mute;
+                    if (onMuteToggled) onMuteToggled(clickedTrack, tracks_[clickedTrack].mute);
+                    return true;
+                } else if (soloRect.contains(ev.x, ev.y)) {
+                    tracks_[clickedTrack].solo = !tracks_[clickedTrack].solo;
+                    if (onSoloToggled) onSoloToggled(clickedTrack, tracks_[clickedTrack].solo);
+                    return true;
+                }
+
+                // Volume Slider (moved down by 10 pixels)
+                float sliderW = tracksListBounds_.w - 75.0f;
+                float sliderX = tracksListBounds_.x + 36.0f;
+                float sliderY = rowY + 44.0f;
+                Rect2D volBox(sliderX - 6.0f, sliderY - 6.0f, sliderW + 12.0f, 16.0f);
+
+                // Pan Knob (moved down by 10 pixels)
+                float knobX = tracksListBounds_.x + tracksListBounds_.w - 22.0f;
+                float knobY = rowY + 46.0f;
+                Rect2D panBox(knobX - 11.0f, knobY - 11.0f, 22.0f, 22.0f);
+
+                if (ev.button == PointerButton::Right && !volBox.contains(ev.x, ev.y) && !panBox.contains(ev.x, ev.y)) {
+                    openTrackTitleEdit();
+                    return true;
+                }
+
+                // Double-click / double-tap detection on track header -> Open Track Properties sidebar (Track view)
+                if ((ev.button == PointerButton::Left || ev.type == PointerType::Touch) &&
+                    !volBox.contains(ev.x, ev.y) && !panBox.contains(ev.x, ev.y)) {
+                    auto now = std::chrono::steady_clock::now();
+                    auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastHeaderClickTime_).count();
+                    if (lastClickedHeaderTrack_ == clickedTrack && elapsedMs > 0 && elapsedMs < 350) {
+                        lastHeaderClickTime_ = std::chrono::steady_clock::time_point{};
+                        lastClickedHeaderTrack_ = -1;
+                        inspectorTab_ = ArrangerInspectorTab::Track;
+                        selectedClipIndex_ = -1;
+                        drawerData_.tab = TrackPropertiesTab::Track;
+                        drawerData_.selectedClipIndex = -1;
+                        propertiesDrawer_.setExpanded(true);
+                        inspectorOpen_ = true;
+                        syncDrawerDataForTrack(activeTrackIndex_);
+                        return true;
+                    }
+                    lastHeaderClickTime_ = now;
+                    lastClickedHeaderTrack_ = clickedTrack;
+                }
+
+                if (volBox.contains(ev.x, ev.y)) {
+                    if (ev.button == PointerButton::Right) {
+                        if (ctx.onOpenValueEdit) {
+                            ValueEditRequest req;
+                            req.title = tracks_[clickedTrack].name + " VOLUME";
+                            req.paramName = tracks_[clickedTrack].name + " Volume";
+                            req.currentValue = tracks_[clickedTrack].volume;
+                            req.minValue = 0.0f;
+                            req.maxValue = 1.5f;
+                            req.defaultValue = 1.0f;
+                            req.hasDefault = true;
+                            req.allowPercentage = true;
+                            req.accentColor = Color(tracks_[clickedTrack].r, tracks_[clickedTrack].g, tracks_[clickedTrack].b, 1.0f);
+                            req.onCommit = [this, clickedTrack](float val) {
+                                tracks_[clickedTrack].volume = val;
+                                if (onVolumeChanged) onVolumeChanged(clickedTrack, val);
+                            };
+                            ctx.onOpenValueEdit(req);
+                        }
+                        return true;
+                    }
+                    dragMode_ = ClipDragMode::TrackVolume;
+                    dragOrigTrackIdx_ = clickedTrack;
+                    dragStartPointerX_ = ev.x;
+                    dragStartPointerY_ = ev.y;
+                    dragStartVal_ = tracks_[clickedTrack].volume;
+                    float norm = std::clamp((ev.x - sliderX) / sliderW, 0.0f, 1.0f);
+                    tracks_[clickedTrack].volume = norm * 1.5f;
+                    if (onVolumeChanged) onVolumeChanged(clickedTrack, tracks_[clickedTrack].volume);
+                    return true;
+                }
+
+                if (panBox.contains(ev.x, ev.y)) {
+                    if (ev.button == PointerButton::Right) {
+                        if (ctx.onOpenValueEdit) {
+                            ValueEditRequest req;
+                            req.title = tracks_[clickedTrack].name + " PAN";
+                            req.paramName = tracks_[clickedTrack].name + " Pan";
+                            req.currentValue = tracks_[clickedTrack].pan;
+                            req.minValue = -1.0f;
+                            req.maxValue = 1.0f;
+                            req.defaultValue = 0.0f;
+                            req.hasDefault = true;
+                            req.allowPercentage = false;
+                            req.accentColor = Color(tracks_[clickedTrack].r, tracks_[clickedTrack].g, tracks_[clickedTrack].b, 1.0f);
+                            req.onCommit = [this, clickedTrack](float val) {
+                                tracks_[clickedTrack].pan = val;
+                                if (onPanChanged) onPanChanged(clickedTrack, val);
+                            };
+                            ctx.onOpenValueEdit(req);
+                        }
+                        return true;
+                    }
+                    dragMode_ = ClipDragMode::TrackPan;
+                    dragOrigTrackIdx_ = clickedTrack;
+                    dragStartPointerX_ = ev.x;
+                    dragStartPointerY_ = ev.y;
+                    dragStartVal_ = tracks_[clickedTrack].pan;
+                    return true;
+                }
+
+                if (ev.button == PointerButton::Right) {
+                    openTrackTitleEdit();
+                    return true;
+                }
+
+                return true;
+            } else if (ev.type == PointerType::Touch || ctx.isMobile) {
+                // Touch on empty track list space below last track: allow touch scrolling Y
+                dragMode_ = ClipDragMode::TouchGridPending;
+                touchDownPos_ = Point2D{ev.x, ev.y};
+                touchDownTimePoint_ = std::chrono::steady_clock::now();
+                touchPanCommitted_ = false;
+                dragStartPointerX_ = ev.x;
+                dragStartPointerY_ = ev.y;
+                dragStartScrollX_ = scrollX_;
+                dragStartScrollY_ = scrollY_;
+                kineticScroller_.reset();
+                kineticScroller_.addSample(ev.x, ev.y, ev.timestampMs);
+                return true;
+            }
+        }
+    }
+
+    // 5. Middle-Click Pan anywhere in Arranger Grid
+    if (ev.button == PointerButton::Middle) {
+        if (ev.action == PointerAction::Down) {
+            dragMode_ = ClipDragMode::ViewportPan;
+            dragStartPointerX_ = ev.x;
+            dragStartPointerY_ = ev.y;
+            dragStartScrollX_ = scrollX_;
+            dragStartScrollY_ = scrollY_;
+            return true;
+        } else if (ev.action == PointerAction::Move && dragMode_ == ClipDragMode::ViewportPan) {
+            scrollX_ = std::max(0.0f, dragStartScrollX_ - (ev.x - dragStartPointerX_));
+            scrollY_ = std::max(0.0f, dragStartScrollY_ - (ev.y - dragStartPointerY_));
+            return true;
+        } else if (ev.action == PointerAction::Up && dragMode_ == ClipDragMode::ViewportPan) {
+            dragMode_ = ClipDragMode::None;
+            return true;
+        }
+    }
+
+    // 6. Clips Interaction (Move across tracks & Loop Resize & Standard Resize)
+    if (gridBounds_.contains(ev.x, ev.y)) {
+        if (ev.action == PointerAction::Down) {
+            float localX = ev.x - gridBounds_.x + scrollX_;
+            float localY = ev.y - gridBounds_.y + scrollY_;
+            int clickedTrack = static_cast<int>(localY / trackRowHeight_);
+
+            if (clickedTrack >= 0 && clickedTrack < static_cast<int>(tracks_.size())) {
+                auto& track = tracks_[clickedTrack];
+                for (int c = static_cast<int>(track.clips.size()) - 1; c >= 0; --c) {
+                    const auto& clip = track.clips[c];
+                    float cx = static_cast<float>(clip.startBar - 1) * barWidth_;
+                    float cw = static_cast<float>(clip.lengthBars) * barWidth_;
+                    float cy = static_cast<float>(clickedTrack) * trackRowHeight_;
+                    float ch = trackRowHeight_;
+
+                    if (localX >= cx && localX <= cx + cw && localY >= cy && localY <= cy + ch) {
+                        activeTrackIndex_ = static_cast<uint32_t>(clickedTrack);
+                        selectedClipIndex_ = c;
+                        inspectorTab_ = ArrangerInspectorTab::Clip; // Expose Clip properties!
+                        inspectorOpen_ = true;
+                        if (onTrackSelected) onTrackSelected(activeTrackIndex_);
+
+                        // Check double click on clip body (not on resize handles)
+                        bool onResizeHandle = (localX >= cx + cw - 22.0f);
+                        if (!onResizeHandle) {
+                            auto now = std::chrono::steady_clock::now();
+                            auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastClipClickTime_).count();
+                            if (lastClickedClipIdx_ == c && lastClickedClipTrack_ == clickedTrack && elapsedMs < 350) {
+                                lastClipClickTime_ = std::chrono::steady_clock::time_point{};
+                                lastClickedClipIdx_ = -1;
+                                lastClickedClipTrack_ = -1;
+                                dragMode_ = ClipDragMode::None;
+                                if (ctx.onJumpToClipEdit) {
+                                    ctx.onJumpToClipEdit(activeTrackIndex_, selectedClipIndex_);
+                                }
+                                return true;
+                            }
+                            lastClipClickTime_ = now;
+                            lastClickedClipIdx_ = c;
+                            lastClickedClipTrack_ = clickedTrack;
+                        }
+
+                        dragStartPointerX_ = ev.x;
+                        dragStartPointerY_ = ev.y;
+                        dragOrigStartBar_ = clip.startBar;
+                        dragOrigLengthBars_ = clip.lengthBars;
+                        dragOrigTrackIdx_ = static_cast<uint32_t>(clickedTrack);
+                        dragClipIdx_ = c;
+
+                        // Check Top-Right Loop Resize Handle (right 22px, top 18px)
+                        if (localX >= cx + cw - 22.0f && localY <= cy + 20.0f) {
+                            dragMode_ = ClipDragMode::LoopResize;
+                        }
+                        // Check Bottom-Right Standard Resize Handle (right 22px, bottom part)
+                        else if (localX >= cx + cw - 22.0f) {
+                            dragMode_ = ClipDragMode::ResizeRight;
+                        }
+                        // Otherwise: Move clip horizontally & vertically across tracks!
+                        else {
+                            dragMode_ = ClipDragMode::Move;
+                        }
+                        return true;
+                    }
+                }
+            }
+
+            // Clicked empty grid space -> deselect clip, switch to Track properties
+            selectedClipIndex_ = -1;
+            if (clickedTrack >= 0 && clickedTrack < static_cast<int>(tracks_.size())) {
+                activeTrackIndex_ = static_cast<uint32_t>(clickedTrack);
+                inspectorTab_ = ArrangerInspectorTab::Track;
+                if (onTrackSelected) onTrackSelected(activeTrackIndex_);
+
+                uint32_t clickedBar = std::max(1u, static_cast<uint32_t>(localX / barWidth_) + 1);
+                auto now = std::chrono::steady_clock::now();
+                auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastEmptyClickTime_).count();
+                if (lastEmptyClickedTrack_ == clickedTrack &&
+                    std::abs(static_cast<int>(lastEmptyClickedBar_) - static_cast<int>(clickedBar)) <= 1 &&
+                    elapsedMs < 400) {
+                    lastEmptyClickTime_ = std::chrono::steady_clock::time_point{};
+                    lastEmptyClickedTrack_ = -1;
+                    lastEmptyClickedBar_ = 0;
+                    dragMode_ = ClipDragMode::None;
+                    createEmptyClipAt(static_cast<uint32_t>(clickedTrack), clickedBar);
+                    return true;
+                }
+                lastEmptyClickTime_ = now;
+                lastEmptyClickedTrack_ = clickedTrack;
+                lastEmptyClickedBar_ = clickedBar;
+            }
+
+            if (ev.type == PointerType::Touch || ctx.isMobile) {
+                dragMode_ = ClipDragMode::TouchGridPending;
+                touchDownPos_ = Point2D{ev.x, ev.y};
+                touchDownTimePoint_ = std::chrono::steady_clock::now();
+                touchPanCommitted_ = false;
+                dragStartPointerX_ = ev.x;
+                dragStartPointerY_ = ev.y;
+                dragStartScrollX_ = scrollX_;
+                dragStartScrollY_ = scrollY_;
+                kineticScroller_.reset();
+                kineticScroller_.addSample(ev.x, ev.y, ev.timestampMs);
+            }
+            return true;
+        }
+
+        if (ev.action == PointerAction::Move) {
+            if (dragMode_ == ClipDragMode::TouchGridPending) {
+                float dist = std::hypot(ev.x - touchDownPos_.x, ev.y - touchDownPos_.y);
+                if (dist > 14.0f) {
+                    touchPanCommitted_ = true;
+                    dragMode_ = ClipDragMode::TouchPan;
+                    kineticScroller_.addSample(ev.x, ev.y, ev.timestampMs);
+                }
+            }
+
+            if (dragMode_ == ClipDragMode::TouchPan) {
+                kineticScroller_.addSample(ev.x, ev.y, ev.timestampMs);
+                scrollX_ = (std::max)(0.0f, dragStartScrollX_ - (ev.x - dragStartPointerX_));
+                float maxScrollY = (std::max)(0.0f, static_cast<float>(tracks_.size()) * trackRowHeight_ - gridBounds_.h);
+                scrollY_ = std::clamp(dragStartScrollY_ - (ev.y - dragStartPointerY_), 0.0f, maxScrollY);
+                return true;
+            }
+            if (dragClipIdx_ >= 0 && dragOrigTrackIdx_ < tracks_.size()) {
+                float dx = ev.x - dragStartPointerX_;
+                float dy = ev.y - dragStartPointerY_;
+                int deltaBars = static_cast<int>(std::round(dx / barWidth_));
+                int deltaTracks = static_cast<int>(std::round(dy / trackRowHeight_));
+
+                // 6a. Move Clip Horizontally and Vertically across tracks
+                if (dragMode_ == ClipDragMode::Move) {
+                    uint32_t targetTrackIdx = static_cast<uint32_t>(std::clamp(static_cast<int>(dragOrigTrackIdx_) + deltaTracks,
+                                                                               0, static_cast<int>(tracks_.size()) - 1));
+                    int targetStartBar = std::max(1, static_cast<int>(dragOrigStartBar_) + deltaBars);
+
+                    if (targetTrackIdx != activeTrackIndex_) {
+                        // Move clip to new track
+                        auto clipData = tracks_[activeTrackIndex_].clips[dragClipIdx_];
+                        tracks_[activeTrackIndex_].clips.erase(tracks_[activeTrackIndex_].clips.begin() + dragClipIdx_);
+
+                        clipData.trackIndex = targetTrackIdx;
+                        clipData.startBar = static_cast<uint32_t>(targetStartBar);
+                        tracks_[targetTrackIdx].clips.push_back(clipData);
+
+                        activeTrackIndex_ = targetTrackIdx;
+                        dragClipIdx_ = static_cast<int>(tracks_[targetTrackIdx].clips.size() - 1);
+                        selectedClipIndex_ = dragClipIdx_;
+                    } else {
+                        tracks_[activeTrackIndex_].clips[dragClipIdx_].startBar = static_cast<uint32_t>(targetStartBar);
+                    }
+                    return true;
+                }
+
+                // 6b. Loop Resize (from upper right loop icon)
+                if (dragMode_ == ClipDragMode::LoopResize) {
+                    int newLen = std::max(1, static_cast<int>(dragOrigLengthBars_) + deltaBars);
+                    auto& clip = tracks_[activeTrackIndex_].clips[dragClipIdx_];
+                    clip.lengthBars = static_cast<uint32_t>(newLen);
+                    if (clip.lengthBars > dragOrigLengthBars_) {
+                        clip.isLooped = true;
+                        clip.loopLengthBars = dragOrigLengthBars_;
+                    } else {
+                        clip.isLooped = false;
+                    }
+                    return true;
+                }
+
+                // 6c. Standard Edge Resize Right
+                if (dragMode_ == ClipDragMode::ResizeRight) {
+                    int newLen = std::max(1, static_cast<int>(dragOrigLengthBars_) + deltaBars);
+                    auto& clip = tracks_[activeTrackIndex_].clips[dragClipIdx_];
+                    clip.lengthBars = static_cast<uint32_t>(newLen);
+                    return true;
+                }
+            }
+        }
+
+        if (ev.action == PointerAction::Up) {
+            if (dragMode_ == ClipDragMode::TouchPan) {
+                kineticScroller_.endDrag(ev.timestampMs);
+            }
+            dragMode_ = ClipDragMode::None;
+            dragClipIdx_ = -1;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool ArrangerView::handleKey(int key, [[maybe_unused]] int scancode, int action, int mods, [[maybe_unused]] const ViewContext& ctx) {
+    if (pluginDialog_.isOpen()) {
+        return pluginDialog_.handleKey(key, scancode, action, mods);
+    }
+    if (propertiesDrawer_.isPluginDialogOpen() || inspectorOpen_ || propertiesDrawer_.isExpanded()) {
+        if (propertiesDrawer_.handleKey(key, scancode, action, mods, ctx)) return true;
+    }
+    if (circleOfFifthsDialog_.isOpen()) {
+        return circleOfFifthsDialog_.handleKey(key, scancode, action, mods);
+    }
+    if (iconDialog_.isOpen()) {
+        return iconDialog_.handleKey(key, scancode, action, mods);
+    }
+
+    if (action != 1 && action != 2) return false;
+
+    // 'F' -> Toggle continuous playback follow mode
+    if (key == 'F' || key == 'f') {
+        toggleFollowPlayback();
+        return true;
+    }
+
+    // Ctrl+D -> Duplicate Selected Clip
+    if ((key == 'D' || key == 'd') && (mods & 2)) {
+        if (activeTrackIndex_ < tracks_.size() && selectedClipIndex_ >= 0) {
+            int cIdx = selectedClipIndex_;
+            duplicateClip(activeTrackIndex_, cIdx);
+            if (onDuplicateClip) onDuplicateClip(activeTrackIndex_, cIdx);
+            return true;
+        }
+    }
+
+    // Delete or Backspace -> Delete Selected Clip
+    if (key == 261 || key == 259) {
+        if (activeTrackIndex_ < tracks_.size() && selectedClipIndex_ >= 0) {
+            int cIdx = selectedClipIndex_;
+            deleteClip(activeTrackIndex_, cIdx);
+            if (onDeleteClip) onDeleteClip(activeTrackIndex_, cIdx);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool ArrangerView::handleChar(char32_t codepoint, [[maybe_unused]] const ViewContext& ctx) {
+    if (pluginDialog_.isOpen()) {
+        return pluginDialog_.handleChar(codepoint);
+    }
+    if (propertiesDrawer_.isPluginDialogOpen()) {
+        return propertiesDrawer_.handleChar(codepoint);
+    }
+    return false;
+}
+
+bool ArrangerView::handleFileDrop(const std::vector<std::string>& filePaths, float x, float y, const ViewContext& ctx) {
+    if (filePaths.empty()) return false;
+
+    // Check if drop occurred within tracks list, timeline grid, or overall arranger bounds
+    if (bounds_.w > 0.0f && bounds_.h > 0.0f && !bounds_.contains(x, y)) {
+        return false;
+    }
+
+    bool handledAny = false;
+
+    for (const auto& path : filePaths) {
+        std::filesystem::path fsPath(path);
+        std::string filename = fsPath.filename().string();
+        std::string ext = fsPath.extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+        bool isAudio = (ext == ".wav" || ext == ".mp3" || ext == ".ogg" || ext == ".flac" || ext == ".aif" || ext == ".aiff");
+        bool isMidi = (ext == ".mid" || ext == ".midi");
+        bool isSf2 = (ext == ".sf2");
+        bool isSyx = (ext == ".syx");
+
+        if (!isAudio && !isMidi && !isSf2 && !isSyx) {
+            continue;
+        }
+
+        // Determine drop location in timeline grid
+        uint32_t targetBar = 1;
+        if (gridBounds_.w > 0.0f && x >= gridBounds_.x) {
+            float relX = x - gridBounds_.x + scrollX_;
+            targetBar = static_cast<uint32_t>(std::max(1.0f, std::floor(relX / barWidth_) + 1.0f));
+        }
+
+        // Determine target track from Y position
+        int targetTrackIdx = -1;
+        if (gridBounds_.h > 0.0f && y >= gridBounds_.y) {
+            float relY = y - gridBounds_.y + scrollY_;
+            int idx = static_cast<int>(relY / trackRowHeight_);
+            if (idx >= 0 && idx < static_cast<int>(tracks_.size())) {
+                targetTrackIdx = idx;
+            }
+        }
+
+        std::string stemName = fsPath.stem().string();
+
+        if (isAudio || isSf2) {
+            if (targetTrackIdx >= 0) {
+                // Add an audio clip to existing track at dropped bar
+                auto& track = tracks_[targetTrackIdx];
+                ArrangerTimelineClip clip;
+                clip.id = "clip_audio_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+                clip.name = stemName;
+                clip.trackIndex = static_cast<uint32_t>(targetTrackIdx);
+                clip.startBar = targetBar;
+                clip.lengthBars = 4;
+                clip.r = track.r; clip.g = track.g; clip.b = track.b;
+                clip.isAudio = true;
+                clip.isSelected = true;
+                track.clips.push_back(clip);
+                selectedClipIndex_ = static_cast<int>(track.clips.size() - 1);
+                activeTrackIndex_ = static_cast<uint32_t>(targetTrackIdx);
+            } else {
+                // Create a new Audio / Sampler Track
+                ArrangerTimelineTrack newTrack;
+                newTrack.name = stemName;
+                newTrack.instrument = isSf2 ? "SoundFont Sampler" : "Audio Sampler";
+                newTrack.instrumentEngine = isSf2 ? "soundfont" : "sampler";
+                newTrack.iconRef = isSf2 ? "preset:inst_keys" : "preset:inst_sampler";
+                int colorIdx = static_cast<int>(tracks_.size()) % 8;
+                newTrack.r = kQuickPalette[colorIdx][0];
+                newTrack.g = kQuickPalette[colorIdx][1];
+                newTrack.b = kQuickPalette[colorIdx][2];
+
+                ArrangerTimelineClip clip;
+                clip.id = "clip_audio_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+                clip.name = stemName;
+                clip.trackIndex = static_cast<uint32_t>(tracks_.size());
+                clip.startBar = targetBar;
+                clip.lengthBars = 4;
+                clip.r = newTrack.r; clip.g = newTrack.g; clip.b = newTrack.b;
+                clip.isAudio = true;
+                clip.isSelected = true;
+                newTrack.clips.push_back(clip);
+
+                tracks_.push_back(newTrack);
+                activeTrackIndex_ = static_cast<uint32_t>(tracks_.size() - 1);
+                selectedClipIndex_ = 0;
+            }
+            if (ctx.onShowNotification) {
+                ctx.onShowNotification("Imported " + filename + " at Bar " + std::to_string(targetBar));
+            }
+            handledAny = true;
+        } else if (isMidi) {
+            if (targetTrackIdx >= 0) {
+                auto& track = tracks_[targetTrackIdx];
+                ArrangerTimelineClip clip;
+                clip.id = "clip_midi_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+                clip.name = stemName;
+                clip.trackIndex = static_cast<uint32_t>(targetTrackIdx);
+                clip.startBar = targetBar;
+                clip.lengthBars = 4;
+                clip.r = track.r; clip.g = track.g; clip.b = track.b;
+                clip.isAudio = false;
+                clip.isSelected = true;
+                track.clips.push_back(clip);
+                selectedClipIndex_ = static_cast<int>(track.clips.size() - 1);
+                activeTrackIndex_ = static_cast<uint32_t>(targetTrackIdx);
+            } else {
+                ArrangerTimelineTrack newTrack;
+                newTrack.name = stemName;
+                newTrack.instrument = "Polyphonic Synth";
+                newTrack.instrumentEngine = "poly_synth";
+                newTrack.iconRef = "preset:inst_synth";
+                int colorIdx = static_cast<int>(tracks_.size()) % 8;
+                newTrack.r = kQuickPalette[colorIdx][0];
+                newTrack.g = kQuickPalette[colorIdx][1];
+                newTrack.b = kQuickPalette[colorIdx][2];
+
+                ArrangerTimelineClip clip;
+                clip.id = "clip_midi_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+                clip.name = stemName;
+                clip.trackIndex = static_cast<uint32_t>(tracks_.size());
+                clip.startBar = targetBar;
+                clip.lengthBars = 4;
+                clip.r = newTrack.r; clip.g = newTrack.g; clip.b = newTrack.b;
+                clip.isAudio = false;
+                clip.isSelected = true;
+                newTrack.clips.push_back(clip);
+
+                tracks_.push_back(newTrack);
+                activeTrackIndex_ = static_cast<uint32_t>(tracks_.size() - 1);
+                selectedClipIndex_ = 0;
+            }
+            if (ctx.onShowNotification) {
+                ctx.onShowNotification("Imported MIDI " + filename + " at Bar " + std::to_string(targetBar));
+            }
+            handledAny = true;
+        } else if (isSyx) {
+            if (targetTrackIdx >= 0) {
+                auto& track = tracks_[targetTrackIdx];
+                track.instrument = "DXVII FM Synthesizer";
+                track.instrumentEngine = "dxvii_synth";
+                track.iconRef = "preset:inst_synth";
+                activeTrackIndex_ = static_cast<uint32_t>(targetTrackIdx);
+            } else {
+                ArrangerTimelineTrack newTrack;
+                newTrack.name = stemName;
+                newTrack.instrument = "DXVII FM Synthesizer";
+                newTrack.instrumentEngine = "dxvii_synth";
+                newTrack.iconRef = "preset:inst_synth";
+                newTrack.r = 0.0f;
+                newTrack.g = 0.90f;
+                newTrack.b = 1.0f;
+                tracks_.push_back(newTrack);
+                activeTrackIndex_ = static_cast<uint32_t>(tracks_.size() - 1);
+            }
+            if (ctx.onShowNotification) {
+                ctx.onShowNotification("Loaded SysEx Cartridge " + filename + " into DXVII");
+            }
+            handledAny = true;
+        }
+    }
+
+    if (handledAny) {
+        if (onClipsChanged) onClipsChanged();
+    }
+
+    return handledAny;
+}
+
+} // namespace eatsbeats::ui

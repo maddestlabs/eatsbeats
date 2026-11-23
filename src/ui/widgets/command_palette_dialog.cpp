@@ -1,0 +1,485 @@
+#include "eatsbeats/ui/widgets/command_palette_dialog.hpp"
+#include "eatsbeats/ui/draw_utils.hpp"
+#include <algorithm>
+#include <cctype>
+
+namespace eatsbeats::ui {
+
+CommandPaletteDialog::CommandPaletteDialog() {
+    rebuildFilteredList();
+}
+
+void CommandPaletteDialog::open() noexcept {
+    isOpen_ = true;
+    searchQuery_.clear();
+    selectedCategory_ = CommandCategory::All;
+    selectedIndex_ = 0;
+    scrollOffset_ = 0.0f;
+    rebuildFilteredList();
+}
+
+void CommandPaletteDialog::close() noexcept {
+    isOpen_ = false;
+    if (onClose) onClose();
+}
+
+void CommandPaletteDialog::toggle() noexcept {
+    if (isOpen_) close();
+    else open();
+}
+
+void CommandPaletteDialog::registerCommand(const QuickCommand& cmd) {
+    allCommands_.push_back(cmd);
+    rebuildFilteredList();
+}
+
+void CommandPaletteDialog::clearCommands() noexcept {
+    allCommands_.clear();
+    filteredCommands_.clear();
+    selectedIndex_ = 0;
+}
+
+void CommandPaletteDialog::setQuery(const std::string& q) noexcept {
+    searchQuery_ = q;
+    selectedIndex_ = 0;
+    rebuildFilteredList();
+}
+
+void CommandPaletteDialog::setSelectedCategory(CommandCategory cat) noexcept {
+    selectedCategory_ = cat;
+    selectedIndex_ = 0;
+    rebuildFilteredList();
+}
+
+void CommandPaletteDialog::executeSelected(bool stageOnly) noexcept {
+    if (selectedIndex_ >= 0 && selectedIndex_ < static_cast<int>(filteredCommands_.size())) {
+        const auto* cmd = filteredCommands_[selectedIndex_];
+        close();
+        if (cmd) {
+            if (onCommandExecuted_) {
+                onCommandExecuted_(*cmd, stageOnly);
+            } else if (!stageOnly && cmd->onExecute) {
+                cmd->onExecute();
+            }
+        }
+    }
+}
+
+Color CommandPaletteDialog::getCategoryColor(CommandCategory cat) noexcept {
+    switch (cat) {
+        case CommandCategory::View:   return Color(0.0f, 1.0f, 0.40f, 1.0f);  // Neon Green
+        case CommandCategory::Action: return Color(0.13f, 0.96f, 0.91f, 1.0f); // Cyan
+        case CommandCategory::Preset: return Color(1.0f, 0.55f, 0.0f, 1.0f);  // Orange
+        case CommandCategory::Theme:  return Color(0.74f, 0.0f, 1.0f, 1.0f);  // Purple
+        case CommandCategory::Macro:  return Color(1.0f, 0.0f, 0.33f, 1.0f);  // Pink/Coral
+        case CommandCategory::All:
+        default:                      return Color(0.85f, 0.85f, 0.85f, 1.0f);
+    }
+}
+
+std::string CommandPaletteDialog::getCategoryName(CommandCategory cat) noexcept {
+    switch (cat) {
+        case CommandCategory::All:    return "ALL";
+        case CommandCategory::View:   return "VIEW";
+        case CommandCategory::Action: return "ACTION";
+        case CommandCategory::Preset: return "PRESET";
+        case CommandCategory::Theme:  return "THEME";
+        case CommandCategory::Macro:  return "MACRO";
+        default:                      return "OTHER";
+    }
+}
+
+void CommandPaletteDialog::rebuildFilteredList() noexcept {
+    filteredCommands_.clear();
+
+    auto toLowerStr = [](std::string s) {
+        std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        return s;
+    };
+    std::string lowerQ = toLowerStr(searchQuery_);
+
+    for (const auto& cmd : allCommands_) {
+        // 1. Category check
+        if (selectedCategory_ != CommandCategory::All && cmd.category != selectedCategory_) {
+            continue;
+        }
+
+        // 2. Query substring matching
+        if (!lowerQ.empty()) {
+            std::string tLower = toLowerStr(cmd.title);
+            std::string subLower = toLowerStr(cmd.subtitle);
+            std::string idLower = toLowerStr(cmd.id);
+            if (tLower.find(lowerQ) == std::string::npos &&
+                subLower.find(lowerQ) == std::string::npos &&
+                idLower.find(lowerQ) == std::string::npos) {
+                continue;
+            }
+        }
+
+        filteredCommands_.push_back(&cmd);
+    }
+
+    if (filteredCommands_.empty()) {
+        selectedIndex_ = 0;
+    } else {
+        selectedIndex_ = std::clamp(selectedIndex_, 0, static_cast<int>(filteredCommands_.size()) - 1);
+    }
+}
+
+void CommandPaletteDialog::layout(float screenW, float screenH) noexcept {
+    screenWidth_ = screenW;
+    screenHeight_ = screenH;
+
+    if (!clayCtx_.isInitialized()) {
+        clayCtx_.initialize(screenW, screenH);
+    } else {
+        clayCtx_.setDimensions(screenW, screenH);
+    }
+
+    const float dlgW = std::min(580.0f, screenW - 40.0f);
+    const float dlgH = std::min(440.0f, screenH - 60.0f);
+    const float topOffset = (screenH - dlgH) * 0.35f;
+
+    clayCtx_.beginLayout();
+
+    CLAY(CLAY_ID("PaletteOverlay"), {
+        .layout = {
+            .sizing = { CLAY_SIZING_FIXED(screenW), CLAY_SIZING_FIXED(screenH) },
+            .padding = { 0, 0, static_cast<uint16_t>(std::max(0.0f, topOffset)), 0 },
+            .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_TOP },
+            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+        }
+    }) {
+        CLAY(CLAY_ID("PaletteDialogCard"), {
+            .layout = {
+                .sizing = { CLAY_SIZING_FIXED(dlgW), CLAY_SIZING_FIXED(dlgH) },
+                .padding = { 16, 16, 16, 26 },
+                .childGap = 10,
+                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+            }
+        }) {
+            // Search Box at top (height 36)
+            CLAY(CLAY_ID("PaletteSearchBox"), {
+                .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(36) } }
+            }) {}
+
+            // Category filter pills row (height 22)
+            CLAY(CLAY_ID("PaletteCategoryBar"), {
+                .layout = {
+                    .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(22) },
+                    .childGap = 6,
+                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                }
+            }) {
+                for (size_t i = 0; i < 6; ++i) {
+                    CLAY(CLAY_IDI("PaletteCategoryPill", static_cast<uint32_t>(i)), {
+                        .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(22) } }
+                    }) {}
+                }
+            }
+
+            // Results list area (flex grow filling down to footer padding 26)
+            CLAY(CLAY_ID("PaletteResultsList"), {
+                .layout = {
+                    .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+                .clip = { .vertical = true }
+            }) {}
+        }
+    }
+
+    clayCtx_.endLayout(0.016f);
+
+    auto toRect = [](const Clay_BoundingBox& b) noexcept -> Rect2D {
+        return Rect2D{ b.x, b.y, b.width, b.height };
+    };
+
+    dialogBounds_ = toRect(clayCtx_.getElementData(CLAY_ID("PaletteDialogCard")).boundingBox);
+    searchBoxBounds_ = toRect(clayCtx_.getElementData(CLAY_ID("PaletteSearchBox")).boundingBox);
+    categoryBarBounds_ = toRect(clayCtx_.getElementData(CLAY_ID("PaletteCategoryBar")).boundingBox);
+
+    categoryPillBounds_.clear();
+    for (size_t i = 0; i < 6; ++i) {
+        categoryPillBounds_.push_back(toRect(clayCtx_.getElementData(CLAY_IDI("PaletteCategoryPill", static_cast<uint32_t>(i))).boundingBox));
+    }
+
+    resultsListBounds_ = toRect(clayCtx_.getElementData(CLAY_ID("PaletteResultsList")).boundingBox);
+}
+
+void CommandPaletteDialog::update(float dt) noexcept {
+    (void)dt;
+}
+
+void CommandPaletteDialog::render(BatchRenderer2D& r, const ThemeTokens& theme) noexcept {
+    if (!isOpen_) return;
+
+    // 1. Semi-transparent backdrop darkening (matching core ValueEditDialog; no GPU blur for 60+ FPS)
+    r.drawRect(0.0f, 0.0f, screenWidth_, screenHeight_, 0.0f, 0.0f, 0.0f, 0.50f);
+
+    // 2. Dialog Chassis Background & Deep Shadow
+    drawRoundedRect(r, dialogBounds_.x - 3.0f, dialogBounds_.y - 3.0f, dialogBounds_.w + 6.0f, dialogBounds_.h + 6.0f, 10.0f,
+                    0.0f, 0.0f, 0.0f, 0.45f);
+    drawRoundedRect(r, dialogBounds_.x, dialogBounds_.y, dialogBounds_.w, dialogBounds_.h, 8.0f,
+                    0.10f, 0.11f, 0.13f, 0.98f);
+    drawRoundedRectOutline(r, dialogBounds_.x, dialogBounds_.y, dialogBounds_.w, dialogBounds_.h, 8.0f,
+                           theme.borderSubtle.r, theme.borderSubtle.g, theme.borderSubtle.b, 0.8f, 1.2f);
+
+    // 3. Search Box with Search Icon and Query Text
+    drawRoundedRect(r, searchBoxBounds_.x, searchBoxBounds_.y, searchBoxBounds_.w, searchBoxBounds_.h, 6.0f,
+                    0.06f, 0.07f, 0.08f, 0.95f);
+    drawRoundedRectOutline(r, searchBoxBounds_.x, searchBoxBounds_.y, searchBoxBounds_.w, searchBoxBounds_.h, 6.0f,
+                           theme.primaryAccent.r, theme.primaryAccent.g, theme.primaryAccent.b, 0.75f, 1.2f);
+
+    // Search Prompt Icon (">")
+    drawMonoText(r, ">", searchBoxBounds_.x + 12.0f, searchBoxBounds_.y + 10.0f, 14.0f, theme.primaryAccent);
+
+    // Query text or Placeholder
+    if (searchQuery_.empty()) {
+        drawText(r, "Type a command or filter (ESC to dismiss)...",
+                 searchBoxBounds_.x + 30.0f, searchBoxBounds_.y + 11.0f, 11.0f,
+                 theme.textMuted.r, theme.textMuted.g, theme.textMuted.b, 0.55f);
+    } else {
+        drawText(r, searchQuery_, searchBoxBounds_.x + 30.0f, searchBoxBounds_.y + 11.0f, 12.0f,
+                 theme.textPrimary.r, theme.textPrimary.g, theme.textPrimary.b, 1.0f);
+    }
+
+    // 4. Category Filter Pills
+    static const CommandCategory categories[] = {
+        CommandCategory::All, CommandCategory::View, CommandCategory::Action,
+        CommandCategory::Preset, CommandCategory::Theme, CommandCategory::Macro
+    };
+
+    for (size_t i = 0; i < 6 && i < categoryPillBounds_.size(); ++i) {
+        const auto& pb = categoryPillBounds_[i];
+        bool isSelected = (selectedCategory_ == categories[i]);
+        Color catCol = getCategoryColor(categories[i]);
+
+        drawButton(r, pb, getCategoryName(categories[i]),
+                   isSelected ? catCol.withAlpha(0.25f) : Color(0.14f, 0.15f, 0.18f, 0.90f),
+                   isSelected ? catCol : theme.borderSubtle,
+                   isSelected ? catCol : theme.textMuted,
+                   8.5f, 3.0f, 1.0f);
+    }
+
+    // 5. Results List
+    const float itemH = 46.0f;
+    const float itemGap = 4.0f;
+    const size_t maxVisible = static_cast<size_t>(resultsListBounds_.h / (itemH + itemGap));
+    const float totalContentH = static_cast<float>(filteredCommands_.size()) * (itemH + itemGap);
+    const float maxScroll = std::max(0.0f, totalContentH - resultsListBounds_.h);
+
+    if (filteredCommands_.empty()) {
+        drawCenteredText(r, "No matching commands found.", resultsListBounds_, 11.0f, theme.textMuted);
+    } else {
+        // Adjust scrollOffset to keep selectedIndex visible
+        float targetScroll = static_cast<float>(selectedIndex_) * (itemH + itemGap);
+        if (targetScroll < scrollOffset_) {
+            scrollOffset_ = targetScroll;
+        } else if (targetScroll + itemH > scrollOffset_ + resultsListBounds_.h) {
+            scrollOffset_ = targetScroll + itemH - resultsListBounds_.h;
+        }
+        scrollOffset_ = std::clamp(scrollOffset_, 0.0f, maxScroll);
+
+        size_t startIndex = static_cast<size_t>(std::max(0.0f, scrollOffset_ / (itemH + itemGap)));
+        size_t endIndex = std::min(filteredCommands_.size(), startIndex + maxVisible + 2);
+
+        // Hardware-clip to resultsListBounds_ so items never scroll above filters or below footer
+        {
+            ScissorScope listScissor(r, resultsListBounds_);
+
+            for (size_t i = startIndex; i < endIndex; ++i) {
+                const auto* cmd = filteredCommands_[i];
+                float itemY = resultsListBounds_.y + static_cast<float>(i) * (itemH + itemGap) - scrollOffset_;
+                if (itemY + itemH < resultsListBounds_.y || itemY > resultsListBounds_.y + resultsListBounds_.h) continue;
+
+                Rect2D itemBounds(resultsListBounds_.x, itemY, resultsListBounds_.w, itemH);
+                bool isSelected = (static_cast<int>(i) == selectedIndex_);
+
+                // Item Background
+                Color itemBg = isSelected
+                                   ? theme.primaryAccent.withAlpha(0.20f)
+                                   : Color(0.12f, 0.13f, 0.16f, 0.85f);
+                drawRoundedRect(r, itemBounds.x, itemBounds.y, itemBounds.w, itemBounds.h, 4.0f, itemBg);
+
+                if (isSelected) {
+                    drawRoundedRectOutline(r, itemBounds.x, itemBounds.y, itemBounds.w, itemBounds.h, 4.0f,
+                                           theme.primaryAccent, 1.2f);
+                    // Left accent notch
+                    drawRect(r, itemBounds.x, itemBounds.y + 4.0f, 3.0f, itemBounds.h - 8.0f, theme.primaryAccent);
+                }
+
+                // Category Badge
+                Color catCol = getCategoryColor(cmd->category);
+                drawRoundedRect(r, itemBounds.x + 10.0f, itemBounds.y + 14.0f, 44.0f, 16.0f, 3.0f,
+                                catCol.withAlpha(0.18f));
+                drawCenteredText(r, getCategoryName(cmd->category), itemBounds.x + 10.0f, itemBounds.y + 14.0f,
+                                 44.0f, 16.0f, 7.5f, catCol);
+
+                // Title
+                Color titleCol = isSelected ? Color(1.0f, 1.0f, 1.0f, 1.0f) : theme.textPrimary;
+                drawText(r, cmd->title, itemBounds.x + 62.0f, itemBounds.y + 8.0f, 10.5f, titleCol);
+
+                // Subtitle
+                drawText(r, cmd->subtitle, itemBounds.x + 62.0f, itemBounds.y + 24.0f, 8.5f, theme.textMuted);
+
+                // Shortcut Badge (if any)
+                if (!cmd->shortcutHint.empty()) {
+                    const float scW = 68.0f;
+                    const float scH = 18.0f;
+                    float scX = itemBounds.x + itemBounds.w - scW - 10.0f;
+                    float scY = itemBounds.y + (itemBounds.h - scH) * 0.5f;
+
+                    drawRoundedRect(r, scX, scY, scW, scH, 3.0f, Color(0.08f, 0.09f, 0.11f, 0.90f));
+                    drawRoundedRectOutline(r, scX, scY, scW, scH, 3.0f, theme.borderSubtle, 1.0f);
+                    drawCenteredText(r, cmd->shortcutHint, scX, scY, scW, scH, 8.0f, theme.textSecondary);
+                }
+            }
+        }
+
+        // Render sleek scrollbar indicator if results overflow viewport
+        if (maxScroll > 0.0f) {
+            float sbW = 3.5f;
+            float sbX = resultsListBounds_.x + resultsListBounds_.w - sbW - 2.0f;
+            float sbY = resultsListBounds_.y + 2.0f;
+            float sbH = resultsListBounds_.h - 4.0f;
+
+            float thumbH = std::max(20.0f, (resultsListBounds_.h / totalContentH) * sbH);
+            float thumbNorm = scrollOffset_ / maxScroll;
+            float thumbY = sbY + thumbNorm * (sbH - thumbH);
+
+            drawRoundedRect(r, sbX, sbY, sbW, sbH, 1.5f, Color(0.0f, 0.0f, 0.0f, 0.20f));
+            drawRoundedRect(r, sbX, thumbY, sbW, thumbH, 1.5f, theme.primaryAccent.withAlpha(0.60f));
+        }
+    }
+
+    // 6. Bottom Footer Hint
+    drawCenteredText(r, "^ / v to navigate  *  ENTER to execute  *  ESC to dismiss",
+                     dialogBounds_.x, dialogBounds_.y + dialogBounds_.h - 22.0f,
+                     dialogBounds_.w, 16.0f, 8.5f, theme.textMuted);
+}
+
+bool CommandPaletteDialog::handlePointer(const PointerEvent& ev) noexcept {
+    if (!isOpen_) return false;
+
+    // Click outside modal -> dismiss
+    if (!dialogBounds_.contains(ev.x, ev.y)) {
+        if (ev.action == PointerAction::Down) {
+            close();
+            return true;
+        }
+        return true;
+    }
+
+    // 1. Category Pills Click
+    if (ev.action == PointerAction::Down) {
+        static const CommandCategory categories[] = {
+            CommandCategory::All, CommandCategory::View, CommandCategory::Action,
+            CommandCategory::Preset, CommandCategory::Theme, CommandCategory::Macro
+        };
+        for (size_t i = 0; i < 6 && i < categoryPillBounds_.size(); ++i) {
+            if (categoryPillBounds_[i].contains(ev.x, ev.y)) {
+                setSelectedCategory(categories[i]);
+                return true;
+            }
+        }
+    }
+
+    // 2. Results List Click / Hover
+    if (resultsListBounds_.contains(ev.x, ev.y)) {
+        const float itemH = 46.0f;
+        const float itemGap = 4.0f;
+        float relY = ev.y - resultsListBounds_.y + scrollOffset_;
+        int hitIndex = static_cast<int>(relY / (itemH + itemGap));
+
+        if (hitIndex >= 0 && hitIndex < static_cast<int>(filteredCommands_.size())) {
+            if (ev.action == PointerAction::Move) {
+                selectedIndex_ = hitIndex;
+                return true;
+            }
+            if (ev.action == PointerAction::Down) {
+                selectedIndex_ = hitIndex;
+                executeSelected();
+                return true;
+            }
+        }
+
+        // Wheel Scroll
+        if (ev.action == PointerAction::Scroll) {
+            const float totalContentH = static_cast<float>(filteredCommands_.size()) * (itemH + itemGap);
+            const float maxScroll = std::max(0.0f, totalContentH - resultsListBounds_.h);
+            scrollOffset_ = std::clamp(scrollOffset_ - ev.scrollY * 30.0f, 0.0f, maxScroll);
+            return true;
+        }
+    }
+
+    return true; // Absorb all interactions inside modal dialog
+}
+
+bool CommandPaletteDialog::handleKey(int key, int scancode, int action, int mods) noexcept {
+    (void)scancode;
+    (void)mods;
+    if (!isOpen_) return false;
+    if (action != 1 && action != 2) return true; // Only press and repeat
+
+    // ESC (256 in GLFW)
+    if (key == 256) {
+        close();
+        return true;
+    }
+
+    // Down Arrow (264 in GLFW)
+    if (key == 264) {
+        if (!filteredCommands_.empty()) {
+            selectedIndex_ = (selectedIndex_ + 1) % filteredCommands_.size();
+        }
+        return true;
+    }
+
+    // Up Arrow (265 in GLFW)
+    if (key == 265) {
+        if (!filteredCommands_.empty()) {
+            selectedIndex_ = (selectedIndex_ - 1 + static_cast<int>(filteredCommands_.size())) % static_cast<int>(filteredCommands_.size());
+        }
+        return true;
+    }
+
+    // Enter (257 in GLFW)
+    if (key == 257) {
+        bool isShift = (mods & 1) != 0;
+        executeSelected(isShift /* stageOnly if Shift+Enter */);
+        return true;
+    }
+
+    // Tab (258 in GLFW): Stage command into terminal or prompt
+    if (key == 258) {
+        executeSelected(true /* stageOnly */);
+        return true;
+    }
+
+    // Backspace (259 in GLFW)
+    if (key == 259) {
+        if (!searchQuery_.empty()) {
+            searchQuery_.pop_back();
+            selectedIndex_ = 0;
+            rebuildFilteredList();
+        }
+        return true;
+    }
+
+    return true; // Absorb keys while palette is open
+}
+
+bool CommandPaletteDialog::handleChar(unsigned int codepoint) noexcept {
+    if (!isOpen_) return false;
+
+    if (codepoint >= 32 && codepoint < 127) {
+        searchQuery_ += static_cast<char>(codepoint);
+        selectedIndex_ = 0;
+        rebuildFilteredList();
+        return true;
+    }
+    return true;
+}
+
+} // namespace eatsbeats::ui

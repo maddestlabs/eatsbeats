@@ -1,0 +1,6 @@
+#ifndef EATS_DAISY_MODULATION_NODE_HPP
+#define EATS_DAISY_MODULATION_NODE_HPP
+
+#include "../chorus_node.hpp"
+
+#endif // EATS_DAISY_MODULATION_NODE_HPP

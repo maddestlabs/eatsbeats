@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Eatsbeats Modular Workstation (WebGPU)</title>
+    
+    <!-- PWA & Mobile Web App Meta -->
+    <meta name="application-name" content="Eatsbeats">
+    <meta name="apple-mobile-web-app-title" content="Eatsbeats">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#141210">
+    <meta name="color-scheme" content="dark">
+    <meta name="description" content="High-performance modular synthesizer, tracker, and real-time DSP audio workstation built in C++20 and WebGPU.">
+    
+    <!-- Authentic Eatsbeats Icons & Manifest -->
+    <link rel="icon" type="image/svg+xml" href="app_icon.svg">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Fonts matching Eatsbeats DAW aesthetic -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;500;700&family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            background-color: #141210;
+            color: #e2e8f0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at 50% 30%, #1a1714 0%, #0d0c0a 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        canvas#canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            outline: none;
+            cursor: default;
+            touch-action: none;
+        }
+
+        /* Startup & WebGPU Loader Overlay from Eatsbeats */
+        #app-loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #141210;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            transition: opacity 0.4s ease-out;
+        }
+
+        #app-loading-screen.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .eatsbeats-loader-box {
+            background: radial-gradient(circle at center, #24211D 0%, #161412 100%);
+            border: 2px solid #332F2A;
+            border-radius: 12px;
+            padding: 32px 48px;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 90vw;
+            box-sizing: border-box;
+        }
+
+        .eatsbeats-logo-container {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .eatsbeats-logo-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            filter: drop-shadow(0 0 12px rgba(255, 140, 0, 0.6));
+        }
+
+        .eatsbeats-title {
+            color: #FF8C00;
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 3px;
+            text-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
+            margin: 0;
+            font-family: 'Roboto Condensed', -apple-system, sans-serif;
+        }
+
+        .eatsbeats-subtitle {
+            color: #21F4E8;
+            font-size: 11px;
+            letter-spacing: 1.5px;
+            margin-top: 4px;
+            opacity: 0.9;
+            text-transform: uppercase;
+            font-family: 'Roboto Mono', monospace;
+        }
+
+        .vu-meter-bar {
+            display: flex;
+            gap: 8px;
+            margin: 20px 0;
+            padding: 8px 16px;
+            background: #0B0A09;
+            border: 1px solid #2B2621;
+            border-radius: 6px;
+        }
+
+        .vu-segment {
+            width: 10px;
+            height: 32px;
+            background-color: #26221D;
+            border-radius: 2px;
+            animation: vuPulse 1.2s infinite ease-in-out;
+        }
+
+        .vu-segment:nth-child(1) { animation-delay: 0.0s; }
+        .vu-segment:nth-child(2) { animation-delay: 0.15s; }
+        .vu-segment:nth-child(3) { animation-delay: 0.3s; }
+        .vu-segment:nth-child(4) { animation-delay: 0.45s; }
+        .vu-segment:nth-child(5) { animation-delay: 0.6s; }
+
+        @keyframes vuPulse {
+            0%, 100% {
+                background-color: #26221D;
+                box-shadow: none;
+            }
+            40% {
+                background-color: #21F4E8;
+                box-shadow: 0 0 10px #21F4E8;
+            }
+            70% {
+                background-color: #FF8C00;
+                box-shadow: 0 0 10px #FF8C00;
+            }
+        }
+
+        .loading-text {
+            color: #8E9BAE;
+            font-size: 12px;
+            letter-spacing: 2px;
+            animation: textBlink 1.5s infinite;
+            font-family: 'Roboto Mono', monospace;
+        }
+
+        @keyframes textBlink {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1.0; }
+        }
+
+        .webgpu-badge {
+            position: absolute;
+            bottom: 16px;
+            right: 18px;
+            font-size: 0.75rem;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: 'Roboto Mono', monospace;
+        }
+
+        .badge-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+
+        .error-msg {
+            color: #f87171 !important;
+            font-size: 0.9rem;
+            max-width: 480px;
+            text-align: center;
+            line-height: 1.5;
+            animation: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container">
+        <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+
+        <div id="app-loading-screen">
+            <div class="eatsbeats-loader-box">
+                <div class="eatsbeats-logo-container">
+                    <img class="eatsbeats-logo-icon" src="app_icon.svg" alt="Eatsbeats Logo" />
+                    <div>
+                        <h1 class="eatsbeats-title">EATSBEATS</h1>
+                        <div class="eatsbeats-subtitle">C++20 MODULAR WORKSTATION // WEBGPU DAW</div>
+                    </div>
+                </div>
+                <div class="vu-meter-bar">
+                    <div class="vu-segment"></div>
+                    <div class="vu-segment"></div>
+                    <div class="vu-segment"></div>
+                    <div class="vu-segment"></div>
+                    <div class="vu-segment"></div>
+                </div>
+                <div class="loading-text" id="status-text">INITIALIZING WEBGPU PIPELINE &amp; AUDIO ENGINE...</div>
+            </div>
+        </div>
+
+        <div class="webgpu-badge" id="gpu-badge">
+            <div class="badge-dot"></div>
+            <span>WebGPU Active</span>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        const statusText = document.getElementById('status-text');
+        const badge = document.getElementById('gpu-badge');
+
+        // Function to smoothly dismiss the loader screen
+        window.hideAppLoadingScreen = function() {
+            var loader = document.getElementById('app-loading-screen');
+            if (loader && !loader.classList.contains('fade-out')) {
+                loader.classList.add('fade-out');
+                setTimeout(function() {
+                    if (loader.parentNode) {
+                        loader.parentNode.removeChild(loader);
+                    }
+                }, 450);
+            }
+        };
+
+        // Automatic audio unlocker without manual button click requirement
+        function unlockAudio() {
+            if (window.miniaudio) {
+                // miniaudio stores active devices in window.miniaudio.devices
+                var devs = window.miniaudio.devices || window.miniaudio.device_instances || [];
+                for (var k in devs) {
+                    var dev = devs[k];
+                    if (!dev) continue;
+                    var ctx = dev.webaudio || dev.audioContext;
+                    if (ctx && typeof ctx.resume === 'function' && ctx.state === 'suspended') {
+                        ctx.resume().then(function() {
+                            var unlockFn = window._ma_device__on_notification_unlocked || (typeof Module !== 'undefined' ? Module._ma_device__on_notification_unlocked : null);
+                            if (typeof unlockFn === 'function' && dev.pDevice) {
+                                unlockFn(dev.pDevice);
+                            }
+                        }).catch(function(e) {
+                            console.warn('[Audio] Failed to resume WebAudio context:', e);
+                        });
+                    }
+                }
+            }
+            if (window.audioContext && window.audioContext.state === 'suspended') {
+                window.audioContext.resume().catch(function() {});
+            }
+        }
+
+        // Silent unlock listeners for first user gesture (touch, click, keydown)
+        var lastTouchTimestamp = 0;
+        window.eatsbeatsLastPointerIsTouch = false;
+        ['click', 'pointerdown', 'keydown', 'touchstart'].forEach(function(evt) {
+            window.addEventListener(evt, unlockAudio, { passive: true, capture: true });
+        });
+        window.addEventListener('touchstart', function() {
+            window.eatsbeatsLastPointerIsTouch = true;
+            lastTouchTimestamp = Date.now();
+        }, { passive: true, capture: true });
+        window.addEventListener('pointerdown', function(e) {
+            if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+                window.eatsbeatsLastPointerIsTouch = true;
+                lastTouchTimestamp = Date.now();
+            } else if (Date.now() - lastTouchTimestamp > 800) {
+                window.eatsbeatsLastPointerIsTouch = false;
+            }
+        }, { passive: true, capture: true });
+        window.addEventListener('mousedown', function(e) {
+            if (Date.now() - lastTouchTimestamp < 800) {
+                // Synthetic mouse event from recent touch: suppress duplicate
+                window.eatsbeatsLastPointerIsTouch = true;
+                e.preventDefault();
+                if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            } else {
+                window.eatsbeatsLastPointerIsTouch = false;
+            }
+        }, { passive: false, capture: true });
+
+        // Verify WebGPU support and initiate device acquisition immediately
+        let webgpuDevicePromise = null;
+        if (navigator.gpu) {
+            webgpuDevicePromise = navigator.gpu.requestAdapter().then(function(adapter) {
+                if (!adapter) {
+                    throw new Error('No appropriate GPUAdapter found.');
+                }
+                return adapter.requestDevice();
+            }).catch(function(err) {
+                console.error('[WebGPU] Failed to acquire WebGPU device:', err);
+                return null;
+            });
+        } else {
+            badge.innerHTML = '<div class="badge-dot" style="background:#ef4444;box-shadow:0 0 8px #ef4444;"></div><span>WebGPU Unsupported</span>';
+            statusText.className = 'error-msg';
+            statusText.innerText = 'WebGPU is not supported in this browser. Please use a WebGPU-compatible browser (e.g. Chrome, Edge) with hardware acceleration enabled.';
+        }
+
+        // Full Multi-Touch pointer bridge for mobile & tablet browsers (iOS/iPadOS/Android)
+        function setupMultiTouchBridge() {
+            var canvas = document.getElementById('canvas');
+            if (!canvas || canvas._eatsMultiTouchInitialized) return;
+            canvas._eatsMultiTouchInitialized = true;
+
+            function dispatchTouch(e, action) {
+                if (typeof Module !== 'undefined' && Module._eats_on_web_touch_event) {
+                    var rect = canvas.getBoundingClientRect();
+                    var clientX = e.clientX - rect.left;
+                    var clientY = e.clientY - rect.top;
+                    if (rect.width > 0 && rect.height > 0) {
+                        clientX = clientX * (canvas.clientWidth / rect.width);
+                        clientY = clientY * (canvas.clientHeight / rect.height);
+                    }
+                    var pressure = (typeof e.pressure === 'number' && e.pressure > 0) ? e.pressure : 1.0;
+                    Module._eats_on_web_touch_event(e.pointerId, action, clientX, clientY, pressure);
+                }
+            }
+
+            canvas.addEventListener('pointerdown', function(e) {
+                if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+                    window.eatsbeatsLastPointerIsTouch = true;
+                    lastTouchTimestamp = Date.now();
+                    try {
+                        canvas.setPointerCapture(e.pointerId);
+                    } catch (err) {}
+                    dispatchTouch(e, 0); // 0 = Down
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                } else {
+                    if (Date.now() - lastTouchTimestamp > 800) {
+                        window.eatsbeatsLastPointerIsTouch = false;
+                    }
+                }
+            }, { passive: false, capture: true });
+
+            canvas.addEventListener('pointermove', function(e) {
+                if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+                    dispatchTouch(e, 1); // 1 = Move
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                }
+            }, { passive: false, capture: true });
+
+            canvas.addEventListener('pointerup', function(e) {
+                if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+                    try {
+                        canvas.releasePointerCapture(e.pointerId);
+                    } catch (err) {}
+                    dispatchTouch(e, 2); // 2 = Up
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                }
+            }, { passive: false, capture: true });
+
+            canvas.addEventListener('pointercancel', function(e) {
+                if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+                    try {
+                        canvas.releasePointerCapture(e.pointerId);
+                    } catch (err) {}
+                    dispatchTouch(e, 3); // 3 = Cancel
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                }
+            }, { passive: false, capture: true });
+
+            // Suppress native touch events so Emscripten GLFW doesn't duplicate them as mouse clicks
+            ['touchstart', 'touchmove', 'touchend', 'touchcancel'].forEach(function(type) {
+                canvas.addEventListener(type, function(e) {
+                    window.eatsbeatsLastPointerIsTouch = true;
+                    lastTouchTimestamp = Date.now();
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                }, { passive: false, capture: true });
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupMultiTouchBridge);
+        } else {
+            setupMultiTouchBridge();
+        }
+
+        var Module = {
+            preRun: [
+                function() {
+                    if (webgpuDevicePromise) {
+                        Module.addRunDependency('webgpu-device');
+                        webgpuDevicePromise.then(function(device) {
+                            if (device) {
+                                Module.preinitializedWebGPUDevice = device;
+                                console.log('[WebGPU] Preinitialized WebGPU GPUDevice ready on Module:', device);
+                            } else {
+                                console.warn('[WebGPU] WebGPU device promise resolved to null.');
+                            }
+                            Module.removeRunDependency('webgpu-device');
+                        }).catch(function(err) {
+                            console.error('[WebGPU] Error resolving WebGPU device for Module:', err);
+                            Module.removeRunDependency('webgpu-device');
+                        });
+                    }
+                }
+            ],
+            postRun: [function() {
+                // Immediately unlock audio and dismiss the loading screen without user button press
+                unlockAudio();
+                window.hideAppLoadingScreen();
+                setupMultiTouchBridge();
+            }],
+            print: function(text) {
+                console.log('[Eatsbeats WASM]', text);
+            },
+            printErr: function(text) {
+                console.error('[Eatsbeats WASM Error]', text);
+            },
+            canvas: (function() {
+                var c = document.getElementById('canvas');
+                return c;
+            })(),
+            setStatus: function(text) {
+                if (text && text.length > 0 && statusText) {
+                    statusText.innerText = text.toUpperCase();
+                }
+            },
+            totalDependencies: 0,
+            monitorRunDependencies: function(left) {
+                this.totalDependencies = Math.max(this.totalDependencies, left);
+                Module.setStatus(left ? 'LOADING ASSETS... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')' : 'ASSETS LOADED. INITIALIZING ENGINE...');
+            }
+        };
+
+        window.onerror = function(event) {
+            if (statusText) {
+                statusText.className = 'error-msg';
+                statusText.innerText = 'INITIALIZATION ERROR: ' + event;
+            }
+        };
+
+        // Register Service Worker for Offline PWA execution & Cross-Origin Isolation (COOP/COEP)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(function(reg) {
+                        console.log('[Eatsbeats PWA] ServiceWorker registered with scope:', reg.scope);
+                        // Trigger immediate check for updated sw.js / cache version
+                        reg.update().catch(function() {});
+                        reg.addEventListener('updatefound', function() {
+                            var newWorker = reg.installing;
+                            if (newWorker) {
+                                newWorker.addEventListener('statechange', function() {
+                                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                        console.log('[Eatsbeats PWA] New build detected and installed! Reloading...');
+                                        window.location.reload();
+                                    }
+                                });
+                            }
+                        });
+
+                        // On static hosts like GitHub Pages that do not send COOP/COEP HTTP headers,
+                        // reload once after service worker activation so sw.js injects headers and window.crossOriginIsolated becomes true.
+                        if (!window.crossOriginIsolated && !sessionStorage.getItem('coi_reloaded')) {
+                            const reloadPage = function() {
+                                sessionStorage.setItem('coi_reloaded', '1');
+                                window.location.reload();
+                            };
+                            if (navigator.serviceWorker.controller) {
+                                reloadPage();
+                            } else {
+                                navigator.serviceWorker.addEventListener('controllerchange', reloadPage);
+                            }
+                        }
+                    })
+                    .catch(function(err) {
+                        console.warn('[Eatsbeats PWA] ServiceWorker registration failed:', err);
+                    });
+            });
+
+            // Global helper to purge cache and reload without uninstalling PWA
+            window.purgePwaCache = async function() {
+                console.log('[Eatsbeats PWA] Purging cache and unregistering service worker...');
+                if (window.caches) {
+                    var keys = await caches.keys();
+                    await Promise.all(keys.map(function(k) { return caches.delete(k); }));
+                }
+                var regs = await navigator.serviceWorker.getRegistrations();
+                for (var r of regs) {
+                    await r.unregister();
+                }
+                sessionStorage.clear();
+                window.location.reload(true);
+            };
+        }
+    </script>
+
+    <!-- Mobile Soft Keyboard Input Proxy Bridge for Touch Devices & Phones -->
+    <textarea id="mobile-text-proxy" aria-hidden="true" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="position:fixed; opacity:0; pointer-events:none; left:-9999px; top:-9999px; width:1px; height:1px; font-size:16px;" tabindex="-1"></textarea>
+    <script>
+        (function() {
+            var proxy = document.getElementById('mobile-text-proxy');
+            if (!proxy) return;
+
+            var lastBackspaceTime = 0;
+
+            window.eatsbeatsShowSoftKeyboard = function() {
+                window.eatsbeatsSoftKeyboardActive = true;
+                proxy.value = '';
+                proxy.focus({ preventScroll: true });
+            };
+            window.eatsbeatsHideSoftKeyboard = function() {
+                window.eatsbeatsSoftKeyboardActive = false;
+                proxy.blur();
+                proxy.value = '';
+            };
+
+            function sendChar(charStr) {
+                if (typeof Module === 'undefined') return;
+                for (var i = 0; i < charStr.length; i++) {
+                    var code = charStr.charCodeAt(i);
+                    if (Module._eats_on_web_char_input) {
+                        Module._eats_on_web_char_input(code);
+                    } else if (Module.ccall) {
+                        Module.ccall('eats_on_web_char_input', null, ['number'], [code]);
+                    }
+                }
+            }
+
+            function sendKey(glfwKey, mods) {
+                if (typeof Module === 'undefined') return;
+                if (Module._eats_on_web_key_input) {
+                    Module._eats_on_web_key_input(glfwKey, 1, mods || 0);
+                } else if (Module.ccall) {
+                    Module.ccall('eats_on_web_key_input', null, ['number', 'number', 'number'], [glfwKey, 1, mods || 0]);
+                }
+            }
+
+            // Stop bubbling to prevent Emscripten/GLFW document listeners from duplicating events
+            ['keydown', 'keyup', 'keypress'].forEach(function(evtName) {
+                proxy.addEventListener(evtName, function(e) {
+                    e.stopPropagation();
+                    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+                });
+            });
+
+            proxy.addEventListener('keydown', function(e) {
+                e.stopPropagation();
+                if (e.key === 'Backspace') {
+                    sendKey(259, 0); // GLFW_KEY_BACKSPACE
+                    e.preventDefault();
+                    proxy.value = '';
+                    lastBackspaceTime = Date.now();
+                } else if (e.key === 'Enter') {
+                    sendKey(257, 0); // GLFW_KEY_ENTER
+                    e.preventDefault();
+                    proxy.value = '';
+                } else if (e.key === 'Tab') {
+                    sendKey(258, e.shiftKey ? 1 : 0); // GLFW_KEY_TAB
+                    e.preventDefault();
+                } else if (e.key === 'Escape') {
+                    sendKey(256, 0); // GLFW_KEY_ESCAPE
+                    window.eatsbeatsSoftKeyboardActive = false;
+                    proxy.blur();
+                } else if (e.key === 'ArrowLeft') {
+                    sendKey(263, 0);
+                    e.preventDefault();
+                } else if (e.key === 'ArrowRight') {
+                    sendKey(262, 0);
+                    e.preventDefault();
+                } else if (e.key === 'ArrowUp') {
+                    sendKey(265, 0);
+                    e.preventDefault();
+                } else if (e.key === 'ArrowDown') {
+                    sendKey(264, 0);
+                    e.preventDefault();
+                }
+            });
+
+            proxy.addEventListener('input', function(e) {
+                e.stopPropagation();
+                if (e.inputType === 'deleteContentBackward') {
+                    // Prevent duplicate Backspace if keydown already processed it within 150ms
+                    if (Date.now() - lastBackspaceTime > 150) {
+                        sendKey(259, 0); // GLFW_KEY_BACKSPACE
+                    }
+                    proxy.value = '';
+                    return;
+                }
+                var val = proxy.value;
+                if (val && val.length > 0) {
+                    sendChar(val);
+                    proxy.value = '';
+                }
+            });
+        })();
+    </script>
+    {{{ SCRIPT }}}
+</body>
+</html>

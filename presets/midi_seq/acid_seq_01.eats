@@ -1,0 +1,29 @@
+# =============================================================================
+# Eatsbeats MIDI Sequence: Classic Acid 303 Riff (.eats)
+# =============================================================================
+
+eats.define_sequence({
+    id: "acid_seq_01",
+    name: "Classic Acid 303 Riff",
+    sub_category: "Acid",
+    description: "16-Step energetic 16th-note acid bassline with authentic slides and accents.",
+    tags: ["acid", "303", "bassline", "sequence", "roland"],
+    events: [
+        { pitch: "C2",  step: 0.0,  dur: 0.9, vel: 0.95, accent: True },
+        { pitch: "C2",  step: 1.0,  dur: 0.8, vel: 0.70 },
+        { pitch: "C3",  step: 2.0,  dur: 0.9, vel: 0.90, slide: True },
+        { pitch: "A#2", step: 3.0,  dur: 0.8, vel: 0.75 },
+        { pitch: "C2",  step: 4.0,  dur: 0.9, vel: 0.95, accent: True },
+        { pitch: "D#2", step: 5.0,  dur: 0.8, vel: 0.70 },
+        { pitch: "F2",  step: 6.0,  dur: 0.9, vel: 0.85, slide: True },
+        { pitch: "G2",  step: 7.0,  dur: 0.8, vel: 0.80 },
+        { pitch: "C2",  step: 8.0,  dur: 0.9, vel: 0.95, accent: True },
+        { pitch: "C2",  step: 9.0,  dur: 0.8, vel: 0.70 },
+        { pitch: "D#3", step: 10.0, dur: 0.9, vel: 0.90, slide: True },
+        { pitch: "D3",  step: 11.0, dur: 0.8, vel: 0.75 },
+        { pitch: "A#2", step: 12.0, dur: 0.9, vel: 0.90 },
+        { pitch: "G2",  step: 13.0, dur: 0.8, vel: 0.75 },
+        { pitch: "F2",  step: 14.0, dur: 0.8, vel: 0.80 },
+        { pitch: "D#2", step: 15.0, dur: 0.8, vel: 0.75 },
+    ],
+})

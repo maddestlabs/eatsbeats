@@ -1,0 +1,6 @@
+#ifndef EATS_DAISY_OSCILLATOR_NODE_HPP
+#define EATS_DAISY_OSCILLATOR_NODE_HPP
+
+#include "../oscillator_node.hpp"
+
+#endif // EATS_DAISY_OSCILLATOR_NODE_HPP

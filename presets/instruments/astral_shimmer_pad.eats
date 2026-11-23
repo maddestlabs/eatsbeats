@@ -1,0 +1,55 @@
+# @id: astral_shimmer_pad
+# @name: Astral Shimmer Pad
+# @category: instrument
+# @engine: ambient_pad
+# @tags: pad, ambient, synth, shimmer, atmosphere, lush
+# @description: 7-unison detuned analog ambient pad with wide stereo spread, slow sweeping resonant filter, and lush ADSR envelope.
+
+# --- Parameter Definitions ---
+def init():
+    eat.use_engine("ambient_pad")
+    return {
+        "Cutoff": eat.param("Cutoff", 100.0, 16000.0, 2400.0, unit="Hz"),
+        "Resonance": eat.param("Resonance", 0.1, 5.0, 0.55, unit=""),
+        "Detune": eat.param("Detune", 1.0, 35.0, 14.0, unit="cents"),
+        "Warmth": eat.param("Warmth", 0.0, 1.0, 0.65, unit=""),
+        "Attack": eat.param("Attack", 0.05, 4.0, 0.85, unit="s"),
+        "Decay": eat.param("Decay", 0.1, 6.0, 1.5, unit="s"),
+        "Sustain": eat.param("Sustain", 0.0, 1.0, 0.85, unit=""),
+        "Release": eat.param("Release", 0.1, 8.0, 2.5, unit="s"),
+    }
+
+# --- Hardware GUI Layout ---
+def gui():
+    return {
+        "panel": {
+            "title": "ASTRAL SHIMMER PAD",
+            "subtitle": "7-Unison Detuned Analog Ambient Synthesizer",
+            "background": "minimal_white",
+            "accent": "#00E5FF",
+            "layout": [
+                {
+                    "type": "row",
+                    "children": [
+                        {"type": "knob", "param": "Cutoff", "label": "CUTOFF", "sublabel": "FILTER", "unit": "Hz", "knobStyle": "studio_cyan", "labelAlignment": "inline_right", "size": 52},
+                        {"type": "knob", "param": "Resonance", "label": "RESO", "sublabel": "Q PEAK", "knobStyle": "studio_ruby", "labelAlignment": "inline_right", "size": 52},
+                        {"type": "knob", "param": "Detune", "label": "DETUNE", "sublabel": "7-UNISON", "unit": "ct", "knobStyle": "studio_magenta", "labelAlignment": "inline_right", "size": 52},
+                        {"type": "knob", "param": "Warmth", "label": "WARMTH", "sublabel": "DRIVE", "knobStyle": "studio_clean", "labelAlignment": "inline_right", "size": 52}
+                    ]
+                },
+                {
+                    "type": "row",
+                    "children": [
+                        {"type": "knob", "param": "Attack", "label": "ATTACK", "sublabel": "ENVELOPE", "unit": "s", "knobStyle": "studio_cyan", "labelAlignment": "inline_right", "size": 52},
+                        {"type": "knob", "param": "Decay", "label": "DECAY", "sublabel": "STAGE", "unit": "s", "knobStyle": "studio_cyan", "labelAlignment": "inline_right", "size": 52},
+                        {"type": "knob", "param": "Sustain", "label": "SUSTAIN", "sublabel": "LEVEL", "knobStyle": "studio_cyan", "labelAlignment": "inline_right", "size": 52},
+                        {"type": "knob", "param": "Release", "label": "RELEASE", "sublabel": "TAIL", "unit": "s", "knobStyle": "studio_cyan", "labelAlignment": "inline_right", "size": 52}
+                    ]
+                }
+            ]
+        }
+    }
+
+# --- Instrument Synthesis Hook ---
+def process(time, freq, note, params):
+    return eat.synth(note, time, params)

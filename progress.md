@@ -1,0 +1,1351 @@
+# Eatsbeats Progress & Eatsbeats Alignment Guide
+
+This document tracks the progress of aligning the **Eatsbeats** native C++ DAW with the visual design, interactive aesthetics, and event handling logic of the original **Eatsbeats** (`c:\git\eatsbeats`), while maintaining the superior, zero-allocation C++20 real-time audio core.
+
+---
+
+## 1. Architectural Philosophy: The Modular Subsystem Pattern
+
+In Eatsbeats, monoliths were broken down into clean, modular, purpose-driven tabs and controllers. Eatsbeats adopts this exact principle in modern C++20 (Option B):
+
+```
+                        +---------------------------+
+                        |        GuiWindow          |
+                        |   (GLFW / Native Shell)   |
+                        +-------------+-------------+
+                                      |
+                     createViewContext() [Viewport, Theme, AudioEngine]
+                                      |
+       +------------------+-----------+-----------+------------------+
+       |                  |                       |                  |
++------v------+    +------v------+         +------v------+    +------v------+
+| ArrangerView|    |  EditView   |         |  MixerView  |    |  DesignView |
+| (Timeline,  |    | (Piano Roll,|         | (Strips,    |    | (Rack,      |
+|  Clips,     |    |  Tracker,   |         |  Routing,   |    |  Cables,    |
+|  Tracks)    |    |  Score)     |         |  Meters)    |    |  Eatscript) |
++------+------+    +-------------+         +-------------+    +-------------+
+       |
+       +---> PluginSearchDialog (Reusable Contextual Dialog for Instruments, MIDI FX, Audio FX)
+       +---> Properties Drawer (Contextual: Track Properties vs. Clip Properties)
+```
+
+### Core Abstractions
+- **`ViewBase`**: Interface requiring `layout()`, `render()`, `handlePointer()`, and `handleKey()`.
+- **`ViewContext`**: Lightweight context object passed to views containing:
+  - `BatchRenderer2D*`: GPU-accelerated drawing primitives (rectangles, rounded outlines, gradients, text, arcs, knobs, icons).
+  - `const ThemeTokens*`: Active color palette and typography styles.
+  - `AudioEngine*`: Real-time audio engine, sequencer, audio graph, and transport.
+  - Navigation callbacks (`onNavigateTab`, `onJumpToClipEdit`, `onToggleBrowser`, `onShowNotification`).
+  - Screen and logical coordinate metrics.
+- **`PointerEvent`**: Device-agnostic pointer abstraction unifying mouse clicks, touch taps, mouse move deltas, and 2D trackpad/wheel scrolls.
+
+---
+
+## 2. Step-by-Step Alignment Process for Every View
+
+To align any part of Eatsbeats with original Eatsbeats, follow this systematic 6-step recipe:
+
+### Step 1: Study Visual Layout & Palette in Eatsbeats
+1. Inspect the corresponding tab in `c:\git\eatsbeats` (visual structure, padding, fonts, and responsive behavior).
+2. Utilize curated `ThemeTokens` (`theme.primaryAccent`, `secondaryAccent`, `controlBackground`, `controlWell`, etc.) instead of generic hardcoded colors.
+
+### Step 2: Implement Component State in View Class
+1. Add state structs and members to the modular view header (e.g. `include/eatsbeats/ui/views/<view>_view.hpp`).
+2. Separate business/sequencer state from interactive UI state (e.g. drag modes, hover states, scroll offsets).
+
+### Step 3: Implement 2D Layout & Layered Rendering
+1. In `layout(bounds, ctx)`: Compute bounding boxes for headers, grids, scrollbars, and buttons.
+2. In `render(ctx)`: Render from back to front:
+   - Background lanes / chassis.
+   - Grid lines and sub-beat markers.
+   - Interactive content (clips, notes, modules, channel strips).
+   - Overlays, badges, active indicators, and slide-out drawers.
+   - Modal dialogs (rendered on the top layer when active).
+
+### Step 4: Implement Unified Event Handling & Drag Modes
+1. Define an explicit enum for interaction modes (e.g. `None`, `Move`, `Resize`, `Pan`, `Scrub`).
+2. Check modal dialogs first (`if (modalDialog.isOpen()) return modalDialog.handlePointer(ev);`).
+3. Handle active drags globally across `PointerAction::Move` and `PointerAction::Up` so rapid mouse movements never lose tracking when leaving widget boundaries.
+4. Implement middle-click and wheel scrolling for 2D viewport navigation.
+
+### Step 5: Wire into `GuiWindow`
+1. In `GuiWindow::renderFrame()`: Delegate the active workspace directly to `modularView_->layout()` and `modularView_->render(ctx)`.
+2. In `GuiWindow::onMouseDown`, `onMouseMove`, `onMouseUp`, `onMouseScroll`, `onKeyDown`: Route events directly to `modularView_->handlePointer()` / `handleKey()`.
+3. Eliminate legacy inline drawing and duplicate state from `gui_window.cpp` to prevent dead cruft.
+
+### Step 6: Automated Testing & Verification
+1. Add unit and interaction tests in `tests/test_modular_ui.cpp` verifying bounds, clicks, drags, and modal toggles.
+2. Verify all 27 unit tests pass with `ctest --test-dir build -C Release --output-on-failure`.
+3. Test locally with `./build.ps1` to ensure instantaneous linking and running.
+
+---
+
+## 3. Arranger View: Completed Milestones & Eatsbeats Parity
+
+| Feature | Eatsbeats Requirement | Implementation in Eatsbeats | Status |
+| :--- | :--- | :--- | :--- |
+| **Contextual Inspector** | Clicking track opens Track Properties; clicking clip opens Clip Properties | Sliding drawer with auto-switching `ArrangerInspectorTab` (`Track` vs. `Clip`) | Complete |
+| **No Master Bus Track** | Master bus exists only on Mixer console, never as an arranger track lane | Removed master track lane; pure 5-track instrument arrangement with dedicated Mixer master strip | Complete |
+| **Clip Loop Resize Handle** | Upper-right corner loop icon (`↻`) for loop-based duration extension | 22x18px handle in top-right corner; extends loop cycles with visible cycle divider bars | Complete |
+| **Cross-Track Clip Movement** | Piano-roll style dragging across tracks and horizontally | Smooth 2D drag snapping to bar grid and transferring clip seamlessly across track lanes | Complete |
+| **'+ ADD TRACK' Option** | Dedicated row below the last track to add instruments | Clickable `+ ADD TRACK` row below track list opening `PluginSearchDialog` | Complete |
+| **Reusable Plugin Dialog** | Unified modal dialog for Instruments, Audio FX, and MIDI FX | `PluginSearchDialog` with category pills (`SYNTHS`, `DRUMS`, `RETRO`, etc.), query filter, and selection callback | Complete |
+| **Track Properties FX Racks** | Buttons to add FX directly from track drawer | `+ ADD MIDI FX` and `+ ADD FX` buttons opening `PluginSearchDialog` | Complete |
+| **Hardware Rotary Knobs** | 4 sweep dials (`TONE`, `SNAPPY`, `DECAY`, `VAR`) with instrument swap | 4 rotary dial controls with arc sweeps, parameter labels, and `[⇄ CHANGE INSTRUMENT]` | Complete |
+| **2D Viewport Panning** | Piano roll-style navigation of the timeline | Middle-click drag, scroll wheel, and timeline minimap overview scrubbing | Complete |
+| **Code Hygiene** | Zero dead cruft in shell window | Removed 450+ lines of monolithic Arranger code from `gui_window.cpp`; automated process unlock in `build.ps1` | Complete |
+
+---
+
+## 4. Edit View: Completed Milestones & Eatsbeats Parity
+
+| Feature | Eatsbeats Requirement | Implementation in Eatsbeats | Status |
+| :--- | :--- | :--- | :--- |
+| **Typography & Fonts** | High-fidelity typography matching Mixer tab | Bundled TrueType fonts via FontStash: `assets/fonts/Oswald-Medium.ttf` for UI elements/labels/tags (`drawVectorString` / `drawText`), and `assets/fonts/ShareTechMono-Regular.ttf` for tracker matrices, values & code (`drawMonoString` / `drawMonoText`) | Complete |
+| **Piano Roll** | Alternating accidental/natural stripes, velocity stalks, live auditioning, right-click pitch select | FL Studio metrics (C1..C6 clamped lower bound), note move/duration resize, **double-click note creation**, right-click delete, slide ramps & accent dots, key illumination during audition, velocity stalks, marquee selection, live audition | Complete |
+| **Tracker** | FastTracker 2 / Renoise hexadecimal note/vol/sld/fx matrix | 4-channel matrix rows (00..63) rendered with bundled `ShareTechMono-Regular.ttf`, QWERTY note entry, arrow key navigation (Up/Down/Left/Right), octave switcher `[-]`/`[+]`, live playhead row highlight, delete key clearing | Complete |
+| **Score** | Standard notation engraving with clefs and note tools | Treble & Bass staff engraving with G/F clef, note heads, full ledger lines (C4/A5/E2), accidentals (`#`), stems, measure bars every 16 steps, **note head click selection**, **right-click delete**, **marquee drag selection**, **double-click note creation**, live moving playhead | Complete |
+| **Script (Eatscript)** | Bi-directional note notepad synchronized with clip events | Text editor with line number gutter, syntax coloring using bundled mono font, `[APPLY (Ctrl+Enter / F5)]`, `[REVERT / SYNC]`, status bar, declarative note syntax | Complete |
+| **Selection Sidebar** | Auto-sliding note inspector sidebar for single & multi-note batch editing | 265px sliding inspector with Pitch transpose (`±1`, `±12`), Step position, Duration, Velocity presets (`25%`..`100%`, `Humanize`), Articulations (`Pizz`, `Stacc`, `Legato`, `Slap`, `Flam`), Gliss/Bend, Retrograde, Pitch Inversion, and Selection utilities | Complete |
+| **Ghost Notes** | Background track overlay with opacity slider & toggle | Header toggle & percentage slider (`GHOST 35%`), rendering background tracks translucently on grid & score | Complete |
+| **Navigation & Pan** | Seamless tab navigation & middle-mouse 2D navigation | Fixed "Edit in Piano Roll" selection persistence by replacing 60 FPS per-frame resyncs with event-driven state transitions; middle-mouse panning routed to `modularEditView_`; sub-view switcher buttons responsive at all window widths | Complete |
+| **C++ Core Sync** | Real-time zero-allocation audio engine synchronization | Direct two-way sync with `sequencer::StepSequencer` & `SequencerTrack`, live MIDI noteOn/noteOff auditioning, Spacebar play/stop toggle | Complete |
+| **Code Hygiene** | Modular Subsystem Pattern | Removed 980+ lines of monolithic Edit view cruft from `gui_window.cpp`; 100% test pass rate across all 27 unit tests | Complete |
+
+---
+
+## 5. Workstation Alignment Roadmap
+
+### Phase 1: Edit View (Piano Roll, Tracker, Score, Script) [COMPLETED]
+- [x] **Piano Roll**:
+  - Align note selection, multi-selection marquee, and pitch row styling with Eatsbeats.
+  - Implement note velocity stalks with gradient color-coded levels.
+  - Implement 2D scrolling and middle-click pan matching Eatsbeats gestures, with vertical scrolling strictly bounded at C1 (pitch 24).
+  - Implement **double-click note creation** on empty grid slots, right-click note deletion, and auditioning key illumination.
+  - Implement vertical auto-centering on existing note content ([autoCenterOnNotesOrDefault](file:///c:/git/eatsbeats/src/ui/views/edit_view.cpp#L315)) matching Eatsbeats, calculating bounding pitch range and centering viewport.
+  - Fix note selection preservation when navigating from Arranger "Edit in Piano Roll" button.
+  - Implement **double-click on clip in Arranger tab** to directly open the clip in Edit tab / Piano Roll.
+- [x] **Tracker**:
+  - FastTracker 2 / Renoise layout with authentic hexadecimal note/effect matrices and QWERTY input.
+  - Render all tracker step and column figures using bundled `ShareTechMono-Regular.ttf`.
+  - Arrow key step/channel navigation and delete/backspace note clearing.
+  - Real-time playhead step row illumination across all 64 steps during playback.
+- [x] **Score**:
+  - Vector notation engraving with staff lines, clefs, and responsive note spacing.
+  - Ledger lines for pitches outside the 5 staff lines (C4, A5, E2), sharp accidental flags.
+  - **Note selection on note head click**, right-click note deletion, **marquee drag selection** across the staff, and **double-click note creation**.
+  - Moving vertical playhead line synchronized with transport.
+- [x] **Script (Eatscript IDE)**:
+  - Declarative note script syntax, syntax coloring, status bar, and bi-directional compilation (`Ctrl+Enter` / `F5`).
+- [x] **Note Inspector Sidebar**:
+  - Single-note & multi-note batch transpositions, nudges, velocity presets, articulations (`Normal`, `Pizz`, `Stacc`, `Legato`, `Slap`, `Flam`), gliss/bend toggles.
+  - Classical transformations: Retrograde (time reversal) and Pitch Inversion (melodic inversion around mean pitch).
+
+### Phase 2: Mixer View [COMPLETED]
+- [x] **Authentic Eatsbeats Visual Feel & Space-Efficient Layout**:
+  - Pinned Master channel strip on the far left (`width = 140px`) with amber/gold outline, top backlit vintage amber LCD screen (`MASTER`, `st-out`, volume %), rotary Pan knob with "C" center button below, vertical fader with gold indicator line, and dual glass stereo peak LED meter.
+  - Horizontally scrollable track channel strips (`width = 140px` each, gap = 10px). Selected track highlighted with vibrant glowing outline matching track color (e.g. magenta for Kick, green for 303, amber for Drums).
+  - Top Backlit LCD: Vintage amber monospace matrix display (`EATS KICK`, `center`/`Lxx`/`Rxx`, volume percentage `95%`).
+  - Rotary Pan dial with track-colored indicator needle and dedicated "C" center pill button.
+  - Three-column lower body layout: Long vertical fader track with metallic silver cap and colored center groove, dual glass stereo peak LED meter with centered vertical dB scale markings (`-inf`, `-6`, `-12`, `-18`, `-24`, `-30`, `-36`, `-42`, `-48`, `-54`, `-60`), and compact vertical hardware button column (`M` - Mute Red, `S` - Solo Yellow, `*` - Freeze Cyan).
+  - Floating tactile tooltip badge on hover/drag (e.g. `Eats Hats Volume: 0.75`).
+  - Removed top bulky "Studio Mixing Console" header and option pills to maximize vertical screen real estate.
+  - Strictly decoupled from Edit view: Channel strips and LCDs never switch to EDIT view; clicking selects the track and updates/expands the Track Properties sidebar.
+- [x] **Decoupled Track Properties Sidebar Drawer**:
+  - Reused [TrackPropertiesDrawer](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/track_properties_drawer.hpp) shared cleanly across both Arranger and Mixer tabs.
+  - 24px pull tab, interactive drag-resize, 8 quick color swatches, track reorder `<`/`>`, 3-band parametric EQ with `RESET FLAT` and `ACTIVE`/`BYPASS`, Instrument Card with macro knobs, and MIDI/Audio FX racks.
+  - Eliminated monolithic raw rendering cruft (445+ lines) from `gui_window.cpp`.
+  - Maintained 100% test pass rate across all 27 unit tests.
+
+### Phase 3: Design View & Modular Rack
+- [x] **Full Eatsbeats Parity for Design Tab**:
+  - Sub-navigation header with sidebar toggle, target selector badge & dropdown, mode switcher (`<> CODE`, `MODULAR`, `SPLIT`, `GUI`), and `> COMPILE & RUN`.
+  - Collapsible **PROJECT SCRIPTS** Explorer sidebar categorized into Synths & DSP (4), Audio FX Inserts (3), Track MIDI FX, Clip Scripts (4), and Built-in Presets (156) with live filter search.
+  - Real-time Audio Oscilloscope LCD Display with CRT grid and live waveform visualization.
+  - High-performance Code Editor with line numbers, syntax highlighting (comments, keywords, API calls, strings), select all, copy, submit PR, and API docs links.
+  - Live Script Parameters Panel with dynamic cards, value readouts, and interactive sliders for real-time DSP tuning.
+  - Eurorack Modular Rack canvas with procedural Bezier catenary patch cables (gravitational sag, drop shadows, metallic jacks), inputs/outputs, and skeuomorphic module faceplates.
+  - Split View with dual code editor and hardware faceplate / modular rack viewports.
+  - GUI Interface with live skeuomorphic hardware faceplate interaction and integrated visual GUI Designer (widget palette, canvas editor, property inspector).
+  - Strictly decoupled from `gui_window.cpp`: eliminated 445+ lines of monolithic raw inlined rendering into [DesignView](file:///c:/git/eatsbeats/include/eatsbeats/ui/views/design_view.hpp) and [design_view.cpp](file:///c:/git/eatsbeats/src/ui/views/design_view.cpp).
+  - Fixed hit testing interception in [gui_window.cpp](file:///c:/git/eatsbeats/src/ui/gui_window.cpp): removed obsolete hardcoded sub-bar switcher and gave dynamic `modularDesignView_->handlePointer()` priority so `<> CODE`, `MODULAR`, `SPLIT`, and `GUI` buttons work reliably regardless of window dimensions.
+  - Verified and enhanced GUI mode: hardware faceplate live interaction with interactive rotary knob tweaking and visual GUI designer mode with widget palette, inspector, and PR submission.
+  - Maintained 100% test pass rate across all 27 unit tests.
+
+### Phase 4: Track Tab Alignment [COMPLETED]
+- [x] **Full Eatsbeats Parity for Track Tab**:
+  - Implemented modular [TrackInspectorView](file:///c:/git/eatsbeats/include/eatsbeats/ui/views/track_inspector_view.hpp) and [track_inspector_view.cpp](file:///c:/git/eatsbeats/src/ui/views/track_inspector_view.cpp) completely decoupled from `gui_window.cpp`.
+  - **Top Track Navigation Ribbon**: Quick channel switching pills with track color dots, uppercase track names, and glowing selection highlights.
+  - **Track Identity Header Card**: Color-accented vertical indicator pill, uppercase track name, channel subtitle (`TRACK CHANNEL X • SYNTH/DRUMS`), 8 rapid color swatches, `[ < > CODE ]` navigation button, and tactile hardware buttons (`MUTE` Red, `SOLO` Yellow, `FREEZE` Cyan).
+  - **Channel Mixer Settings**: Horizontal volume slider with exact percentage readout (e.g. `100%`) and centered pan slider with stereo readout (`CENTER`, `Lxx%`, `Rxx%`).
+  - **Dynamic Instrument Hardware Faceplate**: Preset navigation (`< PREV`, `NEXT >`), `[ ⇄ CHANGE INSTRUMENT ]` button, authentic skeuomorphic chassis with subtle beveling, tactile knurled rotary dials with pointer needles and value badges, and embedded live real-time CRT audio oscilloscope.
+  - **Harmonic Chord Track Follow Settings**: 5 choice mode chips (`OFF`, `CHORD`, `BASS`, `SCALE`, `COLOR LEAD`), `[ ⚡ BAKE TO MIDI ]` action button, and dynamic harmonic description readouts.
+  - **MIDI FX Pipeline Rack**: Arpeggiator module (rate, gate, pattern selector), Scale Snap module (root key, scale mode, snap intensity), and Humanize module (timing and velocity drift dials).
+  - **Audio FX Insert Rack**: 5-rack module pipeline (Stereo Ping-Pong Delay, Analog Chorus, 5-Band Parametric EQ, Studio Compressor, and Convolver Reverb) with individual bypass toggle switches and interactive rotary dials.
+  - **Embedded PluginSearchDialog**: Modal overlay dialog for hot-swapping instruments and inserting MIDI and audio FX with category tabs, search filtering, and clean lifecycle management.
+  - **Cruft-Free Integration**: Decoupled layout and pointer dispatch in [gui_window.cpp](file:///c:/git/eatsbeats/src/ui/gui_window.cpp), preserving full compatibility with legacy headless interaction tests.
+  - **100% Test Pass Rate**: All 28 test suites passed with 0 failures (`test_modular_ui`, `test_gui_interaction`, audio engines, DSP, and graph tests).
+
+### 4.7 Hardware WebGPU Acceleration & MaddestLabs Apocalypse CRT Parity
+- **Offloaded from CPU to Physical GPU Hardware**:
+  - Replaced legacy OpenMP CPU rasterizer and GDI `StretchDIBits` presentation with native WebGPU (`wgpu-native`) driving physical GPU hardware (NVIDIA GeForce GTX 1660 Ti via Vulkan/D3D12).
+  - Post-processing fullscreen triangle render pass executing in pure WGSL with sub-millisecond execution times (< 0.2 ms).
+  - Added fast 1-instruction bypass when CRT shader is toggled OFF (`crtEnabled < 0.5`).
+- **Restored MaddestLabs Apocalypse CRT Reflective Frame Aesthetic**:
+  - **Two-Tier Bezel Geometry**: Outer reflective chamfered chassis frame (`frameSize`) + inner dark overscan buffer (`borderSize`).
+  - **5-Tap Frosted Reflection Blur**: Restored diffuse frosted reflection spill across glossy bevel using hardware linear sampler offsets.
+  - **Authentic Chassis Micro-Grain**: Procedural hash grain `(rnd(suv * 2.0) - 0.5) * 0.12` providing vintage matte chassis texture.
+  - **Deep Corner Occlusion Shadow**: Non-linear corner decay `lerp(frameLight, 0.0, minDist / max(nX, nY) * 4.0)` matching the original HLSL shader.
+  - **Optimized Dynamic Uniforms**: Precomputed mechanical rumble micro-jitter, dynamic power sag dimming, horizontal sync scan waves, and swaying incandescent studio spotlight on CPU, eliminating per-pixel trigonometric overhead.
+- **Verification**:
+  - 100% test pass rate across `test_gui_interaction` and all GUI/audio suites running on GPU hardware.
+
+### 4.8 Unified Track Properties & Track Tab Architecture (`TrackPropertiesPanel`)
+- **Single Source of Truth**:
+  - Extracted the unified [TrackPropertiesPanel](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/track_properties_panel.hpp) component, eliminating over 1,000 lines of duplicated logic across the Arranger sidebar, Mixer sidebar, and dedicated Track tab.
+  - **Shared Responsive Visuals**:
+    - **Adaptive Layout**: Automatically detects viewport width (`contentW >= 560px` expanded vs. `contentW < 560px` compact sidebar).
+    - **Dynamic Hardware Faceplate**: Authentic skeuomorphic chassis (TB-303, TR-808, TR-909, DX7, Piano), rotary dials with pointer needles, and embedded live real-time CRT audio oscilloscope.
+    - **Harmonic Chord Follow**: Mode selector chips (`OFF`, `CHORD`, `BASS`, `SCALE`, `COLOR`), `[ BAKE TO MIDI ]` button, and dynamic harmonic descriptions available in all three views.
+    - **Integrated FX Pipelines**: MIDI FX Rack and Audio FX Rack with bypass toggles, dials, and embedded `PluginSearchDialog` modal dialog.
+    - **Shared Smooth Scrolling**: Virtual scroll container with mouse wheel support, touch drag, and custom scrollbar across both narrow drawer and widescreen tab.
+- **Consumer Alignment**:
+  - [TrackPropertiesDrawer](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/track_properties_drawer.hpp): Streamlined to a thin sliding pull-tab and drag-resize shell hosting `TrackPropertiesPanel`.
+  - [TrackInspectorView](file:///c:/git/eatsbeats/include/eatsbeats/ui/views/track_inspector_view.hpp): Streamlined to a full-screen workspace host with top track selector ribbon delegating to `TrackPropertiesPanel`.
+- **Validation**: 100% test pass rate across all 29 test suites (`ModularUiTest`, `GuiInteractionTest`, DSP, and engine suites).
+
+### 4.9 Track Properties Refinements: Rotary Pan Knob, Relocated Color Palette, Modular FX Racks & Scroll Isolation
+- **Rotary Pan Knob & Extended Volume Slider**:
+  - Replaced horizontal Pan slider with an authentic rotary dial knob equipped with a 12 o'clock center detent tick, needle pointer, top label, and "C" / "Lxx" / "Rxx" dynamic readout.
+  - Sparing the horizontal space expanded the continuous Volume slider track width by over 2.5x, giving users significantly more precision and travel.
+- **Arranger Sidebar Mouse Wheel Isolation**:
+  - Explicitly routed `PointerAction::Scroll` events occurring within the expanded properties drawer sidebar to the sidebar drawer itself rather than bubbling through to the Arranger timeline/grid.
+- **Restored Modular Eatsbeats FX & MIDI FX Pipeline**:
+  - Removed static toggle pills (Arp, Delay, Chorus, Humanize, etc.) in favor of user-defined, modular dynamic racks (`data.midiFx` and `data.audioFx`).
+  - Restored dynamic item rows with illuminated power status dots, item titles, status badges (`ACTIVE` / `BYPASS`), deletion `[X]` buttons, and `+ ADD MIDI FX` / `+ ADD FX` buttons launching `PluginSearchDialog`.
+- **Relocated Track Color Swatches**:
+  - Positioned the 8 track color options directly below the track identity/title section in both compact sidebar and expanded widescreen views.
+- **Verification**: 100% test pass rate across all 29 test suites (including `GuiInteractionTest` and `ModularUiTest`).
+
+### 4.10 Comprehensive Eatsbeats Project Browser Alignment & Modular Decoupling
+- **Full 6-Hub Workstation Hub Parity**:
+  - Ported all 6 browser tabs from the Flutter Eatsbeats project drawer (`c:\git\eatsbeats\lib\ui\widgets\project_browser_drawer.dart`) into the native C++20 [ProjectBrowserDrawer](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/project_browser_drawer.hpp):
+    - **Tab 1: Project Assets**: Real-time project asset overview (active sequencer tracks with color strips, mute/solo badges, audio clips, active FX inserts, and SoundFonts).
+    - **Tab 2: Script & Engine Library**: Eatscript algorithms, DSP engines, synth scripts, audio FX scripts, MIDI FX scripts, and generative sequencer routines.
+    - **Tab 3: Preset Library**: Sound patches (Lead, Bass, Pad, Keys, Pluck), acoustic impulse responses, and guitar/bass amp cabinet simulations with load actions.
+    - **Tab 4: Expansion Packs**: Community and factory expansion packs, bundled SoundFonts, and the Audio-to-MIDI neural tool.
+    - **Tab 5: Saved Projects File Manager**: Native `<filesystem>` scanner of `./Projects/` and `*.eats` files with inline file metrics, creation timestamps, Save, Save As, Explore, Refresh, Load, and Delete controls.
+    - **Tab 6: History & Time Travel**: Diff history inspection displaying checkpoints, timestamps, modified tracks/properties, and instantaneous rollback/redo actions.
+- **Architectural Modernization & Decoupling**:
+  - Completely removed 348 lines of monolithic inline browser drawing and ad-hoc event handling from [gui_window.cpp](file:///c:/git/eatsbeats/src/ui/gui_window.cpp).
+  - Encapsulated all browser tab strip layout, search bar filtering, and dynamic content rendering inside [project_browser_drawer.cpp](file:///c:/git/eatsbeats/src/ui/widgets/project_browser_drawer.cpp).
+  - Integrated cleanly through `projectBrowserDrawerWidget_->render(*batchRenderer_, getTheme())` and `projectBrowserDrawerWidget_->handlePointer(ev)`.
+- **Validation**:
+  - Added full automated suite `testProjectBrowserDrawer()` in [tests/test_modular_ui.cpp](file:///c:/git/eatsbeats/tests/test_modular_ui.cpp) validating all 6 tabs, item search filtering, and callback triggers.
+  - 100% test pass rate across all test suites (`test_modular_ui`, `test_gui_interaction`, etc.) and clean build of `eatsbeats_gui.exe`.
+
+### 4.11 Interactive Drum Pad Matrix (16-Pad MPC/SP-1200 Grid) & Dual-Mode Virtual Instrument Drawer
+- **Full Eatsbeats Drum Pad Parity**:
+  - Ported [DrumPadGridWidget](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/drum_pad_grid_widget.hpp) from `c:\git\eatsbeats\lib\ui\widgets\drum_pad_grid_widget.dart` into native C++20:
+    - **16-Pad MPC/SP-1200 Matrix**: Tactile rubber pads with chamfered borders, recessed shadows, dynamic accent colors (Cymbals gold, Toms purple, Hats cyan, Kicks red, Snares orange, Claps coral, Latin percussion azure/violet/green).
+    - **Dual-Bank Switching**:
+      - **Core Kit (16 Pads)**: Cymbals (Crash 1, Ride 1, Ride Bell, Splash), Toms (High, Low-Mid, Hi Floor, Low Floor), Hats (Closed, Pedal, Open, Elec Snare), Kicks & Snares (Kick 1, Ac. Snare, Side Stick, Hand Clap).
+      - **Percussion (16 Pads)**: Latin Cymbals (Crash 2, China, Cowbell, Tambourine), Bongos & Timbales (Hi/Low Bongo, Hi/Low Timbale), Congas & Agogo (Mute/Open/Low Conga, Hi Agogo), Wood & Shakers (Claves, Hi Block, Maracas, Triangle).
+    - **Dynamic Kit Profiles**: Automatic styling adaptation for `EATS-808` (amber/orange accents), `EATS-909` (sky-blue/cyan accents), and `MODULAR DRUM PADS` (gold/crimson accents).
+    - **Y-Axis Velocity Sensitivity**: Top of pad hits trigger high strike velocity (~1.0), lower region hits trigger softer strike (~0.65).
+    - **Active Playback & Flash LED Indicators**: Real-time pad flash and circular LED lighting dot decaying smoothly after hits (~140ms).
+- **Dual-Mode Virtual Instrument Drawer Integration**:
+  - Modernized [VirtualKeyboardDrawer](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/virtual_keyboard_drawer.hpp) with `KeyboardDrawerMode::Piano` vs `KeyboardDrawerMode::DrumPads`.
+  - Added mode toggle buttons `[ KEYS ]` and `[ PADS ]` in the drawer toolbar with dynamic pull-tab labeling and height auto-adjustment (110px for Piano keys vs 164px for 16-pad MPC matrix).
+  - Wired real-time sound auditioning via `AudioEngine::postNoteOn` and `postNoteOff`.
+- **Validation**:
+  - Added unit and interaction suite `testDrumPadGridWidget()` and updated `testVirtualKeyboardDrawer()` in [tests/test_modular_ui.cpp](file:///c:/git/eatsbeats/tests/test_modular_ui.cpp).
+  - 100% test pass rate across all 13 modular UI test suites and verified clean build of `eatsbeats_gui.exe`.
+
+### 4.12 Universal Quick Command Palette Dialog (`Ctrl+P` / `Ctrl+K` / Search)
+- **Full Eatsbeats Command Palette Parity**:
+  - Ported [CommandPaletteDialog](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/command_palette_dialog.hpp) and [command_palette_dialog.cpp](file:///c:/git/eatsbeats/src/ui/widgets/command_palette_dialog.cpp) from `c:\git\eatsbeats\lib\ui\widgets\command_palette_dialog.dart` and `c:\git\eatsbeats\lib\models\command_palette_registry.dart` into native C++20:
+    - **Floating Spotlight Overlay**: Centered modal chassis (600x480) with GPU backdrop blur (`applyBackdropBlur(4.0f, 0.60f)`), outer drop shadow, and glowing border.
+    - **Categorized Command Taxonomy**:
+      - `All`: Unified view of all registered workstation commands.
+      - `View`: Neon-green category for Arranger, Edit View (Piano Roll/Tracker), Track Inspector, Modular Mixer, Modular Rack, and Drawers.
+      - `Action`: Cyan category for Play/Pause, Panic/Stop, Loop, Metronome, Undo, Redo, Save, Save As, and Bounce WAV.
+      - `Preset`: Warm amber category for quick-loading TB-303, TR-808, TR-909, DX7, and grand piano presets.
+      - `Theme`: Purple category for switching color schemes (Cyberpunk Neon, Midnight Blue, Charcoal Studio, etc.).
+      - `Macro`: Coral pink category for procedural acid basslines, 909 grooves, and note humanization.
+    - **Live Substring Search**: Real-time filtering matching against command titles, subtitles, and IDs with instant result count badge and selected highlight row.
+    - **Keyboard-First Workflow**: Arrow key navigation (`Up`/`Down`), `Enter` to execute, `Escape` to dismiss, typographic text entry (`onChar`), and backspace editing.
+    - **Desktop Shortcut & Transport Search Bar Integration**:
+      - Intercepts `Ctrl+P` and `Ctrl+K` in `GuiWindow::onKeyDown` to toggle the palette.
+      - Connected `TransportAction::SearchToggle` directly to `GuiWindow::toggleCommandPalette()`.
+- **Validation**:
+  - Added comprehensive automated test suite `testCommandPaletteDialog()` in [tests/test_modular_ui.cpp](file:///c:/git/eatsbeats/tests/test_modular_ui.cpp) testing open/toggle/close, command registration, category filtering, search queries, keyboard navigation, and `GuiWindow` integration.
+  - 100% test pass rate across all 14 modular UI test suites and verified clean build of native binaries.
+
+### 4.13 Subsystem 1: Audio-to-MIDI Transcription Engine & Interactive Dialog (`AudioToMidiEngine` & `AudioToMidiDialog`)
+- **Full Eatsbeats Subsystem 1 Parity**:
+  - Ported and enhanced the audio-to-MIDI transcription engine from `c:\git\eatsbeats` (`audio_to_midi_engine.dart` and `audio_to_midi_dialog.dart`) into high-performance, real-time native C++20:
+    - **`AudioToMidiEngine` Core DSP** ([audio_to_midi_engine.hpp](file:///c:/git/eatsbeats/include/eatsbeats/audio/audio_to_midi_engine.hpp), [audio_to_midi_engine.cpp](file:///c:/git/eatsbeats/src/audio/audio_to_midi_engine.cpp)):
+      - **Decoded Audio & Formats**: Unified `miniaudio` decoder streaming supporting WAV, MP3, FLAC, OGG, and AIFF files, with robust RIFF/WAV fallback, automatic stereo-to-mono downmixing, and linear sample-rate conversion to 44.1 kHz.
+      - **128/160-Point Waveform Preview**: RMS and peak energy extraction for instantaneous UI visualization.
+      - **Multi-Band Transient & Onset Detection**: High-frequency spectral flux and short-term energy derivatives with dynamic thresholding and minimum inter-onset refractory periods.
+      - **Monophonic YIN Pitch Tracker**: High-precision sub-sample parabolic interpolation, normalized difference function $d'(\tau)$, and absolute thresholding across musical frequencies (MIDI 21 to 108).
+      - **Polyphonic Hybrid DSP CQT & Harmonic Matching**: Tone bank correlation across 88 chromatic pitches evaluating fundamental and harmonic series ($2f_0, 3f_0$), peak picking with dynamic thresholding, note re-articulation, and duration filtering.
+      - **Percussive Drum Transcriber**: 3-band spectral flux partitioning isolating low-end punches (Kick, MIDI 36), mid-range snap (Snare, MIDI 38), and high-frequency metallic transients (Closed Hi-Hat, MIDI 42).
+      - **Harmonic Chord Track Integration**: Direct coupling with `theory::ChordTheory::extractChordsFromNotes` to automatically detect chord progressions and emit `ChordTrackEvent` markers.
+      - **Cooperative Cancellation**: Non-blocking asynchronous transcription with `CancellationToken` and progress reporter callbacks.
+    - **`AudioToMidiDialog` Modal UI** ([audio_to_midi_dialog.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/audio_to_midi_dialog.hpp), [audio_to_midi_dialog.cpp](file:///c:/git/eatsbeats/src/ui/widgets/audio_to_midi_dialog.cpp)):
+      - Glassmorphic modal window (580x560) with GPU darkened backdrop blur and cyan glowing border.
+      - Mode selection button strip (`[ HYBRID DSP ]`, `[ YIN PITCH ]`, `[ PERCUSSIVE ]`).
+      - Interactive gradient waveform overview with animated audition playhead and `[ > AUDITION ]` toggle.
+      - 4 precision drag sliders (`Onset Sensitivity`, `Frame Threshold`, `Min Duration ms`, `Velocity Scale`).
+      - Checkbox toggles for `Create New Track` and `Extract Chords to Chord Track`, plus editable `TextFieldState` track name.
+      - Progress bar display and non-blocking `[ TRANSCRIBE TO MIDI ]` background task execution.
+    - **Workstation UI Wiring** ([gui_window.cpp](file:///c:/git/eatsbeats/src/ui/gui_window.cpp)):
+      - Integrated native file chooser (`*.wav;*.mp3;*.flac;*.ogg;*.aif`) via `promptOpenAudioFile()`.
+      - Connected `projectBrowserDrawerWidget_->onLaunchAudioToMidi` in the Packs tab directly to `openAudioToMidiConverter()`.
+      - Registered global command `action.audio_to_midi` (`Ctrl+M`) in `CommandPaletteDialog`.
+      - Event routing in `GuiWindow` for pointer actions, scroll wheels, text char inputs, and hotkeys.
+- **Validation**:
+  - Dedicated test suite [test_audio_to_midi.cpp](file:///c:/git/eatsbeats/tests/test_audio_to_midi.cpp) covering 11 unit tests (monophonic A4, C4, polyphonic dyads, percussive transients, silence rejection, cancellation, chord extraction, waveform peaks, modal hit-testing, and command palette integration).
+  - 100% test pass rate across all 31 test suites in the Eatsbeats project.
+
+### 4.14 Subsystem 2: Algorithmic Procedural Music & Song Generation Engine (`ProceduralSongEngine`, `SongArchetypeRegistry`, `ProceduralAcidEngine`, `ProceduralDrumEngine`, `ProceduralPianoEngine`, `ProceduralEnsembleEngine`)
+- **Full Eatsbeats Subsystem 2 Parity**:
+  - Ported and enhanced the entire procedural algorithmic music suite from `c:\git\eatsbeats` (`lib/audio/procgen/*` and `song_archetype.dart`) into high-performance, deterministic C++20:
+    - **Deterministic Mulberry32 PRNG** ([mulberry32_rng.hpp](file:///c:/git/eatsbeats/include/eatsbeats/procgen/mulberry32_rng.hpp)):
+      - 32-bit bitwise multiplication and rotation algorithms ensuring reproducible compositions across identical seeds.
+      - Floating-point and integer interval ranges, percentage chance probabilities, array element picking, and weighted distributions.
+    - **Song Archetypes & Blueprint Registry** ([song_archetypes.hpp](file:///c:/git/eatsbeats/include/eatsbeats/procgen/song_archetypes.hpp), [song_archetypes.cpp](file:///c:/git/eatsbeats/src/procgen/song_archetypes.cpp)):
+      - Functional Roles (`Rhythm`, `Foundation`, `HarmonicTexture`, `PrimaryMelody`, `Counterpoint`) and Texture Types (`Sustained`, `Strummed`, `Arpeggiated`, `Stabs`).
+      - Section form blueprints: `Intro -> Verse -> Chorus -> Breakdown -> Drop -> Outro` across variable bar lengths (16, 24, 32 bars).
+      - Built-in catalog of 7 exemplar song archetypes: Acid Techno (135 BPM, C Phrygian), Synthwave (124 BPM, A Minor), Lofi Hip Hop (84 BPM, D Minor), Cyberpunk Electro (130 BPM, E Minor), Ambient Drone (68 BPM, D Dorian), SNES 16-Bit Adventure (134 BPM, C Major), and C64 SID Chiptune (138 BPM, A Minor).
+    - **`ProceduralAcidEngine` (Roland TB-303 Algorithmic Generator)** ([procedural_acid_engine.hpp](file:///c:/git/eatsbeats/include/eatsbeats/procgen/procedural_acid_engine.hpp), [procedural_acid_engine.cpp](file:///c:/git/eatsbeats/src/procgen/procedural_acid_engine.cpp)):
+      - Generates 16-step patterns with 6 distinct styles (Chicago 1987, Trance/Goa, Warehouse Techno, IDM Brain-Dance, Electro Funk, Minimalist).
+      - Authentic TB-303 sequencing rules: constant-rate 60ms portamento glissando (+0.05 step overlap), tied note envelope extension, dynamic accents (0.95 vs 0.68 velocity), turnaround fills, and octave leap mutations.
+    - **`ProceduralDrumEngine` (Polyrhythmic 808/909 & Acoustic Kit Generator)** ([procedural_drum_engine.hpp](file:///c:/git/eatsbeats/include/eatsbeats/procgen/procedural_drum_engine.hpp), [procedural_drum_engine.cpp](file:///c:/git/eatsbeats/src/procgen/procedural_drum_engine.cpp)):
+      - 8 genre groove algorithms: House/Disco (4-on-the-floor), Hip-Hop/Boom-Bap, Funk/Breakbeat, Trap/Halftime, Rock/Pop, Jazz/Swing, 16-Bit Console, and 8-Bit Chiptune.
+      - Micro-timing swing jitter, velocity humanization, ghost notes, turnaround tom/snare rolls, and crash accents mapped to GM standard drum kit notes.
+    - **`ProceduralPianoEngine` (Harmonic Voice Leading & Accompaniment)** ([procedural_piano_engine.hpp](file:///c:/git/eatsbeats/include/eatsbeats/procgen/procedural_piano_engine.hpp), [procedural_piano_engine.cpp](file:///c:/git/eatsbeats/src/procgen/procedural_piano_engine.cpp)):
+      - Voice leading algorithm minimizing soprano motion between chord transitions.
+      - Neo-Soul 9th/11th jazz voicings, strum rubato spread (15-30ms offset), syncopated comping, Alberti bass, and cascading arpeggiators.
+    - **`ProceduralEnsembleEngine` (Multi-Track Orchestration)** ([procedural_ensemble_engine.hpp](file:///c:/git/eatsbeats/include/eatsbeats/procgen/procedural_ensemble_engine.hpp), [procedural_ensemble_engine.cpp](file:///c:/git/eatsbeats/src/procgen/procedural_ensemble_engine.cpp)):
+      - Simultaneously renders Drums, Bassline, Harmonic Textures, Lead Melody, and Counterpoint across section plans.
+      - Enforces global chord track consistency and section dynamic energies (tacit instrument rests in Intro/Outro).
+    - **`ProceduralSongEngine` & Workstation Integration** ([procedural_song_engine.hpp](file:///c:/git/eatsbeats/include/eatsbeats/procgen/procedural_song_engine.hpp), [procedural_song_engine.cpp](file:///c:/git/eatsbeats/src/procgen/procedural_song_engine.cpp)):
+      - Top-level arrangement generator populating the Arranger timeline (`ArrangerTimelineTrack` and `ArrangerTimelineClip`), the Chord Track (`theory::ChordEvent`), and the `StepSequencer`.
+      - Connected into `MacroRuntime` (`eat.daw.generate_song(style, bars, seed)`), `CommandPaletteDialog` (`macro.procedural_song` via `Ctrl+Shift+G`), and `ProjectBrowserDrawer` ("Scripts & Macros" tab).
+- **Validation**:
+  - Dedicated test suite [test_procgen.cpp](file:///c:/git/eatsbeats/tests/test_procgen.cpp) covering 8 automated test suites verifying determinism, registry search, acid sequencing, drum grooves, piano voice leading, ensemble orchestration, song generation, and UI/macro integration.
+  - 100% test pass rate across all 32 test suites in the Eatsbeats project.
+
+### 4.15 Subsystem 3: Procedural Impulse Response (IR) Generator & Acoustic Space Physics (`ProceduralIRGenerator`, `ConvolverNode`, `ConvolverCore`)
+- **Full Eatsbeats Subsystem 3 Parity**:
+  - Ported and enhanced the entire procedural impulse response generator from `c:\git\eatsbeats` (`lib/audio/procedural_ir_generator.dart` and `test/procedural_ir_and_cabinet_test.dart`) into high-performance, deterministic C++20:
+    - **Acoustic Materials & Frequency-Dependent Absorption** ([procedural_ir_generator.hpp](file:///c:/git/eatsbeats/include/eatsbeats/audio/procedural_ir_generator.hpp), [procedural_ir_generator.cpp](file:///c:/git/eatsbeats/src/audio/procedural_ir_generator.cpp)):
+      - Physical boundaries for Birch Plywood, Pine Wood, Acoustic Foam, Hard Concrete/Marble, Wood Paneling, Heavy Velvet Drapes, Sheet Metal, and Carpet.
+      - Multiband absorption coefficients ($\alpha_{\text{low}}$ 125-250 Hz, $\alpha_{\text{mid}}$ 500-1000 Hz, $\alpha_{\text{high}}$ 2000-4000 Hz) and scattering diffusion coefficients.
+    - **3D Image Source Method (ISM) & Velvet Noise Reverb Synthesis**:
+      - 3D virtual image reflections (order up to 3) modeling boundary geometry, spatial distance falloff ($1 / (d + 1)$), and diffusion jitter scattering.
+      - Interaural Time Difference (ITD) direct arrival spikes for stereo binaural realism.
+      - Dual-seed decorrelated velvet noise stochastic late diffuse tail (left seed 1337, right seed 7331) with material frequency damping.
+    - **Non-Linear & Gated Reverbs**:
+      - 80s Phil Collins non-linear gated chamber: sustained plate density with sharp cosine gate cutoff after configurable hold and release times.
+      - Reverse snare reverb: exponential energy rise swell for explosive drum impacts.
+    - **Speaker Cabinet & Enclosure Simulation**:
+      - Modal enclosure bounce reflections (width, length, height dimensions).
+      - Open-back combo cabinet rear dipole phase cancellation ($180^\circ$ inverted path).
+      - 3-stage digital biquad filter chain: 2nd-order high-pass resonant bump, peaking presence EQ at 3.2 kHz, and 2nd-order low-pass speaker cone treble roll-off with off-axis angular damping.
+    - **Comprehensive Preset Catalog (16 Stock Presets)**:
+      - Acoustic Spaces: Stone Cathedral, Great Hall, Studio Live Room, Warm Room, Small Vocal Booth, Tile Bathroom, Plate Reverb, Spring Tank.
+      - Non-Linear Spaces: 80s Gated Chamber, Non-Linear Reverse Snare.
+      - Amp Cabinets: 4x12 Vintage Stack (Closed), 2x12 British Celestion, 1x12 Tweed Combo (Open-Back), Bass 8x10 Fridge, Small Radio Speaker, Acoustic Resonator Box.
+    - **Convolver Node & Real-Time Core Integration** ([convolver_core.hpp](file:///c:/git/eatsbeats/include/eatsbeats/audio/dsp/convolver_core.hpp), [convolver_node.hpp](file:///c:/git/eatsbeats/include/eatsbeats/audio/graph/nodes/convolver_node.hpp)):
+      - Real-time procedural parameter updates directly on `ConvolverNode`: `setRoomSize()`, `setDamping()`, `setGated()`, `setAcousticSpace()`, `bakeCustomSpace()`.
+      - Click-free 128-sample crossfading when switching spaces or dynamically tweaking dimensions without audio thread allocation.
+- **Validation**:
+  - Expanded test suite [test_convolver.cpp](file:///c:/git/eatsbeats/tests/test_convolver.cpp) covering 8 automated test suites verifying all 16 presets, gated sharp cutoff, reverse swell, multiband damping, diffusion scattering, cabinet open-back dipole, Dirac impulse convolution, 10ms pre-delay accuracy, dynamic parameters, and AudioGraph execution.
+  - 100% test pass rate across all 32 test suites in the Eatsbeats project.
+
+### 4.16 Subsystem 4: SoundFont 2 (SF2) Sample Engine (`SoundFontDecoder`, `SoundFontNode`, `SoundFontData`)
+- **Full Eatsbeats Subsystem 4 Parity**:
+  - Ported and enhanced the entire SoundFont 2 parser and polyphonic sample player from `c:\git\eatsbeats` (`lib/audio/soundfont_decoder.dart`, `soundfont_engine.dart`, `soundfont_test.dart`):
+    - **RIFF Chunk Hydrag Parser** ([soundfont_decoder.hpp](file:///c:/git/eatsbeats/include/eatsbeats/audio/soundfont/soundfont_decoder.hpp), [soundfont_decoder.cpp](file:///c:/git/eatsbeats/src/audio/soundfont/soundfont_decoder.cpp)):
+      - Robust RIFF parsing for SF2 soundbanks (`sfbk` form type).
+      - Extracts 16-bit signed PCM from `sdta`/`smpl` into 32-bit normalized floats.
+      - Full hydrag chunk reader: `phdr`, `pbag`, `pgen`, `inst`, `ibag`, `igen`, and `shdr`.
+      - SoundFont 2.04 generator hierarchy assembly: key/velocity range intersections (gens 43, 44), tuning offsets (gens 51, 52, 58), pan (gen 17), sample modes (gen 54), loop offsets (gens 2, 3, 45, 50), and volume envelope timecents (gens 33-38).
+      - 128 General MIDI standard instrument names lookup and formatted display names.
+    - **Multitimbral Modular Sample Player Node** ([soundfont_node.hpp](file:///c:/git/eatsbeats/include/eatsbeats/audio/graph/nodes/soundfont_node.hpp), [soundfont_node.cpp](file:///c:/git/eatsbeats/src/audio/graph/nodes/soundfont_node.cpp)):
+      - 32-voice polyphonic real-time audio thread rendering with zero heap allocation.
+      - Fractional sample pitch shifting with linear interpolation.
+      - Continuous loop point wrapping (`startLoop` to `endLoop`) and anti-click boundary de-clicking.
+      - Per-zone ADSR volume envelope calculation (Delay, Attack, Hold, Decay, Sustain, Release).
+      - Dynamic voice stealing, master gain, and pitch bend control.
+- **Validation**:
+  - Dedicated test suite [test_soundfont.cpp](file:///c:/git/eatsbeats/tests/test_soundfont.cpp) covering 7 automated tests (header validation, bundled `super_small_font.sf2` decoding, General MIDI names, real-time audio playback, 32-voice chords, AudioGraph event routing, and 10s benchmark with $160\times$ real-time speedup).
+  - 100% test pass rate across all 33 test suites in the Eatsbeats project.
+
+### 4.17 Subsystem 5: Track Freeze & Background Audio Bouncing (`TrackFreezeEngine`, `SequencerTrack`, `AudioEngine`)
+- **Full Eatsbeats Subsystem 5 Parity**:
+  - Ported and enhanced the entire Track Freeze and offline bouncing system from `c:\git\eatsbeats` (`lib/audio/track_freeze_engine.dart`, `models/track_model.dart`, `test/track_freeze_test.dart`):
+    - **Deterministic 64-bit FNV-1a Track Hash** ([track_freeze_engine.hpp](file:///c:/git/eatsbeats/include/eatsbeats/audio/track_freeze_engine.hpp), [track_freeze_engine.cpp](file:///c:/git/eatsbeats/src/audio/track_freeze_engine.cpp)):
+      - 64-bit FNV-1a hash algorithm formatted as a 16-hex-digit string (`computeTrackHash`).
+      - Deeply hashes track ID, name, icon reference, target node ID, step sequence properties (notes, velocity, gate, slide, accent, probability, parameter locks, chords), EatScript code, connected graph nodes, BPM, and sample rate.
+      - Invalidation detection: `isFreezeValid` ensures baked audio matches the current track state.
+    - **Offline Fast Synthesis & Audio Bouncing**:
+      - `renderTrackOffline`: Synthesizes individual tracks offline into contiguous stereo Float32 memory buffers.
+      - Track isolation: automatically mutes other tracks during bake and evaluates the entire signal chain through master or stems.
+      - Peak limiting & normalization: automatic soft peak attenuation when audio exceeds configurable peak ceiling (`peakLimit`).
+      - Non-blocking progress reporting via `FreezeProgressCallback`.
+      - Render speeds exceeding $40\times - 50\times$ faster than real-time.
+      - Direct WAV file bouncing (`bounceTrackToWav`) and asynchronous background baking (`renderTrackAsync`).
+    - **Zero-CPU Dynamic DSP Bypass & Real-Time Playback**:
+      - `SequencerTrack`: Holds pre-rendered stereo audio buffers (`frozenBufferL`, `frozenBufferR`), content hash, and sample rate.
+      - `StepSequencer`: In `processBlock`, skips live note dispatch and voice allocation for frozen tracks.
+      - `AudioGraph`: In `process`, detects `!node->isEnabled()`, zeroes output buffers, and completely skips `processBlock`, reclaiming 100% CPU.
+      - Real-time streaming: `mixFrozenTracks` sample-accurately streams baked audio aligned with transport clock without any real-time memory allocations.
+    - **UI & Studio Window Integration**:
+      - Integrated `setTrackFreezeState` in [gui_window.cpp](file:///c:/git/eatsbeats/src/ui/gui_window.cpp).
+      - Wired `onFreezeToggled` in `TrackInspectorView`, `TrackPropertiesPanel`, Arranger track headers, and Mixer channel strips.
+      - Project file persistence in [project_file.cpp](file:///c:/git/eatsbeats/src/project/project_file.cpp): preserves `isFrozen` and `frozenContentHash` across save and load.
+- **Validation**:
+  - Dedicated test suite [test_track_freeze.cpp](file:///c:/git/eatsbeats/tests/test_track_freeze.cpp) covering 6 comprehensive automated tests (deterministic hash, offline rendering, freeze/unfreeze lifecycle, real-time frozen streaming with mute handling, project JSON serialization, and WAV export).
+### 4.18 Subsystem 6: Specialized Creative UI Dialogs & Scopes (`WaveshaperDialog`, `NoteSplitterEngine`, `ColorPickerDialog`, `SpaceVisualizerWidget`)
+- **Full Eatsbeats Subsystem 6 Parity**:
+  - Ported and enhanced all specialized creative visual widgets and modal dialogs from `c:\git\eatsbeats`:
+    - **Interactive Waveshaper Transfer Curve Editor** ([waveshaper_dialog.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/waveshaper_dialog.hpp), [waveshaper_dialog.cpp](file:///c:/git/eatsbeats/src/ui/widgets/waveshaper_dialog.cpp)):
+      - 5 non-linear distortion curves: Soft Saturation (Tanh), Asymmetric Tube overdrive, Sine Wavefolder, Angry 1 multi-fold, and Angry 2 crunch.
+      - Draggable curve tension canvas with visual spline node control.
+      - Real-time 8-band harmonic spectrum analyzer computing harmonics 1 through 8 via discrete Fourier probe.
+      - Pre-gain (drive), post-gain (level), DC highpass filter, dry/wet blending, and 1x/2x/4x oversampling toggles.
+    - **Note & Chord Voice Splitter Engine & Dialog** ([note_splitter_engine.hpp](file:///c:/git/eatsbeats/include/eatsbeats/sequencer/note_splitter_engine.hpp), [note_splitter_engine.cpp](file:///c:/git/eatsbeats/src/sequencer/note_splitter_engine.cpp), [note_splitter_dialog.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/note_splitter_dialog.hpp), [note_splitter_dialog.cpp](file:///c:/git/eatsbeats/src/ui/widgets/note_splitter_dialog.cpp)):
+      - Algorithmic polyphony distributor with 4 split modes:
+        1. *3-Way Voice*: Separates Bassline, Chords/Harmony, and Skyline Lead melody.
+        2. *Piano Clefs*: Splits left hand (< pivot) and right hand (>= pivot) at Middle C.
+        3. *4-Voice SATB*: Chronologically clusters and distributes notes into Soprano, Alto, Tenor, and Bass stems.
+        4. *Drum Demuxer*: Automatically demuxes General MIDI drum tracks into Kick, Snare & Claps, Hi-Hats & Cymbals, and Percussion/Toms.
+      - Directly applies splits to `StepSequencer`, creating designated colored tracks with assigned presets.
+    - **Studio Track & Clip Color Picker** ([color_picker_dialog.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/color_picker_dialog.hpp), [color_picker_dialog.cpp](file:///c:/git/eatsbeats/src/ui/widgets/color_picker_dialog.cpp)):
+      - 4 curated studio palettes: Vibrant Palette, Classic Synth & Studio, Pastels & Subtle, and Grayscale.
+      - Interactive HSL sliders (Hue 0-360, Saturation 0-100%, Lightness 0-100%) with bidirectional RGB $\leftrightarrow$ HSL math.
+      - Hex code display (`#RRGGBB`) and Before/After preview swatches.
+    - **Stereo Field Scope & Lissajous Goniometer** ([space_visualizer_widget.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/space_visualizer_widget.hpp), [space_visualizer_widget.cpp](file:///c:/git/eatsbeats/src/ui/widgets/space_visualizer_widget.cpp)):
+      - Dual-mode visualization:
+        1. *Real-Time Lissajous Goniometer*: $45^\circ$ rotated polar scope plotting Mid ($Y$) vs Side ($X$), phase correlation meter ($-1.0 \leftrightarrow +1.0$), L/R balance, and M/S ratio.
+        2. *2.5D Acoustic Room Geometry*: Perspective room vanishing box with draggable Sound Source and Listener icons, direct sound rays, and wall reflection bounce paths.
+      - Zero-allocation circular ring buffer for real-time live stereo audio feeding.
+- **Validation**:
+  - Dedicated test suite [test_creative_dialogs.cpp](file:///c:/git/eatsbeats/tests/test_creative_dialogs.cpp) covering 7 automated tests (transfer curve evaluation, 3-way skyline separation, piano clef & SATB polyphony, drum demuxer, step sequencer integration, color picker HSL roundtrip, and Lissajous goniometer phase metrics).
+### 4.19 Subsystem 7: AI Services & Intelligent DAW Assistant (`GeminiClient`, `AiMixingEngine`, `AiAssistantDialog`)
+- **Full Eatsbeats Subsystem 7 Parity**:
+  - Ported and enhanced the entire AI services and intelligent DAW assistant pipeline from `c:\git\eatsbeats` (`lib/ai/gemini_service.dart`, `lib/ai/ai_mixing_engine.dart`, `lib/ui/dialogs/ai_assistant_dialog.dart`, `lib/ui/dialogs/ai_mixing_dialog.dart`):
+    - **Modern Shared JSON Engine** ([json_parser.hpp](file:///c:/git/eatsbeats/include/eatsbeats/project/json_parser.hpp)):
+      - Clean, self-contained recursive-descent JSON parser and serializer with strongly-typed `json::Value`, `json::Object`, and `json::Array`.
+      - Supports string escapes, numeric parsing, null, booleans, nested arrays, and objects.
+      - Refactored [project_file.cpp](file:///c:/git/eatsbeats/src/project/project_file.cpp) to eliminate ad-hoc parsing and leverage the unified parser.
+    - **Google Gemini API Client Bridge** ([gemini_client.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ai/gemini_client.hpp), [gemini_client.cpp](file:///c:/git/eatsbeats/src/ai/gemini_client.cpp)):
+      - BYOK (Bring Your Own Key) architecture with persistent local config and `GEMINI_API_KEY` environment variable discovery.
+      - Native synchronous and asynchronous HTTPS REST client leveraging Windows WinHTTP (`winhttp.dll`).
+      - Deterministic offline mock engine providing immediate responses without internet or API keys:
+        - EatScript DSL code generation for synthesizers, drum machines, and audio effects.
+        - Song blueprint generator parsing structured JSON for genre, tempo, key, scale, chords, and multi-track stems.
+        - Natural language DAW chat completions and prompt history tracking.
+    - **Intelligent AI Auto-Mixing Engine** ([ai_mixing_engine.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ai/ai_mixing_engine.hpp), [ai_mixing_engine.cpp](file:///c:/git/eatsbeats/src/ai/ai_mixing_engine.cpp)):
+      - Mix telemetry extraction: inspects all `StepSequencer` tracks, active steps, polyphony, notes, and automations.
+      - Instrument heuristic classification: automatically identifies Drums/Percussion, Bass/Sub, Leads, Chords/Pads, and Vocals.
+      - Algorithmic gain-staging and spectral unmasking:
+        - Target LUFS calibration (-14 LUFS streaming, -9 LUFS club/EDM, -18 LUFS dynamic acoustic).
+        - Bass/Kick mono anchoring with sub-bass headroom protection.
+        - Stereo width expansion for backing pads and textures.
+        - High-pass filtering (HPF) on melodic stems (120-160 Hz) to eliminate muddy low-end buildup.
+        - Master limiter ceiling (-0.3 dBFS) and 28 Hz subsonic roll-off.
+      - Two execution modes:
+        1. Cloud-powered Gemini LLM reasoning analyzing telemetry JSON and emitting mix adjustment patches.
+        2. Fast local heuristic fallback engine that calculates complete studio mix patches offline in under 1 ms.
+      - Direct patch applicator: modifies track volume, pan, EQ filters, and master bus parameters in `StepSequencer`.
+    - **AI Assistant Chat & Mix Dialog** ([ai_assistant_dialog.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/ai_assistant_dialog.hpp), [ai_assistant_dialog.cpp](file:///c:/git/eatsbeats/src/ui/widgets/ai_assistant_dialog.cpp)):
+      - Modular tabbed interface:
+        1. *Compose*: Generates songs, chords, patterns, and EatScript code with an "Apply to DAW" button.
+        2. *Sound Design*: Generates synthesizer presets, FM algorithms, and filter configurations with code preview.
+        3. *Auto-Mix & Master*: Configures target genre, loudness LUFS, and tonal character, triggers mix extraction, and displays per-track adjustment summaries.
+        4. *Settings*: API key configuration, model selection (`gemini-2.5-flash`, `gemini-1.5-pro`), and mock mode toggle.
+      - Rendered with modern studio aesthetics, tabs, responsive message history bubbles, and command prompt field.
+### 4.20 Subsystem 8: Synchronized Lyric Track & Speech Vocalizer (`LyricTrack`, `LrcParser`, `TtsSynthNode`)
+- **Full Eatsbeats Subsystem 8 Parity**:
+  - Ported and enhanced the entire lyrics and speech vocalizer pipeline from `c:\git\eatsbeats` (`lib/models/lyric_model.dart`, `lib/audio/tts_engine.dart`, `presets/instruments/tts_voice_synth.eats`, `test/lyric_test.dart`):
+    - **Lyric Marker Model & Timeline Track** ([lyric_track.hpp](file:///c:/git/eatsbeats/include/eatsbeats/lyrics/lyric_track.hpp), [lyric_track.cpp](file:///c:/git/eatsbeats/src/lyrics/lyric_track.cpp)):
+      - `LyricCue`: Represents a time-synchronized syllable, word, or phrase event with musical start step, duration in 16th steps, text, optional phonetic override, pitch multiplier, and rate multiplier.
+      - Strong JSON serialization and deserialization via the shared `json_parser.hpp`.
+      - High-precision `LrcParser`:
+        - Parses standard line-synced `[mm:ss.xx] lyric text` LRC files with tempo-to-step mapping at given BPM.
+        - Parses Enhanced word-synced `<mm:ss.xx> word <mm:ss.xx> word2` LRC files with sub-beat word duration interpolation.
+        - Exports cues back to standard LRC string format with millisecond accuracy.
+      - `LyricTrack`: Timeline container with chronological sorting, step-accurate lookup (`getCueAtStep`), and range windowing (`getCuesInRange`).
+      - Sequencer integration: Added `lyric` field to `StepData` and `lyrics_` list to `SequencerTrack`, persisted via `ProjectFile` JSON save/load.
+    - **Speech & Vocal Formant Synthesizer Node** ([tts_synth_node.hpp](file:///c:/git/eatsbeats/include/eatsbeats/audio/graph/nodes/tts_synth_node.hpp), [tts_synth_node.cpp](file:///c:/git/eatsbeats/src/audio/graph/nodes/tts_synth_node.cpp)):
+      - Physical acoustic vocal tract model with 3 resonant state-variable bandpass formant filters ($F_1, F_2, F_3$).
+      - Glottal pulse oscillator with variable prosody and subtle human vibrato (5.5 Hz, Natural mode).
+      - 3 vocal profiles:
+        1. *Natural*: Singing voice with glottal pulse, formant resonance, and human vibrato.
+        2. *Robot*: Quantized pulse carrier with ring-modulated harmonics.
+        3. *Whisper*: 100% unvoiced filtered turbulence noise through vocal tract resonators.
+      - Real-time zero-allocation processing loop (`processBlock`).
+      - Syllable speech queuing with smooth formant interpolation.
+### 4.21 Subsystem 9: Extended Physical Modeling Preset Library (`BuiltinPresetRegistry`, `PresetLoader`)
+- **Full Eatsbeats Subsystem 9 Parity**:
+  - Ported and enhanced the complete physical modeling preset library and EatScript catalog from `c:\git\eatsbeats` (`lib/eatscript/eats_builtin_presets.g.dart`, `presets/`):
+    - **Physical Modeling Instrument Catalog** ([eats_builtin_presets.hpp](file:///c:/git/eatsbeats/include/eatsbeats/project/eats_builtin_presets.hpp), [eats_builtin_presets.cpp](file:///c:/git/eatsbeats/src/project/eats_builtin_presets.cpp)):
+      - Comprehensive registry with 33 registered presets organized into 8 physical modeling families:
+        1. *Keyboards*: Concert Grand Piano, Felt Upright Piano, Honky-Tonk Piano, Harpsichord Cembalo, Clavinet D6.
+        2. *Plucked Strings*: Spanish Nylon Guitar, Steel Acoustic Guitar, 12-String Acoustic Guitar, Renaissance Lute, Bluegrass Banjo, Folk Mandolin, Hawaiian Ukulele, Dobro Resonator.
+        3. *Bowed Strings*: Solo Violin, Solo Viola, Solo Cello, Orchestral Double Bass, String Ensemble.
+        4. *Bass*: Acoustic Upright Bass, Fretless Bass.
+        5. *Wind & Organ*: Church Pipe Organ with flue and reed pipes.
+        6. *Tuned Percussion & Bells*: Concert Glockenspiel, Tubular Bells, Concert Vibraphone, Orchestral Xylophone, Vintage Music Box, Latin Agogo Bell.
+        7. *Vocal & Speech*: TTS Voice Synth with 3-column ceramic hardware layout.
+        8. *Electronic Synths*: Eats-303, C64 SID, Yamaha DX7, SNES S-DSP, Sega Genesis YM2612.
+      - Canonical ID lookup (`createPresetById`), family grouping (`getPresetsByFamily`), and category queries (`getPresetsByCategory`).
+      - Each instrument generates a full declarative hardware GUI layout tree (`guiRoot`, `compactGuiRoot`) with styled knobs, sliders, meters, panels, and parameter metadata.
+    - **Filesystem `.eats` Preset Library**:
+      - Copied all 131 `.eats` presets across all 6 categories (`instruments`, `audio_fx`, `drums`, `midi_fx`, `midi_seq`, `utility`) into `presets/`.
+      - Implemented recursive directory loading in `PresetLoader::loadDirectory` with C++20 `std::filesystem`.
+- **Validation**:
+  - Dedicated test suite [test_builtin_presets.cpp](file:///c:/git/eatsbeats/tests/test_builtin_presets.cpp) covering 6 comprehensive automated tests (catalog metadata, physical modeling instantiation, family filtering, canonical ID lookup, hardware GUI bounds computation, and filesystem directory loading).
+  - 100% test pass rate across all 38 test suites in the Eatsbeats project.
+
+### 4.22 Cross-Platform File Drag and Drop Subsystem (`glfwSetDropCallback`, HTML5 Drag & Drop MEMFS Bridge)
+- **Cross-Platform Ingestion**:
+  - **Desktop (GLFW)**: Hooked `glfwSetDropCallback` in `GuiWindow::initialize` with coordinate conversion via `windowToLogicalX/Y`, CRT curvature remapping, and 3D console matrices.
+  - **Web (Emscripten / HTML5 Drag & Drop)**: Embedded drag-and-drop listener on `#canvas` via `EM_ASM`, writing dropped files asynchronously into Emscripten MEMFS (`/tmp/<filename>`) and dispatching to exported C++ `eats_on_file_dropped_web`.
+- **Modular Dispatch & UI Routing**:
+  - Extended `ViewBase` interface with `virtual bool handleFileDrop(const std::vector<std::string>& filePaths, float x, float y, const ViewContext& ctx)`.
+  - Implemented `ArrangerView::handleFileDrop`:
+    - Bar and track hit-testing: calculates target bar from horizontal drop coordinate and track lane index from vertical position.
+    - Dropping audio (`.wav`, `.mp3`, `.ogg`, `.flac`, `.aif`, `.sf2`) on existing track adds an audio clip; dropping below tracks automatically creates a new Sampler track with the clip.
+    - Dropping MIDI (`.mid`, `.midi`) imports melodic/drum clips at target timeline bar.
+  - Contextual modal dialog interception: `AudioToMidiDialog::loadAudioFile` handles direct drop when the transcription modal is open.
+  - Global fallback: automatically opens `.eats` / `.json` projects, imports samples/MIDI, and loads `.eatscript`.
+- **Validation**:
+  - Verified across 15 modular UI/UX tests in [test_modular_ui.cpp](file:///c:/git/eatsbeats/tests/test_modular_ui.cpp) (`testFileDragAndDrop`), including track placement, bar calculation, new sampler track creation, dialog routing, and window integration hooks.
+
+### 4.23 CRT Shader Curved Reflection Mirroring & Reverse Bezel Vignette
+- **Diagnosis of Deviation Away from Center/Middle**:
+  - The CRT active screen applies non-linear polynomial bulb curvature (`curvedTube`) and horizontal sync scan wave (`hWave`).
+  - Previously, the bezel frame sampled screen content using uncurved coordinates (`tubeRel`) without `hWave`, causing reflections to drift away from the phosphor raster as coordinates moved away from the screen center.
+  - Furthermore, using axis-aligned rectilinear checks (`tubeRel.x < 0.0`) failed inside the rounded corners because the corner arc of the CRT screen is curved inward (`cornerRadius_px = 20.0`), leaving corner pixels with positive coordinates where axis-aligned mirroring never triggered.
+- **Normal-Based Curved Reflection Mirroring**:
+  - Derived the analytical surface normal `normPixel` of the rounded CRT bezel aperture across both flat edges and radial corner quadrants (`normalize(q) * sgn`).
+  - Mirrored frame coordinates continuously across the curved bezel boundary along the surface normal: `reflPixel = currentPixel - 2.0 * dTube * normPixel`.
+  - Applied the identical polynomial CRT bulb curvature and `hWave` modulation to the reflected sample coordinate: guaranteed 1:1 pixel alignment across the entire perimeter, center, edges, and rounded corners.
+  - Aligned environmental room reflection (`sampleFrostedReflection`) to sample the curved reflection space seamlessly.
+- **Reverse Bezel Vignette & Rounded Corner Shading**:
+  - Inverted the bezel cavity slope so the frame darkens as it progresses inward toward the CRT aperture junction (`dTube -> 0`), sinking into the recessed shadow cavity.
+  - Evaluated the 2D conformal vignette (`vig.x * vig.y`) across the frame: along flat edges, the reverse vignette provides smooth bevel recession, while in the rounded corners both X and Y components converge, automatically deepening the vignette in the rounded corners.
+  - Preserved the 2px chassis edge gap (`distToPanelEdge < 2.0px`) separating the bezel flush from the transport panel, bottom chin, and window borders with subtle outer glint.
+- **Validation**:
+  - Verified across `test_gui_interaction.exe` (Phase 6 GUI test suite) running on Dawn WebGPU / NVIDIA GeForce GTX 1660 Ti hardware pipeline with zero validation panics.
+
+### 4.24 Hardware Panel Softness, Desaturation & Real-Time CRT Uniforms Tweaker HUD
+- **Physical Panel Realism Enhancements**:
+  - **Sub-Pixel 5-Tap Cross Blur (`panelSoftness`, default 0.75px)**: Softens the top transport header and bottom navigation chin in the CRT pass, eliminating razor-sharp vector anti-aliasing artifacts and blending GUI elements into the chassis plastic.
+  - **Hardware Desaturation (`panelSaturation`, default 0.70)**: Reduces raw digital panel saturation to 70% using luminance weighting (`dot(col, vec3(0.299, 0.587, 0.114))`), matching analog broadcast hardware panels.
+  - **Black Floor Lift (`panelBlackLift`, default +0.025)**: Lifts pitch-black UI borders and dividers (`col + panelBlackLift`), removing harsh digital contrast and simulating physical matte polycarbonate plastics.
+- **Dynamic Shader Uniform Layout (96 Bytes)**:
+  - Synchronized [crt_screen.wgsl](file:///c:/git/eatsbeats/assets/shaders/crt_screen.wgsl), [dawn_bridge.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/dawn_bridge.hpp), and [dawn_bridge.cpp](file:///c:/git/eatsbeats/src/ui/dawn_bridge.cpp) with strict 16-byte alignment (`static_assert(sizeof(GpuCrtUniforms) == 96)`).
+  - Added uniform controls: `spotlightSize`, `spotlightIntensity` (0.0 = uniform flat light), `curvature`, `scanlineIntensity` (0.0 = completely removed for crisp text clarity), `frameReflectLevel`, `vignetteLevel`, `panelSoftness`, `panelSaturation`, and `panelBlackLift`.
+- **Interactive CRT Shader & Chassis Tweaker HUD**:
+  - **Access & Hotkeys**: Openable via **`F10`**, **`Shift+F9`**, or the **`[TWEAK HUD]`** button in Project Hub Settings (Alt+F). Dismissable with **`ESC`**, `[X]`, or clicking outside.
+  - **Live Calibration Controls**: 9 real-time interactive sliders with dynamic numeric readouts, immediate WebGPU uniform updates, and master power switch (`[CRT: ON]` / `[CRT: OFF]`).
+  - **Instant Presets**:
+    - `[STUDIO REF]`: Calibrated reference console (0.38 scanlines, 0.85 curvature, 0.75px blur, 70% saturation, +0.025 black lift).
+    - `[MAX CLARITY]`: Flat monitor profile (0 scanlines, 0 curvature, 0 blur, 100% saturation, flat uniform lighting).
+    - `[WARM VINTAGE]`: Retro arcade console (0.55 scanlines, 1.15 curvature, 1.0px blur, 65% saturation, +0.035 black lift).
+    - `[RESET]`: Restores factory default settings.
+- **Validation**:
+  - Validated with clean compilation across MSVC Release toolchain and 100% pass on [test_gui_interaction.exe](file:///c:/git/eatsbeats/tests/test_gui_interaction.cpp) running on NVIDIA GeForce GTX 1660 Ti hardware pipeline.
+
+### 4.25 CRT Tube Reflection, H-Sync Distortion Control, Top Panel Seam Revamp & Dedicated Settings Drawer
+- **CRT Reflection & H-Sync Uniform Options**:
+  - **CRT Tube Room Reflection (`crtReflectionLevel`, 0.0 to 1.0, offset 88)**:
+    - Scales the room and window background reflection rendered onto the curved glass bulb (`reflectionGlow = reflSample * tubeEdgeFade * (0.125 * u.crtReflectionLevel)`).
+    - Setting to `0.00` completely removes the room reflection image from the CRT tube while preserving phosphor emission, bloom, and raster scanlines.
+  - **Horizontal Sync Wave Distortion (`hsyncDistortion`, 0.0 to 2.0, offset 92)**:
+    - Configures the horizontal raster scanline wave distortion and wobbling (`hWave = sin(...) * (u.hWaveStrength * u.hsyncDistortion)`).
+    - Setting to `0.00` completely eliminates horizontal raster wobble for a rock-solid, static raster picture.
+- **Top Panel Bottom Edge Drawing Revamp**:
+  - Revamped the top panel's bottom lip to be smooth, clean, and uniform, matching the bottom navigation panel's top edge:
+  - Eliminated procedural noise and chipped brass erosion (`hash2D`, `edgeErosion`) in [gui_window.cpp](file:///c:/git/eatsbeats/src/ui/gui_window.cpp) `ChassisTextureSystem`.
+  - Replaced pixelated `chipGlint` in [crt_screen.wgsl](file:///c:/git/eatsbeats/assets/shaders/crt_screen.wgsl) with a uniform machined recession shadow (`distPx < 3.5px`, `smoothstep`).
+  - Rendered clean machined bevel lines at Y = 54.5px and Y = 56.0px matching the bottom chin's top seam.
+- **Dedicated Settings Drawer for CRT Shader Calibration**:
+  - Added dedicated Section 3 ("CRT SHADER & DIEGETIC CONSOLE CALIBRATION") to the Project Hub Settings modal (`Alt+F`):
+    - Full vertical accordion drawer with smooth kinetic scrolling (`projectHubScrollY_`).
+    - Direct master switch toggle (`[CRT: ON]` / `[CRT: OFF]`).
+    - `[LIVE HUD (F10)]` button to pop open the floating HUD overlay for real-time adjustments during audio playback.
+    - Quick calibration presets: `[STUDIO REF]`, `[MAX CLARITY]`, `[WARM VINTAGE]`, `[RESET]`.
+    - 11 interactive real-time calibration sliders with tracks, gradients, thumbs, and live status readouts:
+      1. `SCANLINE INTENSITY (0 = NONE)`
+      2. `CRT BULB CURVATURE`
+      3. `CRT TUBE ROOM REFLECTION (0 = NONE)`
+      4. `H-SYNC WAVE DISTORTION (0 = STATIC)`
+      5. `SPOTLIGHT INTENSITY`
+      6. `SPOTLIGHT BEAM SIZE`
+      7. `VIGNETTE CORNER FALLOFF`
+      8. `BEZEL FRAME REFLECTION`
+      9. `PANEL SOFTNESS (SUBPIXEL BLUR)`
+      10. `PANEL HARDWARE SATURATION`
+      11. `PANEL BLACK FLOOR LIFT`
+  - **Constrained Drawer Viewport & Nested Scrollbar UI/UX Architecture**:
+    - **Dialog Space Budget & Header Anchoring**: Calculated dynamic available height `availableDrawerH = (footerY - topContentY) - (numSections * headerStep) - headerGap` (`272.0f` within a `580px` dialog). All 6 accordion section headers remain strictly anchored within the modal frame, preventing headers from pushing below the modal footer.
+    - **Nested ScrollableArea**: Configured `projectHubScrollArea_.setViewport(drawerX, drawerY, drawerW, drawerH)` for Section 3 with total content height `586.0f` (`maxScroll = 314.0f`).
+    - **Constrained Scrollbar Track & Thumb**: Scrollbar pill track and thumb are strictly confined within the right gutter of the CRT Shader drawer container well (`drawerW - 32px` slider span, leaving room for the scrollbar), with active hover and dragging states.
+    - **Strict Geometry Culling & Subpixel Bleed Caps**: Every control (master switch, presets, 11 sliders) is culled against drawer boundaries (`drawerY` to `drawerY + drawerH`) with 6px background caps above and below the drawer viewport to eliminate subpixel raster bleed.
+- **CRT Shader Mouse Coordinate Distortion & Hit Detection Calibration**:
+  - Identified and resolved the root cause of off-center and edge mouse hit detection distortion across the DAW workspace when the CRT shader is active:
+    - **Exact Shader Parity**: Realigned [remapCrtMouseCoords](file:///c:/git/eatsbeats/src/ui/gui_window.cpp) with [crt_screen.wgsl](file:///c:/git/eatsbeats/assets/shaders/crt_screen.wgsl) and [dawn_bridge.cpp](file:///c:/git/eatsbeats/src/ui/dawn_bridge.cpp).
+    - **Correct Transform Order**: Evaluated tube aperture bezel inset `tubeUV = (suv - frameFrac) / (1 - 2*frameFrac)` prior to applying CRT bulb polynomial curvature `curvedTube += dCenter * pow(dist, 2.6) * (curvature * 0.08)`, strictly matching the GPU fragment pipeline.
+    - **Precise Bezel Dimensions**: Replaced mismatched hardcoded magic constants (`0.004f`, `0.008f`, `0.012f`) with physical FBO-matched constants (`frameWidthX_px = 22.0f`, `frameHeightY_px = 20.0f`).
+    - **HiDPI / RenderScale Synchronization**: Passed `renderScale` through to [renderCrtScene](file:///c:/git/eatsbeats/src/ui/dawn_bridge.cpp) and synchronized `topCut` and `bottomCut` calculations across standard and Retina/HiDPI resolutions, preventing boundary drift between the transport bar, DAW area, and bottom chin.
+    - **Dynamic Diegetic Offset Tracking**: Integrated real-time tracking of `rumbleOffset` (audio-reactive sub-bass chassis shake) and `hWave` (horizontal sync raster scan wave) into `DawnBridge`, keeping hit detection synchronized with active visual displacements.
+    - **Automated Verification**: Added comprehensive unit test suite `testCrtMouseCoordinateRemapping()` in [test_gui_interaction.cpp](file:///c:/git/eatsbeats/tests/test_gui_interaction.cpp) validating 1:1 rectilinear pass-through, transport/chin boundary protection, and exact center/off-center mapping.
+- **Comprehensive Touch & Multi-Touch Support (Flutter Eatsbeats Parity)**:
+  - **TrackPropertiesPanel Kinetic Touch Drag-to-Scroll**:
+    - Integrated `KineticScroller` with 14px touch slop deadzone distinguishing intended taps on track property controls from vertical scroll gestures.
+    - Implemented smooth exponential deceleration glide (`friction = 0.92f`) and inertia momentum tracking on touch release.
+    - Added reactive scrollbar indicator with active dragging feedback and smooth track clamping.
+  - **Piano Roll & Arranger Grid Touch Panning & Desktop Selection Parity**:
+    - Preserved instant desktop mouse left-click drag marquee selection without delay.
+    - On touchscreens (`PointerType::Touch`), touch-down on empty grid space begins in pending state; moving beyond 14px commits immediately to smooth kinetic 2D panning (`TouchPan`).
+    - Stationary hold on touchscreens for >= 380-400ms seamlessly arms `MarqueeSelect` box selection mode with haptic visual cues, matching Eatsbeats mobile UX.
+  - **VirtualKeyboardDrawer Multi-Touch Polyphony**:
+    - Migrated single-touch tracking to `std::unordered_map<int, ActiveKeyTouch> activeTouches_` keyed by `ev.id`.
+    - Enables simultaneous multi-finger chords, independent finger glissando, and selective note release without dropping held chords.
+  - **DrumPadGridWidget Multi-Touch Matrix**:
+    - Replaced single-pointer pad state with `std::unordered_map<int, int> activePadPointers_` keyed by `ev.id`.
+    - Allows simultaneous multi-finger finger-drumming across the 4x4 MPC/SP-1200 pad matrix with vertical velocity dynamics per finger.
+  - **MixerView Multi-Fader Simultaneous Mixing**:
+    - Implemented `std::unordered_map<int, ActiveFaderSession> activeFaderSessions_` keyed by `ev.id`.
+    - Supports multi-finger volume fader adjustments across channel strips and master fader simultaneously.
+- **Mixer Architecture Phases 1-5: Pointer Delegation, DSP Decoupling, Audio Taper Presenters, Responsive Toolbar & Arranger Docked Bottom Mixer Drawer**:
+  - **Phase 1: Pointer Delegation & Precedence Alignment**:
+    - Removed legacy `hitTestMixer` interception in [gui_window.cpp](file:///c:/git/eatsbeats/src/ui/gui_window.cpp), delegating all mouse/pointer events directly to `modularMixerView_->handlePointer(pev, ctx)`.
+    - Enforced strict sidebar drawer bounds isolation so clicks and gestures on `TrackPropertiesDrawer` never bleed or fall through into underlying mixer channels.
+    - Clipped channel strip hit boundaries dynamically to `propertiesDrawer_.getPullTabBounds().x`.
+  - **Phase 2: Decoupled Audio Graph DSP Nodes from Mixer Strips**:
+    - Removed raw canvas module scanning in `GuiWindow::updateMixerStrips()`.
+    - Locked mixer channel strips strictly 1:1 with Arranger Tracks + Busses + Master Bus, eliminating phantom channels created by internal/canvas `GainNode`s.
+    - Preserved Gain nodes as utility devices and track insert FX.
+  - **Phase 3: Systematized Fader Presenters & Logarithmic dB Taper**:
+    - Added structured Thumb & Well hit geometry (`getMasterFaderGeometry()`, `getChannelFaderGeometry()`, `hitTestMasterFader()`, `hitTestChannelFader()`), replacing hardcoded magic numbers while preserving legacy test hit box boundaries.
+    - Standardized fader dragging with audio taper dB scaling via `presenter::audio_taper`: unity 0 dB at 0.75 travel (1.0f gain), +6 dB at 1.0 travel (up to 1.5f max gain), cubic logarithmic taper down to $-\infty$ at 0.0 travel.
+    - Added double-click detection (<350ms) to reset fader directly to 0 dB unity gain (1.0f).
+    - Added Shift+Drag fine trim scaling (0.15 ratio) for precise 0.1 dB trimming.
+    - Standardized manual value edit entry dialogs to 1.0f (0 dB unity) default.
+    - Added calibrated dB tick marks (`+6`, `0`, `-6`, `-12`, `-inf`) along fader slots and real-time formatted dB tooltips.
+  - **Phase 4: Mobile Responsive Density & Section Options Toolbar**:
+    - Introduced `MixerDensityMode` with three modular layouts: `Comfortable` (140px strip), `Compact` (78px strip), and `Micro` (50px strip).
+    - Implemented a collapsible top options toolbar with interactive toggle pills:
+      - Density Mode selectors: `[COMFORT]`, `[COMPACT]`, `[MICRO]`.
+      - Modular section toggles: `[METERS]`, `[ROUTING]`, `[PAN]`, `[READOUT]`.
+      - Master channel position toggle: `[MST: LEFT]` / `[MST: RIGHT]`.
+      - Toolbar collapse toggle: `[^ HIDE]` and non-intrusive `[OPTS v]` trigger pill when collapsed.
+    - Added intelligent responsive auto-density switching: automatically sets `Micro` when `ctx.isMobile || bounds.w < 600px` (allowing 5-6 channels to cleanly fit on mobile screens without horizontal congestion) and `Compact` when `bounds.w < 850px`.
+    - Systematized channel strip element layout, scaling LED meters, LCD displays, pan dials, button columns (stacked, inline, and micro variants), and pointer hit boundaries across all density modes while strictly preserving backwards compatibility with legacy coordinates.
+  - **Phase 5: Arranger Docked Bottom Mixer Drawer**:
+    - Created `ArrangerMixerDrawer` widget (`include/eatsbeats/ui/widgets/arranger_mixer_drawer.hpp`, `src/ui/widgets/arranger_mixer_drawer.cpp`) adhering to the modular sliding drawer pattern with exponential damping (`kDamping = 18.0f`).
+    - Fixed Master Channel Strip pinned on the left with amber LCD badge, Mute button, audio-taper calibrated fader (unity 0 dB at 0.75, +6 dB at 1.0), and dual stereo peak meter.
+    - Viewport scissored channel strips with smooth horizontal scrolling via mouse wheel and drag scrollbar, keeping arranger channels aligned and mixed without navigating away from the composition timeline.
+    - Per-channel track color header pill, pan dial with center detent, mute & solo buttons, vertical fader well & thumb, stereo peak meter, and bottom dB readout.
+    - Resizable top edge handle (`kMinHeight = 140px`, `kMaxHeight = 340px`) and collapsible pull tab with tune sliders icon and active status indicator.
+    - Toggled via hotkey `M`, Command Palette (`view.drawer.arranger_mixer`), or pull-tab click; Escape dismisses drawer.
+    - Added comprehensive unit and integration suite in `tests/test_modular_ui.cpp` (Test 18) validating drawer layout, animation states, rendering, pointer routing, hotkey actions, and master control hooks.
+- **PluginSearchDialog Refinements (Scroll Scissoring, Real-Time Tokenized Filtering, & Interactive Text Box)**:
+  - **Vertical Scissor Containment**:
+    - Confined list rendering within `[listY, listY + listH]` using GPU scissoring (`r.pushScissor(dialogBounds_.x + 18.0f, listY, cardW + 4.0f, listH)` and `r.popScissor()`).
+    - Fixed card bleed over top headers, category chips, search bar, and dialog bottom margins.
+    - Clamped scrolling bounds to valid range `[0, maxScroll]` and strictly isolated pointer hits so scrolled-out cards cannot receive click events.
+  - **Interactive Filter Text Box**:
+    - Implemented focus states with glowing accent outline, blinking vertical cursor line, and scissored text rendering.
+    - Integrated clear `[X]` button when search query is active.
+    - Implemented whitespace-tokenized search matching across card `name`, `category`, `engineTag`, `description`, `author`, and `id`.
+    - Added empty state card feedback ("No plugins match '<query>'") with clear query action hint when 0 matches found.
+    - Added real-time match count pill in dialog header (e.g. `[12 PRESETS]` or `[0 MATCHES]`).
+  - **Keyboard & Char Input Integration**:
+    - Wired `handleChar(char32_t codepoint)` and `handleKey` for character input, caret navigation (`Left`/`Right`/`Home`/`End`), deletion (`Backspace`/`Delete`), clipboard paste (`Ctrl+V`), and select all (`Ctrl+A`).
+    - Escape key clears search query first if non-empty, and dismisses dialog on second press.
+    - Enter key commits active selection; Up/Down arrow keys navigate filtered items.
+    - Forwarded character input through `ArrangerView`, `MixerView`, and `TrackInspectorView` up to `GuiWindow::onChar` and `GuiWindow::onKeyDown`.
+  - **Automated Verification**:
+    - Added comprehensive unit tests in `tests/test_modular_ui.cpp` (Test 19) verifying tokenized search, character input, backspace, escape behavior, selection navigation, scrolling containment, and outside click dismissal.
+- **Header Transport & Track Properties Tooltip System**:
+  - **Shared Badge Renderer (`drawTooltipBadge`)**:
+    - Created `drawTooltipBadge` utility in `include/eatsbeats/ui/draw_utils.hpp` and `src/ui/draw_utils.cpp`.
+    - Features soft drop shadows, theme-aware high contrast styling (light-mode solid dark badge with clean white vector text, dark-mode creamy studio label tape badge with deep dark charcoal text), boundary clamping against screen edges, and configurable placement (above or below anchor point).
+  - **Header Transport Tooltips**:
+    - Supported hover tips for Logo ("Project Hub & Global Workspace Settings"), Play/Pause ("Play / Pause Playhead (Space)"), Stop ("Stop Transport & Return to Zero"), Record ("Toggle Real-Time Automation & Input Recording (R)"), BPM ("Tempo (BPM) - Click/Scroll to Adjust"), Song Position ("Song Position (Bar.Beat.Tick)"), Workspace Lock ("Lock / Unlock Workspace Layout"), Fullscreen Device Mode ("Dedicated Full-Screen Instrument & Device Mode"), Preset Browser ("Toggle Preset Browser & Project Library (B)"), Snap ("Snap to Grid (Off / 16th / 8th / Bar)"), Scale ("Scale & Harmonic Snapping"), Metronome ("Toggle Metronome Click"), and Loop ("Toggle Arrangement Loop Range").
+    - Integrated in both `GuiWindow::getTransportTooltip` and modular `TransportHeader::getTooltip`.
+  - **Track Properties Drawer & Panel Tooltips**:
+    - Implemented `TrackPropertiesPanel::getTooltip` and `TrackPropertiesDrawer::getTooltip`.
+    - Covers Track Icon ("Change Track Icon / Color"), Rename / Title ("Edit Track Name"), Color Swatch ("Set Track Accent Color"), Volume Slider ("Track Output Level"), Pan Dial ("Stereo Panning"), Fullscreen Mode ("Fullscreen Device GUI"), Preset Selector ("Cycle Previous / Next Preset"), Instrument ("Instrument Device"), Chord Follow Chips ("Harmonic Chord Following Mode"), Bake to MIDI ("Bake Chords to Sequencer MIDI"), MIDI FX & Audio FX Add Buttons ("Add MIDI FX Insert", "Add Audio FX Insert"), Bypass Toggles ("Bypass FX"), Reorder Up/Down buttons, Remove FX buttons, Fullscreen Device FX buttons, and Drawer Tabs ("Track Properties Inspector", "Clip Properties Inspector", "Close Properties Drawer").
+  - **Automated Verification**:
+    - Added Test 20 to `tests/test_modular_ui.cpp` verifying tooltip queries across GuiWindow, TransportHeader, TrackPropertiesPanel, and TrackPropertiesDrawer.
+- **Icon Design Review & Vector Rendering Refinements**:
+  - **Hole-Occlusion Fix & Disjoint Silhouette Architecture**:
+    - Identified and eliminated contour hole-occlusion issue where nested contours inside solid bounds rendered as filled blobs (affecting `inst_synth`, `inst_piano`, `drum_machine`, `drum_kick`, and `hw_cassette`).
+    - Redesigned all stock icons into crisp, disjoint geometric silhouettes with calibrated negative space gaps (1.5px - 2.5px), ensuring optimal sharpness and contrast at small sizes (16px, 20px, 24px, 32px).
+  - **Enhanced Vector Icon Library (`src/ui/icon_registry.cpp`)**:
+    - `inst_synth`: Sleek synthesizer chassis with LED rotary encoders and 5 white keys.
+    - `inst_piano`: Classic Grand Piano silhouette with raised prop stick, curved rim, and lyre pedals.
+    - `inst_bass`: High-amplitude sub-bass sine wave with punchy low-end sub pulses.
+    - `inst_guitar`: Electric guitar silhouette with cutaway horns and angled headstock.
+    - `inst_strings`: Classical violin/cello body with carved C-bout waist and scroll.
+    - `inst_brass`: Trumpet with 3 vertical piston valves and flared acoustic bell.
+    - `inst_vocal`: Studio condenser microphone capsule with shockmount cradle.
+    - `drum_kick`: Bass drumhead with angled kick spurs and kick pedal beater mallet.
+    - `drum_snare`: Dual-rim snare drum with tension lugs and crossed striking drumsticks.
+    - `drum_hihat`: Acoustic cymbal pair on tripod stand with center pull rod and pedal.
+    - `drum_clap`: Acoustic shockwave impact burst with radial energy rays.
+    - `drum_tom`: Angled rack tom drum with dual rim beads.
+    - `drum_machine`: 9-pad illuminated MPC grid with top display/encoder bar.
+    - `fx_reverb`: Parabolic acoustic reflections expanding over studio floor plane.
+    - `fx_delay`: Clock dial repeat loop with trailing echo taps.
+    - `fx_filter`: 24 dB/oct resonant lowpass filter frequency response curve with rolloff slope.
+    - `fx_distortion`: High-energy lightning drive bolt.
+    - `fx_compressor`: Clamping dynamic limiter arrows and side rails.
+    - `fx_eq`: Multi-band graphic parametric EQ sliders with calibrated fader caps.
+    - `fx_modular`: Eurorack 3.5mm jack socket and patch cable plug.
+    - `hw_speaker`: Studio monitor speaker with acoustic radiation wavefronts.
+    - `hw_headphones`: Studio monitoring headphones with headband, pivots, and ear cushions.
+    - `hw_cassette`: Retro cassette tape with twin hubs, tape bridge, and label strip.
+  - **New Classic DAW Icon Categories**:
+    - Added `inst_chiptune` (8-bit gamepad D-pad and action buttons for retro game audio tracks).
+    - Added `inst_organ` (B3 tonewheel organ drawbars and dual manual keyboard).
+    - Added `fx_chorus` (dual phase-shifted stereo chorus ribbons).
+    - Added `hw_midi` (classic 5-pin DIN MIDI port).
+  - **IconSearchDialog Scrolling Containment**:
+    - Added GPU hardware scissoring (`r.pushScissor` / `r.popScissor`) to `gridBounds_` in `IconSearchDialog::render`, preventing icon cards from bleeding outside dialog borders during scrolling.
+  - **Automated Verification**:
+    - Updated `tests/test_icon_system.cpp` to verify parsing, contour validation, and triangulation for all 32 stock vector meshes and new categories.
+- **Validation**:
+  - 100% pass across all 44 test suites in `build.ps1 -Test` on Dawn WebGPU NVIDIA GeForce GTX 1660 Ti hardware pipeline.
+
+---
+
+### [2026-10-04] Text Editor Widget Refinement: Font Metric Alignment & Minimap Vertical Pitch (commit `fa33fa6`)
+- **Architectural Context**:
+  - `TextEditorWidget` powers script editing in both `DESIGN > Code` (Eatscript live DSP script coding) and `EDIT > Script` (MIDI Clip generator scripts).
+  - Cursor advance was using a legacy hardcoded `charWidth_ = 8.5f`, whereas `drawMonoText(..., 10.0f)` renders monospace text at font metric scale `getMonoCharAdvance(10.0f) = 7.01px`.
+  - Code silhouette minimap was stretching slots vertically across the entire widget height (`minimapBounds_.h / lineCount`), causing short scripts (e.g. 7-20 lines) to show massive 30-80px blank vertical gaps between lines.
+- **Key Changes Implemented**:
+  - **Font Metric Alignment**:
+    - Initialized and synchronized `charWidth_` with `getMonoCharAdvance(10.0f)` (~7.01px) in `TextEditorWidget` constructor and `layout()`.
+    - Made `coordFromPoint`, `getCharWidth()`, and `getLineHeight()` public methods on `TextEditorWidget`.
+    - Eliminated cursor drift and phantom trailing whitespace: clicking on column 10 or 25 now resolves with exact pixel alignment, and text selection highlights hug character bounds precisely.
+  - **Minimap Vertical Pitch Refactoring**:
+    - Replaced full-height stretching in `TextEditorWidget::renderMinimap` with a compact fixed line pitch (2.0px bar + 1.0px separator = 3.0px pitch) anchored from the top.
+    - Slot height only scales down proportionally when line count exceeds minimap bounds (`lineCount * 3.0f > minimapBounds_.h`), preserving compact code silhouette density on scripts of all sizes.
+    - Viewport lens scrubber and outline now only render when `getMaxScrollY() > 0.0f`, preventing phantom full-height overlays on non-scrollable documents.
+  - **Automated Verification**:
+    - Updated `testTextEditorWidgetAndMinimap()` in `tests/test_modular_ui.cpp` with assertions verifying `charWidth_` parity with `getMonoCharAdvance(10.0f)`, column hit testing without drift, and verified test execution across all 44 suites in `build.ps1 -Test`.
+
+---
+
+### [2026-10-04] Web Audio Optimization Phase 1: Callback Chunking & Buffer Frame Size Tuning (commit `bc91f5f`)
+- **Architectural Context**:
+  - In browser/WebAudio environments, miniaudio and browser audio contexts negotiate variable and larger audio buffer sizes (such as 1024, 2048, 4096 frames, or non-power-of-two period sizes).
+  - Previously, `AudioEngine::audioCallbackInternal` clamped requested frames via `const uint32_t framesToRender = std::min(frameCount, static_cast<uint32_t>(MAX_BLOCK_SIZE))` with a single render call. Any request exceeding `MAX_BLOCK_SIZE` (2048) was truncated, leaving trailing audio unrendered or silent and causing severe 50% duty-cycle choppiness.
+- **Key Changes Implemented**:
+  - **Zero-Allocation Callback Chunking**:
+    - Refactored `AudioEngine::audioCallbackInternal` into a wait-free chunking loop: processes arbitrary `frameCount` in consecutive blocks of up to `MAX_BLOCK_SIZE` using pre-allocated `scratchL_` and `scratchR_` buffers.
+    - Accurately computes sub-bass energy tracking and interleaves planar stereo channels into destination buffer offsets `pOutput + (2 * framesRendered)`.
+  - **Emscripten Default Buffer Frame Size**:
+    - Increased default buffer frame size in `src/gui_main.cpp` for Emscripten builds from 512 to 1024 frames (~21.3ms at 48kHz), substantially reducing audio scheduler jitter and underruns without introducing perceptible latency.
+  - **Automated Verification**:
+    - Added `testAudioCallbackArbitraryChunking()` to `tests/test_audio_realtime.cpp`: tests 4096-frame requests (verifying continuous audio across first and second halves beyond `MAX_BLOCK_SIZE`), as well as odd period counts (3000 frames and 777 frames).
+    - Verified all 44 native suites pass (`.\build.ps1 -Test -NoRun`) and verified clean WebAssembly/WebGPU compilation (`.\build-web.ps1 -NoServe`).
+
+---
+
+### [2026-10-04] Web Audio Optimization Phase 2: WebAssembly SIMD & Compiler Optimization Flags (commit `333edd5`)
+- **Architectural Context**:
+  - DSP voice engines (PolySynth, TB-303, YM2612 FM, SNES DSP, Karplus-Strong physical modeling, convolution reverb, and biquad filters) require intensive floating-point vector math per audio sample.
+  - Emscripten builds previously linked with `-g` and `-sASSERTIONS=1`, which injected DWARF symbol overhead, hindered post-link binaryen optimizations, kept assertion instrumentation in production loops, and restricted math to scalar instructions.
+- **Key Changes Implemented**:
+  - **128-bit Wasm SIMD Acceleration (`-msimd128`)**:
+    - Added `-msimd128` to global Emscripten compile options, `eats_audio` DSP core library, and `eatsbeats_web` compile/link options in `CMakeLists.txt`, auto-vectorizing inner sample processing loops to 4-wide float operations.
+  - **Release Optimization Flags & Overhead Stripping**:
+    - Removed debug flags (`-g`) and assertions (`-sASSERTIONS=1`) from `eatsbeats_web` link flags.
+    - Explicitly enforced `-O3` and `-DNDEBUG` across compilation and linking.
+  - **Payload & Binary Footprint Results**:
+    - `eatsbeats.wasm` binary size dropped from **10.75 MB down to 3.46 MB** (68% raw size reduction; 1.10 MB gzipped wire size).
+    - `eatsbeats.js` runtime bridge dropped from **375.5 KB down to 173.1 KB** (54% reduction).
+    - Total CDN distribution footprint dropped from **13.26 MB to 5.77 MB** (1.67 MB wire footprint), eliminating binaryen post-link optimization warnings.
+- **Validation**:
+  - Verified clean compilation with `.\build-web.ps1 -NoServe`.
+
+---
+
+### [2026-10-04] Web Audio Optimization Phase 3: Hardware Sample Rate Negotiation & Audio Unlock Fix (commit `cb39c21`)
+- **Architectural Context**:
+  - In browsers and professional audio interfaces, the hardware output sample rate frequently negotiates 44.1 kHz, 48.0 kHz, or 96.0 kHz based on the system DAC.
+  - Previously, `AudioEngine::initialize` configured `polySynth_`, `tb303_`, `masterMixer_`, and `sequencer_.getTransport()` with the initially requested sample rate, but failed to re-align them when `impl_->device.sampleRate` negotiated a different hardware rate. This caused tuning pitch shifts and sequencer tempo drift when connected to 44.1 kHz devices.
+  - In `web/index.html`, `unlockAudio()` attempted to query `window.miniaudio.device_instances` and `dev.audioContext`, which did not exist on miniaudio's Emscripten runtime, failing to resume suspended WebAudio contexts on mobile/desktop browsers without user retry.
+- **Key Changes Implemented**:
+  - **Dynamic Sample Rate Re-alignment**:
+    - Updated `AudioEngine::initialize` in `src/audio/audio_engine.cpp` to re-align `polySynth_.setSampleRate(...)`, `tb303_.setSampleRate(...)`, `masterMixer_.prepare(...)`, and `sequencer_.getTransport().setSampleRate(...)` immediately upon miniaudio device initialization with `impl_->device.sampleRate`.
+    - Eliminates browser resampler jitter and maintains pitch/time accuracy across 44.1 kHz and 48 kHz hardware.
+  - **Miniaudio Device Context Audio Unlocker**:
+    - Fixed `unlockAudio()` in `web/index.html` to inspect `window.miniaudio.devices` and call `resume()` on `dev.webaudio` / `dev.audioContext`.
+    - Removed dummy `AudioContext` instantiation that caused browser context leaks on tap/click events.
+- **Validation**:
+  - Verified 100% pass across all 44 native test suites (`.\build.ps1 -Test -NoRun`) and clean WebAssembly/WebGPU build (`.\build-web.ps1 -NoServe`).
+
+---
+
+### [2026-10-04] Script Editor Scrolling, Gutter Scissoring, Blink Reset & Mobile Input Roadmap
+- **Architectural Context**:
+  - The script editor (`TextEditorWidget`) is the core coding environment for Eatscript DSP sound generation, audio FX, and custom synthesis.
+  - Previous issues identified:
+    1. Mouse wheel scrolling was inert in the primary script workstation (`DESIGN > <> CODE`) due to omitted event routing to `modularDesignView_` and `fullscreenDeviceModal_`.
+    2. Gutter line numbers spilled outside scroll bounds during fractional scrolling because scissoring was popped before drawing line numbers.
+    3. Cursor blinking was tied exclusively to focus gain, leaving the cursor hidden for up to 450ms when moving the cursor across the buffer.
+    4. Touch devices and phones lacked an ergonomic code entry pipeline without fighting virtual keyboard symbol menus and unwanted autocorrect.
+- **Key Changes Implemented**:
+  - **Universal Mouse Wheel & Shift-Scroll Routing**:
+    - Dispatched scroll events to `modularDesignView_` and `fullscreenDeviceModal_` in `GuiWindow::onMouseScroll`.
+    - Added Shift-modified horizontal scrolling in `TextEditorWidget::handlePointer`.
+  - **Strict Gutter Line Number Scissoring**:
+    - Wrapped line numbers in `r.pushScissor(gutterBounds_)` / `r.popScissor()` and scissored active line highlights, guaranteeing clean clipping against top and bottom borders.
+  - **Immediate Solid Cursor Blink Reset**:
+    - Introduced `resetCursorBlink()` and `lastCursor_` tracking. Any cursor movement, tap, text drag, keypress, or insertion resets blink phase immediately to solid visible ($t=0$).
+  - **Mobile Code Accessory Toolbar (`CodeAccessoryToolbar`)**:
+    - 27 touch-friendly coding buttons: `⇥` (Indent), `⇤` (Outdent), `( )`, `[ ]`, `{ }`, `"`, `'`, `:`, `=`, `+`, `-`, `*`, `/`, `.`, `,`, `_`, `#`, `->`, `param`, `ret`, `◀`, `▶`, `▲`, `▼`, `↶` (Undo), `↷` (Redo), `▶ RUN` (Compile & Run).
+    - Intelligent auto-pairing and selection wrapping for `()`, `[]`, `{}`, `""`, `''`.
+    - Smooth horizontal touch drag and wheel scrolling with viewport clamping.
+    - Automatic activation when `ctx.isMobile == true` or width < 650px (with manual override via `setAccessoryToolbarVisible`).
+  - **WebAssembly Soft Keyboard Input Proxy Bridge**:
+    - Invisible DOM `<textarea id="mobile-text-proxy">` bridge with `autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="text"`.
+    - Streams `keydown` (Backspace, Enter, Tab, Escape, Arrows) and `input` (typing, swipe, dictation) events directly into C++ via exported `eats_on_web_char_input` and `eats_on_web_key_input`.
+    - Automatic show/hide synchronization on `onFocusGained()` and `onFocusLost()`.
+- **Validation**:
+  - Verified 100% pass across all 44 test suites in `.\build.ps1 -Test` (including `testTextEditorWidgetAndMinimap` suite 8 testing layout, taps, auto-pairing, math buttons, focus, and rendering).
+  - Verified clean WebAssembly/WebGPU compilation via `.\build-web.ps1 -NoServe`.
+
+---
+
+### [2026-10-05] Clip Duplicate & Delete Parity, Clean Empty Rendering, Track Deletion Sidebar Fix & Project History Integration
+- **Architectural Context**:
+  - Resolved phantom note rendering where empty clips generated fake visual notes.
+  - Resolved track deletion bug where deleting a track resulted in clip properties remaining blank or disappearing.
+  - Implemented Eatsbeats parity for clip duplication and deletion across views, sidebars, and keyboard hotkeys.
+  - Connected Track Properties and timeline manipulations to `HistoryManager` (`diffHistory_`) and enabled full undo/redo state restoration.
+- **Key Changes Implemented**:
+  - **Clean Clip Rendering**:
+    - Removed synthetic note fallback loop in `ArrangerView::renderClips`. Empty MIDI clips render clean empty lanes. Audio clips render stylized audio waveforms.
+  - **Track Deletion Sidebar Fix & Re-indexing**:
+    - Eliminated double track erasure between `ArrangerView::deleteTrack` and `GuiWindow::deleteTrack`.
+    - Automatically re-indexed all remaining clips' `clip.trackIndex` across remaining tracks on track deletion.
+    - Reset `inspectorTab_` to Track and `selectedClipIndex_` to -1 if deleted track was selected.
+    - Dynamically refreshed `allTrackNames` in drawer data so track dropdowns never display stale names.
+    - Added automatic clip 0 selection when switching to the Clip tab if clips exist on the track.
+  - **Clip Action Parity (`DUPLICATE` & `DELETE`)**:
+    - Added `DUPLICATE` and `DELETE` action cards to Track Properties sidebar (`TrackPropertiesPanel`) under the Clip section matching Eatsbeats `arranger_context_inspector.dart`.
+    - Added `duplicateClip(trackIdx, clipIdx)` and `deleteClip(trackIdx, clipIdx)` methods to `ArrangerView` and `GuiWindow`.
+    - Mapped keyboard shortcuts: Ctrl+D to duplicate selected clip, Delete / Backspace to delete selected clip.
+    - Supported empty clip state with "NO CLIP SELECTED" and `+ NEW CLIP` button.
+  - **Project History Undo & Redo Integration**:
+    - Wired `recordProjectHistory` for track deletion, track addition, track duplication, clip addition, clip duplication, clip deletion, and instrument/FX changes.
+    - Enhanced `undoHistory()`, `redoHistory()`, and `jumpToHistoryIndex()` to call `syncArrangerFromSequencer()`, cleanly restoring Arranger tracks/clips, Mixer channel strips, and Track Inspector state.
+---
+
+### [2026-10-05] Single Chord Track Parity, Harmonic Track Follow Modes Playback Integration & Piano Roll Chord Strip Removal (commit `b8774cf`)
+- **Architectural Context**:
+  - Reestablished strict parity with original Eatsbeats (`daw_state.dart` and `arranger_view.dart`) by designating a single authoritative project `chordTrack_` timeline lane as the sole harmonic reference.
+  - Eliminated arbitrary track chord leader / dynamic fallback routing in `ArrangerView` (`isChordLeader`, `chordLeaderTrackIndex`).
+  - Integrated real-time harmonic track follow modes (`BASS`, `CHORD`, `SCALE`, `COLOR`) into audio callback playback in `StepSequencer::processBlock()`.
+  - Synchronized `timeContext_.activeChordRoot`, `quality`, `bass`, and `chordPitchClasses` on each sequencer step tick to drive live MIDI FX inserts (`ChordFollow`, `ChordStabs`, `ChordArp`).
+  - Removed chord strip from `EditView` (Piano Roll), giving full vertical canvas height back to the piano roll note grid and piano keys gutter.
+- **Key Changes Implemented**:
+  - **Dedicated Project Chord Track Parity**:
+    - Centralized harmony on the project `chordTrack_` lane on the Arranger timeline with "CHORD TRACK", Key badge, and `+` button opening Circle of Fifths.
+    - Updated `bakeChordsToTrack()` to lookup chords directly from the canonical Chord Track lane and notify `onTrackChordFollowChanged`.
+  - **Real-Time Follow Modes in StepSequencer**:
+    - Added `theory::ChordFollowMode` to `SequencerTrack`.
+    - Added `setChordTrack()`, `getChordTrack()`, and real-time safe `getActiveChordAtBar(float bar)` to `StepSequencer`.
+    - During playback, if `track.getChordFollowMode() != Off`, sampled active chord and remapped step/note pitches using `theory::ChordTheory::remapPitchForChord()`.
+    - Connected `syncArrangerToSequencer()` and `syncArrangerFromSequencer()` to synchronize `chordFollowMode` and project chords with the sequencer.
+  - **Live MIDI FX Pipeline Synchronization**:
+    - Updated `timeContext_.activeChordRoot`, `activeChordQuality`, `bassPitchClass`, and `chordPitchClasses` dynamically on each triggered tick.
+    - Verified `ChordFollow`, `ChordStabs`, and `ChordArp` audibly conform playback notes in real time.
+  - **Piano Roll Clean-up**:
+    - Removed `chordStripBounds_`, `chordHeaderBadgeBounds_`, `detectedChords_`, `circleOfFifthsDialog_`, and click handlers from `EditView`.
+    - Expanded `pianoGutterBounds_` and `gridBounds_` to occupy full available vertical canvas height.
+- **Validation**:
+  - `test_chord_track.exe`: 11/11 tests passing (including dedicated single chord track and playback follow mode tests).
+  - `test_modular_ui.exe`: 22/22 tests passing.
+  - `.\build.ps1 -Test`: 45/45 suites passing (100% test pass rate).
+  - `.\build-web.ps1 -NoServe`: Clean WebAssembly + WebGPU build (1.71 MB wire transfer footprint).
+
+---
+
+### [2026-10-05] Web Audio Optimization Phase 4: AudioWorklet & Dedicated Wasm Worker Threading (commit `2b441d9`)
+- **Architectural Context**:
+  - Decoupled real-time audio synthesis and DSP callback execution from the main browser JavaScript UI/WebGPU rendering thread using Emscripten AudioWorklets (`-sAUDIO_WORKLET=1 -sWASM_WORKERS=1 -sASYNCIFY`).
+  - Miniaudio now spawns a dedicated Web Audio worklet worker thread executing `ma_audio_worklet_process_callback__webaudio`, guaranteeing hitch-free real-time audio even during heavy WebGPU frame drawing or UI interaction.
+- **Key Changes Implemented**:
+  - **CMake Compiler & Linker Configuration**:
+    - Added global `-sWASM_WORKERS=1` and `-fexceptions` in `CMakeLists.txt` for Emscripten builds, universally enabling SharedArrayBuffer, WebAssembly atomics (`-matomics`), and bulk memory (`-mbulk-memory`) across all static libraries (`eats_core`, `eats_script`, `eats_audio`, `eats_presenter`, `eats_render_wgpu`, `eats_render_tui`, `eatsbeats_gui_core`).
+    - Configured `eatsbeats_web` link flags with `-sAUDIO_WORKLET=1 -sWASM_WORKERS=1 -sASYNCIFY -fexceptions`.
+    - Defined `MA_ENABLE_AUDIO_WORKLETS` for `eats_audio` and `audio_engine.cpp`.
+  - **Emscripten Wasm Worker Libc & Pthread Bridge**:
+    - Emscripten's wasm-worker libc (`libc-ww.a`) omits single-threaded no-op pthread stubs. Implemented bridge stubs in `audio_engine.cpp` for `pthread_mutex_*`, `pthread_cond_*`, `pthread_create`, `pthread_join`, `pthread_detach`, and `emscripten_thread_sleep` (bridged to `emscripten_sleep`).
+    - Added logging in `AudioEngine::initialize()` confirming dedicated Wasm worker thread status when `MA_USE_AUDIO_WORKLETS` is active.
+- **Validation**:
+  - `.\build-web.ps1 -NoServe`: Clean compilation and linking of WebAssembly + WebGPU + AudioWorklet bundle with 0 errors. Total wire footprint 2.25 MB.
+  - Native desktop regression verification: `test_audio_realtime.exe` and `test_modular_ui.exe` compile and pass 100%.
+
+---
+
+### [2026-10-05] Audio FX Preset Binding, Node Routing & WaveShaper Distortion Calibration (commit `20fe776`)
+- **Architectural Context**:
+  - Solved Audio FX parameter binding and preset extraction across `PluginSearchDialog`, `ProjectBrowserDrawer`, `TrackPropertiesPanel`, and `FullscreenDeviceModal`.
+  - Recalibrated `WaveShaperNode` saturation DSP, adding output makeup compensation, a 1-pole tilt/lowpass tone filter, and DC bias offset compensation.
+- **Key Changes Implemented**:
+  - **Audio FX Preset UI Extraction**:
+    - Implemented `TrackAudioFxItem::populateFromPresetDefinition(const PresetDefinition& def)` in [track_properties_panel.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/track_properties_panel.hpp), extracting GUI layout knobs, parameter ranges, default values, units, and custom hex accent colors directly from `.eats` script declarations.
+    - Wired `presetSearchDialog_.onPluginSelected` (mode `AddAudioFx`) and `projectBrowserDrawerWidget_->onAddAudioFx` in [gui_window.cpp](file:///c:/git/eatsbeats/src/ui/gui_window.cpp) to load the effect's `PresetDefinition` via `PresetManager::loadPresetDefinition` and populate `TrackAudioFxItem::knobs`.
+    - Wired `projectBrowserDrawerWidget_->onAddMidiFx` to support direct MIDI insert creation from drawer cards.
+  - **`TrackAudioFxItem::ensureDefaultKnobs()` Fallback Expansion**:
+    - Added dedicated fallback knob layouts and background themes for `EQ` / `PARAMETRIC` (`low`, `mid`, `high`, `q`, `gain` on `"dark"` chassis), `LIMITER` (`ceiling`, `release`, `gain` on `"silver"` chassis), and `FILTER` / `SVF` (`cutoff`, `reso`, `type`, `drive` on `"carbon"` chassis), preventing improper fall-through to Tube Distortion.
+  - **AudioEngine Insert FX Parameter Dispatch**:
+    - Expanded `AudioEngine::setTrackAudioFxParam` in [audio_engine.cpp](file:///c:/git/eatsbeats/src/audio/audio_engine.cpp) to dispatch parameters to `ParametricEqNode` (low, mid, high, Q, master gain) and `LimiterNode` (ceiling dB, release ms, lookahead ms).
+    - Added `tone` and `bias` parameter handling for `WaveShaperNode`.
+  - **WaveShaper Saturation & Volume Calibration DSP**:
+    - In [waveshaper_node.hpp](file:///c:/git/eatsbeats/include/eatsbeats/audio/graph/nodes/waveshaper_node.hpp), implemented dynamic makeup gain compensation (`makeup = 1.0f / sqrt(max(1.0f, drive))`) so high drive settings generate rich saturation harmonics without acting as an ear-splitting volume amplifier.
+    - Implemented DC offset bias offset and correction (`(transferCurve(x + biasOffset) - dcComp) * makeup`).
+    - Added 1-pole lowpass tone smoothing filter (`filterState += alpha * (sat - filterState)`).
+- **Validation**:
+  - `test_studio_fx.exe`: All 10 tests pass (including new `testWaveShaperCalibrationAndDspFeatures` and `testAudioEngineParametricEqAndLimiterDispatch`).
+  - `test_modular_ui.exe`: All 23 tests pass (including new `testTrackAudioFxPresetBindingAndDefaults`).
+  - `.\build.ps1 -Test`: All 45 test suites pass with 0 failures (100% pass rate).
+---
+
+### [2026-10-05] Design Tab Live Project Track, Instrument & Insert FX Synchronization (commit `6f832a3`)
+- **Architectural Context**:
+  - Replaced prototype static dummy targets in `DesignView` with dynamic bidirectional project track, instrument, and insert FX synchronization.
+  - Linked `FullscreenDeviceModal`'s "Design Chip" button directly to the exact target device and code/script representation, eliminating fallback to unrelated Tube Distortion templates.
+  - Added user edit caching in `DesignView` so modifying Eatscript code or GUI parameters in the Design tab persists across device switching.
+- **Key Changes Implemented**:
+  - **Dynamic Target Model & Sync Architecture**:
+    - Expanded `ScriptTarget` in [design_view.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/views/design_view.hpp) with `int fxIndex{-1};` to distinguish between multiple Audio FX and MIDI FX inserts on the same track.
+    - Implemented `DesignView::syncWithProject(const std::vector<ArrangerTimelineTrack>& tracks)` in [design_view.cpp](file:///c:/git/eatsbeats/src/ui/views/design_view.cpp), enumerating all active tracks (`ScriptTargetType::TrackDsp`), audio inserts (`AudioFx`), MIDI processors (`MidiFx`), and arrangement clips (`ClipScript`), while preserving active target selection.
+    - Cached project tracks in `cachedTracks_`, user code edits in `targetCodeMap_`, and custom GUI parameters in `targetParamsMap_`.
+  - **Authentic DSP & FX Eatscript Code Generators**:
+    - Enhanced `DesignView::updateActiveTargetCodeAndParams()` with dedicated Eatscript code and parameter definitions for:
+      - Synths: TB-303 Acid Bassline, Procedural Sub Kick, Snare, Hi-Hats, DX7 6-Op FM, MOS SID chip voice, and custom track engine fallbacks exposing real track knob names and values.
+      - Audio FX: 8-Bit Bitcrusher, Stereo Delay, 3-Band Parametric EQ, Brickwall Limiter, State Variable Resonant Filter, and Tube Distortion.
+      - MIDI FX: Note Arpeggiator, Chord Follower, and Scale Quantizer.
+      - Clip Scripts: Generative note sequencers.
+      - Built-in Presets: Library reference scripts.
+    - Enhanced `DesignView::initDefaultGuiPanel()` with specialized faceplates (`PcbGreen` for Bitcrusher, `Silver` for Delay, `MinimalWhite` for EQ, `Grunge` for Limiter, `Walnut` for Distortion, and multi-row knob layouts for arbitrary parameters).
+  - **GuiWindow Integration & Direct Device Modal Navigation**:
+    - Implemented `GuiWindow::setActiveView(WorkspaceView view)` and `syncDesignViewToProject()`, guaranteeing that navigating to the Design tab automatically pulls the freshest project state from `modularArrangerView_->getTracks()`.
+    - Wired project synchronization to track creation, deletion, duplication, audio FX insertion, and MIDI FX insertion.
+    - Updated `fullscreenDeviceModal_.onOpenCodeEditor` to pass `tgt.fxIndex` to `selectTargetByTrackAndType(trackIndex, type, fxIndex)`, ensuring clicking the Design Chip on any Audio FX or MIDI FX opens that exact effect's code and faceplate.
+- **Validation**:
+  - `test_modular_ui.exe`: Test 6b (`testDesignViewProjectSync`) passes all 8 test assertions (initial track sync, instrument selection, Audio FX selection, MIDI FX selection, dynamic insert addition, code modification persistence across device switching, dynamic track addition, and batch rendering).
+  - `.\build.ps1 -Test`: All 45 test suites pass with 0 failures (100% pass rate).
+  - `.\build-web.ps1 -NoServe`: Clean WebAssembly + WebGPU + AudioWorklet compilation and linking.
+
+---
+
+### [2026-10-09] Fix Chord Follow & Project Harmony Playback Pipeline Desynchronization (commit `33a8fb6`)
+- **Architectural Context**:
+  - Eliminated desynchronization between Track Inspector chord follow mode selections, Arranger timeline view, and `StepSequencer` real-time playback.
+  - Linked Arranger timeline chord lane edits (adding, dragging, resizing, progression presets) to immediately propagate to `StepSequencer::setChordTrack()`, guaranteeing `StepSequencer::getActiveChordAtBar()` always has the latest progression.
+  - Extended `AudioEngine::postNoteOn` and `postNoteOff` with real-time harmony remapping so virtual keyboard, tracker, and piano roll preview auditioning dynamically reflect active track chord follow modes (`Bass`, `Chord`, `Scale`, `ColorLead`).
+- **Key Changes Implemented**:
+  - **Multi-View Chord Follow State Unification**:
+    - Wired `modularTrackInspectorView_->onChordFollowChanged` in `GuiWindow::initModularViews()`: updates `arrangerTracks_[idx].chordFollowMode`, `modularArrangerView_->getTracks()[idx].chordFollowMode`, and invokes `engine_->getSequencer().getTrack(idx)->setChordFollowMode(mode)`.
+    - Wired `modularArrangerView_->onTrackChordFollowChanged` in `GuiWindow`: syncs `arrangerTracks_` and `modularTrackInspectorView_->getTracks()[idx].chordFollowMode` and updates the sequencer.
+    - Updated `GuiWindow::handleTrackInspectorInteraction(TrackInspectorHitArea::ChordFollowChip)` to propagate mode changes to `modularArrangerView_`, `modularTrackInspectorView_`, and `SequencerTrack`.
+    - Added `trackChordFollowModes` synchronization parameter to `TrackInspectorView::syncFromWindow`.
+  - **Timeline Chord Lane to Sequencer Synchronization**:
+    - Added `onChordTrackChanged` callback to `ArrangerView`, triggered on `setChordTrack()`, `clearChordTrack()`, `addOrUpdateChord()`, `removeChord()`, `applyChordProgressionPreset()`, and upon chord move/resize drag completion (`PointerAction::Up`).
+    - Wired `modularArrangerView_->onChordTrackChanged` in `GuiWindow::initModularViews()` to immediately push `modularArrangerView_->getChordTrack()` to `engine_->getSequencer().setChordTrack(...)`.
+  - **Auditioning & Note Preview Harmony Support**:
+    - In `AudioEngine::postNoteOn` and `postNoteOff`, checked destination track `chordFollowMode != ChordFollowMode::Off`.
+    - Sampled active chord from `sequencer_.getActiveChordAtBar(currentBar)` (or fallback to first progression chord if transport is stopped) and remapped preview pitch via `theory::ChordTheory::remapPitchForChord()`.
+- **Validation**:
+  - `test_chord_track.exe`: 12/12 tests passing (including new `testChordFollowPipelineSyncAndAuditioning`).
+  - `test_modular_ui.exe`: All 24 modular UI test suites passing (including multi-view chord follow synchronization & auditioning in `testGuiWindowIntegration`).
+  - `.\build.ps1 -Test -NoRun`: All 48 test suites passing (100% pass rate).
+
+---
+
+### [2026-10-09] Fix Live MIDI FX Pipeline Synchronization, Parameter Binding & Inspection (commit `2c1824f`)
+- **Architectural Context**:
+  - Resolved disconnect between `TrackInspectorView::tracks_[trackIndex].midiFxList` and `ArrangerView::tracks_[trackIndex].midiFx`, ensuring inspector insertions, removals, reorderings, toggles, and knob adjustments reliably populate and update the engine's real-time MIDI FX rack.
+  - Serialized the full dictionary of knob parameters into `insert.params` (`Octaves`, `octaves`, `semitones`, `transpose`, `rate`, `gate`, `swing`, `humanizeVelocity`, `humanizeTiming`, `rootKey`, `scaleMode`), allowing `StepSequencer` to consume parameters during playback.
+  - Connected `FullscreenDeviceModal` parameter changes to dynamically mutate active `SequencerTrack::getMidiFxRack()` parameters and mirror changes across both `TrackInspectorView` and `ArrangerView`.
+- **Key Changes Implemented**:
+  - **Inspector & Arranger MIDI FX Model Synchronization**:
+    - In `GuiWindow::syncTrackMidiFxToEngine(trackIdx)`, bridged `modularTrackInspectorView_` and `modularArrangerView_` MIDI FX lists bidirectionally, prioritizing non-empty project track configurations.
+    - Updated `onAddMidiFx`, `onToggleMidiFx`, `onReorderMidiFx`, `onRemoveMidiFx`, and `onMidiFxChanged` in `modularTrackInspectorView_` to mirror to `modularArrangerView_` before calling `syncTrackMidiFxToEngine(idx)`.
+    - Wired `modularTrackInspectorView_->onMidiFxParamChanged` in `initModularViews()` to mirror parameter changes and sync to engine.
+  - **Comprehensive Parameter Serialization**:
+    - In `syncTrackMidiFxToEngine`, mapped all knob parameters from `TrackMidiFxItem::knobs` into `insert.params` with normalized and standardized aliases (`Octaves`, `octaves`, `semitones`, `transpose`, `rate`, `gate`, `swing`, `velocity`, `timing`).
+    - Enhanced `StepSequencer::processBlock` parameter parsing for `ScaleSnap` (`rootKey` / `root`, `scaleMode` / `scale`), `Arpeggiator` (`Octaves` / `octaves`), `Transpose` (`semitones` / `transpose`), and `Humanize` (`humanizeVelocity` / `velocity`).
+  - **Device Modal & Track Inspector Interaction Dispatch**:
+    - Connected `fullscreenDeviceModal_.onMidiFxParamChanged` to mutate parameters directly in `seqTrack->getMidiFxRack()` and mirror values to UI views.
+    - Updated `GuiWindow::handleTrackInspectorInteraction` toggles (`MidiFxArpToggle`, `MidiFxScaleToggle`, `MidiFxHumanizeToggle`) and drag lambda (`MidiFxArpKnob`, `MidiFxScaleKnob`, `MidiFxHumanizeKnob`) to update items, mirror models, and trigger `syncTrackMidiFxToEngine`.
+- **Validation**:
+  - `tests/test_midi_fx.cpp`: Added `TestCaptureNode` and `testInspectorMidiFxBridgeAndLivePlayback()` verifying that Transpose, Arpeggiator octave cycling, and dynamic parameter mutations alter output notes in `StepSequencer::processBlock`.
+---
+
+### [2026-10-09] Audio FX Engine Overhaul: Multi-Insert Routing, Distortion Calibration & Node Restoration (commit `7648c86`)
+- **Architectural Context**:
+  - Overhauled multi-insert audio FX routing in `AudioEngine::rebuildTrackAudioFx` to disconnect all intermediate nodes feeding into `gainId` port 0 and remove default `AcidEcho` delay on Track 1, ensuring a single clean serialized path without parallel summing, phase cancellation, volume boost, or clipping distortion.
+  - Eliminated the fallback where unrecognized audio effects inappropriately instantiated a `WaveShaperNode` tube distortion, replacing it with dedicated `BiquadNode` instantiation for all filter types (`FILTER`, `MULTIMODE_FILTER`, `SVF`, `LOWPASS`, `HIGHPASS`, `BANDPASS`, `VCF`) and `EatscriptNode` for script-based DSP effects (`.eats`).
+  - Calibrated `WaveShaperNode` DSP transfer curve: replaced the negative quadrant foldback curve `d / (1.0f + d * d)` with a strictly monotonic dual hyperbolic tangent curve `(d > 0.0f) ? std::tanh(d) : (0.85f * std::tanh(d * 0.90f))` to eliminate unmusical wavefolding distortion, and calibrated pre-gain boost to subtle warmth and color.
+  - Bridged Track Inspector audio FX models to Arranger tracks and updated callback signatures across all UI views (`TrackPropertiesPanel`, `TrackPropertiesDrawer`, `ArrangerView`, `TrackInspectorView`, `FullscreenDeviceModal`, `GuiWindow`) with explicit `size_t fxIdx` support, enabling multi-insert parameter dispatch on indices > 0.
+- **Key Changes Implemented**:
+  - **Single Clean Gain Path & Multi-Insert Topology**:
+    - Disconnected any incoming connection to `gainId` port 0 and outgoing connection from `srcId` port 0 prior to inserting the new serialized FX chain.
+    - Safely removed the default `AcidEcho` node on Track 1.
+  - **Filter & Script Node Instantiation**:
+    - Added instantiation of `BiquadNode` for all filter types, configuring type (`LowPass`, `HighPass`, `BandPass`, `Notch`), logarithmic cutoff frequency, and resonance.
+    - Added instantiation of `EatscriptNode` for `.eats` script-based DSP effects.
+    - Restricted `WaveShaperNode` instantiation strictly to explicit distortion, overdrive, saturation, and bitcrusher types.
+    - Added parameter handling in `setTrackAudioFxParam` for `BiquadNode` (`cutoff`, `resonance`, `type`, `gain`) and `EatscriptNode`.
+  - **UI Inspector Audio FX Model Mirroring & Parameter Dispatch**:
+    - Bridged `modularTrackInspectorView_` and `modularArrangerView_` audio FX lists in `GuiWindow::syncTrackAudioFxToEngine`.
+    - Mirrored audio FX list across inspector callbacks (`onAddAudioFx`, `onToggleAudioFx`, `onReorderAudioFx`, `onRemoveAudioFx`, `onAudioFxChanged`).
+    - Updated `onAudioFxParamChanged` in `TrackPropertiesPanel`, `TrackPropertiesDrawer`, `ArrangerView`, `TrackInspectorView`, `FullscreenDeviceModal`, and `GuiWindow` to accept `size_t fxIdx`, forwarding to `engine_->setTrackAudioFxParam(idx, fxIdx, paramName, normVal)`.
+- **Validation**:
+  - `tests/test_studio_fx.cpp`: Added `testAudioEngineFilterNodeAndMultiInsertRouting` validating Biquad filter instantiation, multi-insert parameter dispatch (index > 0), and clean single-input gain path on Track 1.
+  - `.\build.ps1 -Test -NoRun`: All 48 test suites passing (100% pass rate, 0 errors, 0 warnings).
+
+---
+
+### [2026-10-09] Remove Eatsbeats Settings & Project Hub Texture Options (commit `e3d4d8a`)
+- **Architectural Context**:
+  - Eliminated legacy skeuomorphic chassis texture generation and settings from Project Hub Section 3, aligning with the pure vector graphics architecture established in Eatsbeats.
+  - Repurposed Section 3 into `"CHASSIS COLOR ACCENTS & TINTS"`, providing 8 sleek anodized/harmonic color swatches (`NATURAL`, `LIGHT GRAY`, `DARK GRAY`, `BLUE`, `GOLD`, `GREEN`, `OXBLOOD`, `SLATE`) with a live vector chassis plate preview.
+  - Streamlined drawer height calculations from 268px to 100px and preserved all 7 section indices (avoiding shifts for CRT Shader at index 4 and Audio Engine Config at index 5).
+  - Cleaned up state variables, setters, and event dispatch across `GuiWindow` and automated interaction test suites.
+- **Key Changes Implemented**:
+  - **Removed Obsolete Enums & State**:
+    - Removed `SetPanelTexture`, `SetPanelWear`, and `SetPanelRotation` from `ProjectHubAction`.
+    - Removed `panelStyle`, `panelWear`, and `panelRotation` from `HitTestProjectHubResult`.
+    - Removed `panelChassisTexture_`, `panelChassisWear_`, `panelChassisRotation_` and their setters (`setPanelChassisTexture`, `setPanelChassisWear`, `setPanelChassisRotation`) from `GuiWindow`. Kept `panelChassisTint_` and `setPanelChassisTint()`.
+  - **Simplified Vector Chassis Plate Rendering**:
+    - Streamlined `drawChassisPlate` signatures in `GuiWindow` to `drawChassisPlate(x, y, w, h, isTopPanel, theme, tint)`, rendering uniform vector gradients and crisp 1px specular bevels directly with zero obsolete texture styling arguments.
+  - **Project Hub Section 3 Streamlining**:
+    - Updated section title to `"CHASSIS COLOR ACCENTS & TINTS"`.
+    - Replaced the 4-box grid icon with a clean color swatch circle icon.
+    - Updated `curDrawerH` for Section 3 to `100.0f`.
+    - Rendered 8 tint swatches and the live hardware vector preview plate.
+  - **Hit Testing & Event Handling**:
+    - Purged material chip, rotation toggle, and patina wear hit-testing loops and click-action handling in `hitTestProjectHub()` and `onMouseDown()`.
+- **Validation**:
+  - Updated `tests/test_gui_interaction.cpp` to verify tint swatch selection (`ProjectHubAction::SetPanelTint`, `window.getPanelChassisTint()`).
+  - `.\build.ps1 -Test -NoRun`: All 48 test suites passing cleanly (100% pass rate, 0 errors, 0 warnings).
+
+---
+
+### [2026-10-09] CLAP Desktop Hosting, Export & Cardinal GUI Lifecycle (commit `e84ef3e`)
+- **Architectural Context**:
+  - Implemented complete CLAP (CLever Audio Plugin) hosting, headless DSP rendering, and native GUI lifecycle in Eatsbeats, adhering to the 4-phase CLAP blueprint.
+  - Resolved complex DPF / DISTRHO Plugin Framework requirements for plugins like Cardinal (VCV Rack in CLAP format), which create child OpenGL windows inside the host HWND.
+  - Delivered sample-accurate event translation, CLAP UI timer support, Win32 message pump integration, crash-isolated structured exception handling (SEH), and graceful fallback to generic parameter controls.
+- **Key Changes Implemented**:
+  - **CLAP GUI Lifecycle & Window Negotiation**:
+    - Resolved DPF assertion failure (`assertion failure: "gui != nullptr" in DistrhoPluginCLAP.cpp:2129`) by invoking `gui->create()` prior to size queries (`get_size`).
+    - Handled host-to-plugin resizing callbacks: provided non-null `resize_hints_changed` callback pointer in `clap_host_gui_t` to resolve access violation crashes (`0xC0000005`) when DPF initializes plugin window metrics.
+    - Implemented `CLAP_WINDOW_API_WIN32` support for both floating windows (`is_floating = true`, top-level `WS_OVERLAPPEDWINDOW`) and embedded child windows (`is_floating = false`, `WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | CS_OWNDC` with double-buffered OpenGL pixel formats).
+  - **CLAP UI Timer Support & Message Pump**:
+    - Implemented `CLAP_EXT_TIMER_SUPPORT` (`clap_host_timer_support_t`) registering plugin periodic timers (`register_timer`, `unregister_timer`).
+    - Drained Win32 message loops in `ClapAudioNode::pollAllMainThreadCallbacks()`, firing `on_timer` callbacks on the main thread so DPF/Pugl UI event loops remain responsive without deadlocks.
+  - **Safe SEH Wrappers & Fallback**:
+    - Isolated plugin GUI calls (`create`, `set_parent`, `show`, `hide`, `destroy`) in dedicated static functions protected by Windows Structured Exception Handling (`__try` / `__except`).
+    - In `GuiWindow`, if an external plugin window fails to initialize or crashes, the host process remains protected and automatically falls back to generic parameter slider controls in `TrackPropertiesPanel`.
+  - **Automated Verification**:
+    - Expanded `tests/test_clap_host.cpp` with comprehensive Cardinal GUI lifecycle testing: plugin loading, port enumeration, parameter reflection, floating GUI open/close, embedded child window creation, bounds resizing, hide/show toggles, and destruction.
+    - Verified all 47 test suites pass cleanly with 100% success rate (`ctest --test-dir build --output-on-failure -C Release`).
+
+---
+
+### [2026-10-09] DaisySP Integration: Permissive (MIT), WebAssembly-Ready Modular DSP Engine & FX Suite (commit `14329da`)
+- **Architectural Context**:
+  - Integrated the official, battle-tested `DaisySP` DSP suite (used across Eurorack hardware modules) into Eatsbeats to provide a comprehensive, 100% MIT-licensed modular synthesis and FX engine with zero dynamic memory allocations in audio render blocks.
+  - Achieved full cross-platform compatibility across Windows (MSVC), Clang, GCC, and WebAssembly / Emscripten with WebGPU and AudioWorklets.
+- **Key Changes Implemented**:
+  - **Vendored Core & LGPL Extensions**:
+    - Vendored `DaisySP` (core MIT) and `DaisySP-LGPL` into `third_party/daisysp/`.
+    - Added target `eats_daisysp` in `CMakeLists.txt` linked directly into `eats_audio`, with `-DUSE_DAISYSP_LGPL=1` and `-D_USE_MATH_DEFINES`.
+  - **Modular GraphNode Wrappers**:
+    - `DaisyOscillatorNode`: Wraps `daisysp::Oscillator` (Bandlimited Blip Saw, Square, Triangle, Sine, Variable Saw) and `daisysp::Wavetable` with 1V/Oct CV and phase modulation.
+    - `DaisyFilterNode`: Dual stereo `daisysp::MoogLadder` (24dB/oct resonant ladder) and `daisysp::Svf` (State Variable Filter: LP, HP, BP, Notch) with dual-channel L/R processing.
+    - `DaisyReverbNode`: Stereo `daisysp::ReverbSc` algorithmic plate/hall reverb with feedback/decay and LP damping.
+    - `DaisyDelayNode`: Stereo `daisysp::DelayLine` with high-frequency damping tone filter and feedback.
+    - `DaisyModulationNode`: Multi-FX processor wrapping `daisysp::Chorus`, `daisysp::Flanger`, and `daisysp::Overdrive`.
+    - `DaisyCompressorNode`: Dual stereo dynamic range compressor wrapping `daisysp::Compressor` with attack, release, ratio, threshold, and makeup gain.
+  - **AudioEngine & Track FX Rack Integration**:
+    - Wired all 6 nodes into `AudioEngine::rebuildTrackAudioFx` and `AudioEngine::setTrackAudioFxParam`, populating previously empty or placeholder FX categories (`REVERB`, `DELAY`, `CHORUS`, `FLANGER`, `MOOG_FILTER`, `COMPRESSOR`).
+  - **Eatscript & API Manifest Binding**:
+    - Registered modules in `include/eatsbeats/eatscript/api_manifest.hpp` under `eats.dsp.*` and `eats.fx.*` for AST dependency scanning, AOT transpilation, and live scripting.
+  - **Emscripten / WebAssembly Portability**:
+    - Resolved WebAssembly threading and dynamic loading guards in `clap_audio_node.cpp` and `clap_plugin_loader.cpp`, allowing `libeats_daisysp.a` and the entire audio graph to compile cleanly under Emscripten `-sWASM_WORKERS=1`.
+  - **Automated Verification**:
+    - Created `tests/test_daisysp_nodes.cpp` verifying zero runtime allocations, NaN/Inf bounds stability across parameter sweeps, impulse responses, and 6-voice modular routing.
+    - Verified 100% test pass on native desktop (49/49 test suites) and full WebAssembly build validation via `.\build-web.ps1 -NoServe`.
+
+---
+
+### [2026-10-09] Consolidate Modular Nodes: Drop 'Daisy' Brand Prefix, Power Core Nodes with DaisySP & Unify Eatscript API (commit `7f81637`)
+- **Architectural Context**:
+  - Dropped third-party vendor prefixes (`daisysp::`, `Daisy*`) across C++ graph nodes and the Eatscript API manifest, exposing canonical musical concepts (`OscillatorNode`, `MoogFilterNode`, `ReverbNode`, `DelayNode`, `ChorusNode`, `CompressorNode`).
+  - Upgraded core audio nodes to internally encapsulate high-performance DaisySP DSP engines (`daisysp::Oscillator`, `daisysp::MoogLadder`/`daisysp::Svf`, `daisysp::ReverbSc`, `daisysp::DelayLine` + `daisysp::Tone`, `daisysp::Chorus`/`daisysp::Flanger`/`daisysp::Overdrive`, `daisysp::Compressor`) with pre-allocated static buffers and zero runtime memory allocations.
+  - Consolidated duplicate branches in `AudioEngine::rebuildTrackAudioFx` and `AudioEngine::setTrackAudioFxParam` while preserving legacy `Daisy*` aliases for backwards compatibility.
+- **Key Changes Implemented**:
+  - **Canonical C++ GraphNode Classes & Forwarding Aliases**:
+    - Created `include/eatsbeats/audio/graph/nodes/oscillator_node.hpp` and `src/audio/graph/nodes/oscillator_node.cpp` with `OscillatorNode` (PolyBLEP anti-aliased oscillator, 1V/Oct CV modulation).
+    - Created `include/eatsbeats/audio/graph/nodes/moog_filter_node.hpp` and `src/audio/graph/nodes/moog_filter_node.cpp` with `MoogFilterNode` (24dB resonant Moog ladder and SVF filters).
+    - Created `include/eatsbeats/audio/graph/nodes/reverb_node.hpp` and `src/audio/graph/nodes/reverb_node.cpp` with `ReverbNode` (stereo algorithmic plate/hall reverb).
+    - Upgraded `ChorusNode` (`include/eatsbeats/audio/graph/nodes/chorus_node.hpp`, `src/audio/graph/nodes/chorus_node.cpp`) powered by DaisySP Chorus, Flanger, and Overdrive.
+    - Upgraded `DelayNode` (`include/eatsbeats/audio/graph/nodes/delay_node.hpp`, `src/audio/graph/nodes/delay_node.cpp`) powered by DaisySP DelayLine and Tone filter.
+    - Upgraded `CompressorNode` (`include/eatsbeats/audio/graph/nodes/compressor_node.hpp`, `src/audio/graph/nodes/compressor_node.cpp`) powered by dual DaisySP Compressor engines with sidechain input support.
+    - Created `include/eatsbeats/audio/graph/nodes/modular_nodes.hpp` aggregating all canonical nodes, while keeping forwarding headers in `nodes/daisy/` to guarantee zero compilation breakages.
+  - **Clean Prefix-Free Eatscript API Manifest**:
+    - Updated `include/eatsbeats/eatscript/api_manifest.hpp` with canonical names: `eats.dsp.Oscillator`, `eats.dsp.MoogFilter`, `eats.fx.Reverb`, `eats.fx.Delay`, `eats.fx.Chorus`, `eats.fx.Compressor`, retaining legacy aliases (`Daisy*`).
+  - **AudioEngine Dispatch Consolidation**:
+    - Unified `AudioEngine::rebuildTrackAudioFx` and `AudioEngine::setTrackAudioFxParam` to instantiate and parameterize canonical nodes without redundant duplicate branches.
+  - **Automated Verification**:
+    - Updated `tests/test_daisysp_nodes.cpp` verifying canonical nodes, parameter sweeps, and legacy aliases.
+    - 100% test pass on native desktop (49/49 test suites) and verified clean WebAssembly compilation via `.\build-web.ps1 -NoServe`.
+
+---
+
+### [2026-10-09] Modular Canvas VCV Rack & Cardinal Alignment: Open 2D Canvas, Freeform Drag & Drop, Zoom/Pan & Module Search Dialog (commit `560db9d`)
+- **Architectural Context**:
+  - Transformed the Design > Modular view from a rigid, static horizontal strip into an open, infinite 2D Eurorack rack canvas aligned with VCV Rack and Cardinal standards.
+  - Wired `ZoomPanPresenter` (`modularZoomPan_`) into `DesignView` to deliver 0.40x to 2.0x anchored zoom, middle-mouse and right-mouse drag canvas panning, and zoom hotkeys (`+`, `-`, `0`).
+  - Added multi-row standard 3U (380px) mounting rails with brushed metal finish, 1 HP (15px) screw hole patterns, power distribution bus bar channel with red stripe & 16-pin gold headers, and corner knurled thumbscrews.
+  - Implemented freeform module dragging across rows and horizontal positions with live 15px HP snap-to-grid on release and real-time catenary physics patch cable tracking.
+  - Upgraded `PluginSearchDialog` to support `PluginDialogMode::AddModule` with 22 Eurorack modules categorized across 5 categories (`VCO / Synths`, `Filters`, `Effects`, `Modulation & Dynamics`, `Utilities`), instantly instantiating modules under the cursor or in open rail slots.
+- **Key Changes Implemented**:
+  - **`PluginSearchDialog` AddModule Mode**:
+    - Expanded `PluginDialogMode` enum to include `AddModule`.
+    - Populated 22 Eurorack module library items with category tags, descriptions, and color styling.
+    - Implemented category tab filtering and instant module selection handling.
+  - **`DesignView` 2D Zoom, Pan, Drag & Rail Mechanics**:
+    - Embedded `ZoomPanPresenter modularZoomPan_` with uniform zoom limits (0.4x to 2.0x).
+    - Added freeform module dragging by banner/faceplate with drag offsets and 15px snap on release.
+    - Implemented multi-row 3U rail rendering, power bus ribbon cables, 16-pin gold headers, and corner thumbscrews.
+    - Added viewport scissor clipping (`pushScissor`/`popScissor`) to ensure infinite canvas elements remain neatly framed within the rack body.
+    - Dynamically transformed patch cable endpoints to follow dragged modules with organic catenary droop.
+    - Embedded `PluginSearchDialog moduleSearchDialog_` for adding modules via button, `Space`/`Enter` hotkeys, or canvas positions.
+  - **`GuiWindow` Integration**:
+    - Routed active plugin dialog checks to `modularDesignView_->getModuleSearchDialog()` when in Design view.
+  - **Automated Verification**:
+    - Expanded `tests/test_modular_ui.cpp` (`testDesignView`) verifying coordinate transforms, middle-drag panning, zoom bounds, freeform module dragging, HP snapping, and search dialog module insertion.
+    - Verified 100% test pass on native desktop (49/49 test suites via `.\build.ps1 -Test -NoRun`) and clean WebAssembly compilation (`.\build-web.ps1 -NoServe`).
+
+---
+
+### [2026-10-10] VCV Rack & Cardinal Rivet Snapping, Reversible Module Bumping & Native Pan/Zoom Controls (commit `a2884de`)
+- **Architectural Context**:
+  - Aligned modular canvas dragging behavior with physical hardware racks and VCV Rack / Cardinal paradigms.
+  - Movement strictly locks to discrete rivet hole increments ($1\,\text{HP} = 15\,\text{px}$) instead of continuous pixels, giving a tactile hardware rack feel and ignoring sub-HP jitter.
+  - Implemented reversible $O(N)$ module bumping: taking a snapshot of all module positions at drag start, automatically shifting overlapping modules left or right based on approach trajectory and non-overlapping intervals, and cleanly restoring initial positions if the dragged module is returned to its starting location.
+  - Enabled desktop native middle-mouse button dragging (`PointerButton::Middle`) for 2D canvas panning and `Ctrl+mousewheel` for cursor-anchored zoom in/out with smooth clamping ($0.40\times$ to $2.0\times$), while preserving bare mousewheel for canvas navigation.
+- **Key Changes Implemented**:
+  - **`GuiWindow` Middle Click Routing**:
+    - Added `button == 2` dispatch in `GuiWindow::onMouseDown` to route `PointerAction::Down` with `PointerButton::Middle` into `modularDesignView_` and `modularArrangerView_`.
+  - **`DesignView` Rivet Snapping & Reversible Bumping**:
+    - Defined Eurorack constants: `kHpWidth = 15.0f`, `kRowHeight = 380.0f`, `kModuleTopRailOffset = 26.0f`.
+    - Captured `initialModuleStates_` snapshot on drag start.
+    - Added `applyModuleBumping(draggedIdx, targetRow, targetHp)` resolving left and right non-overlapping packing partitions.
+    - Updated `renderModularRack()` to draw threaded rivet holes on rails every 1 HP ($15\,\text{px}$) and aligned corner thumbscrews to rivet pitch ($7.5\,\text{px}$ offset).
+    - Updated `PointerAction::Scroll` to check `ev.mods.ctrl`: `Ctrl+wheel` zooms in/out anchored at cursor, bare wheel smoothly pans canvas.
+  - **Automated Verification**:
+    - Expanded `tests/test_modular_ui.cpp` (`testDesignView`) with tests for bare wheel panning, Ctrl+wheel zooming, sub-HP deadband, 1 HP discrete step dragging, neighbor bumping on collision, and complete initial position restoration upon return.
+    - 100% test pass on native desktop (49/49 test suites via `build.ps1 -Test -NoRun`) and verified clean WebAssembly compilation (`build-web.ps1 -NoServe`).
+
+---
+
+### [2026-10-11] Zero Per-Frame Heap Allocations in GUI Render Loop (commit `39deacb`)
+- **Architectural Context**:
+  - Eliminated all heap memory churn and dynamic allocations during live playback across all main workspace views (`Arranger`, `Mixer`, `Track Inspector`, `Design`).
+  - Replaced vector copying with lightweight `std::span` and non-owning views, transparent hash/equality `std::string_view` lookup for icon registries, and stack-buffered string formatters.
+- **Key Changes Implemented**:
+  - **`std::span` Model Passing**:
+    - Refactored `MixerView::syncFromWindow` and `TrackInspectorView::syncFromWindow` to accept `std::span<const ArrangerTrackData>` and `std::span<const float>` for audio peak meters, replacing per-frame vector copies.
+    - Updated audio scope buffer passing in `FullscreenDeviceModal`, `ModularDesignView`, and `ModularTrackInspectorView` to pass `std::span<const float>` directly into canvas rendering.
+  - **Zero-Allocation String & Text Rendering**:
+    - Updated `drawMonoText`, `drawMonoTextClipped`, and `drawTooltipBadge` in `include/eatsbeats/ui/draw_utils.hpp` and `src/ui/draw_utils.cpp` to take `std::string_view` parameters, eliminating temporary string construction across character clipping loops and label badges.
+    - Optimized `IconRegistry::renderIcon` with transparent hash/equality (`StringHash`) supporting `std::string_view` icon queries and mesh caching without constructing `std::string` keys.
+    - Replaced `std::filesystem::last_write_time` shader file polling in `DawnBridge` with Win32 `GetFileAttributesExA` / POSIX `stat` to eliminate CRT heap allocations during render loops.
+    - Converted dynamic string formatting (e.g. knobs, search placeholders, mode buttons, zoom percentages) in `DesignView`, `MixerView`, and `TrackPropertiesPanel` to `snprintf` with local stack buffers and `std::string_view`.
+  - **Automated Verification**:
+    - Added comprehensive regression test in `tests/test_gui_interaction.cpp` instrumenting global `operator new`/`delete` and verifying **0 heap allocations** over 20 consecutive rendered frames during live audio playback across Arranger, Mixer, Track Inspector, and Design views.
+    - 100% test pass across all 48 test suites in `ctest` with 0 memory churn.
+
+---
+
+### [2026-10-11] DAW-Standard Infinite Rotary Delta Drag & Fine Adjustment Modifiers (commit `a8ef98c`)
+- **Architectural Context**:
+  - Implemented DAW-standard relative rotary delta drag and gesture modifiers across the presenter layer, UI widgets, and views.
+  - Enabled virtual mouse capture without screen border clamping, restoring cursor to original coordinates on drag release.
+  - Standardized gesture modifiers: `Shift` for precision adjustment ($0.10\times$ sensitivity multiplier), `Ctrl` / `Cmd` + click for instant parameter default reset (unity 0 dB for volume/faders, center for pan, default for parameters), and double-click (<350ms, <6px) routing to `ValueEditDialog` for keyboard numeric entry.
+- **Key Changes Implemented**:
+  - **`ScalarDragPresenter` & Relative Delta Tracking**:
+    - Added `relativeMode`, `captureMouse`, and `defaultValue` to `ScalarDragConfig`.
+    - Implemented continuous delta accumulation in `onPointerMove`: accumulates `stepDx` and `stepDy` unbounded, clamping `accumulatedDelta_` to parameter boundaries to eliminate dead-zone lag on directional reversal.
+    - Added `onMouseCapture_` callback lifecycle: triggers on drag start, release, and cancel.
+    - Added `onPointerDown`: intercepts `Ctrl`/`Cmd` + click to restore defaults and detects double-clicks (<350ms) to trigger `onDoubleClicked_`.
+  - **`GuiWindow` Integration**:
+    - Connected `scalarDragPresenter_.setOnMouseCapture`: enables `GLFW_CURSOR_DISABLED` on drag start and restores `GLFW_CURSOR_NORMAL` with cursor repositioning via `glfwSetCursorPos` on drag release.
+    - Fixed delta calculation in `onMouseMove` so `mouseDx` and `mouseDy` are preserved and passed to `activeDragHandler_`.
+    - Wired `Ctrl`+click reset and relative capture configuration across Track Inspector, Arranger, Transport, and Audio Graph rack knobs.
+  - **`MixerView` & `TrackPropertiesPanel` Alignment**:
+    - Standardized fine drag sensitivity scaling to strictly $0.10\times$ with `Shift`.
+    - Wired `Ctrl`+click parameter resets on channel/master faders, pan knobs, and parametric EQ bands.
+    - Connected double-click gestures to `ValueEditDialog` in `TrackPropertiesPanel` and `MixerView`.
+  - **Widgets**:
+    - Updated `SkeuomorphicKnob` and `SkeuomorphicSlider` with `defaultNormValue`, `resetToDefault()`, and $0.10\times$ `Shift` fine sensitivity.
+  - **Automated Verification**:
+    - Added unit test `testInfiniteRotaryDeltaDragAndFineAdjustment()` in `tests/test_presenters.cpp` verifying relative deltas, unbounded motion, GLFW capture callbacks, shift modifier $0.10\times$ scaling, Ctrl+click reset, and double-click dispatch.
+    - 100% test pass across all 48 test suites in `ctest`.
+
+- **Item Completed**: "Add RAII Scissor Scope Management to `BatchRenderer2D`" (commit `f6d3139`, 2026-10-11)
+  - **Summary**:
+    - Implemented RAII `ScissorScope` within `BatchRenderer2D` providing automatic scope unwinding, nested clipping rectangle intersection, and exception safety.
+    - Eliminated manual, error-prone `pushScissor`/`popScissor` calls across views, drawers, dialogs, and text editor.
+    - Added helper `makeScissorScope(BatchRenderer2D&)` to `ScrollableArea` for concise RAII viewport clipping.
+  - **Key Changes Implemented**:
+    - **`BatchRenderer2D::ScissorScope`**:
+      - Supports constructors from `(BatchRenderer2D*, float, float, float, float)`, `(BatchRenderer2D*, const Rect2D&)`, and reference variants `(BatchRenderer2D&, ...)`.
+      - Provides full move semantics (`operator=`, move constructor) and early `reset()` capability.
+      - Integrated intersection computation in `pushScissor` ensuring child clip rectangles are bounded by parent scissor rectangles.
+      - Added `hasScissor()`, `getScissorDepth()`, `getActiveScissor()`, and `makeScissorScope` helper methods to `BatchRenderer2D`.
+    - **`ScrollableArea` Integration**:
+      - Added `makeScissorScope(BatchRenderer2D&)` returning `ScissorScope(r, viewportBounds_)`.
+    - **Refactored Scissor Call Sites**:
+      - `DesignView`: rack body infinite canvas clipping scoped via `ScissorScope`.
+      - `ArrangerMixerDrawer`: channels viewport scoped via `ScissorScope`.
+      - `IconSearchDialog`: icon grid bounds scoped via `ScissorScope`.
+      - `PluginSearchDialog`: search box query text and scrollable card list scoped via `ScissorScope`.
+      - `ThemeBrowserDialog`: theme cards area scoped via `ScissorScope`.
+      - `TrackPropertiesDrawer`: drawer content area scoped via `ScissorScope`.
+      - `TextEditorWidget`: active line highlight, text area, line number gutter, and accessory toolbar scoped via `ScissorScope`.
+    - **Automated Verification**:
+      - Added unit test `testScissorScopeNestedClippingAndRaii()` in `tests/test_ui_canvas.cpp` testing single scope push/pop, nested parent/child rectangle intersection, empty intersection handling, RAII automatic unwinding, move semantics, early `reset()`, and `ScrollableArea::makeScissorScope()`.
+      - 100% test pass across all 48 test suites in `ctest`.
+
+- **Item Completed**: "Implement Static Chrome Offscreen Texture (FBO) Caching" (commit `0f5d700`, 2026-10-11)
+  - **Summary**:
+    - Implemented static chrome offscreen texture / raster caching in `BatchRenderer2D` and `GuiWindow`.
+    - Static background chrome (top transport metal faceplate, machined bevels, hex fasteners, bottom navigation strip) is rendered once into an offscreen cache and restored in $O(1)$ block copies on subsequent frames, avoiding redundant procedural draw calls.
+    - Implemented dirty invalidation lifecycle automatically invalidating the chrome cache upon window resize, theme changes, view switches, side browser toggles, and modal openings.
+  - **Key Changes Implemented**:
+    - **`BatchRenderer2D` Chrome Backing Store & Blit Methods**:
+      - Added `snapshotFramebuffer`, `restoreFramebuffer`, and `restoreFramebufferRegion` to `IBatchRenderBackend` and implemented high-throughput CPU/GPU raster snapshotting in `FilamentBatchBackend`.
+      - Added `beginChromeRecording()`, `endChromeRecording()`, `drawCachedChrome()`, and `drawCachedChromeRegion()` to `BatchRenderer2D`.
+      - Added telemetry tracking `getChromeDrawCallsAvoided()` to monitor avoided draw calls.
+    - **`GuiWindow` Integration**:
+      - Implemented `renderStaticChrome()` to centralize static chrome rendering (machined plate, bevels, rivets, trenches).
+      - In `renderFrame()`: checks `isChromeCacheValid()`; records and snapshots chrome on cold frames, and executes instant blit on warm frames.
+      - In `drawTopTransportBar()`: blits `drawCachedChromeRegion(0, 0, 0, 0, width, 56.0f)` when cache is valid, bypassing redundant procedural chassis and bevel rendering.
+      - In bottom navigation strip: blits `drawCachedChromeRegion(0, chinTopY, 0, chinTopY, width, chinTotalH)`.
+    - **Dirty Invalidation Lifecycle**:
+      - Invalidation in `BatchRenderer2D::resize()` and `BatchRenderer2D::shutdown()`.
+      - Invalidation wired to `setActiveThemePreset()`, `setActiveView()`, `onWindowResize()`, `toggleBrowser()`, and `toggleProjectHub()`.
+    - **Automated Verification**:
+      - Added `testStaticChromeFboCachingAndVisualParity()` in `tests/test_gui_interaction.cpp` verifying standalone recording, cache validation metrics, visual parity (`std::memcmp == 0`), sub-region blitting, and lifecycle invalidation across resize, view, theme, and drawer events.
+- **Item Completed**: "Separate Tooltip Optical Domains and Render Top Panel Tooltips Above Elements" (commit `67357a7`, 2026-10-11)
+  - **Summary**:
+    - Resolved the visual boundary split where top panel tooltips were rendering downwards into the CRT cavity and workspace tooltips were projecting upwards across the 56px metal faceplate seam.
+    - Top transport bar tooltips now render floating directly *above* the transport elements, strictly within the 56px metal faceplate ($y \in [3.0, 54.0]$), with zero CRT distortion or scanline slicing.
+    - Implemented automatic domain boundary clamping and auto-flipping in `drawTooltipBadge` and `MixerView::renderTooltip`, ensuring DAW workspace tooltips flip below when near the top seam ($y < 58.0$) and flip above when near the bottom chin ($y > \text{height} - 51.0$).
+  - **Key Changes Implemented**:
+    - **`drawTooltipBadge` (`src/ui/draw_utils.cpp`, `include/eatsbeats/ui/draw_utils.hpp`)**:
+      - Added support for optical domain separation and explicit/implicit `minY`/`maxY` bounds.
+      - If `targetY < 50.0f` (Top Transport Bar domain): tooltips are clamped within `[3.0f, 54.0f - th]`, sitting cleanly above the buttons/dials.
+      - If `targetY >= 50.0f` (Central DAW Workspace domain): if `placeBelow = false` would cause `ty < 58.0f`, automatically flips downward to `targetY + 22.0f`. If `ty + th > maxY`, automatically flips upward.
+    - **`MixerView` (`src/ui/views/mixer_view.cpp`)**:
+      - Clamped and auto-flipped fader and pan tooltips inside $[58.0f, \text{effH} - 51.0f]$.
+    - **`GuiWindow` & `TransportHeader`**:
+      - Configured `drawTopTransportBar()` and `TransportHeader` to render tooltips with `placeBelow = false` and `targetY = 10.0f` inside the top metal faceplate.
+    - **Automated Verification**:
+      - Added unit test `testTooltipDomainClampingAndAutoFlipping()` in `tests/test_ui_canvas.cpp` verifying vertex bounds for top panel tooltips, top seam downward auto-flipping, and bottom chin upward auto-flipping.
+      - 100% test pass across all 48 test suites in `ctest`.
+- **Item Completed**: "Purge Dead NanoVG Engine & Decouple Legacy Backend Interfaces" (commit `b21c403`, 2026-10-15)
+  - **Summary**:
+    - Purged dead NanoVG C/H source files (`third_party/nanovg/nanovg.c`, `nanovg.h`) and removed the `third_party/nanovg/` folder from the repository.
+    - Decoupled FontStash and STB headers into standalone directories (`third_party/fontstash/` and `third_party/stb/`) with isolated C translation units (`fontstash.c`, `stb_image.c`).
+    - Renamed legacy `INanoVGBackend` to `IRenderBatchBackend` in `nanovg_backend.hpp` and `dawn_bridge.hpp`, maintaining backward compatibility aliases.
+    - Updated console startup banners and About modal text to reflect the native WebGPU / BatchRenderer2D architecture.
+  - **Key Changes Implemented**:
+    - **Build System (`CMakeLists.txt`)**: Replaced `third_party/nanovg` include directory with `third_party/fontstash` and `third_party/stb`; updated `eats_render_wgpu` sources.
+    - **Documentation (`README.md`)**: Updated directory architecture diagrams and interface descriptions.
+    - **Backend Interfaces (`nanovg_backend.hpp`, `dawn_bridge.hpp`)**: Renamed `INanoVGBackend` to `IRenderBatchBackend`, eliminating legacy naming cruft.
+    - **Automated Verification**: 100% build pass and 100% test pass (48/48 test suites) via `ctest`.
+- **Item Completed**: "Integrate FreeType and HarfBuzz into CMake Build Pipeline (Native + Wasm)" (commit `a1ae617`, 2026-10-15)
+  - **Summary**:
+    - Configured modern CMake `FetchContent` integration for FreeType (`VER-2-13-3`) and HarfBuzz (`10.1.0`) with minimal dependency flags (disabled brotli, bzip2, png, zlib, tests, and CLI utils) for rapid compilation and cross-platform native + WebAssembly support.
+    - Created `eats_text` static library target linking FreeType, HarfBuzz, and `eats_core`, exporting include directories to `include/eatsbeats/text`.
+    - Generated `embedded_fonts.hpp` embedding `ShareTechMono-Regular.ttf` (43,272 bytes) as binary byte array for zero-file-dependency execution on desktop and WebAssembly.
+    - Implemented and added automated unit smoke test `tests/test_text_shaping.cpp` (`TextShapingTest`), testing `FT_Init_FreeType`, memory font face instantiation, `hb_ft_font_create`, and HarfBuzz text shaping with uniform advances.
+    - Resolved pre-existing GUI render loop heap allocation regression in `BatchRenderer2D::drawFlutedRing` and `IconRegistry`, re-establishing 0 heap allocations across all DAW views during live playback in `test_gui_interaction`.
+  - **Key Changes Implemented**:
+    - **CMake Build System (`CMakeLists.txt`)**: Configured FreeType and HarfBuzz `FetchContent`, created `eats_text` library, linked into `eatsbeats_gui_core`, and registered `TextShapingTest`.
+    - **Embedded Font (`embedded_fonts.hpp`)**: Hex byte-array representation of `ShareTechMono-Regular.ttf` for standalone fallback.
+    - **Zero-Allocation Invariants (`batch_renderer_2d.cpp`, `icon_registry.cpp`)**: Converted quad-strip point generation in `drawFlutedRing` to zero-heap stream processing; cached contours in `IconRegistry` fallback path.
+- **Item Completed**: "Implement Modular `eatsbeats::text` Core (`FontManager`, `TextShaper`, and `GlyphAtlas`)" (commit `ee962ae`, 2026-10-15)
+  - **Summary**:
+    - Architected and implemented the core `eatsbeats::text` subsystem, providing modern FreeType font management, HarfBuzz text shaping, and a high-performance GPU texture atlas with subpixel positioning.
+    - Implemented `FontManager` with thread-safe font loading from disk and memory buffers, handle caching for `FT_Face` and `hb_font_t`, fallback font chaining, and embedded fallback font support.
+    - Implemented `TextShaper` with reusable `hb_buffer_t` instances for zero steady-state heap allocations, populating `ShapedRun` with UTF-8 byte offset cluster indices, subpixel offsets, advances, font IDs, and automated missing glyph fallback resolution.
+    - Implemented `GlyphAtlas` with 2D shelf/bin packing, 1px anti-bleed borders, LRU/frame timestamp caching, 4-bin horizontal subpixel fractional offsets (`0..3`), and dirty rectangle bounding box tracking for streaming to GPU backends.
+  - **Key Changes Implemented**:
+    - **`FontManager` (`include/eatsbeats/text/font_manager.hpp`, `src/text/font_manager.cpp`)**: Full FreeType library lifecycle, memory buffer lifetime management, fallback chains.
+    - **`TextShaper` (`include/eatsbeats/text/text_shaper.hpp`, `src/text/text_shaper.cpp`)**: HarfBuzz shaping, cluster byte offset mapping, missing glyph `.notdef` fallback delegation, `measureWidth` calculation.
+    - **`GlyphAtlas` (`include/eatsbeats/text/glyph_atlas.hpp`, `src/text/glyph_atlas.cpp`)**: Dynamic shelf bin packing, 4-bin quarter-pixel subpixel rasterization, dirty rectangle tracking, cache hit/miss statistics.
+    - **CMake Build System (`CMakeLists.txt`)**: Added `font_manager.cpp`, `text_shaper.cpp`, and `glyph_atlas.cpp` to the `eats_text` target.
+    - **Automated Verification**: Expanded `tests/test_text_shaping.cpp` with unit tests for `FontManager`, `TextShaper`, and `GlyphAtlas`; verified 100% pass across all 49 test suites via `ctest`.
+- **Item Completed**: "Migrate GUI Window & Drawing Utilities from FontStash to `eatsbeats::text`" (commit `be41290`, 2026-10-15)
+  - **Summary**:
+    - Completely replaced the legacy FontStash text rendering pipeline in `GuiWindow` and `draw_utils` with `eatsbeats::text` (`FontManager`, `TextShaper`, `GlyphAtlas`), backed by FreeType and HarfBuzz.
+    - Deleted the entire legacy `third_party/fontstash/` directory, saving 7,006 lines of code and removing interim C libraries.
+    - Updated `CMakeLists.txt` to remove `fontstash` static library target and linked `eats_text` directly into `eats_render_wgpu` and `eatsbeats_gui_core`.
+    - Maintained the zero-heap-allocation invariant during GUI steady-state rendering (`renderFrame()`) across all 4 DAW views during active playback by pre-allocating glyph storage, reusing HarfBuzz buffers, and batching quads via stack chunks into `BatchRenderer2D`.
+  - **Key Changes Implemented**:
+    - **`FontRendererState` (`gui_window.cpp`)**: Replaced FontStash context with `FontManager`, `TextShaper`, `GlyphAtlas`, and pre-allocated `ShapedRun` glyph buffer (`reserve(512)`).
+    - **Text Drawing Primitives (`draw_utils.cpp`, `draw_utils.hpp`)**: Refactored `drawVectorString`, `drawVectorStringCentered`, `drawSyntaxString`, and `drawMonoString` to shape text and stream textured quads (`VertexMode::FontAtlas`) in 64-glyph chunks into `BatchRenderer2D`. Baseline aligned accurately using `FT_Face::size->metrics.ascender`.
+    - **Legacy Code Purge (`third_party/fontstash/`, `CMakeLists.txt`)**: Removed `third_party/fontstash/` folder completely; updated build configuration.
+    - **Automated Verification**: Ran `test_gui_interaction`, verifying 0 allocations across 20 frames in all 4 DAW views; 100% test pass (49/49 test suites) via `ctest`.
+- **Item Completed**: "Implement Monospace Terminal Grid Invariants (Ligature Cell Slicing & Box Primitives)" (commit `81a0b16`, 2026-10-15)
+  - **Summary**:
+    - Architected and implemented `MonospaceGridLayout` for terminal (`eatsterm`) and code editor (`eatscode`), handling HarfBuzz and rule-based multi-cell ligature slicing, sub-ligature caret navigation, and analytical zero-seam vector quad rendering.
+    - Added `TextAttr::Continuation` attribute in `tui::types.hpp` and updated `TerminalGrid` with `sliceLigature`, `writeLigature`, `isContinuationCell`, `getCellSpan`, and UTF-8 multibyte codepoint streaming.
+    - Implemented analytical vector quad rendering (`VertexMode::Color` / `OpaqueMeshNoAA`) in `BatchRenderer2D::drawMonospaceCell` for all Unicode Box Drawing (`U+2500`–`U+257F`) and Block Elements (`U+2580`–`U+259F`), completely eliminating font-rounding pixel seams between adjacent cells.
+    - Verified 100% test pass across all 50 CTest test suites.
+  - **Key Changes Implemented**:
+    - **`MonospaceGridLayout` (`include/eatsbeats/text/monospace_grid_layout.hpp`, `src/text/monospace_grid_layout.cpp`)**: Ligature cell slicing into primary and continuation cells, `columnToByteOffset`, `byteOffsetToColumn`, and `hitTestColumn`.
+    - **`TerminalGrid` (`include/eatsbeats/terminal/terminal_grid.hpp`, `src/terminal/terminal_grid.cpp`)**: Added ligature slicing methods, continuation cell tracking, and UTF-8 multibyte stream parsing.
+    - **`BatchRenderer2D` (`include/eatsbeats/ui/batch_renderer_2d.hpp`, `src/ui/batch_renderer_2d.cpp`)**: Early exit on continuation cells (zero glyph overdraw); analytical mesh generation for all box drawing and block characters; exposed `isBoxDrawingOrBlock`.
+    - **Automated Verification**: Added `tests/test_terminal_grid.cpp` (`TerminalGridTest`) testing ligature slicing, caret hit testing, terminal dual buffers, and zero-seam geometry. Verified 100% pass across all 50 test suites via `ctest`.
+
+---
+
+## 5. Cruft Prevention & Code Hygiene Checklist
+
+- **No Monolithic Inlining**: Never add raw OpenGL/GLFW rendering blocks directly into `gui_window.cpp`. All view-specific rendering belongs in its respective `ViewBase` subclass.
+- **Single Source of Truth**: Keep track and clip definitions synchronized via the `ViewContext` and sequencer project data.
+- **Process Lock Protection**: Keep `build.ps1` equipped with automatic termination of active debug instances prior to MSVC linking to avoid `LNK1104`.
+- **Clean Repository Roots**: Keep test exports and logs out of git tracking via `.gitignore`.
+- **100% Test Pass Rate**: Run `ctest` across all 27 unit tests after any architectural migration.
+

@@ -1,0 +1,6 @@
+#ifndef EATS_DAISY_COMPRESSOR_NODE_HPP
+#define EATS_DAISY_COMPRESSOR_NODE_HPP
+
+#include "../compressor_node.hpp"
+
+#endif // EATS_DAISY_COMPRESSOR_NODE_HPP

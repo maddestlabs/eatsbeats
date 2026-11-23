@@ -1,0 +1,11 @@
+# @id: seq_snares
+# @name: Backbeat Snare
+# @category: midiSeq
+# @description: Standard backbeat acoustic/electronic snare hitting on beats 2 and 4.
+# @tags: snare, backbeat, drums, rhythm, 2-and-4
+
+-- Clip: "Backbeat Snare" | Events: 2
+-- Syntax: { pitch = "C4", step = 0.0, dur = 1.0, vel = 0.85, slide = true }
+
+{ pitch = "D2", step = 4.0, dur = 1.0, vel = 0.92, accent = true }
+{ pitch = "D2", step = 12.0, dur = 1.0, vel = 0.95, accent = true }

@@ -1,0 +1,96 @@
+# Eatsbeats Refinement & Fix Backlog
+
+This backlog powers the autonomous refinement workflow in Antigravity.
+You can add bugs, UI tweaks, DSP optimizations, and features below.
+
+> 📦 **Task Archive**: Completed tasks older than the 5 most recent are preserved in [TODO-ARCHIVE.md](file:///c:/git/eatsbeats/TODO-ARCHIVE.md) for historical context, architectural reference, and test recipes.
+
+To execute items automatically, run in Antigravity:
+```text
+/goal Work through the unchecked items in TODO.md using the todo-runner skill.
+```
+
+---
+
+## 🚀 Active Queue (Prioritized)
+
+<!-- Add your todo notes and improvements here. Items at the top are processed first. -->
+
+*All prioritized backlog tasks are complete! Add new items here to process in the autonomous refinement loop.*
+
+---
+
+## 🕒 Recent Completions (Reference Context)
+
+<!-- Keep the 5 most recent completed items here for immediate agent context; older items are archived in TODO-ARCHIVE.md -->
+
+- [x] **Cross-Platform Multi-Touch Architecture for Web and Desktop (Simultaneous Multi-Fader & Multi-Pan)** (2026-10-24)
+  - **Context/Files**: [include/eatsbeats/ui/views/mixer_view.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/views/mixer_view.hpp), [src/ui/views/mixer_view.cpp](file:///c:/git/eatsbeats/src/ui/views/mixer_view.cpp), [include/eatsbeats/ui/gui_window.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/gui_window.hpp), [src/ui/gui_window.cpp](file:///c:/git/eatsbeats/src/ui/gui_window.cpp), [web/index.html](file:///c:/git/eatsbeats/web/index.html), [tests/test_modular_ui.cpp](file:///c:/git/eatsbeats/tests/test_modular_ui.cpp)
+  - **Summary**:
+    1. **Web Multi-Touch Bridge (`web/index.html`)**: Added `setupMultiTouchBridge()` capturing W3C `PointerEvent`s (`pointerdown`, `pointermove`, `pointerup`, `pointercancel`) with `setPointerCapture`, `stopImmediatePropagation` (preventing Emscripten GLFW from collapsing multi-touch into a single jumping mouse cursor), and dispatching directly to WASM export `eats_on_web_touch_event`.
+    2. **MixerView Multi-Touch Engine (`mixer_view.hpp` / `.cpp`)**:
+       - Replaced single `activePanIndex_` with `activePanSessions_` (`std::unordered_map<int, ActivePanSession>`) matching `activeFaderSessions_`.
+       - Updated both `syncFromWindow` overloads to check `isFaderDragging(i)` and `isPanDragging(i)`, preventing active touches from being overwritten during audio engine parameter sync.
+       - Implemented independent per-pointer session movement and release for channel faders, master fader, channel pan knobs, and master pan knob.
+    3. **Desktop Windows Touch Engine (`gui_window.cpp`)**: Subclassed GLFW's Win32 `HWND` with `RegisterTouchWindow(hwnd, TWF_WANTPALM)` and `EatsbeatsTouchWndProc` intercepting `WM_POINTERDOWN`, `WM_POINTERUPDATE`, `WM_POINTERUP`, and `WM_POINTERCAPTURECHANGED` for touch/pen input while leaving mouse clicks on GLFW's WndProc.
+    4. **GUI Window Multi-Touch Routing (`gui_window.hpp` / `.cpp`)**: Implemented `onTouchDown`, `onTouchMove`, `onTouchUp`, `onTouchCancel`, and unified `onPointerEvent` routing directly into `MixerView`, removing legacy single-drag overrides.
+    5. **Verification**: Added `testMultiTouchMixer` in `tests/test_modular_ui.cpp` testing simultaneous multi-fader and multi-pan operations across multiple tracks without crosstalk. Compiled cleanly via `./build.ps1 -NoRun`.
+
+- [x] **Implement Eatscript Declarative Clay UI DSL & In-Memory Embedded Asset System** (2026-10-17)
+  - **Context/Files**: [eatscript-ui-blueprint.md](file:///c:/git/eatsbeats/eatscript-ui-blueprint.md), [include/eatsbeats/ui/base64.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/base64.hpp), [src/ui/base64.cpp](file:///c:/git/eatsbeats/src/ui/base64.cpp), [include/eatsbeats/ui/batch_renderer_2d.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/batch_renderer_2d.hpp), [src/ui/batch_renderer_2d.cpp](file:///c:/git/eatsbeats/src/ui/batch_renderer_2d.cpp), [include/eatsbeats/ui/clay/eatscript_clay_bridge.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/clay/eatscript_clay_bridge.hpp), [src/ui/clay/eatscript_clay_bridge.cpp](file:///c:/git/eatsbeats/src/ui/clay/eatscript_clay_bridge.cpp), [include/eatsbeats/ui/widgets/text_editor_widget.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/widgets/text_editor_widget.hpp), [src/ui/widgets/text_editor_widget.cpp](file:///c:/git/eatsbeats/src/ui/widgets/text_editor_widget.cpp), [tests/test_clay_layout.cpp](file:///c:/git/eatsbeats/tests/test_clay_layout.cpp)
+  - **Summary**:
+    1. **Base64 & Data URI Parser (`base64.hpp` / `base64.cpp`)**: High-performance 256-lookup-table Base64 encoder/decoder, RFC 2397 Data URI parser, and automated code generator.
+    2. **In-Memory Texture Loading & Filmstrip Rendering (`BatchRenderer2D`)**: Added `createTextureFromMemory` using `stbi_load_from_memory`, texture handle caching, `drawFilmstripFrame()`, and wired filmstrip texture rendering into `drawUnifiedKnob` and `drawUnifiedSlider`.
+    3. **Declarative Clay UI DSL (`eatscript_clay_bridge.hpp` / `.cpp`)**: Implemented `registerEatscriptUiModule`, exposing `ui.panel`, `ui.row`, `ui.column`, `ui.stack`, `ui.knob`, `ui.slider`, `ui.label`, `ui.badge`, `ui.meter`, `ui.spacer`, and `ui.loadTexture` to Eatscript. Added identifier keys in Eatscript dictionary literals and closure invocation.
+    4. **In-Editor Drag-and-Drop Embedding (`TextEditorWidget`)**: Added `handleFileDrop` and `embedAssetFromFile` to automatically convert dropped PNG/JPEG/QOI/WAV files into `const ASSET = "data:...;base64,..."` string literals.
+    5. **Automated Verification**: Added Test 11 to `tests/test_clay_layout.cpp` validating Base64 roundtrip, texture memory loading, nested declarative layout evaluation, node parameter binding, and Clay flexbox resolution. Verified 51/51 test suites pass in `ctest`.
+
+- [x] **Implement Monospace Terminal Grid Invariants (Ligature Cell Slicing & Box Primitives)** (commit `81a0b16`, 2026-10-15)
+  - **Context/Files**: [include/eatsbeats/text/monospace_grid_layout.hpp](file:///c:/git/eatsbeats/include/eatsbeats/text/monospace_grid_layout.hpp), [src/text/monospace_grid_layout.cpp](file:///c:/git/eatsbeats/src/text/monospace_grid_layout.cpp), [include/eatsbeats/terminal/terminal_grid.hpp](file:///c:/git/eatsbeats/include/eatsbeats/terminal/terminal_grid.hpp), [src/terminal/terminal_grid.cpp](file:///c:/git/eatsbeats/src/terminal/terminal_grid.cpp), [tests/test_terminal_grid.cpp](file:///c:/git/eatsbeats/tests/test_terminal_grid.cpp), [src/ui/batch_renderer_2d.cpp](file:///c:/git/eatsbeats/src/ui/batch_renderer_2d.cpp), [include/eatsbeats/ui/batch_renderer_2d.hpp](file:///c:/git/eatsbeats/include/eatsbeats/ui/batch_renderer_2d.hpp), [include/eatsbeats/tui/types.hpp](file:///c:/git/eatsbeats/include/eatsbeats/tui/types.hpp)
+  - **Acceptance Criteria**:
+    1. **Ligature Cell Slicing (`MonospaceGridLayout`)**:
+       - Implemented HarfBuzz and rule-based cell slicing in `MonospaceGridLayout`. When HarfBuzz collapses $N$ ASCII characters into a single compound ligature (e.g. `==` -> 2 cells, `===` -> 3 cells, `<!--` -> 4 cells), maps primary glyph to cell 0 and marks cells $1 \dots N-1$ as non-rendering continuation cells (`isContinuation = true`).
+       - Added `TextAttr::Continuation` attribute in `tui::types.hpp` and updated `TerminalGrid` with `sliceLigature`, `writeLigature`, `isContinuationCell`, and `getCellSpan`.
+    2. **Sub-Ligature Caret Navigation & Hit-Testing**:
+       - Implemented `columnToByteOffset` and `byteOffsetToColumn`, mapping cursor column indices directly to sub-character UTF-8 cluster byte offsets without breaking visual shaping.
+       - Implemented `hitTestColumn` with subpixel cell width clamping.
+    3. **Analytical Zero-Seam Box & Block Mesh Generation**:
+       - Implemented exact vector quad generation (`VertexMode::Color` / `OpaqueMeshNoAA`) in `BatchRenderer2D::drawMonospaceCell` covering all Unicode Box Drawing (`U+2500`–`U+257F`, including light, heavy, double, arc, and half lines) and Block Elements (`U+2580`–`U+259F`, including fractional 1/8 to 7/8 horizontal and vertical steps and quadrants).
+       - Connected adjacent cells with bit-accurate integer boundaries, completely eliminating font-rounding hairline seams.
+       - Early-exited glyph drawing on continuation cells to guarantee zero glyph overdraw.
+    4. **Automated Verification**:
+       - Added automated test suite `tests/test_terminal_grid.cpp` (`TerminalGridTest`) verifying cell slicing, caret hit-testing, terminal grid dual buffers, and zero-seam quad mesh generation.
+       - Verified 100% test pass (50/50 test suites) via `ctest`.
+
+## Planned / Up Next: CLAP Plugin Export & Hosting (See clap-blueprint.md)
+- [x] **Phase 1: Header-Only CLAP Shell Adapter & Static DSP Export Reference**
+  - Vendored official `clap/clap.h` (v1.2.10) C-ABI headers into `third_party/clap/include/clap/`.
+  - Implemented `include/eatsbeats/export/clap/clap_plugin_shell.hpp` template bridging `clap_plugin_t` to planar float buffers, sample-accurate note/parameter events, and state persistence with zero runtime memory allocations.
+  - Implemented `include/eatsbeats/export/clap/tb303_clap_adapter.hpp` exposing `Tb303Core` with 8 automatable parameters, bidirectional text formatting, and note-on/note-off dispatch with Roland glide and accents.
+  - Compiled self-contained reference `.clap` binary `eatsbeats_tb303.clap` (26 KB) via `src/export/clap/tb303_clap_plugin.cpp`.
+  - Verified with comprehensive automated test suite in `tests/test_clap_shell.cpp` (`ClapShellTest`), validating port descriptors, in-process block slicing, sample-accurate event timing, parameter automation sweep, state save/load roundtrips, and dynamic DSO runtime loading via `LoadLibraryA`.
+- [x] **Phase 2: API Dependency Manifest & AST Tree-Shaking Scanner**
+  - Defined declarative `include/eatsbeats/eatscript/api_manifest.hpp` mapping modules (`eats.dsp.*`, `eats.fx.*`) to exact C++ headers and types.
+  - Upgraded `DependencyScanner` with AST traversal, comment directive harvesting (`# @id`, `# @name`, `# @engine`, etc.), symbol dependency resolution, and `generateClapParamDefs()`.
+  - Added automated test suite `tests/test_dispatch_scanner.cpp` (`DispatchScannerTest`), validating 100% detection and reflection.
+- [x] **Phase 3: Eatscript AOT Transpiler CLAP Target & CLI Export**
+  - Extended `Transpiler` with `emitClapPluginEntry()` and `transpileClap()`, generating standalone C++ compilation units embedding `ClapPluginShell<GeneratedPatchAdapter>`.
+  - Added CLI `export --format=clap <script.eats> -o <output.clap>` to `eatscript_cli` producing micro-runtime `.clap` binaries (<200KB) with zero VM overhead.
+  - Added automated test suite `tests/test_clap_export.cpp` (`ClapExportTest`), validating AST math emission, native engine wrapping, CLI tool execution, parameter reflection, and dynamic host loading with audio block processing.
+- [x] **Phase 4: Desktop CLAP Host Node in AudioGraph**
+  - Implement `ClapAudioNode` for loading 3rd-party instruments/FX into track mixer channels.
+  - Connect to `PluginSearchDialog` and support floating native OS windows and generic parameter inspector.
+  - Verified Cardinal & DPF plugin GUI lifecycle, Win32 embedded container docking, UI timer dispatch, and crash-resilient SEH wrappers.
+- [x] **Phase 5: Cross-Platform CLAP GUI Export & Micro-Runtime Faceplate (See CLAP-EXPORT.md)**
+  - Implemented `IPluginGui` interface and `PuglBridge` in `include/eatsbeats/export/clap/gui/pugl_bridge.hpp` and `src/export/clap/gui/pugl_bridge.cpp` with native child window embedding (`WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN`), off-window mouse capture, high-DPI scaling, and Cocoa/X11 hooks.
+  - Implemented `SoftwareCanvas` (`software_canvas.hpp`/`.cpp`) for analytical vector rasterization with sub-pixel antialiasing, brushed aluminum procedural chassis, knurled fluted rotors, and embedded silkscreen typography.
+  - Implemented universal `InstrumentFaceplate` (`instrument_faceplate.hpp`/`.cpp`) and `InstrumentGuiDesc` (`instrument_gui_desc.hpp`) faithfully replicating Eatsbeats' `def gui()` hardware layout (panel title, subtitle, rows, potentiometer knobs, selectors, switches, and dividers).
+  - Configured `Eats303ClapAdapter` (`eats303_clap_adapter.hpp`) exposing all 12 parameters matching `presets/instruments/eats_303.eats` 1:1, under official plugin identifier `com.maddestlabs.eatsbeats.eats303`.
+  - Fixed audio note sliding bug in `ClapPluginShell`: eradicated false `isSlide = isActive()` checks that caused trailing notes to bend without retriggering envelopes, restoring clean, punchy acid attacks for every note.
+  - Integrated bi-directional parameter automation and lock-free thread safety with `std::atomic<float>` in `Eats303ClapAdapter`, UI `request_flush()` dispatch, and 60 Hz UI timer sync.
+  - Verified standalone compilation: builds razor-sharp 80 KB self-contained `.clap` dynamic module `build/Release/eatsbeats_eats303.clap` (and `eatsbeats_tb303.clap`) with zero external runtime dependencies.
+- [x] **Phase 6: AOT GUI Transpilation & In-DAW Export Pipeline**
+  - Updated `Transpiler::emitClapPluginEntry` and `Transpiler::transpileClap` to emit `InstrumentGuiDesc`, `hasCustomGui()`, and `createGui()` for any Eatscript instrument (2-row authentic Eats-303 layout and auto-grouped rows for generic patches).
+  - Updated `eatscript_cli export --format=clap` to automatically compile vector GUI sources (`software_canvas.cpp`, `instrument_faceplate.cpp`, `pugl_bridge.cpp`) and link system OS windowing (`user32 gdi32`).
+  - Added an in-DAW **`[EXPORT CLAP]`** button directly into the `DesignView` workbench header alongside `[APPLY]`, triggering `DesignView::exportCurrentInstrumentToClap()`.
+  - Registered Command Palette shortcut (`Ctrl+Shift+E` / `"action.export_instrument_clap"`) for one-click native plugin export directly inside the DAW.

@@ -1,0 +1,138 @@
+#include "eatsbeats/ui/svg_path.hpp"
+#include <iostream>
+#include <cassert>
+#include <cmath>
+
+using namespace eatsbeats::ui;
+
+void testBasicPathParsing() {
+    std::cout << "[Test] Parsing basic SVG path lines and rects...\n";
+    const char* lineSvg = "M 10 10 L 50 10 L 50 50 L 10 50 Z";
+    SvgPath path = SvgPath::parse(lineSvg);
+
+    assert(!path.empty());
+    assert(path.getContours().size() == 1);
+    assert(path.getContours()[0].size() >= 4);
+
+    const auto& b = path.getBounds();
+    assert(std::abs(b.minX - 10.0f) < 1e-3f);
+    assert(std::abs(b.minY - 10.0f) < 1e-3f);
+    assert(std::abs(b.maxX - 50.0f) < 1e-3f);
+    assert(std::abs(b.maxY - 50.0f) < 1e-3f);
+    assert(std::abs(b.width() - 40.0f) < 1e-3f);
+    assert(std::abs(b.height() - 40.0f) < 1e-3f);
+
+    std::cout << " -> Passed basic path parsing and bounds verification.\n";
+}
+
+void testCurvesAndArcs() {
+    std::cout << "[Test] Parsing cubic beziers and elliptical arcs...\n";
+    // Circle via arcs
+    const char* arcCircleSvg = "M 100 50 A 50 50 0 1 0 200 50 A 50 50 0 1 0 100 50 Z";
+    SvgPath arcPath = SvgPath::parse(arcCircleSvg);
+
+    assert(!arcPath.empty());
+    const auto& b = arcPath.getBounds();
+    assert(b.width() > 80.0f && b.width() <= 110.0f);
+    assert(b.height() > 80.0f && b.height() <= 110.0f);
+
+    // Cubic bezier
+    const char* cubicSvg = "M 0 0 C 10 20 30 20 40 0 Z";
+    SvgPath cubicPath = SvgPath::parse(cubicSvg);
+    assert(!cubicPath.empty());
+    assert(cubicPath.getContours()[0].size() > 10);
+
+    std::cout << " -> Passed curve and arc parsing.\n";
+}
+
+void testTriangulation() {
+    std::cout << "[Test] Ear-clipping triangulation of polygon...\n";
+    const char* polySvg = "M 0 0 L 100 0 L 100 100 L 0 100 Z";
+    SvgPath path = SvgPath::parse(polySvg);
+
+    auto triangles = path.triangulate();
+    // A 4-vertex polygon produces 2 triangles = 6 vertices
+    assert(triangles.size() == 6);
+
+    std::cout << " -> Triangulation produced " << triangles.size() << " vertices (" << triangles.size() / 3 << " triangles).\n";
+}
+
+void testSoftwareRasterization() {
+    std::cout << "[Test] Anti-aliased scanline rasterization into RGBA buffer...\n";
+    const char* boxSvg = "M 10 10 L 90 10 L 90 90 L 10 90 Z";
+    SvgPath path = SvgPath::parse(boxSvg);
+
+    const int w = 64;
+    const int h = 64;
+    auto rgba = path.rasterize(w, h, 0xFF00FFFF, true); // Cyan fill
+    assert(rgba.size() == static_cast<size_t>(w * h * 4));
+
+    // Center pixel should be filled
+    int centerIdx = ((h / 2) * w + (w / 2)) * 4;
+    assert(rgba[centerIdx + 3] > 200); // Alpha > 200
+    // Corner pixel (0, 0) should be transparent
+    assert(rgba[0 + 3] == 0);
+
+    std::cout << " -> Rasterized 64x64 RGBA buffer correctly verified.\n";
+}
+
+void testEatsbeatsLogoLayers() {
+    std::cout << "[Test] Verifying 100% pure-path Eatsbeats logo layers...\n";
+    auto layers = SvgLogo::getLayers();
+    assert(layers.size() == 3);
+
+    // Layer 1: Chassis
+    SvgPath chassis = SvgPath::parse(layers[0].path);
+    auto chassisTris = chassis.triangulate();
+    std::cout << "Chassis bounds: [" << chassis.getBounds().minX << ", " << chassis.getBounds().minY
+              << " to " << chassis.getBounds().maxX << ", " << chassis.getBounds().maxY << "], contours="
+              << chassis.getContours().size() << ", triangles=" << chassisTris.size() / 3 << "\n";
+
+    // Layer 2: Monster head + bits
+    SvgPath monster = SvgPath::parse(layers[1].path);
+    auto monsterTris = monster.triangulate();
+    std::cout << "Monster bounds: [" << monster.getBounds().minX << ", " << monster.getBounds().minY
+              << " to " << monster.getBounds().maxX << ", " << monster.getBounds().maxY << "], contours="
+              << monster.getContours().size() << ", triangles=" << monsterTris.size() / 3 << "\n";
+
+    // Layer 3: Eye
+    SvgPath eye = SvgPath::parse(layers[2].path);
+    auto eyeTris = eye.triangulate();
+    std::cout << "Eye bounds: [" << eye.getBounds().minX << ", " << eye.getBounds().minY
+              << " to " << eye.getBounds().maxX << ", " << eye.getBounds().maxY << "], contours="
+              << eye.getContours().size() << ", triangles=" << eyeTris.size() / 3 << "\n";
+
+    // Vector triangulation verification for all layers
+    size_t totalTris = chassisTris.size() + monsterTris.size() + eyeTris.size();
+    assert(totalTris > 0);
+    std::cout << " -> Eatsbeats logo verified: 3 layers, " << totalTris / 3 << " total vector triangles.\n";
+}
+
+void testPlainLogoLayers() {
+    std::cout << "[Test] Verifying unboxed plain faceplate logo layers...\n";
+    auto plainLayers = SvgLogo::getPlainLayers();
+    assert(plainLayers.size() == 1);
+
+    SvgPath plainLogo = SvgPath::parse(plainLayers[0].path);
+    std::cout << "Plain logo bounds: [" << plainLogo.getBounds().minX << ", " << plainLogo.getBounds().minY
+              << " to " << plainLogo.getBounds().maxX << ", " << plainLogo.getBounds().maxY << "], contours="
+              << plainLogo.getContours().size() << "\n";
+    assert(plainLogo.getContours().size() == 4); // Head, Eye cutout, Bit 1, Bit 2
+
+    auto plainTris = plainLogo.triangulate();
+    assert(!plainTris.empty());
+    std::cout << " -> Plain logo verified: " << plainTris.size() / 3 << " vector triangles generated.\n";
+    assert(plainTris.size() / 3 > 30);
+}
+
+int main() {
+    std::cout << "=== Running Eatsbeats SvgPath Test Suite ===\n";
+    testBasicPathParsing();
+    testCurvesAndArcs();
+    testTriangulation();
+    testSoftwareRasterization();
+    testEatsbeatsLogoLayers();
+    testPlainLogoLayers();
+    std::cout << "=== All SvgPath Tests Passed Successfully! ===\n";
+    return 0;
+}
