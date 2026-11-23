@@ -1,5 +1,5 @@
 // Eatsbeats Modular Workstation - Offline PWA Service Worker
-const CACHE_NAME = 'eatsbeats-pwa-v3';
+const CACHE_NAME = 'eatsbeats-pwa-v4';
 
 const PRECACHE_ASSETS = [
     './',
@@ -32,6 +32,10 @@ function ensureCoopCoepHeaders(response) {
     }
     if (!headers.get('Cross-Origin-Embedder-Policy')) {
         headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
+        modified = true;
+    }
+    if (!headers.get('Cross-Origin-Resource-Policy')) {
+        headers.set('Cross-Origin-Resource-Policy', 'same-origin');
         modified = true;
     }
 
@@ -128,7 +132,31 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Static assets (.wasm, .data, .js, .svg, .png, .ico, .json): Cache-first
+    // Core app binaries (.wasm, .data, .js): Network-first so deploys take effect immediately, falling back to cache offline
+    if (url.pathname.endsWith('.js') || url.pathname.endsWith('.wasm') || url.pathname.endsWith('.data')) {
+        event.respondWith(
+            fetch(request)
+                .then((networkResponse) => {
+                    if (networkResponse && networkResponse.ok) {
+                        const responseClone = networkResponse.clone();
+                        caches.open(CACHE_NAME).then((cache) => {
+                            cache.put(request, responseClone);
+                        });
+                    }
+                    return ensureCoopCoepHeaders(networkResponse);
+                })
+                .catch(async () => {
+                    const cachedResponse = await caches.match(request);
+                    if (cachedResponse) {
+                        return ensureCoopCoepHeaders(cachedResponse);
+                    }
+                    return new Response('Offline: asset not cached.', { status: 503 });
+                })
+        );
+        return;
+    }
+
+    // Static media/icons (.svg, .png, .ico, .json): Cache-first
     event.respondWith(
         caches.match(request).then((cachedResponse) => {
             if (cachedResponse) {
